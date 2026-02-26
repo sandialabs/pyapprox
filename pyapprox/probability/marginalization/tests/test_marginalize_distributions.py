@@ -4,12 +4,8 @@ Verifies that marginalizing copula and independent distributions
 recovers the correct lower-dimensional marginals.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.marginalize import (
     FunctionMarginalizer,
@@ -26,11 +22,7 @@ from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slow_test,
 )
 
@@ -62,17 +54,10 @@ def _make_quadrature_factory(domain, bkd, npoints=20):
     return TensorProductQuadratureFactory([npoints] * nvars, domain, bkd)
 
 
-class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+class TestMarginalizeDistributions:
 
     @slow_test
-    def test_copula_1d_marginal_recovery(self) -> None:
+    def test_copula_1d_marginal_recovery(self, bkd) -> None:
         """1D marginal of copula distribution = original marginal PDF.
 
         The copula does not change marginals, so integrating out the
@@ -80,7 +65,6 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         Absolute tolerance is used because at tail points the PDF is
         tiny and relative error from 2D quadrature is large.
         """
-        bkd = self._bkd
         dist, marginals, _ = _make_3d_copula_distribution(bkd)
         factory = _make_quadrature_factory(dist.domain(), bkd, npoints=40)
         marginalizer = FunctionMarginalizer(dist, factory, bkd)
@@ -94,13 +78,12 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
             bkd.assert_allclose(result, expected, atol=1e-5)
 
     @slow_test
-    def test_copula_2d_marginal_recovery(self) -> None:
+    def test_copula_2d_marginal_recovery(self, bkd) -> None:
         """2D marginal of 3D copula matches 2D copula with sub-correlation.
 
         For a Gaussian copula, the 2D marginal over variables (i, j)
         has a bivariate Gaussian copula with correlation rho_{ij}.
         """
-        bkd = self._bkd
         dist, marginals, Sigma = _make_3d_copula_distribution(bkd)
         factory = _make_quadrature_factory(dist.domain(), bkd, npoints=40)
         marginalizer = FunctionMarginalizer(dist, factory, bkd)
@@ -126,9 +109,8 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         expected = ref_dist.pdf(test_pts)
         bkd.assert_allclose(result, expected, rtol=1e-4)
 
-    def test_independent_joint_marginal_via_quadrature(self) -> None:
+    def test_independent_joint_marginal_via_quadrature(self, bkd) -> None:
         """IndependentJoint marginalized via quadrature matches product."""
-        bkd = self._bkd
         beta_0 = BetaMarginal(2.0, 6.0, bkd, lb=0.0, ub=1.0)
         beta_1 = BetaMarginal(6.0, 2.0, bkd, lb=0.0, ub=1.0)
         beta_2 = BetaMarginal(3.0, 5.0, bkd, lb=0.0, ub=1.0)
@@ -155,9 +137,8 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(result, expected, rtol=1e-10)
 
     @slow_test
-    def test_accuracy_scaling(self) -> None:
+    def test_accuracy_scaling(self, bkd) -> None:
         """Error decreases as quadrature points increase."""
-        bkd = self._bkd
         dist, marginals, _ = _make_3d_copula_distribution(bkd)
         test_pts = bkd.asarray(np.linspace(0.1, 0.9, 10).reshape(1, -1))
         expected = marginals[0].pdf(test_pts)
@@ -172,16 +153,5 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
             errors.append(float(np.max(np.abs(diff))))
 
         # Each refinement should reduce error
-        self.assertGreater(errors[0], errors[1])
-        self.assertGreater(errors[1], errors[2])
-
-
-class TestMarginalizeDistributionsNumpy(TestMarginalizeDistributions[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMarginalizeDistributionsTorch(TestMarginalizeDistributions[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert errors[0] > errors[1]
+        assert errors[1] > errors[2]

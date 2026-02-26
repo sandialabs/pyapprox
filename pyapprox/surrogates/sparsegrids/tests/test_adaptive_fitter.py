@@ -7,12 +7,10 @@ handles additive functions and variance-based refinement.
 Tests run on both NumPy and PyTorch backends.
 """
 
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.probability import UniformMarginal
@@ -48,11 +46,7 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_test_pce,
     get_required_sg_levels,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slow_test,
     slower_test,
 )
@@ -62,124 +56,93 @@ from pyapprox.util.test_utils import (
 # =============================================================================
 
 
-class TestAdaptiveFitter(Generic[Array], unittest.TestCase):
+class TestAdaptiveFitter:
     """Core tests for SingleFidelityAdaptiveSparseGridFitter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _make_fitter(
-        self, nvars: int = 2, max_level: int = 3
-    ) -> SingleFidelityAdaptiveSparseGridFitter[Array]:
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
+    def _make_fitter(self, bkd, nvars=2, max_level=3):
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=self._bkd)
-        return SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        return SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
-    def test_convergence_on_polynomial(self) -> None:
+    def test_convergence_on_polynomial(self, bkd) -> None:
         """Adaptive grid converges for polynomial target."""
-        fitter = self._make_fitter(nvars=2, max_level=3)
+        fitter = self._make_fitter(bkd, nvars=2, max_level=3)
 
-        def poly_func(samples: Array) -> Array:
+        def poly_func(samples):
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x**2 + y**2, (1, -1))
+            return bkd.reshape(x**2 + y**2, (1, -1))
 
         result = fitter.refine_to_tolerance(poly_func, tol=1e-12)
 
         np.random.seed(123)
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
         from pyapprox.probability import IndependentJoint
 
-        joint = IndependentJoint([marginal, marginal], self._bkd)
+        joint = IndependentJoint([marginal, marginal], bkd)
         test_pts = joint.rvs(20)
 
         expected = poly_func(test_pts)
         actual = result.surrogate(test_pts)
-        self._bkd.assert_allclose(actual, expected, rtol=1e-10)
+        bkd.assert_allclose(actual, expected, rtol=1e-10)
 
-    def test_3d_adaptive_grid(self) -> None:
+    @pytest.mark.slow_on("TorchBkd")
+    def test_3d_adaptive_grid(self, bkd) -> None:
         """3D adaptive grid converges for linear target."""
-        fitter = self._make_fitter(nvars=3, max_level=2)
+        fitter = self._make_fitter(bkd, nvars=3, max_level=2)
 
-        def linear_func(samples: Array) -> Array:
-            return self._bkd.reshape(
+        def linear_func(samples):
+            return bkd.reshape(
                 samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
             )
 
         result = fitter.refine_to_tolerance(linear_func, tol=1e-12)
 
-        test_pts = self._bkd.asarray([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
-        self._bkd.assert_allclose(
+        test_pts = bkd.asarray([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        bkd.assert_allclose(
             result.surrogate(test_pts), linear_func(test_pts), rtol=1e-10
         )
 
-    def test_result_is_adaptive_result(self) -> None:
+    def test_result_is_adaptive_result(self, bkd) -> None:
         """Result has AdaptiveSparseGridFitResult fields."""
-        fitter = self._make_fitter(nvars=2, max_level=2)
+        fitter = self._make_fitter(bkd, nvars=2, max_level=2)
 
-        def func(s: Array) -> Array:
-            return self._bkd.reshape(s[0, :] + s[1, :], (1, -1))
+        def func(s):
+            return bkd.reshape(s[0, :] + s[1, :], (1, -1))
 
         result = fitter.refine_to_tolerance(func, tol=1e-12)
 
-        self.assertIsInstance(result.surrogate, CombinationSurrogate)
-        self.assertIsInstance(result.nsamples, int)
-        self.assertGreater(result.nsamples, 0)
-        self.assertIsInstance(result.error, float)
-        self.assertIsInstance(result.nsteps, int)
-        self.assertIsInstance(result.converged, bool)
+        assert isinstance(result.surrogate, CombinationSurrogate)
+        assert isinstance(result.nsamples, int)
+        assert result.nsamples > 0
+        assert isinstance(result.error, float)
+        assert isinstance(result.nsteps, int)
+        assert isinstance(result.converged, bool)
 
-    def test_step_samples_values_pattern(self) -> None:
+    def test_step_samples_values_pattern(self, bkd) -> None:
         """Test the step_samples/step_values manual pattern."""
-        fitter = self._make_fitter(nvars=2, max_level=3)
+        fitter = self._make_fitter(bkd, nvars=2, max_level=3)
 
-        def func(s: Array) -> Array:
-            return self._bkd.reshape(s[0, :] ** 2 + s[1, :] ** 2, (1, -1))
+        def func(s):
+            return bkd.reshape(s[0, :] ** 2 + s[1, :] ** 2, (1, -1))
 
         # First step
         samples = fitter.step_samples()
-        self.assertIsNotNone(samples)
+        assert samples is not None
         values = func(samples)
         fitter.step_values(values)
 
         # Second step
         samples2 = fitter.step_samples()
-        self.assertIsNotNone(samples2)
+        assert samples2 is not None
         values2 = func(samples2)
         fitter.step_values(values2)
 
         # Should have a valid result
         result = fitter.result()
-        self.assertIsInstance(result.surrogate, CombinationSurrogate)
-
-
-class TestAdaptiveFitterNumpy(TestAdaptiveFitter[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveFitterTorch(TestAdaptiveFitter[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    @slow_test
-    def test_3d_adaptive_grid(self) -> None:
-        super().test_3d_adaptive_grid()
+        assert isinstance(result.surrogate, CombinationSurrogate)
 
 
 # =============================================================================
@@ -194,51 +157,28 @@ ADAPTIVE_CONFIGS = [
 ]
 
 
-class TestAdaptiveConvergence(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestAdaptiveConvergence(ParametrizedTestCase):
     """Parametrized convergence tests for adaptive fitter."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize("name,joint_config,max_level", ADAPTIVE_CONFIGS)
     def test_adaptive_converges_to_pce(
-        self, name: str, joint_config: str, max_level: int
+        self, name: str, joint_config: str, max_level: int, bkd
     ) -> None:
         """Adaptive grid converges to PCE for polynomial target."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, max_level, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, max_level, nqoi=1, bkd=bkd)
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
+        factories = create_basis_factories(joint.marginals(), bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=self._bkd)
-        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
-
-
-class TestAdaptiveConvergenceNumpy(TestAdaptiveConvergence[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveConvergenceTorch(TestAdaptiveConvergence[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
 
 
 # =============================================================================
@@ -246,60 +186,34 @@ class TestAdaptiveConvergenceTorch(TestAdaptiveConvergence[torch.Tensor]):
 # =============================================================================
 
 
-class TestAdaptiveMoments(Generic[Array], unittest.TestCase):
+class TestAdaptiveMoments:
     """Tests that adaptive SG mean/variance match PCE."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _build_converged_fitter(self, nqoi: int = 1):
+    def _build_converged_fitter(self, bkd, nqoi=1):
         """Build an adaptive fitter converged on a PCE target."""
-        joint = create_test_joint("2d_uniform", self._bkd)
-        pce = create_test_pce(joint, level=3, nqoi=nqoi, bkd=self._bkd)
+        joint = create_test_joint("2d_uniform", bkd)
+        pce = create_test_pce(joint, level=3, nqoi=nqoi, bkd=bkd)
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
+        factories = create_basis_factories(joint.marginals(), bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
-        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
         return result, pce
 
-    def test_adaptive_mean_matches_pce(self) -> None:
+    def test_adaptive_mean_matches_pce(self, bkd) -> None:
         """Adaptive SG mean matches PCE mean."""
-        result, pce = self._build_converged_fitter(nqoi=2)
-        self._bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
+        result, pce = self._build_converged_fitter(bkd, nqoi=2)
+        bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
 
-    def test_adaptive_variance_matches_pce(self) -> None:
+    def test_adaptive_variance_matches_pce(self, bkd) -> None:
         """Adaptive SG variance matches PCE variance."""
-        result, pce = self._build_converged_fitter(nqoi=2)
-        self._bkd.assert_allclose(
+        result, pce = self._build_converged_fitter(bkd, nqoi=2)
+        bkd.assert_allclose(
             result.surrogate.variance(), pce.variance(), rtol=1e-6
         )
-
-
-class TestAdaptiveMomentsNumpy(TestAdaptiveMoments[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveMomentsTorch(TestAdaptiveMoments[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
 
 
 # =============================================================================
@@ -328,22 +242,12 @@ ANISOTROPIC_CONFIGS = [
 ]
 
 
-class TestAdaptiveAnisotropicRecovery(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestAdaptiveAnisotropicRecovery(ParametrizedTestCase):
     """Tests that adaptive SG recovers anisotropic index sets.
 
     Requires nested quadrature (Leja or Clenshaw-Curtis) for stable
     hierarchical surpluses.
     """
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,max_levels_1d,total_degree,growth_type,basis_type",
@@ -358,41 +262,42 @@ class TestAdaptiveAnisotropicRecovery(
         total_degree,
         growth_type: str,
         basis_type: str,
+        bkd,
     ) -> None:
         """Adaptive SG recovers required subspaces without over-refinement."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         pce = create_anisotropic_pce(
-            joint, max_levels_1d, total_degree, nqoi=1, bkd=self._bkd
+            joint, max_levels_1d, total_degree, nqoi=1, bkd=bkd
         )
 
         pce_indices = pce.get_indices()
         max_total_degree = max(
-            int(self._bkd.to_numpy(self._bkd.sum(pce_indices[:, j])))
+            int(bkd.to_numpy(bkd.sum(pce_indices[:, j])))
             for j in range(pce_indices.shape[1])
         )
         max_level = max_total_degree + 2
 
         growth = GROWTH_RULES[growth_type]
-        factories = create_basis_factories(joint.marginals(), self._bkd, basis_type)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=self._bkd)
-        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        factories = create_basis_factories(joint.marginals(), bkd, basis_type)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=100)
 
         # Verify exact interpolation
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
         # Verify no over-refinement
-        required_sg = compute_required_sg_subspaces(pce_indices, growth, self._bkd)
+        required_sg = compute_required_sg_subspaces(pce_indices, growth, bkd)
         selected_sg = result.indices
         nvars = selected_sg.shape[0]
 
-        max_required = self._bkd.asarray(
+        max_required = bkd.asarray(
             [
-                int(self._bkd.to_numpy(self._bkd.max(required_sg[d, :])))
+                int(bkd.to_numpy(bkd.max(required_sg[d, :])))
                 for d in range(nvars)
             ]
         )
@@ -400,32 +305,9 @@ class TestAdaptiveAnisotropicRecovery(
         for j in range(selected_sg.shape[1]):
             sel_idx = selected_sg[:, j]
             for d in range(nvars):
-                sel_level = int(self._bkd.to_numpy(sel_idx[d]))
-                max_req = int(self._bkd.to_numpy(max_required[d]))
-                self.assertLessEqual(
-                    sel_level,
-                    max_req + 1,
-                    f"Over-refinement in dim {d}",
-                )
-
-
-class TestAdaptiveAnisotropicRecoveryNumpy(
-    TestAdaptiveAnisotropicRecovery[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveAnisotropicRecoveryTorch(
-    TestAdaptiveAnisotropicRecovery[torch.Tensor]
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+                sel_level = int(bkd.to_numpy(sel_idx[d]))
+                max_req = int(bkd.to_numpy(max_required[d]))
+                assert sel_level <= max_req + 1, f"Over-refinement in dim {d}"
 
 
 # =============================================================================
@@ -440,21 +322,11 @@ ADDITIVE_CONFIGS = [
 
 
 @slower_test
-class TestAdaptiveAdditiveRecovery(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestAdaptiveAdditiveRecovery(ParametrizedTestCase):
     """Tests that additive functions only refine 1D subspaces.
 
     Requires nested quadrature (Leja or CC) for stable surpluses.
     """
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,max_levels_1d,growth_type,basis_type",
@@ -467,54 +339,39 @@ class TestAdaptiveAdditiveRecovery(
         max_levels_1d: List[int],
         growth_type: str,
         basis_type: str,
+        bkd,
     ) -> None:
         """Additive function recovers 1D subspaces only."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_additive_pce(joint, max_levels_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_additive_pce(joint, max_levels_1d, nqoi=1, bkd=bkd)
 
         growth = GROWTH_RULES[growth_type]
         required_levels = get_required_sg_levels(max_levels_1d, growth)
         max_level = max(required_levels) + 2
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, basis_type)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=self._bkd)
-        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        factories = create_basis_factories(joint.marginals(), bkd, basis_type)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=100)
 
         # Verify exact interpolation
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
         # Verify structure: multi-dim subspaces should be level 1 only
         sg_indices = result.indices
         for j in range(sg_indices.shape[1]):
             idx = sg_indices[:, j]
-            nonzero_count = int(self._bkd.to_numpy(self._bkd.sum(idx > 0)))
+            nonzero_count = int(bkd.to_numpy(bkd.sum(idx > 0)))
             if nonzero_count >= 2:
                 active_levels = idx[idx > 0]
-                self.assertTrue(
-                    self._bkd.all_bool(active_levels == 1),
-                    f"Multi-dim subspace {self._bkd.to_numpy(idx)} "
-                    "has levels > 1 (over-refinement of cross-terms)",
+                assert bkd.all_bool(active_levels == 1), (
+                    f"Multi-dim subspace {bkd.to_numpy(idx)} "
+                    "has levels > 1 (over-refinement of cross-terms)"
                 )
-
-
-class TestAdaptiveAdditiveRecoveryNumpy(TestAdaptiveAdditiveRecovery[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveAdditiveRecoveryTorch(TestAdaptiveAdditiveRecovery[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
 
 
 # =============================================================================
@@ -522,78 +379,52 @@ class TestAdaptiveAdditiveRecoveryTorch(TestAdaptiveAdditiveRecovery[torch.Tenso
 # =============================================================================
 
 
-class TestAdaptiveVarianceRefinement(Generic[Array], unittest.TestCase):
+class TestAdaptiveVarianceRefinement:
     """End-to-end tests with VarianceChangeIndicator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_adaptive_with_variance_refinement(self) -> None:
+    def test_adaptive_with_variance_refinement(self, bkd) -> None:
         """Adaptive SG converges using variance-based refinement."""
-        joint = create_test_joint("2d_uniform", self._bkd)
-        pce = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint("2d_uniform", bkd)
+        pce = create_test_pce(joint, level=3, nqoi=1, bkd=bkd)
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
+        factories = create_basis_factories(joint.marginals(), bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
-        indicator = VarianceChangeIndicator(self._bkd)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
+        indicator = VarianceChangeIndicator(bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(
-            self._bkd, tp_factory, admis, error_indicator=indicator
+            bkd, tp_factory, admis, error_indicator=indicator
         )
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
-        self._bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
+        bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
+        bkd.assert_allclose(
             result.surrogate.variance(), pce.variance(), rtol=1e-6
         )
 
-    def test_variance_refinement_multi_qoi(self) -> None:
+    def test_variance_refinement_multi_qoi(self, bkd) -> None:
         """Variance refinement with multiple QoIs."""
-        joint = create_test_joint("2d_uniform", self._bkd)
-        pce = create_test_pce(joint, level=3, nqoi=2, bkd=self._bkd)
+        joint = create_test_joint("2d_uniform", bkd)
+        pce = create_test_pce(joint, level=3, nqoi=2, bkd=bkd)
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
+        factories = create_basis_factories(joint.marginals(), bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
-        indicator = VarianceChangeIndicator(self._bkd)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
+        indicator = VarianceChangeIndicator(bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(
-            self._bkd, tp_factory, admis, error_indicator=indicator
+            bkd, tp_factory, admis, error_indicator=indicator
         )
 
         result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
-
-
-class TestAdaptiveVarianceRefinementNumpy(TestAdaptiveVarianceRefinement[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveVarianceRefinementTorch(TestAdaptiveVarianceRefinement[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
+        bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
 
 
 # =============================================================================
@@ -601,37 +432,29 @@ class TestAdaptiveVarianceRefinementTorch(TestAdaptiveVarianceRefinement[torch.T
 # =============================================================================
 
 
-class TestAdaptiveRecoversIsotropic(Generic[Array], unittest.TestCase):
+class TestAdaptiveRecoversIsotropic:
     """Test that adaptive grid recovers same result as isotropic grid."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_recovers_isotropic(self) -> None:
+    def test_recovers_isotropic(self, bkd) -> None:
         """Adaptive fitter with MaxLevel recovers isotropic fitter result."""
         level = 2
-        joint = create_test_joint("2d_uniform", self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint("2d_uniform", bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
 
-        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
+        factories = create_basis_factories(joint.marginals(), bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
 
         # Build isotropic
-        iso_fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
+        iso_fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
         iso_samples = iso_fitter.get_samples()
         iso_result = iso_fitter.fit(pce(iso_samples))
 
         # Build adaptive with MaxLevel at same level
-        admis = MaxLevelCriteria(max_level=level, pnorm=1.0, bkd=self._bkd)
-        tp_factory2 = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=level, pnorm=1.0, bkd=bkd)
+        tp_factory2 = TensorProductSubspaceFactory(bkd, factories, growth)
         ada_fitter = SingleFidelityAdaptiveSparseGridFitter(
-            self._bkd, tp_factory2, admis
+            bkd, tp_factory2, admis
         )
         ada_result = ada_fitter.refine_to_tolerance(
             lambda s: pce(s), tol=1e-14, max_steps=50
@@ -640,42 +463,20 @@ class TestAdaptiveRecoversIsotropic(Generic[Array], unittest.TestCase):
         # Both should give same evaluation
         np.random.seed(42)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             ada_result.surrogate(test_pts),
             iso_result.surrogate(test_pts),
             rtol=1e-10,
         )
 
         # Same mean and variance
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             ada_result.surrogate.mean(),
             iso_result.surrogate.mean(),
             rtol=1e-10,
         )
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             ada_result.surrogate.variance(),
             iso_result.surrogate.variance(),
             rtol=1e-8,
         )
-
-
-class TestAdaptiveRecoversIsotropicNumpy(TestAdaptiveRecoversIsotropic[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveRecoversIsotropicTorch(TestAdaptiveRecoversIsotropic[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,33 +1,18 @@
 """Tests for KernelBasis."""
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestKernelBasis(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestKernelBasis:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_construction_and_shapes(self) -> None:
-        bkd = self._bkd
+    def test_construction_and_shapes(self, bkd) -> None:
         nvars = 1
         ncenters = 5
         kernel = SquaredExponentialKernel(
@@ -48,8 +33,7 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
             bkd.asarray([nvars]),
         )
 
-    def test_evaluate_shape(self) -> None:
-        bkd = self._bkd
+    def test_evaluate_shape(self, bkd) -> None:
         nvars = 1
         ncenters = 5
         npts = 10
@@ -74,9 +58,8 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
             bkd.asarray([ncenters]),
         )
 
-    def test_evaluate_values_1d(self) -> None:
+    def test_evaluate_values_1d(self, bkd) -> None:
         """Verify basis values match direct kernel evaluation."""
-        bkd = self._bkd
         lenscale = 0.5
         kernel = SquaredExponentialKernel(
             bkd.asarray([lenscale]),
@@ -102,9 +85,8 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_evaluate_2d(self) -> None:
+    def test_evaluate_2d(self, bkd) -> None:
         """Test with 2D kernel."""
-        bkd = self._bkd
         nvars = 2
         ncenters = 3
         npts = 4
@@ -139,9 +121,8 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
             bkd.asarray([ncenters]),
         )
 
-    def test_hyp_list_delegation(self) -> None:
+    def test_hyp_list_delegation(self, bkd) -> None:
         """Changing kernel length scale via hyp_list changes basis output."""
-        bkd = self._bkd
         kernel = SquaredExponentialKernel(
             bkd.asarray([1.0]),
             (0.01, 100.0),
@@ -162,39 +143,26 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
         diff = bkd.sum((vals_before - vals_after) ** 2)
         assert float(bkd.to_numpy(diff)) > 1e-6
 
-    def test_invalid_kernel_type(self) -> None:
-        with self.assertRaises(TypeError):
-            KernelBasis("not_a_kernel", self._bkd.asarray([[0.0]]))
+    def test_invalid_kernel_type(self, bkd) -> None:
+        with pytest.raises(TypeError):
+            KernelBasis("not_a_kernel", bkd.asarray([[0.0]]))
 
-    def test_invalid_centers_ndim(self) -> None:
-        bkd = self._bkd
+    def test_invalid_centers_ndim(self, bkd) -> None:
         kernel = SquaredExponentialKernel(
             bkd.asarray([1.0]),
             (0.1, 10.0),
             1,
             bkd,
         )
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             KernelBasis(kernel, bkd.asarray([0.0, 1.0]))
 
-    def test_invalid_centers_nvars(self) -> None:
-        bkd = self._bkd
+    def test_invalid_centers_nvars(self, bkd) -> None:
         kernel = SquaredExponentialKernel(
             bkd.asarray([1.0]),
             (0.1, 10.0),
             1,
             bkd,
         )
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             KernelBasis(kernel, bkd.asarray([[0.0, 1.0], [0.0, 1.0]]))
-
-
-class TestKernelBasisNumpy(TestKernelBasis[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestKernelBasisTorch(TestKernelBasis[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

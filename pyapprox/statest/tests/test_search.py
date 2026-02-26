@@ -1,10 +1,9 @@
 """Tests for unified multi-fidelity search."""
 
-import unittest
-from typing import Generic, Tuple
+from typing import Tuple
 
 import numpy as np
-import torch
+import pytest
 
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.variants import GISEstimator, GMFEstimator
@@ -17,27 +16,22 @@ from pyapprox.statest.search import (
     unified_search,
 )
 from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestUnifiedSearch(Generic[Array], unittest.TestCase):
+class TestUnifiedSearch:
     """Tests for unified_search."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self._bkd = TorchBkd()
         np.random.seed(42)
         self._stat, self._costs = self._create_stat_and_costs()
 
     def _create_stat_and_costs(
         self, nmodels: int = 3, nqoi: int = 1
-    ) -> Tuple[MultiOutputMean[Array], Array]:
+    ) -> Tuple[MultiOutputMean, ...]:
         """Create test statistic and costs."""
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
@@ -48,7 +42,7 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
                         corr = 0.9 ** abs(i - j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
-        stat: MultiOutputMean[Array] = MultiOutputMean(nqoi, self._bkd)
+        stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
@@ -62,12 +56,12 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         )
         result = unified_search(acv_search=acv_search, target_cost=1000.0)
 
-        self.assertIsInstance(result, UnifiedSearchResult)
-        self.assertEqual(result.best_family, EstimatorFamily.ACV)
-        self.assertIsNotNone(result.acv_result)
-        self.assertIsNone(result.groupacv_result)
-        self.assertIsNotNone(result.acv_objective)
-        self.assertIsNone(result.groupacv_objective)
+        assert isinstance(result, UnifiedSearchResult)
+        assert result.best_family == EstimatorFamily.ACV
+        assert result.acv_result is not None
+        assert result.groupacv_result is None
+        assert result.acv_objective is not None
+        assert result.groupacv_objective is None
 
     @slow_test
     def test_groupacv_only(self) -> None:
@@ -83,12 +77,12 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
             allow_failures=True,
         )
 
-        self.assertIsInstance(result, UnifiedSearchResult)
-        self.assertEqual(result.best_family, EstimatorFamily.GROUPACV)
-        self.assertIsNone(result.acv_result)
-        self.assertIsNotNone(result.groupacv_result)
-        self.assertIsNone(result.acv_objective)
-        self.assertIsNotNone(result.groupacv_objective)
+        assert isinstance(result, UnifiedSearchResult)
+        assert result.best_family == EstimatorFamily.GROUPACV
+        assert result.acv_result is None
+        assert result.groupacv_result is not None
+        assert result.acv_objective is None
+        assert result.groupacv_objective is not None
 
     @slow_test
     def test_both_families(self) -> None:
@@ -110,11 +104,9 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
             allow_failures=True,
         )
 
-        self.assertIn(
-            result.best_family, [EstimatorFamily.ACV, EstimatorFamily.GROUPACV]
-        )
-        self.assertIsNotNone(result.acv_result)
-        self.assertIsNotNone(result.groupacv_result)
+        assert result.best_family in [EstimatorFamily.ACV, EstimatorFamily.GROUPACV]
+        assert result.acv_result is not None
+        assert result.groupacv_result is not None
 
     def test_comparison_summary(self) -> None:
         """comparison_summary returns useful string."""
@@ -122,8 +114,8 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         result = unified_search(acv_search=acv_search, target_cost=1000.0)
 
         summary = result.comparison_summary()
-        self.assertIn("Best overall", summary)
-        self.assertIn("ACV best", summary)
+        assert "Best overall" in summary
+        assert "ACV best" in summary
 
     @slow_test
     def test_comparison_summary_both_families(self) -> None:
@@ -138,13 +130,13 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         )
 
         summary = result.comparison_summary()
-        self.assertIn("Best overall", summary)
-        self.assertIn("ACV best", summary)
-        self.assertIn("GroupACV best", summary)
+        assert "Best overall" in summary
+        assert "ACV best" in summary
+        assert "GroupACV best" in summary
 
     def test_no_search_raises(self) -> None:
         """Raises ValueError when no search provided."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             unified_search(target_cost=1000.0)
 
     def test_best_objective_is_float(self) -> None:
@@ -152,8 +144,8 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         acv_search = ACVSearch(self._stat, self._costs)
         result = unified_search(acv_search=acv_search, target_cost=1000.0)
 
-        self.assertIsInstance(result.best_objective, float)
-        self.assertIsInstance(result.acv_objective, float)
+        assert isinstance(result.best_objective, float)
+        assert isinstance(result.acv_objective, float)
 
     def test_equivalent_mfmc_covariances_match(self) -> None:
         """Test that equivalent MFMC configs produce same covariance at same allocation.
@@ -212,17 +204,3 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
 
         # Covariances should match exactly (same estimator structure)
         self._bkd.assert_allclose(acv_cov, groupacv_cov, rtol=1e-10)
-
-
-# Note: NumPy backend does not yet support gradient-based optimization.
-# Uncomment TestUnifiedSearchNumpy when optimization support is implemented.
-
-
-class TestUnifiedSearchTorch(TestUnifiedSearch[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

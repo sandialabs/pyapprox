@@ -4,12 +4,10 @@ Strategy: create a true MFNet with random coefficients, generate training
 data from it, then fit a fresh MFNet and verify predictions match.
 """
 
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.mfnets.edges import MFNetEdge
 from pyapprox.surrogates.mfnets.fitters.als_fitter import (
@@ -25,23 +23,19 @@ from pyapprox.surrogates.mfnets.nodes import (
     RootMFNetNode,
 )
 from pyapprox.surrogates.mfnets.registry import create_node_model
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slow_test,
     slower_test,
 )
 
 
 def _build_two_node_mfnet(
-    bkd: Backend[Array],
+    bkd,
     leaf_level: int = 3,
     scale_level: int = 1,
     delta_level: int = 3,
     seed: int = 0,
-) -> MFNet[Array]:
+) -> MFNet:
     """Build a 2-node MFNet with random coefficients."""
     np.random.seed(seed)
     leaf = create_node_model(
@@ -75,11 +69,11 @@ def _build_two_node_mfnet(
 
 
 def _build_blank_two_node_mfnet(
-    bkd: Backend[Array],
+    bkd,
     leaf_level: int = 3,
     scale_level: int = 1,
     delta_level: int = 3,
-) -> MFNet[Array]:
+) -> MFNet:
     """Build a 2-node MFNet with zero coefficients."""
     leaf = create_node_model(
         "basis_expansion", bkd, nvars=1, nqoi=1, max_level=leaf_level
@@ -102,8 +96,8 @@ def _build_blank_two_node_mfnet(
 
 
 def _generate_data(
-    net: MFNet[Array], bkd: Backend[Array], n_per_node: List[int], seed: int = 42
-) -> Any:
+    net: MFNet, bkd, n_per_node: List[int], seed: int = 42
+):
     """Generate noise-free training data from a true network."""
     np.random.seed(seed)
     samples_list = []
@@ -116,18 +110,10 @@ def _generate_data(
     return samples_list, values_list
 
 
-class TestRecovery(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestRecovery:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_als_recovers_two_node(self) -> None:
+    def test_als_recovers_two_node(self, bkd) -> None:
         """ALS should recover predictions for a 2-node network."""
-        bkd = self._bkd
         true_net = _build_two_node_mfnet(bkd, seed=10)
         samples, values = _generate_data(true_net, bkd, [30, 25])
 
@@ -142,9 +128,8 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(fit_out, true_out, atol=1e-6)
 
     @slower_test
-    def test_gradient_recovers_two_node(self) -> None:
+    def test_gradient_recovers_two_node(self, bkd) -> None:
         """Gradient fitter should recover predictions for a 2-node network."""
-        bkd = self._bkd
         true_net = _build_two_node_mfnet(bkd, seed=20)
         samples, values = _generate_data(true_net, bkd, [30, 25])
 
@@ -162,9 +147,9 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         fit_out = result.surrogate()(test_s)
         bkd.assert_allclose(fit_out, true_out, atol=1e-4)
 
-    def test_als_recovers_three_node_chain(self) -> None:
+    @pytest.mark.slow_on("TorchBkd")
+    def test_als_recovers_three_node_chain(self, bkd) -> None:
         """ALS on 3-node chain: leaf -> mid -> root."""
-        bkd = self._bkd
         np.random.seed(30)
 
         # True network
@@ -246,39 +231,17 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         fit_out = result.surrogate()(test_s)
         bkd.assert_allclose(fit_out, true_out, atol=1e-5)
 
-    def test_registry_list(self) -> None:
+    def test_registry_list(self, bkd) -> None:
         """Verify registry contains built-in models."""
         from pyapprox.surrogates.mfnets.registry import list_node_models
 
         models = list_node_models()
-        self.assertIn("basis_expansion", models)
-        self.assertIn("multiplicative_additive", models)
+        assert "basis_expansion" in models
+        assert "multiplicative_additive" in models
 
-    def test_registry_unknown_raises(self) -> None:
+    def test_registry_unknown_raises(self, bkd) -> None:
         """Verify unknown model name raises KeyError."""
         from pyapprox.surrogates.mfnets.registry import create_node_model
 
-        with self.assertRaises(KeyError):
-            create_node_model("nonexistent", self._bkd)
-
-
-# --- Concrete backend test classes ---
-
-
-class TestRecoveryNumpy(TestRecovery[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestRecoveryTorch(TestRecovery[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    @slow_test
-    def test_als_recovers_three_node_chain(self) -> None:
-        super().test_als_recovers_three_node_chain()
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+        with pytest.raises(KeyError):
+            create_node_model("nonexistent", bkd)

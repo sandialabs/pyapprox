@@ -1,11 +1,7 @@
 """Tests for SubdomainIntegralFunctional."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -24,149 +20,141 @@ from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestSubdomainIntegralFunctional:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
+    def _make_basis(self, bkd):
+        npts = 15
+        length = 2.0
+        nparams = 3
+        transform = AffineTransform1D((0.0, length), bkd)
+        mesh = TransformedMesh1D(npts, bkd, transform)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        phys_pts = mesh.points()[0, :]  # shape (npts,)
+        return basis, phys_pts, npts, length, nparams
 
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-        self._npts = 15
-        self._length = 2.0
-        self._nparams = 3
-        transform = AffineTransform1D((0.0, self._length), self._bkd)
-        mesh = TransformedMesh1D(self._npts, self._bkd, transform)
-        self._basis = ChebyshevBasis1D(mesh, self._bkd)
-        self._phys_pts = mesh.points()[0, :]  # shape (npts,)
-
-    def test_constant_function(self) -> None:
+    def test_constant_function(self, bkd) -> None:
         """Integral of c=1, u=1 over [0, L] gives L."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        state = bkd.ones((self._npts, 1))
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.ones((npts, 1))
+        param = bkd.zeros((nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[self._length]])
+        expected = bkd.asarray([[length]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
-    def test_polynomial_exactness(self) -> None:
+    def test_polynomial_exactness(self, bkd) -> None:
         """Integral of x^2 over [0, L] = L^3/3."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.reshape(phys_pts**2, (npts, 1))
+        param = bkd.zeros((nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[self._length**3 / 3.0]])
+        expected = bkd.asarray([[length**3 / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
-    def test_weighted_polynomial(self) -> None:
+    def test_weighted_polynomial(self, bkd) -> None:
         """Integral of c(x)*u(x) with c=x, u=x gives integral x^2 = L^3/3."""
-        bkd = self._bkd
-        coeff = self._phys_pts  # c(x) = x
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = phys_pts  # c(x) = x
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts, (self._npts, 1))  # u = x
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.reshape(phys_pts, (npts, 1))  # u = x
+        param = bkd.zeros((nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[self._length**3 / 3.0]])
+        expected = bkd.asarray([[length**3 / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
-    def test_linear_jacobian_constant(self) -> None:
+    def test_linear_jacobian_constant(self, bkd) -> None:
         """For linear integrand, state Jacobian is independent of state."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        param = bkd.zeros((self._nparams, 1))
-        state1 = bkd.zeros((self._npts, 1))
-        state2 = bkd.ones((self._npts, 1))
+        param = bkd.zeros((nparams, 1))
+        state1 = bkd.zeros((npts, 1))
+        state2 = bkd.ones((npts, 1))
         jac1 = func.state_jacobian(state1, param)
         jac2 = func.state_jacobian(state2, param)
         bkd.assert_allclose(jac1, jac2, atol=1e-15)
 
-    def test_subdomain_integration(self) -> None:
+    def test_subdomain_integration(self, bkd) -> None:
         """Integral of x^2 over [0.5, 1.5] = (1.5^3 - 0.5^3)/3."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             a_sub=0.5,
             b_sub=1.5,
             coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.reshape(phys_pts**2, (npts, 1))
+        param = bkd.zeros((nparams, 1))
         result = func(state, param)
         expected = bkd.asarray([[(1.5**3 - 0.5**3) / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-11)
 
-    def test_full_domain_default(self) -> None:
+    def test_full_domain_default(self, bkd) -> None:
         """None bounds give same result as explicit full domain bounds."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func_default = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
         func_explicit = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             a_sub=0.0,
-            b_sub=self._length,
+            b_sub=length,
             coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.reshape(phys_pts**2, (npts, 1))
+        param = bkd.zeros((nparams, 1))
         r1 = func_default(state, param)
         r2 = func_explicit(state, param)
         bkd.assert_allclose(r1, r2, atol=1e-12)
 
-    def test_nonlinear_integrand(self) -> None:
+    def test_nonlinear_integrand(self, bkd) -> None:
         """Nonlinear integrand g(u) = u^2 verified with DerivativeChecker."""
-        bkd = self._bkd
 
         def integrand(u, bkd):
             return u**2, 2.0 * u
 
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             integrand=integrand,
         )
-        param = bkd.zeros((self._nparams, 1))
+        param = bkd.zeros((nparams, 1))
 
         # Wrap for DerivativeChecker
         def fun(sample):
@@ -177,105 +165,87 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=1,
-            nvars=self._npts,
+            nvars=npts,
             fun=fun,
             jacobian=jac,
             bkd=bkd,
         )
         np.random.seed(42)
         state = bkd.reshape(
-            bkd.array(np.random.rand(self._npts) + 0.5),
-            (self._npts, 1),
+            bkd.array(np.random.rand(npts) + 0.5),
+            (npts, 1),
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state, direction=None, relative=True)[0]
-        self.assertLessEqual(checker.error_ratio(errors), 1e-6)
+        assert checker.error_ratio(errors) <= 1e-6
 
-    def test_nonlinear_value(self) -> None:
+    def test_nonlinear_value(self, bkd) -> None:
         """Integral of u^2 where u(x)=x gives integral x^4 = L^5/5."""
-        bkd = self._bkd
 
         def integrand(u, bkd):
             return u**2, 2.0 * u
 
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             integrand=integrand,
         )
         # u(x) = x^2, so g(u) = u^2 = x^4
-        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
-        param = bkd.zeros((self._nparams, 1))
+        state = bkd.reshape(phys_pts**2, (npts, 1))
+        param = bkd.zeros((nparams, 1))
         result = func(state, param)
         # integral x^4 dx from 0 to L = L^5/5
-        expected = bkd.asarray([[self._length**5 / 5.0]])
+        expected = bkd.asarray([[length**5 / 5.0]])
         bkd.assert_allclose(result, expected, atol=1e-11)
 
-    def test_protocol_compliance(self) -> None:
+    def test_protocol_compliance(self, bkd) -> None:
         """Satisfies ParameterizedFunctionalWithJacobianProtocol."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        self.assertIsInstance(func, ParameterizedFunctionalWithJacobianProtocol)
+        assert isinstance(func, ParameterizedFunctionalWithJacobianProtocol)
 
-    def test_validation_neither_provided(self) -> None:
+    def test_validation_neither_provided(self, bkd) -> None:
         """Raises ValueError if neither coefficient nor integrand given."""
-        bkd = self._bkd
-        with self.assertRaises(ValueError):
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        with pytest.raises(ValueError):
             SubdomainIntegralFunctional(
-                self._basis,
-                self._nparams,
+                basis,
+                nparams,
                 bkd,
             )
 
-    def test_validation_both_provided(self) -> None:
+    def test_validation_both_provided(self, bkd) -> None:
         """Raises ValueError if both coefficient and integrand given."""
-        bkd = self._bkd
-        with self.assertRaises(ValueError):
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        with pytest.raises(ValueError):
             SubdomainIntegralFunctional(
-                self._basis,
-                self._nparams,
+                basis,
+                nparams,
                 bkd,
-                coefficient=bkd.ones((self._npts,)),
+                coefficient=bkd.ones((npts,)),
                 integrand=lambda u, bkd: (u, bkd.ones_like(u)),
             )
 
-    def test_param_jacobian_is_zero(self) -> None:
+    def test_param_jacobian_is_zero(self, bkd) -> None:
         """Functional has no parameter dependence."""
-        bkd = self._bkd
-        coeff = bkd.ones((self._npts,))
+        basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
+        coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
-            self._basis,
-            self._nparams,
+            basis,
+            nparams,
             bkd,
             coefficient=coeff,
         )
-        state = bkd.ones((self._npts, 1))
-        param = bkd.ones((self._nparams, 1))
+        state = bkd.ones((npts, 1))
+        param = bkd.ones((nparams, 1))
         jac = func.param_jacobian(state, param)
-        expected = bkd.zeros((1, self._nparams))
+        expected = bkd.zeros((1, nparams))
         bkd.assert_allclose(jac, expected)
-
-
-class TestSubdomainIntegralFunctionalNumpy(
-    TestSubdomainIntegralFunctional[NDArray[Any]]
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSubdomainIntegralFunctionalTorch(
-    TestSubdomainIntegralFunctional[torch.Tensor]
-):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()

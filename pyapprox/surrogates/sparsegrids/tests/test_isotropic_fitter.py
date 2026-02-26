@@ -8,12 +8,10 @@ across different dimensions, basis types (Gauss, Leja, Clenshaw-Curtis,
 piecewise), and marginal distributions.
 """
 
-import unittest
-from typing import Any, Generic, List, Union
+from typing import List, Union
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.probability import (
@@ -54,11 +52,7 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_test_joint,
     create_test_pce,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import (  # noqa: F401
-    load_tests,
+from pyapprox.util.test_utils import (
     slow_test,
     slower_test,
     slowest_test,
@@ -166,12 +160,12 @@ MIXED_BASIS_INTEGRATION_CONFIGS = [
 
 
 def _create_fitter(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    basis_type: str = "gauss",
-    growth: Union[IndexGrowthRuleProtocol, None] = None,
-) -> IsotropicSparseGridFitter[Array]:
+    joint,
+    level,
+    bkd,
+    basis_type="gauss",
+    growth=None,
+):
     """Create fitter with specified basis type and optional growth rule."""
     factories = create_basis_factories(joint.marginals(), bkd, basis_type)
     if growth is None:
@@ -188,16 +182,16 @@ def _create_fitter(
 
 
 def _create_fitter_mixed(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    basis_types: List[str],
-) -> IsotropicSparseGridFitter[Array]:
+    joint,
+    level,
+    bkd,
+    basis_types,
+):
     """Create fitter with mixed basis types per dimension."""
     marginals = joint.marginals()
-    factories_list: List[BasisFactoryProtocol[Array]] = []
+    factories_list: List[BasisFactoryProtocol] = []
     for marginal, btype in zip(marginals, basis_types):
-        factory: BasisFactoryProtocol[Array]
+        factory: BasisFactoryProtocol
         if btype == "gauss":
             factory = GaussLagrangeFactory(marginal, bkd)
         elif btype == "leja":
@@ -223,19 +217,11 @@ def _create_fitter_mixed(
 # =============================================================================
 
 
-class TestIsotropicFitter(Generic[Array], unittest.TestCase):
+class TestIsotropicFitter:
     """Tests for IsotropicSparseGridFitter core functionality."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
     @slow_test
-    def test_interpolation(self) -> None:
+    def test_interpolation(self, bkd) -> None:
         """Test sparse grid interpolation via PCE with matching index set."""
         from scipy import stats
 
@@ -246,18 +232,18 @@ class TestIsotropicFitter(Generic[Array], unittest.TestCase):
 
         nvars = 2
         level = 3
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
 
-        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         pce = create_pce_from_marginals(
-            marginals, max_level=level, bkd=self._bkd, nqoi=1
+            marginals, max_level=level, bkd=bkd, nqoi=1
         )
         nterms = pce.nterms()
-        coefficients = self._bkd.asarray(
+        coefficients = bkd.asarray(
             [[0.5], [-0.3], [0.2], [0.1], [-0.15], [0.25]] + [[0.0]] * (nterms - 6)
         )
         pce.set_coefficients(coefficients[:nterms, :])
@@ -267,93 +253,75 @@ class TestIsotropicFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(values)
         surrogate = result.surrogate
 
-        uniform_marginal = ScipyContinuousMarginal(stats.uniform(-1, 2), self._bkd)
-        joint = IndependentJoint([uniform_marginal for _ in range(nvars)], self._bkd)
+        uniform_marginal = ScipyContinuousMarginal(stats.uniform(-1, 2), bkd)
+        joint = IndependentJoint([uniform_marginal for _ in range(nvars)], bkd)
         np.random.seed(42)
         test_pts = joint.rvs(20)
 
         sg_result = surrogate(test_pts)
         expected = pce(test_pts)
-        self._bkd.assert_allclose(sg_result, expected, rtol=1e-10)
+        bkd.assert_allclose(sg_result, expected, rtol=1e-10)
 
-    def test_smolyak_coefficients_sum(self) -> None:
+    def test_smolyak_coefficients_sum(self, bkd) -> None:
         """Test Smolyak coefficients sum to 1."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
 
         for level in [1, 2, 3]:
-            fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
+            fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
             samples = fitter.get_samples()
-            values = self._bkd.zeros((1, samples.shape[1]))
+            values = bkd.zeros((1, samples.shape[1]))
             result = fitter.fit(values)
 
             coefs = result.coefficients
-            self._bkd.assert_allclose(
-                self._bkd.asarray([float(self._bkd.sum(coefs))]),
-                self._bkd.asarray([1.0]),
+            bkd.assert_allclose(
+                bkd.asarray([float(bkd.sum(coefs))]),
+                bkd.asarray([1.0]),
             )
 
-    def test_result_nsamples(self) -> None:
+    def test_result_nsamples(self, bkd) -> None:
         """Test that result.nsamples equals number of unique samples."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=2)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=2)
 
         samples = fitter.get_samples()
-        values = self._bkd.zeros((1, samples.shape[1]))
+        values = bkd.zeros((1, samples.shape[1]))
         result = fitter.fit(values)
 
-        self.assertEqual(result.nsamples, samples.shape[1])
+        assert result.nsamples == samples.shape[1]
 
-    def test_surrogate_is_combination_surrogate(self) -> None:
+    def test_surrogate_is_combination_surrogate(self, bkd) -> None:
         """Test that result.surrogate is a CombinationSurrogate."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=2)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=2)
 
         samples = fitter.get_samples()
-        values = self._bkd.zeros((1, samples.shape[1]))
+        values = bkd.zeros((1, samples.shape[1]))
         result = fitter.fit(values)
 
-        self.assertIsInstance(result.surrogate, CombinationSurrogate)
+        assert isinstance(result.surrogate, CombinationSurrogate)
 
-    def test_indices_downward_closed(self) -> None:
+    def test_indices_downward_closed(self, bkd) -> None:
         """Test that result indices are downward closed."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=3)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=3)
 
         samples = fitter.get_samples()
-        values = self._bkd.zeros((1, samples.shape[1]))
+        values = bkd.zeros((1, samples.shape[1]))
         result = fitter.fit(values)
 
-        self.assertTrue(is_downward_closed(result.indices, self._bkd))
-
-
-class TestIsotropicFitterNumpy(TestIsotropicFitter[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestIsotropicFitterTorch(TestIsotropicFitter[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
+        assert is_downward_closed(result.indices, bkd)
 
 
 # =============================================================================
@@ -361,97 +329,71 @@ class TestIsotropicFitterTorch(TestIsotropicFitter[torch.Tensor]):
 # =============================================================================
 
 
-class TestFitterQuadrature(Generic[Array], unittest.TestCase):
+class TestFitterQuadrature:
     """Tests for mean/variance via IsotropicSparseGridFitter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _make_fitter(self, level: int) -> IsotropicSparseGridFitter[Array]:
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+    def _make_fitter(self, level, bkd):
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        return IsotropicSparseGridFitter(self._bkd, tp_factory, level)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        return IsotropicSparseGridFitter(bkd, tp_factory, level)
 
-    def test_mean_monomial_exact(self) -> None:
+    def test_mean_monomial_exact(self, bkd) -> None:
         """E[x^2 + y^2] = 2/3 on [-1,1]^2."""
-        fitter = self._make_fitter(level=2)
+        fitter = self._make_fitter(level=2, bkd=bkd)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x**2 + y**2, (1, -1))
+        values = bkd.reshape(x**2 + y**2, (1, -1))
         result = fitter.fit(values)
 
         mean = result.surrogate.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([2.0 / 3.0]), rtol=1e-12)
+        bkd.assert_allclose(mean, bkd.asarray([2.0 / 3.0]), rtol=1e-12)
 
-    def test_mean_mixed_monomial(self) -> None:
+    def test_mean_mixed_monomial(self, bkd) -> None:
         """E[x^2*y^2] = 1/9 on [-1,1]^2."""
-        fitter = self._make_fitter(level=3)
+        fitter = self._make_fitter(level=3, bkd=bkd)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x**2 * y**2, (1, -1))
+        values = bkd.reshape(x**2 * y**2, (1, -1))
         result = fitter.fit(values)
 
         mean = result.surrogate.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([1.0 / 9.0]), rtol=1e-12)
+        bkd.assert_allclose(mean, bkd.asarray([1.0 / 9.0]), rtol=1e-12)
 
-    def test_integration_symmetry_odd_function(self) -> None:
+    def test_integration_symmetry_odd_function(self, bkd) -> None:
         """Odd functions integrate to zero on symmetric domain."""
-        fitter = self._make_fitter(level=3)
+        fitter = self._make_fitter(level=3, bkd=bkd)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
 
-        values = self._bkd.reshape(x + y, (1, -1))
+        values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
-        self._bkd.assert_allclose(
-            result.surrogate.mean(), self._bkd.asarray([0.0]), atol=1e-14
+        bkd.assert_allclose(
+            result.surrogate.mean(), bkd.asarray([0.0]), atol=1e-14
         )
 
-    def test_variance_sum_function(self) -> None:
+    def test_variance_sum_function(self, bkd) -> None:
         """Var[x + y] = 2/3 on [-1,1]^2."""
-        fitter = self._make_fitter(level=2)
+        fitter = self._make_fitter(level=2, bkd=bkd)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x + y, (1, -1))
+        values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
 
         variance = result.surrogate.variance()
-        self._bkd.assert_allclose(variance, self._bkd.asarray([2.0 / 3.0]), rtol=1e-10)
+        bkd.assert_allclose(variance, bkd.asarray([2.0 / 3.0]), rtol=1e-10)
 
-    def test_variance_product_function(self) -> None:
+    def test_variance_product_function(self, bkd) -> None:
         """Var[x*y] = 1/9 on [-1,1]^2."""
-        fitter = self._make_fitter(level=2)
+        fitter = self._make_fitter(level=2, bkd=bkd)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x * y, (1, -1))
+        values = bkd.reshape(x * y, (1, -1))
         result = fitter.fit(values)
 
         variance = result.surrogate.variance()
-        self._bkd.assert_allclose(variance, self._bkd.asarray([1.0 / 9.0]), rtol=1e-10)
-
-
-class TestFitterQuadratureNumpy(TestFitterQuadrature[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterQuadratureTorch(TestFitterQuadrature[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
+        bkd.assert_allclose(variance, bkd.asarray([1.0 / 9.0]), rtol=1e-10)
 
 
 # =============================================================================
@@ -459,7 +401,7 @@ class TestFitterQuadratureTorch(TestFitterQuadrature[torch.Tensor]):
 # =============================================================================
 
 
-class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestFitterInterpolation(ParametrizedTestCase):
     """Parametrized exact interpolation tests.
 
     For each basis type (Gauss, Leja, CC) and each dimension/marginal combo,
@@ -467,26 +409,18 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
     level, then verifies interpolation is exact at random test points.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
     @parametrize(
         "name,joint_config,level",
         GAUSS_INTERPOLATION_CONFIGS,
     )
     @slow_test
     def test_gauss_interpolation(
-        self, name: str, joint_config: str, level: int
+        self, name: str, joint_config: str, level: int, bkd
     ) -> None:
         """Test Gauss quadrature fitter exactly interpolates PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "gauss")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "gauss")
 
         samples = fitter.get_samples()
         values = pce(samples)
@@ -495,17 +429,17 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
     @parametrize(
         "name,joint_config,level",
         LEJA_INTERPOLATION_CONFIGS,
     )
-    def test_leja_interpolation(self, name: str, joint_config: str, level: int) -> None:
+    def test_leja_interpolation(self, name: str, joint_config: str, level: int, bkd) -> None:
         """Test Leja quadrature fitter exactly interpolates PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "leja")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "leja")
 
         samples = fitter.get_samples()
         values = pce(samples)
@@ -514,18 +448,18 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
     @parametrize(
         "name,joint_config,level",
         CC_INTERPOLATION_CONFIGS,
     )
     @slower_test
-    def test_cc_interpolation(self, name: str, joint_config: str, level: int) -> None:
+    def test_cc_interpolation(self, name: str, joint_config: str, level: int, bkd) -> None:
         """Test Clenshaw-Curtis fitter exactly interpolates PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "clenshaw_curtis")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "clenshaw_curtis")
 
         samples = fitter.get_samples()
         values = pce(samples)
@@ -534,22 +468,7 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
-
-
-class TestFitterInterpolationNumpy(TestFitterInterpolation[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterInterpolationTorch(TestFitterInterpolation[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
 
 # =============================================================================
@@ -557,7 +476,7 @@ class TestFitterInterpolationTorch(TestFitterInterpolation[torch.Tensor]):
 # =============================================================================
 
 
-class TestFitterIntegration(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestFitterIntegration(ParametrizedTestCase):
     """Parametrized integration (mean) tests.
 
     For Lagrange-type bases (Gauss, Leja, CC), the PCE mean equals its
@@ -565,85 +484,62 @@ class TestFitterIntegration(Generic[Array], ParametrizedTestCase, unittest.TestC
     computes the exact mean.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
     @parametrize(
         "name,joint_config,level",
         GAUSS_INTEGRATION_CONFIGS,
     )
     def test_gauss_integration_mean(
-        self, name: str, joint_config: str, level: int
+        self, name: str, joint_config: str, level: int, bkd
     ) -> None:
         """Test Gauss quadrature mean equals PCE constant coefficient."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "gauss")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "gauss")
 
         samples = fitter.get_samples()
         values = pce(samples)
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        self._bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
+        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,level",
         LEJA_INTEGRATION_CONFIGS,
     )
     def test_leja_integration_mean(
-        self, name: str, joint_config: str, level: int
+        self, name: str, joint_config: str, level: int, bkd
     ) -> None:
         """Test Leja quadrature mean equals PCE constant coefficient."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "leja")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "leja")
 
         samples = fitter.get_samples()
         values = pce(samples)
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        self._bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
+        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,level",
         CC_INTEGRATION_CONFIGS,
     )
     def test_cc_integration_mean(
-        self, name: str, joint_config: str, level: int
+        self, name: str, joint_config: str, level: int, bkd
     ) -> None:
         """Test Clenshaw-Curtis quadrature mean equals PCE constant coeff."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "clenshaw_curtis")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "clenshaw_curtis")
 
         samples = fitter.get_samples()
         values = pce(samples)
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        self._bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
-
-
-class TestFitterIntegrationNumpy(TestFitterIntegration[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterIntegrationTorch(TestFitterIntegration[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
 
 
 # =============================================================================
@@ -651,16 +547,8 @@ class TestFitterIntegrationTorch(TestFitterIntegration[torch.Tensor]):
 # =============================================================================
 
 
-class TestFitterMultiQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestFitterMultiQoI(ParametrizedTestCase):
     """Multi-QoI interpolation tests using IsotropicSparseGridFitter."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,level,nqoi",
@@ -668,12 +556,12 @@ class TestFitterMultiQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase
     )
     @slowest_test
     def test_multi_qoi_interpolation(
-        self, name: str, joint_config: str, level: int, nqoi: int
+        self, name: str, joint_config: str, level: int, nqoi: int, bkd
     ) -> None:
         """Test multi-QoI fitter exactly interpolates PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_test_pce(joint, level, nqoi=nqoi, bkd=self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, "gauss")
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_test_pce(joint, level, nqoi=nqoi, bkd=bkd)
+        fitter = _create_fitter(joint, level, bkd, "gauss")
 
         samples = fitter.get_samples()
         values = pce(samples)
@@ -685,23 +573,8 @@ class TestFitterMultiQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase
         sg_result = surrogate(test_pts)
         expected = pce(test_pts)
 
-        self.assertEqual(sg_result.shape[0], nqoi)
-        self._bkd.assert_allclose(sg_result, expected, rtol=1e-10)
-
-
-class TestFitterMultiQoINumpy(TestFitterMultiQoI[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterMultiQoITorch(TestFitterMultiQoI[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert sg_result.shape[0] == nqoi
+        bkd.assert_allclose(sg_result, expected, rtol=1e-10)
 
 
 # =============================================================================
@@ -709,18 +582,8 @@ class TestFitterMultiQoITorch(TestFitterMultiQoI[torch.Tensor]):
 # =============================================================================
 
 
-class TestFitterPiecewiseInterpolation(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestFitterPiecewiseInterpolation(ParametrizedTestCase):
     """Piecewise interpolation tests: convergence on smooth functions."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,level,basis_type,tol",
@@ -733,11 +596,12 @@ class TestFitterPiecewiseInterpolation(
         level: int,
         basis_type: str,
         tol: float,
+        bkd,
     ) -> None:
         """Test piecewise fitter achieves expected interpolation error."""
-        joint = create_test_joint(joint_config, self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, basis_type)
-        test_func = create_smooth_test_function(joint, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        fitter = _create_fitter(joint, level, bkd, basis_type)
+        test_func = create_smooth_test_function(joint, bkd)
 
         samples = fitter.get_samples()
         values = test_func(samples)
@@ -747,11 +611,11 @@ class TestFitterPiecewiseInterpolation(
         np.random.seed(123)
         test_pts = joint.rvs(50)
         error = float(
-            self._bkd.to_numpy(
-                self._bkd.max(self._bkd.abs(surrogate(test_pts) - test_func(test_pts)))
+            bkd.to_numpy(
+                bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts)))
             )
         )
-        self.assertLess(error, tol)
+        assert error < tol
 
     @parametrize(
         "name,basis_type,expected_min_ratio",
@@ -763,16 +627,16 @@ class TestFitterPiecewiseInterpolation(
     )
     @slower_test
     def test_piecewise_convergence_rate(
-        self, name: str, basis_type: str, expected_min_ratio: float
+        self, name: str, basis_type: str, expected_min_ratio: float, bkd
     ) -> None:
         """Test piecewise convergence rates O(h^p)."""
-        joint = create_test_joint("2d_uniform", self._bkd)
-        test_func = create_smooth_test_function(joint, self._bkd)
+        joint = create_test_joint("2d_uniform", bkd)
+        test_func = create_smooth_test_function(joint, bkd)
 
         level1, level2 = 5, 6
         errors = []
         for level in [level1, level2]:
-            fitter = _create_fitter(joint, level, self._bkd, basis_type)
+            fitter = _create_fitter(joint, level, bkd, basis_type)
             samples = fitter.get_samples()
             result = fitter.fit(test_func(samples))
             surrogate = result.surrogate
@@ -780,39 +644,18 @@ class TestFitterPiecewiseInterpolation(
             np.random.seed(123)
             test_pts = joint.rvs(200)
             error = float(
-                self._bkd.to_numpy(
-                    self._bkd.max(
-                        self._bkd.abs(surrogate(test_pts) - test_func(test_pts))
+                bkd.to_numpy(
+                    bkd.max(
+                        bkd.abs(surrogate(test_pts) - test_func(test_pts))
                     )
                 )
             )
             errors.append(error)
 
         ratio = errors[0] / errors[1]
-        self.assertGreater(
-            ratio,
-            expected_min_ratio,
-            f"{basis_type}: error ratio {ratio:.2f} < {expected_min_ratio}",
+        assert ratio > expected_min_ratio, (
+            f"{basis_type}: error ratio {ratio:.2f} < {expected_min_ratio}"
         )
-
-
-class TestFitterPiecewiseInterpolationNumpy(
-    TestFitterPiecewiseInterpolation[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterPiecewiseInterpolationTorch(
-    TestFitterPiecewiseInterpolation[torch.Tensor]
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
 
 
 # =============================================================================
@@ -820,18 +663,8 @@ class TestFitterPiecewiseInterpolationTorch(
 # =============================================================================
 
 
-class TestFitterMixedInterpolation(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestFitterMixedInterpolation(ParametrizedTestCase):
     """Mixed Lagrange + piecewise interpolation tests."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,level,basis_types",
@@ -844,11 +677,12 @@ class TestFitterMixedInterpolation(
         joint_config: str,
         level: int,
         basis_types: List[str],
+        bkd,
     ) -> None:
         """Test mixed basis fitter achieves small interpolation error."""
-        joint = create_test_joint(joint_config, self._bkd)
-        fitter = _create_fitter_mixed(joint, level, self._bkd, basis_types)
-        test_func = create_smooth_test_function(joint, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        fitter = _create_fitter_mixed(joint, level, bkd, basis_types)
+        test_func = create_smooth_test_function(joint, bkd)
 
         samples = fitter.get_samples()
         result = fitter.fit(test_func(samples))
@@ -857,26 +691,11 @@ class TestFitterMixedInterpolation(
         np.random.seed(123)
         test_pts = joint.rvs(50)
         error = float(
-            self._bkd.to_numpy(
-                self._bkd.max(self._bkd.abs(surrogate(test_pts) - test_func(test_pts)))
+            bkd.to_numpy(
+                bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts)))
             )
         )
-        self.assertLess(error, 1e-3)
-
-
-class TestFitterMixedInterpolationNumpy(TestFitterMixedInterpolation[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterMixedInterpolationTorch(TestFitterMixedInterpolation[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert error < 1e-3
 
 
 # =============================================================================
@@ -884,41 +703,31 @@ class TestFitterMixedInterpolationTorch(TestFitterMixedInterpolation[torch.Tenso
 # =============================================================================
 
 
-class TestFitterPiecewiseIntegration(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestFitterPiecewiseIntegration(ParametrizedTestCase):
     """Piecewise integration tests (mean against Gauss reference)."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,level,basis_type",
         PIECEWISE_INTEGRATION_CONFIGS,
     )
     def test_piecewise_integration(
-        self, name: str, joint_config: str, level: int, basis_type: str
+        self, name: str, joint_config: str, level: int, basis_type: str, bkd
     ) -> None:
         """Test piecewise quadrature mean against Gauss reference."""
-        joint = create_test_joint(joint_config, self._bkd)
-        fitter = _create_fitter(joint, level, self._bkd, basis_type)
-        test_func = create_smooth_test_function(joint, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        fitter = _create_fitter(joint, level, bkd, basis_type)
+        test_func = create_smooth_test_function(joint, bkd)
 
         samples = fitter.get_samples()
         result = fitter.fit(test_func(samples))
         grid_mean = result.surrogate.mean()
 
-        ref_fitter = _create_fitter(joint, level + 2, self._bkd, "gauss")
+        ref_fitter = _create_fitter(joint, level + 2, bkd, "gauss")
         ref_samples = ref_fitter.get_samples()
         ref_result = ref_fitter.fit(test_func(ref_samples))
         ref_mean = ref_result.surrogate.mean()
 
-        self._bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
+        bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
 
     @parametrize(
         "name,joint_config,level,basis_types",
@@ -930,37 +739,23 @@ class TestFitterPiecewiseIntegration(
         joint_config: str,
         level: int,
         basis_types: List[str],
+        bkd,
     ) -> None:
         """Test mixed basis quadrature mean against Gauss reference."""
-        joint = create_test_joint(joint_config, self._bkd)
-        fitter = _create_fitter_mixed(joint, level, self._bkd, basis_types)
-        test_func = create_smooth_test_function(joint, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        fitter = _create_fitter_mixed(joint, level, bkd, basis_types)
+        test_func = create_smooth_test_function(joint, bkd)
 
         samples = fitter.get_samples()
         result = fitter.fit(test_func(samples))
         grid_mean = result.surrogate.mean()
 
-        ref_fitter = _create_fitter(joint, level + 2, self._bkd, "gauss")
+        ref_fitter = _create_fitter(joint, level + 2, bkd, "gauss")
         ref_samples = ref_fitter.get_samples()
         ref_result = ref_fitter.fit(test_func(ref_samples))
         ref_mean = ref_result.surrogate.mean()
 
-        self._bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
-
-
-class TestFitterPiecewiseIntegrationNumpy(TestFitterPiecewiseIntegration[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterPiecewiseIntegrationTorch(TestFitterPiecewiseIntegration[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
 
 
 # =============================================================================
@@ -973,89 +768,56 @@ class TestFitterPiecewiseIntegrationTorch(TestFitterPiecewiseIntegration[torch.T
 # =============================================================================
 
 
-class TestFitterDerivatives(Generic[Array], unittest.TestCase):
+class TestFitterDerivatives:
     """DerivativeChecker tests on CombinationSurrogate from fitter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _make_surrogate(self, func_name: str) -> CombinationSurrogate:
+    def _make_surrogate(self, func_name, bkd):
         """Create a fitted surrogate for a polynomial test function."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
-        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=3)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=3)
         samples = fitter.get_samples()
         x, y = samples[0, :], samples[1, :]
 
         if func_name == "quadratic":
-            values = self._bkd.reshape(x**2 + y**2, (1, -1))
+            values = bkd.reshape(x**2 + y**2, (1, -1))
         elif func_name == "cubic":
-            values = self._bkd.reshape(x**3 + x * y**2, (1, -1))
+            values = bkd.reshape(x**3 + x * y**2, (1, -1))
         else:
             raise ValueError(func_name)
         return fitter.fit(values).surrogate
 
-    def test_jacobian_quadratic(self) -> None:
+    def test_jacobian_quadratic(self, bkd) -> None:
         """Test jacobian of interpolated x^2 + y^2."""
-        surrogate = self._make_surrogate("quadratic")
-        sample = self._bkd.asarray([[0.3], [0.5]])
+        surrogate = self._make_surrogate("quadratic", bkd)
+        sample = bkd.asarray([[0.3], [0.5]])
         jac = surrogate.jacobian(sample)
-        expected_jac = self._bkd.asarray([[0.6, 1.0]])
-        self._bkd.assert_allclose(jac, expected_jac, rtol=1e-10)
+        expected_jac = bkd.asarray([[0.6, 1.0]])
+        bkd.assert_allclose(jac, expected_jac, rtol=1e-10)
 
-    def test_hvp_quadratic(self) -> None:
+    def test_hvp_quadratic(self, bkd) -> None:
         """Test HVP of interpolated x^2 + y^2."""
-        surrogate = self._make_surrogate("quadratic")
-        sample = self._bkd.asarray([[0.3], [0.5]])
-        vec = self._bkd.asarray([[1.0], [0.0]])
+        surrogate = self._make_surrogate("quadratic", bkd)
+        sample = bkd.asarray([[0.3], [0.5]])
+        vec = bkd.asarray([[1.0], [0.0]])
         hvp = surrogate.hvp(sample, vec)
-        expected_hvp = self._bkd.asarray([[2.0], [0.0]])
-        self._bkd.assert_allclose(hvp, expected_hvp, atol=1e-12)
+        expected_hvp = bkd.asarray([[2.0], [0.0]])
+        bkd.assert_allclose(hvp, expected_hvp, atol=1e-12)
 
-    def test_derivative_checker(self) -> None:
+    @pytest.mark.slow_on("TorchBkd")
+    def test_derivative_checker(self, bkd) -> None:
         """Test DerivativeChecker passes for jacobian and HVP."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
-        surrogate = self._make_surrogate("cubic")
-        sample = self._bkd.asarray([[0.3], [0.5]])
+        surrogate = self._make_surrogate("cubic", bkd)
+        sample = bkd.asarray([[0.3], [0.5]])
         checker = DerivativeChecker(surrogate)
         errors = checker.check_derivatives(sample)
         # errors[0] is jacobian FD errors, errors[1] is HVP FD errors
         for err in errors:
-            ratio = float(self._bkd.to_numpy(checker.error_ratio(err)))
-            self.assertLess(ratio, 1e-6)
-
-
-class TestFitterDerivativesNumpy(TestFitterDerivatives[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFitterDerivativesTorch(TestFitterDerivatives[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    @slow_test
-    def test_derivative_checker(self) -> None:
-        super().test_derivative_checker()
-
-
-if __name__ == "__main__":
-    unittest.main()
+            ratio = float(bkd.to_numpy(checker.error_ratio(err)))
+            assert ratio < 1e-6

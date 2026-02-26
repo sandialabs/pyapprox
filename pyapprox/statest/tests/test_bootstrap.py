@@ -11,11 +11,8 @@ without comparing to legacy code. They test:
 These tests use the typing array convention: (nqoi, nsamples) for outputs.
 """
 
-import unittest
-
 import numpy as np
-import torch
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
@@ -40,7 +37,6 @@ from pyapprox.statest.statistics import (
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
     allocate_with_allocator,
-    load_tests,  # noqa: F401
     slow_test,
     slower_test,
 )
@@ -101,7 +97,7 @@ def _setup_pilot_quantities(stat_type: str, nmodels: int, nqoi: int, bkd):
     return pilot_args
 
 
-def _compute_mc_estimator_variance(bkd, ensemble, est, ntrials: int) -> torch.Tensor:
+def _compute_mc_estimator_variance(bkd, ensemble, est, ntrials: int):
     """Compute MC estimate of estimator variance using polynomial ensemble."""
     models = ensemble.models()
     nmodels = ensemble.nmodels()
@@ -127,15 +123,15 @@ def _compute_mc_estimator_variance(bkd, ensemble, est, ntrials: int) -> torch.Te
     return bkd.cov(estimates, rowvar=False, ddof=1)
 
 
-class TestBootstrapEstimator(ParametrizedTestCase):
+class TestBootstrapEstimator:
     """Test bootstrap variance estimation matches analytical variance."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,target_cost",
         [
             ("mc", 1000),
@@ -192,7 +188,7 @@ class TestBootstrapEstimator(ParametrizedTestCase):
         analytical_cov = est.optimized_covariance()
         self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=3e-1)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,target_cost",
         [
             ("mfmc", 5000),
@@ -246,18 +242,18 @@ class TestBootstrapEstimator(ParametrizedTestCase):
         self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=5e-1)
 
 
-class TestEstimatorVariance(ParametrizedTestCase):
+class TestEstimatorVariance:
     """Test estimator variance computation across different configurations.
 
     Verifies that MC estimated variance matches analytical variance formula.
     """
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,stat_type,nqoi",
         [
             # MC tests - nmodels=1, uses single array input
@@ -320,7 +316,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,model_idx,qoi_idx",
         [
             # CV with 2 QoI using MultiOutputModelEnsemble
@@ -381,7 +377,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,stat_type,recursion_index",
         [
             ("gmf", "mean", [0, 0]),
@@ -425,15 +421,15 @@ class TestEstimatorVariance(ParametrizedTestCase):
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
 
-class TestPilotQuantities(ParametrizedTestCase):
+class TestPilotQuantities:
     """Test pilot quantity computation from samples."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nqoi,nmodels",
         [
             (1, 2),
@@ -487,15 +483,15 @@ class TestPilotQuantities(ParametrizedTestCase):
         self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
 
 
-class TestPolynomialEnsemble(ParametrizedTestCase):
+class TestPolynomialEnsemble:
     """End-to-end tests with polynomial model ensemble benchmark."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,nmodels,recursion_index",
         [
             ("mfmc", 3, None),
@@ -535,15 +531,15 @@ class TestPolynomialEnsemble(ParametrizedTestCase):
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-2)
 
 
-class TestInsertPilotSamples(ParametrizedTestCase):
+class TestInsertPilotSamples:
     """Test pilot sample insertion functionality."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,recursion_index",
         [
             ("grd", [0, 1]),
@@ -587,12 +583,12 @@ class TestInsertPilotSamples(ParametrizedTestCase):
         )
 
 
-class TestEstimatorReproducibility(unittest.TestCase):
+class TestEstimatorReproducibility:
     """Test estimator produces reproducible results."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     def test_mc_estimator_reproducible(self) -> None:
@@ -644,7 +640,3 @@ class TestEstimatorReproducibility(unittest.TestCase):
         result2 = est([hf2, lf2])
 
         self._bkd.assert_allclose(result1, result2, rtol=1e-12)
-
-
-if __name__ == "__main__":
-    unittest.main()

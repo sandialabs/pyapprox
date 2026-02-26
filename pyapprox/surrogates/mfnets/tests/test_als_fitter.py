@@ -1,11 +1,6 @@
 """Tests for MFNet ALS fitter."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -26,15 +21,11 @@ from pyapprox.surrogates.mfnets.nodes import (
     MFNetNode,
     RootMFNetNode,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_expansion(
-    bkd: Backend[Array], nvars: int, nqoi: int, max_level: int = 2
-) -> BasisExpansion[Array]:
+    bkd, nvars: int, nqoi: int, max_level: int = 2
+) -> BasisExpansion:
     bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
     basis = MultiIndexBasis.__new__(MultiIndexBasis)
@@ -43,14 +34,14 @@ def _create_expansion(
 
 
 def _build_mfnet_with_discrepancy(
-    bkd: Backend[Array],
-    leaf_coef: Array,
-    scale_coef: Array,
-    delta_coef: Array,
+    bkd,
+    leaf_coef,
+    scale_coef,
+    delta_coef,
     leaf_level: int = 3,
     scale_level: int = 1,
     delta_level: int = 3,
-) -> MFNet[Array]:
+) -> MFNet:
     """Build a 2-node MFNet with discrepancy root."""
     leaf_model = _create_expansion(bkd, nvars=1, nqoi=1, max_level=leaf_level)
     leaf_model.set_coefficients(leaf_coef)
@@ -71,18 +62,9 @@ def _build_mfnet_with_discrepancy(
     return net
 
 
-class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestMFNetALSFitter:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        self._bkd = self.bkd()
-
-    def _make_truth_and_data(self, n_leaf: int = 30, n_root: int = 25) -> Any:
-        bkd = self._bkd
+    def _make_truth_and_data(self, bkd, n_leaf: int = 30, n_root: int = 25):
         np.random.seed(10)
 
         leaf_nterms = _create_expansion(bkd, 1, 1, 3).nterms()
@@ -103,10 +85,9 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
 
         return true_net, [s_leaf, s_root], [v_leaf, v_root]
 
-    def test_als_convergence(self) -> None:
+    def test_als_convergence(self, bkd) -> None:
         """Test ALS converges to zero residual with noise-free data."""
-        bkd = self._bkd
-        true_net, samples, values = self._make_truth_and_data()
+        true_net, samples, values = self._make_truth_and_data(bkd)
 
         # Build fresh network with zero initial coefficients
         leaf_nterms = true_net.node(0).model().hyp_list().nparams()
@@ -131,12 +112,10 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(fit_out, true_out, atol=1e-6)
 
         # Loss should have decreased
-        self.assertLess(result.loss_history()[-1], result.loss_history()[0] + 1e-10)
+        assert result.loss_history()[-1] < result.loss_history()[0] + 1e-10
 
-    def test_als_three_node_chain(self) -> None:
+    def test_als_three_node_chain(self, bkd) -> None:
         """Test ALS on a 3-node chain: leaf -> mid -> root."""
-        bkd = self._bkd
-
         # True models
         np.random.seed(10)
         leaf_model = _create_expansion(bkd, nvars=1, nqoi=1, max_level=2)
@@ -211,21 +190,3 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
         true_out = true_net(test_s)
         fit_out = result.surrogate()(test_s)
         bkd.assert_allclose(fit_out, true_out, atol=1e-5)
-
-
-# --- Concrete backend test classes ---
-
-
-class TestALSFitterNumpy(TestMFNetALSFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestALSFitterTorch(TestMFNetALSFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)

@@ -10,36 +10,20 @@ Tests verify correctness using:
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
     GaussianOEDOuterLoopLikelihood,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestLikelihoodValuesStandalone(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestLikelihoodValuesStandalone:
     """Standalone tests for Gaussian likelihood values."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         # Default test dimensions
@@ -47,7 +31,7 @@ class TestLikelihoodValuesStandalone(
         self._ninner = 10
         self._nouter = 5
 
-    def _manual_gaussian_logpdf(self, residuals: Array, variances: Array) -> Array:
+    def _manual_gaussian_logpdf(self, bkd, residuals, variances):
         """Compute Gaussian log-pdf manually for verification.
 
         log N(r | 0, diag(v)) = -0.5 * (n*log(2*pi) + sum(log(v)) + sum(r^2/v))
@@ -64,19 +48,15 @@ class TestLikelihoodValuesStandalone(
         Array
             Scalar log-pdf value
         """
-        bkd = self._bkd
         nobs = residuals.shape[0]
         log_norm = -0.5 * nobs * math.log(2 * math.pi)
         log_det = -0.5 * bkd.sum(bkd.log(variances))
         quad_term = -0.5 * bkd.sum(residuals**2 / variances)
         return log_norm + log_det + quad_term
 
-    def _create_outer_likelihood(
-        self, nobs: int, nouter: int
-    ) -> tuple[GaussianOEDOuterLoopLikelihood[Array], Array, Array, Array]:
+    def _create_outer_likelihood(self, bkd, nobs, nouter):
         """Create outer likelihood with test data."""
         np.random.seed(42)
-        bkd = self._bkd
 
         noise_variances = bkd.asarray(np.random.uniform(0.1, 0.5, nobs))
         shapes = bkd.asarray(np.random.randn(nobs, nouter))
@@ -88,12 +68,9 @@ class TestLikelihoodValuesStandalone(
 
         return likelihood, noise_variances, shapes, observations
 
-    def _create_inner_likelihood(
-        self, nobs: int, ninner: int, nouter: int
-    ) -> tuple[GaussianOEDInnerLoopLikelihood[Array], Array, Array, Array]:
+    def _create_inner_likelihood(self, bkd, nobs, ninner, nouter):
         """Create inner likelihood with test data."""
         np.random.seed(42)
-        bkd = self._bkd
 
         noise_variances = bkd.asarray(np.random.uniform(0.1, 0.5, nobs))
         shapes = bkd.asarray(np.random.randn(nobs, ninner))
@@ -109,7 +86,7 @@ class TestLikelihoodValuesStandalone(
     # Outer likelihood tests
     # ==========================================================================
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,nouter",
         [
             (2, 5),
@@ -117,12 +94,12 @@ class TestLikelihoodValuesStandalone(
             (5, 20),
         ],
     )
-    def test_outer_likelihood_gaussian_formula(self, nobs: int, nouter: int) -> None:
+    def test_outer_likelihood_gaussian_formula(self, bkd, nobs, nouter):
         """Test outer likelihood values match manual Gaussian log-pdf."""
+        self._setup_data(bkd)
         likelihood, noise_variances, shapes, observations = (
-            self._create_outer_likelihood(nobs, nouter)
+            self._create_outer_likelihood(bkd, nobs, nouter)
         )
-        bkd = self._bkd
 
         # Create weights
         np.random.seed(123)
@@ -135,7 +112,7 @@ class TestLikelihoodValuesStandalone(
         for j in range(nouter):
             residuals = observations[:, j] - shapes[:, j]
             effective_variances = noise_variances / weights[:, 0]
-            expected = self._manual_gaussian_logpdf(residuals, effective_variances)
+            expected = self._manual_gaussian_logpdf(bkd, residuals, effective_variances)
 
             bkd.assert_allclose(
                 bkd.asarray([log_like[0, j]]),
@@ -143,43 +120,47 @@ class TestLikelihoodValuesStandalone(
                 rtol=1e-10,
             )
 
-    def test_outer_likelihood_shape(self) -> None:
+    def test_outer_likelihood_shape(self, bkd):
         """Test outer likelihood output shape is (1, nouter)."""
-        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+        self._setup_data(bkd)
+        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
+        weights = bkd.ones((self._nobs, 1)) / self._nobs
         result = likelihood(weights)
-        self.assertEqual(result.shape, (1, self._nouter))
+        assert result.shape == (1, self._nouter)
 
-    def test_outer_likelihood_jacobian_shape(self) -> None:
+    def test_outer_likelihood_jacobian_shape(self, bkd):
         """Test outer likelihood Jacobian shape is (nouter, nobs)."""
-        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+        self._setup_data(bkd)
+        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
+        weights = bkd.ones((self._nobs, 1)) / self._nobs
         jac = likelihood.jacobian(weights)
-        self.assertEqual(jac.shape, (self._nouter, self._nobs))
+        assert jac.shape == (self._nouter, self._nobs)
 
     # ==========================================================================
     # Inner likelihood tests
     # ==========================================================================
 
-    def test_inner_likelihood_matrix_shape(self) -> None:
+    def test_inner_likelihood_matrix_shape(self, bkd):
         """Test inner likelihood logpdf_matrix shape is (ninner, nouter)."""
+        self._setup_data(bkd)
         likelihood, _, _, _ = self._create_inner_likelihood(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+        weights = bkd.ones((self._nobs, 1)) / self._nobs
         result = likelihood.logpdf_matrix(weights)
-        self.assertEqual(result.shape, (self._ninner, self._nouter))
+        assert result.shape == (self._ninner, self._nouter)
 
-    def test_inner_jacobian_matrix_shape(self) -> None:
+    def test_inner_jacobian_matrix_shape(self, bkd):
         """Test inner likelihood jacobian_matrix shape is (ninner, nouter, nobs)."""
+        self._setup_data(bkd)
         likelihood, _, _, _ = self._create_inner_likelihood(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+        weights = bkd.ones((self._nobs, 1)) / self._nobs
         jac = likelihood.jacobian_matrix(weights)
-        self.assertEqual(jac.shape, (self._ninner, self._nouter, self._nobs))
+        assert jac.shape == (self._ninner, self._nouter, self._nobs)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,ninner,nouter",
         [
             (2, 5, 3),
@@ -187,14 +168,12 @@ class TestLikelihoodValuesStandalone(
             (4, 8, 6),
         ],
     )
-    def test_inner_likelihood_matrix_values(
-        self, nobs: int, ninner: int, nouter: int
-    ) -> None:
+    def test_inner_likelihood_matrix_values(self, bkd, nobs, ninner, nouter):
         """Test inner likelihood matrix values match manual computation."""
+        self._setup_data(bkd)
         likelihood, noise_variances, shapes, observations = (
-            self._create_inner_likelihood(nobs, ninner, nouter)
+            self._create_inner_likelihood(bkd, nobs, ninner, nouter)
         )
-        bkd = self._bkd
 
         np.random.seed(123)
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
@@ -206,7 +185,7 @@ class TestLikelihoodValuesStandalone(
             for j in range(nouter):
                 residuals = observations[:, j] - shapes[:, i]
                 effective_variances = noise_variances / weights[:, 0]
-                expected = self._manual_gaussian_logpdf(residuals, effective_variances)
+                expected = self._manual_gaussian_logpdf(bkd, residuals, effective_variances)
 
                 bkd.assert_allclose(
                     bkd.asarray([log_like_matrix[i, j]]),
@@ -218,12 +197,12 @@ class TestLikelihoodValuesStandalone(
     # Variance scaling tests
     # ==========================================================================
 
-    def test_likelihood_weights_scaling(self) -> None:
+    def test_likelihood_weights_scaling(self, bkd):
         """Test effective variance scales as base_var / weights."""
+        self._setup_data(bkd)
         likelihood, noise_variances, _, _ = self._create_outer_likelihood(
-            self._nobs, self._nouter
+            bkd, self._nobs, self._nouter
         )
-        bkd = self._bkd
 
         # With weights=1, effective variance = base variance
         weights1 = bkd.ones((self._nobs, 1))
@@ -236,14 +215,13 @@ class TestLikelihoodValuesStandalone(
 
         # Higher weights = smaller variance = likelihood values change
         # (not necessarily higher due to quadratic term)
-        self.assertFalse(
-            bkd.allclose(log_like1, log_like2, rtol=1e-6),
-            "Likelihood should change with different weights",
-        )
+        assert not bkd.allclose(
+            log_like1, log_like2, rtol=1e-6
+        ), "Likelihood should change with different weights"
 
-    def test_likelihood_heteroscedastic_variances(self) -> None:
+    def test_likelihood_heteroscedastic_variances(self, bkd):
         """Test likelihood handles different noise variance per observation."""
-        bkd = self._bkd
+        self._setup_data(bkd)
         nobs, nouter = 3, 5
 
         # Create heteroscedastic variances
@@ -262,12 +240,12 @@ class TestLikelihoodValuesStandalone(
 
         # Should be finite
         log_like_np = bkd.to_numpy(log_like)
-        self.assertTrue(np.all(np.isfinite(log_like_np)))
+        assert np.all(np.isfinite(log_like_np))
 
         # Verify against manual computation
         for j in range(nouter):
             residuals = observations[:, j] - shapes[:, j]
-            expected = self._manual_gaussian_logpdf(residuals, noise_variances)
+            expected = self._manual_gaussian_logpdf(bkd, residuals, noise_variances)
             bkd.assert_allclose(
                 bkd.asarray([log_like[0, j]]),
                 bkd.asarray([expected]),
@@ -278,13 +256,13 @@ class TestLikelihoodValuesStandalone(
     # Log-determinant and quadratic term tests
     # ==========================================================================
 
-    def test_likelihood_logdet_term(self) -> None:
+    def test_likelihood_logdet_term(self, bkd):
         """Test log-determinant term is computed correctly.
 
         For diagonal covariance with effective_var = base_var / weights:
         log|Cov| = sum(log(base_var / weights)) = sum(log(base_var)) - sum(log(weights))
         """
-        bkd = self._bkd
+        self._setup_data(bkd)
         nobs, nouter = 3, 2
 
         noise_variances = bkd.asarray(np.array([0.1, 0.2, 0.3]))
@@ -313,13 +291,13 @@ class TestLikelihoodValuesStandalone(
                 rtol=1e-10,
             )
 
-    def test_likelihood_quadratic_term(self) -> None:
+    def test_likelihood_quadratic_term(self, bkd):
         """Test quadratic term is computed correctly.
 
         quadratic = -0.5 * sum(r_i^2 / effective_var_i)
                   = -0.5 * sum(r_i^2 * w_i / base_var_i)
         """
-        bkd = self._bkd
+        self._setup_data(bkd)
         nobs, nouter = 2, 1
 
         noise_variances = bkd.asarray(np.array([1.0, 1.0]))  # Unit variance
@@ -351,13 +329,13 @@ class TestLikelihoodValuesStandalone(
     # Outer/Inner consistency tests
     # ==========================================================================
 
-    def test_outer_inner_diagonal_consistency(self) -> None:
+    def test_outer_inner_diagonal_consistency(self, bkd):
         """Test that inner matrix diagonal matches outer values when shapes align.
 
         When inner and outer shapes are the same, the diagonal of the inner
         likelihood matrix should match the outer likelihood values.
         """
-        bkd = self._bkd
+        self._setup_data(bkd)
         nobs, nouter = 3, 5
 
         np.random.seed(42)
@@ -387,51 +365,28 @@ class TestLikelihoodValuesStandalone(
         diagonal = bkd.diag(inner_log_like_matrix)
         bkd.assert_allclose(diagonal, outer_log_like[0], rtol=1e-10)
 
-    def test_likelihood_values_finite(self) -> None:
+    def test_likelihood_values_finite(self, bkd):
         """Test all likelihood values are finite."""
-        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
-        bkd = self._bkd
+        self._setup_data(bkd)
+        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
 
         np.random.seed(456)
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         log_like = likelihood(weights)
 
         log_like_np = bkd.to_numpy(log_like)
-        self.assertTrue(np.all(np.isfinite(log_like_np)))
+        assert np.all(np.isfinite(log_like_np))
 
-    def test_inner_likelihood_values_finite(self) -> None:
+    def test_inner_likelihood_values_finite(self, bkd):
         """Test all inner likelihood matrix values are finite."""
+        self._setup_data(bkd)
         likelihood, _, _, _ = self._create_inner_likelihood(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        bkd = self._bkd
 
         np.random.seed(456)
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         log_like_matrix = likelihood.logpdf_matrix(weights)
 
         log_like_np = bkd.to_numpy(log_like_matrix)
-        self.assertTrue(np.all(np.isfinite(log_like_np)))
-
-
-class TestLikelihoodValuesStandaloneNumpy(TestLikelihoodValuesStandalone[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLikelihoodValuesStandaloneTorch(TestLikelihoodValuesStandalone[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert np.all(np.isfinite(log_like_np))

@@ -4,12 +4,8 @@ Ports all relevant legacy tests from pyapprox/surrogates/affine/tests/test_kle.p
 and adds new tests for improved coverage.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
@@ -27,9 +23,6 @@ from pyapprox.surrogates.kle.analytical import (
     AnalyticalExponentialKLE1D,
 )
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):
@@ -74,24 +67,15 @@ def _trapezoid_rule(lb, ub, npts):
     return pts, weights
 
 
-class TestMeshKLE(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestMeshKLE:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(1)
-        self._bkd = self.bkd()
-
-    def test_mesh_kle_1D_exponential(self) -> None:
+    def test_mesh_kle_1D_exponential(self, bkd) -> None:
         """Port of legacy test_mesh_kle_1D.
 
         Creates MeshKLE with ExponentialKernel and compares eigenvalues
         against analytical KLE1D. Also checks basis orthonormality
         with quadrature weights.
         """
-        bkd = self._bkd
         level = 10
         nterms = 3
         len_scale, sigma = 1.0, 1.0
@@ -146,13 +130,12 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
             atol=1e-6,
         )
 
-    def test_mesh_kle_1D_discretization_independence(self) -> None:
+    def test_mesh_kle_1D_discretization_independence(self, bkd) -> None:
         """Port of legacy test_mesh_kle_1D_discretization.
 
         Tests that two different mesh resolutions with trapezoid rule
         give the same eigenvalues.
         """
-        bkd = self._bkd
         level1, level2 = 6, 8
         nterms = 3
         len_scale, sigma = 1.0, 1.0
@@ -194,7 +177,6 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         # Eigenvectors should be orthonormal under respective weights
         eig_vecs2 = kle2.eigenvectors()
         eig_vecs1 = kle1.eigenvectors()
-        bkd.array(np.eye(nterms))
 
         bkd.assert_allclose(
             bkd.sum(quad_weights2[:, None] * eig_vecs2**2, axis=0),
@@ -214,9 +196,8 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
             atol=3e-4,
         )
 
-    def test_mesh_kle_multiple_kernels(self) -> None:
+    def test_mesh_kle_multiple_kernels(self, bkd) -> None:
         """Test MeshKLE works with all supported kernel types."""
-        bkd = self._bkd
         nterms = 3
         npts = 50
         mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
@@ -229,30 +210,28 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         ]
 
         for KernelClass in kernel_classes:
-            with self.subTest(kernel=KernelClass.__name__):
-                lenscale = bkd.array([0.5])
-                kernel = KernelClass(lenscale, (0.01, 10.0), 1, bkd)
-                kle = MeshKLE(
-                    mesh_coords,
-                    kernel,
-                    nterms=nterms,
-                    bkd=bkd,
-                )
-                # Eigenvalues should be positive
-                self.assertTrue(bkd.all_bool(kle.eigenvalues() > 0))
-                # Check shapes
-                self.assertEqual(kle.eigenvectors().shape, (npts, nterms))
-                self.assertEqual(kle.weighted_eigenvectors().shape, (npts, nterms))
-                self.assertEqual(kle.eigenvalues().shape, (nterms,))
+            lenscale = bkd.array([0.5])
+            kernel = KernelClass(lenscale, (0.01, 10.0), 1, bkd)
+            kle = MeshKLE(
+                mesh_coords,
+                kernel,
+                nterms=nterms,
+                bkd=bkd,
+            )
+            # Eigenvalues should be positive
+            assert bkd.all_bool(kle.eigenvalues() > 0)
+            # Check shapes
+            assert kle.eigenvectors().shape == (npts, nterms)
+            assert kle.weighted_eigenvectors().shape == (npts, nterms)
+            assert kle.eigenvalues().shape == (nterms,)
 
-                # Evaluate
-                coef = bkd.array(np.random.randn(nterms, 5))
-                result = kle(coef)
-                self.assertEqual(result.shape, (npts, 5))
+            # Evaluate
+            coef = bkd.array(np.random.randn(nterms, 5))
+            result = kle(coef)
+            assert result.shape == (npts, 5)
 
-    def test_mesh_kle_2D(self) -> None:
+    def test_mesh_kle_2D(self, bkd) -> None:
         """Test MeshKLE with a 2D mesh."""
-        bkd = self._bkd
         nterms = 3
         nx, ny = 5, 5
         x = np.linspace(0, 1, nx)
@@ -264,12 +243,11 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         kernel = SquaredExponentialKernel(lenscale, (0.01, 10.0), 2, bkd)
         kle = MeshKLE(mesh_coords, kernel, nterms=nterms, bkd=bkd)
 
-        self.assertTrue(bkd.all_bool(kle.eigenvalues() > 0))
-        self.assertEqual(kle.eigenvectors().shape, (25, nterms))
+        assert bkd.all_bool(kle.eigenvalues() > 0)
+        assert kle.eigenvectors().shape == (25, nterms)
 
-    def test_mesh_kle_use_log(self) -> None:
+    def test_mesh_kle_use_log(self, bkd) -> None:
         """Test that use_log=True gives exp() of use_log=False result."""
-        bkd = self._bkd
         nterms = 3
         npts = 30
         mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
@@ -297,9 +275,8 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(result_log, bkd.exp(result_no_log))
 
-    def test_mesh_kle_edge_cases(self) -> None:
+    def test_mesh_kle_edge_cases(self, bkd) -> None:
         """Test edge cases: nterms=1, nterms=all, non-zero mean."""
-        bkd = self._bkd
         npts = 20
         mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
         lenscale = bkd.array([0.5])
@@ -309,11 +286,11 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         kle1 = MeshKLE(mesh_coords, kernel, nterms=1, bkd=bkd)
         coef = bkd.array(np.random.randn(1, 3))
         result = kle1(coef)
-        self.assertEqual(result.shape, (npts, 3))
+        assert result.shape == (npts, 3)
 
         # nterms=all (None)
         kle_all = MeshKLE(mesh_coords, kernel, bkd=bkd)
-        self.assertEqual(kle_all.nterms(), npts)
+        assert kle_all.nterms() == npts
 
         # Non-zero mean
         mean = 5.0
@@ -328,9 +305,8 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         result = kle_mean(zero_coef)
         bkd.assert_allclose(result, bkd.full((npts, 1), mean))
 
-    def test_mesh_kle_coef_validation(self) -> None:
+    def test_mesh_kle_coef_validation(self, bkd) -> None:
         """Test that invalid coefficients raise errors."""
-        bkd = self._bkd
         npts = 20
         mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
         lenscale = bkd.array([0.5])
@@ -338,32 +314,9 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         kle = MeshKLE(mesh_coords, kernel, nterms=3, bkd=bkd)
 
         # Wrong ndim
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             kle(bkd.array(np.random.randn(3)))
 
         # Wrong nterms
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             kle(bkd.array(np.random.randn(5, 2)))
-
-
-class TestMeshKLENumpy(TestMeshKLE[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMeshKLETorch(TestMeshKLE[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)

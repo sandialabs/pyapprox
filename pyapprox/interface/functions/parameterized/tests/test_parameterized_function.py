@@ -1,16 +1,10 @@
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+from typing import Generic
 
 from pyapprox.interface.functions.parameterized.factory import (
     _convert_to_function_of_parameters as convert_to_function_of_parameters,
     # convert_to_function_of_parameters,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class ExampleParameterizedFunctionWithHVP(Generic[Array]):
@@ -67,19 +61,19 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
         Compute the Jacobian of f(x, p) with respect to p.
 
         Jacobian:
-        - ∂f/∂p[0] = sum_j (2 * p[0] * x[j]**2 + p[1])
-        - ∂f/∂p[1] = sum_j (3 * p[1]**2 * x[j] + p[0])
-        - ∂f/∂p[2] = sum_j (4 * p[2]**3)
+        - df/dp[0] = sum_j (2 * p[0] * x[j]**2 + p[1])
+        - df/dp[1] = sum_j (3 * p[1]**2 * x[j] + p[0])
+        - df/dp[2] = sum_j (4 * p[2]**3)
         """
         return self._bkd.stack(
             [
                 self._bkd.sum(
                     2 * self._param[0] * x**2 + self._param[1], axis=1
-                ),  # ∂f/∂p[0]
+                ),  # df/dp[0]
                 self._bkd.sum(
                     3 * self._param[1] ** 2 * x + self._param[0], axis=1
-                ),  # ∂f/∂p[1]
-                self._bkd.sum(4 * self._param[2] ** 3 + x * 0.0, axis=1),  # ∂f/∂p[2]
+                ),  # df/dp[1]
+                self._bkd.sum(4 * self._param[2] ** 3 + x * 0.0, axis=1),  # df/dp[2]
             ],
             axis=1,
         )
@@ -89,46 +83,39 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
         Compute the Hessian-vector product of f(x, p) with respect to p.
 
         Hessian:
-        - ∂²f/∂p[0]² = sum_j (2 * x[j]**2)
-        - ∂²f/∂p[1]² = sum_j (6 * p[1] * x[j])
-        - ∂²f/∂p[2]² = sum_j (12 * p[2]**2)
-        - ∂²f/∂p[0]∂p[1] = sum_j (1)
+        - d^2f/dp[0]^2 = sum_j (2 * x[j]**2)
+        - d^2f/dp[1]^2 = sum_j (6 * p[1] * x[j])
+        - d^2f/dp[2]^2 = sum_j (12 * p[2]**2)
+        - d^2f/dp[0]dp[1] = sum_j (1)
         """
         hessian = self._bkd.zeros((self.nparams(), self.nparams()))
-        hessian[0, 0] = self._bkd.sum(2 * x[0] ** 2, axis=0)  # ∂²f/∂p[0]²
-        hessian[1, 1] = self._bkd.sum(6 * self._param[1] * x[0], axis=0)  # ∂²f/∂p[1]²
+        hessian[0, 0] = self._bkd.sum(2 * x[0] ** 2, axis=0)  # d^2f/dp[0]^2
+        hessian[1, 1] = self._bkd.sum(6 * self._param[1] * x[0], axis=0)  # d^2f/dp[1]^2
         hessian[2, 2] = self._bkd.sum(
             12 * self._param[2] ** 2 + x[0] * 0.0, axis=0
-        )  # ∂²f/∂p[2]²
-        hessian[0, 1] = self._bkd.sum(1.0 + x[0] * 0.0, axis=0)  # ∂²f/∂p[0]∂p[1]
+        )  # d^2f/dp[2]^2
+        hessian[0, 1] = self._bkd.sum(1.0 + x[0] * 0.0, axis=0)  # d^2f/dp[0]dp[1]
         hessian[1, 0] = hessian[0, 1]  # Symmetry of Hessian
 
         # Compute Hessian-vector product
         return hessian @ vec
 
 
-class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the specific backend.
-        """
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def setUp(self) -> None:
-        self.fixed_x = self.bkd().reshape(
-            self.bkd().linspace(0, 1, 5), (1, -1)
+class TestFunctionOfParameters:
+    def _setup(self, bkd):
+        self.fixed_x = bkd.reshape(
+            bkd.linspace(0, 1, 5), (1, -1)
         )  # Shape (1, npts)
         self.param_func_with_full_rank_hvp = ExampleParameterizedFunctionWithHVP(
-            self.bkd()
+            bkd
         )
 
-    def test_function_of_parameters(self) -> None:
+    def test_function_of_parameters(self, bkd) -> None:
         """
         Test the functionality of FunctionOfParametersWithJacobian.
         """
-        param = self.bkd().array([1.0, 2.0, 3.0])[:, None]  # Single parameter vector
+        self._setup(bkd)
+        param = bkd.array([1.0, 2.0, 3.0])[:, None]  # Single parameter vector
         self.param_func_with_full_rank_hvp.set_parameter(param)
         func_of_params = convert_to_function_of_parameters(
             self.param_func_with_full_rank_hvp, self.fixed_x
@@ -138,10 +125,10 @@ class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
         result = func_of_params(param)
 
         # Expected result computation:
-        expected_result = self.bkd().asarray(
+        expected_result = bkd.asarray(
             [
                 [
-                    self.bkd().sum(
+                    bkd.sum(
                         param[0] ** 2 * self.fixed_x**2
                         + param[1] ** 3 * self.fixed_x
                         + param[2] ** 4
@@ -150,67 +137,42 @@ class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
                 ]
             ]
         )
-        self.bkd().assert_allclose(result, expected_result)
+        bkd.assert_allclose(result, expected_result)
 
         jacobian = func_of_params.jacobian(param)
 
         # Expected Jacobian computation:
-        expected_jacobian = self.bkd().stack(
+        expected_jacobian = bkd.stack(
             [
-                self.bkd().sum(
+                bkd.sum(
                     2.0 * param[0] * self.fixed_x[0] ** 2 + param[1], axis=0
-                ),  # ∂f/∂p[0]
-                self.bkd().sum(
+                ),  # df/dp[0]
+                bkd.sum(
                     3.0 * param[1] ** 2 * self.fixed_x[0] + param[0], axis=0
-                ),  # ∂f/∂p[1]
-                self.bkd().sum(
+                ),  # df/dp[1]
+                bkd.sum(
                     4.0 * param[2] ** 3 + self.fixed_x[0] * 0.0, axis=0
-                ),  # ∂f/∂p[2]
+                ),  # df/dp[2]
             ],
             axis=0,
         )[None, :]
-        self.bkd().assert_allclose(jacobian, expected_jacobian)
+        bkd.assert_allclose(jacobian, expected_jacobian)
 
-        vec = self.bkd().array([1.0, 1.0, 1.0])[:, None]  # Vector for HVP
+        vec = bkd.array([1.0, 1.0, 1.0])[:, None]  # Vector for HVP
         hvp = func_of_params.hvp(param, vec)
 
         # Expected HVP computation:
-        expected_hvp = self.bkd().stack(
+        expected_hvp = bkd.stack(
             [
-                self.bkd().sum(2.0 * self.fixed_x[0] ** 2, axis=0) * vec[0]
+                bkd.sum(2.0 * self.fixed_x[0] ** 2, axis=0) * vec[0]
                 + self.fixed_x.shape[1]
-                * vec[1],  # ∂²f/∂p[0]² * vec[0] + ∂²f/∂p[0]∂p[1] * vec[1]
-                self.bkd().sum(6.0 * param[1] * self.fixed_x[0], axis=0) * vec[1]
+                * vec[1],  # d^2f/dp[0]^2 * vec[0] + d^2f/dp[0]dp[1] * vec[1]
+                bkd.sum(6.0 * param[1] * self.fixed_x[0], axis=0) * vec[1]
                 + self.fixed_x.shape[1]
-                * vec[0],  # ∂²f/∂p[1]² * vec[1] + ∂²f/∂p[0]∂p[1] * vec[0]
+                * vec[0],  # d^2f/dp[1]^2 * vec[1] + d^2f/dp[0]dp[1] * vec[0]
                 self.fixed_x.shape[1] * 12.0 * param[2] ** 2 * vec[2],
-                # ∂²f/∂p[2]² * vec[2]
+                # d^2f/dp[2]^2 * vec[2]
             ],
             axis=0,
         )
-        self.bkd().assert_allclose(hvp, expected_hvp)
-
-
-# Derived test class for NumPy backend
-class TestFunctionOfParametersNumpy(TestFunctionOfParameters[NDArray[Any]]):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Derived test class for PyTorch backend
-class TestFunctionOfParametersTorch(TestFunctionOfParameters[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(hvp, expected_hvp)

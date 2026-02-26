@@ -15,13 +15,8 @@ polynomial true_vf to get u_t = true_vf(t, x_t [, c]), reverse-engineer
 (x0, x1), and verify the fitter recovers true_vf exactly.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -41,9 +36,6 @@ from pyapprox.surrogates.flowmatching.linear_path import LinearPath
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -113,42 +105,31 @@ def _build_polynomial_vf_setup(bkd, d, degree, n_per_dim=6, m=0):
     return vf, path, loss, quad_data, true_coef
 
 
-class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    @parametrize("d,degree", [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2)])
-    def test_lstsq_exact_recovery(self, d: int, degree: int) -> None:
+class TestPolynomialVFRecovery:
+    @pytest.mark.parametrize("d,degree", [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2)])
+    def test_lstsq_exact_recovery(self, bkd, d: int, degree: int) -> None:
         """Lstsq should exactly recover a polynomial VF of matching degree."""
-        bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
             bkd,
             d,
             degree,
         )
         result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
-        self.assertLess(result.training_loss(), 1e-10)
+        assert result.training_loss() < 1e-10
 
         fitted_coef = result.surrogate().get_coefficients()  # type: ignore
         bkd.assert_allclose(fitted_coef, true_coef, atol=1e-8)
 
-    @parametrize("d,degree", [(1, 1), (1, 2)])
-    def test_optimizer_exact_recovery(self, d: int, degree: int) -> None:
+    @pytest.mark.parametrize("d,degree", [(1, 1), (1, 2)])
+    def test_optimizer_exact_recovery(self, bkd, d: int, degree: int) -> None:
         """Optimizer should also achieve near-zero loss."""
-        bkd = self._bkd
         vf, path, loss, qd, _ = _build_polynomial_vf_setup(bkd, d, degree)
         result = OptimizerFitter(bkd).fit(vf, path, loss, qd)
-        self.assertLess(result.training_loss(), 1e-6)
+        assert result.training_loss() < 1e-6
 
-    @parametrize("d,degree", [(1, 2), (2, 1)])
-    def test_fitter_agreement(self, d: int, degree: int) -> None:
+    @pytest.mark.parametrize("d,degree", [(1, 2), (2, 1)])
+    def test_fitter_agreement(self, bkd, d: int, degree: int) -> None:
         """Both fitters should produce similar coefficients."""
-        bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
             bkd,
             d,
@@ -158,18 +139,17 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase, unittest.Te
         lstsq_result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
         opt_result = OptimizerFitter(bkd).fit(vf, path, loss, qd)
 
-        self.assertLess(lstsq_result.training_loss(), 1e-10)
-        self.assertLess(opt_result.training_loss(), 1e-6)
+        assert lstsq_result.training_loss() < 1e-10
+        assert opt_result.training_loss() < 1e-6
 
         lstsq_coef = lstsq_result.surrogate().get_coefficients()  # type: ignore
         opt_coef = opt_result.surrogate().get_coefficients()  # type: ignore
         bkd.assert_allclose(lstsq_coef, opt_coef, atol=1e-4)
 
-    @parametrize("d", [(1,), (2,)])
+    @pytest.mark.parametrize("d", [1, 2])
     @slow_test
-    def test_with_conditioning(self, d: int) -> None:
+    def test_with_conditioning(self, bkd, d: int) -> None:
         """Recovery should work with conditioning variables present."""
-        bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
             bkd,
             d,
@@ -177,21 +157,7 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase, unittest.Te
             m=1,
         )
         result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
-        self.assertLess(result.training_loss(), 1e-10)
+        assert result.training_loss() < 1e-10
 
         fitted_coef = result.surrogate().get_coefficients()  # type: ignore
         bkd.assert_allclose(fitted_coef, true_coef, atol=1e-8)
-
-
-class TestPolynomialVFRecoveryNumpy(TestPolynomialVFRecovery[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPolynomialVFRecoveryTorch(TestPolynomialVFRecovery[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

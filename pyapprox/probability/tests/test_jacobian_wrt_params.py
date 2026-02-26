@@ -6,13 +6,12 @@ Uses parametrized tests to validate analytical Jacobians against:
 2. PyTorch autograd
 """
 
-import unittest
 from typing import Callable
 
 import numpy as np
+import pytest
 import torch
 from torch.autograd.functional import jacobian as torch_jacobian
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -28,27 +27,26 @@ from pyapprox.probability.univariate import (
     UniformMarginal,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 
 
-def create_gaussian(bkd: Backend[Array]) -> GaussianMarginal:
+def create_gaussian(bkd) -> GaussianMarginal:
     return GaussianMarginal(1.0, 2.0, bkd)
 
 
-def create_uniform(bkd: Backend[Array]) -> UniformMarginal:
+def create_uniform(bkd) -> UniformMarginal:
     return UniformMarginal(0.0, 2.0, bkd)
 
 
-def create_beta(bkd: Backend[Array]) -> BetaMarginal:
+def create_beta(bkd) -> BetaMarginal:
     return BetaMarginal(2.0, 5.0, bkd)
 
 
-def create_gamma(bkd: Backend[Array]) -> GammaMarginal:
+def create_gamma(bkd) -> GammaMarginal:
     return GammaMarginal(2.0, 1.5, bkd)
 
 
-def create_independent_joint(bkd: Backend[Array]) -> IndependentJoint:
+def create_independent_joint(bkd) -> IndependentJoint:
     marginals = [
         GaussianMarginal(0.0, 1.0, bkd),
         UniformMarginal(0.0, 1.0, bkd),
@@ -65,10 +63,10 @@ DISTRIBUTIONS = [
 ]
 
 
-class TestParamJacobianDerivativeChecker(ParametrizedTestCase):
+class TestParamJacobianDerivativeChecker:
     """Test logpdf_jacobian_wrt_params using DerivativeChecker (NumPy)."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,factory,expected_nparams",
         DISTRIBUTIONS,
     )
@@ -76,9 +74,9 @@ class TestParamJacobianDerivativeChecker(ParametrizedTestCase):
         """Test nparams returns expected value."""
         bkd = NumpyBkd()
         dist = factory(bkd)
-        self.assertEqual(dist.nparams(), expected_nparams)
+        assert dist.nparams() == expected_nparams
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,factory,expected_nparams",
         DISTRIBUTIONS,
     )
@@ -96,13 +94,13 @@ class TestParamJacobianDerivativeChecker(ParametrizedTestCase):
         # Create wrapper function: params -> logpdf
         # DerivativeChecker expects function with __call__ and jacobian
         # Use set_active_values since all params are active by default
-        def fun(params: Array) -> Array:
+        def fun(params):
             # params shape: (nparams, 1)
             dist.hyp_list().set_active_values(params[:, 0])
             logpdf = dist.logpdf(samples)  # (1, 1)
             return logpdf.T  # (nsamples=1, nqoi=1)
 
-        def jacobian(params: Array) -> Array:
+        def jacobian(params):
             # params shape: (nparams, 1)
             dist.hyp_list().set_active_values(params[:, 0])
             jac = dist.logpdf_jacobian_wrt_params(samples)  # (1, nparams)
@@ -121,13 +119,13 @@ class TestParamJacobianDerivativeChecker(ParametrizedTestCase):
         sample = bkd.reshape(params, (expected_nparams, 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        self.assertLessEqual(ratio, 1e-6)
+        assert ratio <= 1e-6
 
 
-class TestParamJacobianAutograd(ParametrizedTestCase):
+class TestParamJacobianAutograd:
     """Test logpdf_jacobian_wrt_params against PyTorch autograd."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,factory,expected_nparams",
         DISTRIBUTIONS,
     )
@@ -155,7 +153,3 @@ class TestParamJacobianAutograd(ParametrizedTestCase):
         autograd_jac = torch_jacobian(logpdf_from_params, params)
 
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()

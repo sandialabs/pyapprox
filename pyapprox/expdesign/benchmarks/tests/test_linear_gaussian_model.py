@@ -13,12 +13,8 @@ Dual-backend (NumPy + Torch) tests verifying:
 8. d_optimal_objective == -exact_eig
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.expdesign.benchmarks.linear_gaussian import (
     LinearGaussianOEDBenchmark,
@@ -26,32 +22,20 @@ from pyapprox.expdesign.benchmarks.linear_gaussian import (
 from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
     LinearGaussianOEDModel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
+class TestLinearGaussianOEDModel:
     """Tests for LinearGaussianOEDModel."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     def _make_isotropic_model(
         self,
+        bkd,
         nobs: int = 5,
         nparams: int = 3,
         noise_std: float = 0.5,
         prior_std: float = 0.5,
-    ) -> LinearGaussianOEDModel[Array]:
+    ):
         """Build an isotropic model for testing."""
-        bkd = self._bkd
         np.random.seed(123)
         A = bkd.asarray(np.random.randn(nobs, nparams))
         prior_mean = bkd.zeros((nparams, 1))
@@ -69,11 +53,11 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
 
     def _make_nonisotropic_model(
         self,
+        bkd,
         nobs: int = 4,
         nparams: int = 3,
-    ) -> LinearGaussianOEDModel[Array]:
+    ):
         """Build a non-isotropic model for testing."""
-        bkd = self._bkd
         np.random.seed(456)
         A = bkd.asarray(np.random.randn(nobs, nparams))
         prior_mean = bkd.zeros((nparams, 1))
@@ -95,45 +79,41 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
     # Shape validation tests
     # ==========================================================================
 
-    def test_constructor_rejects_wrong_prior_mean_shape(self):
+    def test_constructor_rejects_wrong_prior_mean_shape(self, bkd):
         """Constructor raises ValueError for mismatched prior_mean."""
-        bkd = self._bkd
         A = bkd.asarray(np.eye(3, 2))
         prior_mean = bkd.zeros((3, 1))  # wrong: nparams=2, not 3
         prior_cov = bkd.eye(2)
         noise_cov = bkd.eye(3)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             LinearGaussianOEDModel(A, prior_mean, prior_cov, noise_cov, bkd)
 
-    def test_constructor_rejects_wrong_prior_cov_shape(self):
+    def test_constructor_rejects_wrong_prior_cov_shape(self, bkd):
         """Constructor raises ValueError for mismatched prior_covariance."""
-        bkd = self._bkd
         A = bkd.asarray(np.eye(3, 2))
         prior_mean = bkd.zeros((2, 1))
         prior_cov = bkd.eye(3)  # wrong: should be (2, 2)
         noise_cov = bkd.eye(3)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             LinearGaussianOEDModel(A, prior_mean, prior_cov, noise_cov, bkd)
 
-    def test_constructor_rejects_wrong_noise_cov_shape(self):
+    def test_constructor_rejects_wrong_noise_cov_shape(self, bkd):
         """Constructor raises ValueError for mismatched noise_covariance."""
-        bkd = self._bkd
         A = bkd.asarray(np.eye(3, 2))
         prior_mean = bkd.zeros((2, 1))
         prior_cov = bkd.eye(2)
         noise_cov = bkd.eye(2)  # wrong: should be (3, 3)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             LinearGaussianOEDModel(A, prior_mean, prior_cov, noise_cov, bkd)
 
-    def test_constructor_rejects_wrong_locations_shape(self):
+    def test_constructor_rejects_wrong_locations_shape(self, bkd):
         """Constructor raises ValueError for mismatched design_locations."""
-        bkd = self._bkd
         A = bkd.asarray(np.eye(3, 2))
         prior_mean = bkd.zeros((2, 1))
         prior_cov = bkd.eye(2)
         noise_cov = bkd.eye(3)
         locations = bkd.linspace(0.0, 1.0, 5)  # wrong: should be 3
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             LinearGaussianOEDModel(
                 A,
                 prior_mean,
@@ -147,24 +127,23 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
     # Accessor tests
     # ==========================================================================
 
-    def test_accessor_shapes(self):
+    def test_accessor_shapes(self, bkd):
         """Test all accessors return correct shapes."""
         nobs, nparams = 5, 3
-        model = self._make_isotropic_model(nobs, nparams)
+        model = self._make_isotropic_model(bkd, nobs, nparams)
 
-        self.assertEqual(model.nobs(), nobs)
-        self.assertEqual(model.nparams(), nparams)
-        self.assertEqual(model.design_matrix().shape, (nobs, nparams))
-        self.assertIsNotNone(model.design_locations())
-        self.assertEqual(model.design_locations().shape, (nobs,))
-        self.assertEqual(model.prior_mean().shape, (nparams, 1))
-        self.assertEqual(model.prior_covariance().shape, (nparams, nparams))
-        self.assertEqual(model.noise_covariance().shape, (nobs, nobs))
-        self.assertEqual(model.noise_variances().shape, (nobs,))
+        assert model.nobs() == nobs
+        assert model.nparams() == nparams
+        assert model.design_matrix().shape == (nobs, nparams)
+        assert model.design_locations() is not None
+        assert model.design_locations().shape == (nobs,)
+        assert model.prior_mean().shape == (nparams, 1)
+        assert model.prior_covariance().shape == (nparams, nparams)
+        assert model.noise_covariance().shape == (nobs, nobs)
+        assert model.noise_variances().shape == (nobs,)
 
-    def test_no_locations(self):
+    def test_no_locations(self, bkd):
         """Test model works without design_locations."""
-        bkd = self._bkd
         A = bkd.asarray(np.eye(3, 2))
         prior_mean = bkd.zeros((2, 1))
         prior_cov = bkd.eye(2)
@@ -176,15 +155,14 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
             noise_cov,
             bkd,
         )
-        self.assertIsNone(model.design_locations())
+        assert model.design_locations() is None
 
     # ==========================================================================
     # Isotropic equivalence: model.exact_eig matches old formula
     # ==========================================================================
 
-    def test_isotropic_eig_matches_old_formula(self):
+    def test_isotropic_eig_matches_old_formula(self, bkd):
         """Verify model.exact_eig matches 0.5*log(det(I + A^T diag(w) A * s^2/n^2))."""
-        bkd = self._bkd
         nobs, nparams = 5, 3
         noise_std, prior_std = 0.5, 0.5
         ratio = prior_std**2 / noise_std**2
@@ -216,15 +194,14 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
 
         actual_eig = model.exact_eig(weights)
 
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             bkd.asarray([actual_eig]),
             bkd.asarray([expected_eig]),
             rtol=1e-10,
         )
 
-    def test_isotropic_eig_matches_benchmark(self):
+    def test_isotropic_eig_matches_benchmark(self, bkd):
         """Verify model.exact_eig matches LinearGaussianOEDBenchmark.exact_eig."""
-        bkd = self._bkd
         nobs, degree = 5, 2
         noise_std, prior_std = 0.5, 0.5
 
@@ -241,15 +218,14 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         eig_benchmark = benchmark.exact_eig(weights)
         eig_model = model.exact_eig(weights)
 
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             bkd.asarray([eig_model]),
             bkd.asarray([eig_benchmark]),
             rtol=1e-12,
         )
 
-    def test_isotropic_eig_random_weights(self):
+    def test_isotropic_eig_random_weights(self, bkd):
         """Test isotropic equivalence with random Dirichlet weights."""
-        bkd = self._bkd
         nobs, nparams = 6, 3
         noise_std, prior_std = 0.3, 1.0
         ratio = prior_std**2 / noise_std**2
@@ -282,7 +258,7 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
 
         actual_eig = model.exact_eig(weights)
 
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             bkd.asarray([actual_eig]),
             bkd.asarray([expected_eig]),
             rtol=1e-10,
@@ -292,90 +268,89 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
     # Non-isotropic EIG
     # ==========================================================================
 
-    def test_nonisotropic_eig_positive(self):
+    def test_nonisotropic_eig_positive(self, bkd):
         """Non-isotropic model gives finite positive EIG."""
-        model = self._make_nonisotropic_model()
+        model = self._make_nonisotropic_model(bkd)
         nobs = model.nobs()
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         eig = model.exact_eig(weights)
-        self.assertTrue(np.isfinite(eig))
-        self.assertGreater(eig, 0.0)
+        assert np.isfinite(eig)
+        assert eig > 0.0
 
-    def test_eig_zero_weights_returns_zero(self):
+    def test_eig_zero_weights_returns_zero(self, bkd):
         """All-zero weights give zero EIG."""
-        model = self._make_isotropic_model()
+        model = self._make_isotropic_model(bkd)
         nobs = model.nobs()
-        weights = self._bkd.zeros((nobs, 1))
+        weights = bkd.zeros((nobs, 1))
         eig = model.exact_eig(weights)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([eig]),
-            self._bkd.asarray([0.0]),
+        bkd.assert_allclose(
+            bkd.asarray([eig]),
+            bkd.asarray([0.0]),
             atol=1e-15,
         )
 
-    def test_eig_partial_weights(self):
+    def test_eig_partial_weights(self, bkd):
         """Weights with some zeros give valid EIG."""
-        model = self._make_isotropic_model(nobs=5)
+        model = self._make_isotropic_model(bkd, nobs=5)
         np.random.seed(42)
         w_np = np.zeros((5, 1))
         w_np[0, 0] = 0.5
         w_np[2, 0] = 0.5
-        weights = self._bkd.asarray(w_np)
+        weights = bkd.asarray(w_np)
         eig = model.exact_eig(weights)
-        self.assertTrue(np.isfinite(eig))
-        self.assertGreater(eig, 0.0)
+        assert np.isfinite(eig)
+        assert eig > 0.0
 
     # ==========================================================================
     # Data generation
     # ==========================================================================
 
-    def test_generate_parameter_samples_shape(self):
+    def test_generate_parameter_samples_shape(self, bkd):
         """Parameter samples have correct shape."""
-        model = self._make_isotropic_model(nobs=5, nparams=3)
+        model = self._make_isotropic_model(bkd, nobs=5, nparams=3)
         samples = model.generate_parameter_samples(10, seed=42)
-        self.assertEqual(samples.shape, (3, 10))
+        assert samples.shape == (3, 10)
 
-    def test_generate_observation_data_shapes(self):
+    def test_generate_observation_data_shapes(self, bkd):
         """Observation data has correct shapes."""
-        model = self._make_isotropic_model(nobs=5, nparams=3)
+        model = self._make_isotropic_model(bkd, nobs=5, nparams=3)
         theta, y = model.generate_observation_data(10, seed=42)
-        self.assertEqual(theta.shape, (3, 10))
-        self.assertEqual(y.shape, (5, 10))
+        assert theta.shape == (3, 10)
+        assert y.shape == (5, 10)
 
-    def test_generate_noisy_observations_shapes(self):
+    def test_generate_noisy_observations_shapes(self, bkd):
         """Noisy observations have correct shapes."""
-        model = self._make_isotropic_model(nobs=5, nparams=3)
+        model = self._make_isotropic_model(bkd, nobs=5, nparams=3)
         theta, y_clean, y_noisy = model.generate_noisy_observations(10)
-        self.assertEqual(theta.shape, (3, 10))
-        self.assertEqual(y_clean.shape, (5, 10))
-        self.assertEqual(y_noisy.shape, (5, 10))
+        assert theta.shape == (3, 10)
+        assert y_clean.shape == (5, 10)
+        assert y_noisy.shape == (5, 10)
 
-    def test_generate_latent_samples_shape(self):
+    def test_generate_latent_samples_shape(self, bkd):
         """Latent samples have correct shape."""
-        model = self._make_isotropic_model(nobs=5, nparams=3)
+        model = self._make_isotropic_model(bkd, nobs=5, nparams=3)
         latent = model.generate_latent_samples(10, seed=42)
-        self.assertEqual(latent.shape, (5, 10))
+        assert latent.shape == (5, 10)
 
-    def test_data_generation_reproducible(self):
+    def test_data_generation_reproducible(self, bkd):
         """Same seed produces same data."""
-        model = self._make_isotropic_model()
+        model = self._make_isotropic_model(bkd)
         theta1, y1 = model.generate_observation_data(10, seed=42)
         theta2, y2 = model.generate_observation_data(10, seed=42)
-        self._bkd.assert_allclose(theta1, theta2, rtol=1e-12)
-        self._bkd.assert_allclose(y1, y2, rtol=1e-12)
+        bkd.assert_allclose(theta1, theta2, rtol=1e-12)
+        bkd.assert_allclose(y1, y2, rtol=1e-12)
 
     # ==========================================================================
     # Cholesky backward compatibility
     # ==========================================================================
 
-    def test_isotropic_parameter_samples_match_direct(self):
+    def test_isotropic_parameter_samples_match_direct(self, bkd):
         """For isotropic prior, L_prior @ z = prior_std * z exactly.
 
         Cholesky of s^2 * I = s * I, so L @ z = s * z. This verifies
         the refactored code produces identical samples to the old
         `prior_std * randn()` approach.
         """
-        bkd = self._bkd
         nobs, nparams = 5, 3
         prior_std = 0.7
         nsamples = 20
@@ -403,11 +378,10 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         np.random.seed(seed)
         theta_old = bkd.asarray(prior_std * np.random.randn(nparams, nsamples))
 
-        self._bkd.assert_allclose(theta_model, theta_old, rtol=1e-12)
+        bkd.assert_allclose(theta_model, theta_old, rtol=1e-12)
 
-    def test_isotropic_noisy_observations_match_direct(self):
+    def test_isotropic_noisy_observations_match_direct(self, bkd):
         """For isotropic noise, L_noise @ z = noise_std * z exactly."""
-        bkd = self._bkd
         nobs, nparams = 4, 2
         noise_std = 0.3
         prior_std = 0.5
@@ -439,62 +413,39 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         noise_np = noise_std * np.random.randn(nobs, nsamples)
         y_noisy_old = y_clean + bkd.asarray(noise_np)
 
-        self._bkd.assert_allclose(y_noisy_model, y_noisy_old, rtol=1e-12)
+        bkd.assert_allclose(y_noisy_model, y_noisy_old, rtol=1e-12)
 
     # ==========================================================================
     # Forward model consistency
     # ==========================================================================
 
-    def test_forward_model_consistency(self):
+    def test_forward_model_consistency(self, bkd):
         """y = A @ theta for noiseless observations."""
-        model = self._make_isotropic_model()
+        model = self._make_isotropic_model(bkd)
         theta, y = model.generate_observation_data(10, seed=42)
-        y_expected = self._bkd.dot(model.design_matrix(), theta)
-        self._bkd.assert_allclose(y, y_expected, rtol=1e-12)
+        y_expected = bkd.dot(model.design_matrix(), theta)
+        bkd.assert_allclose(y, y_expected, rtol=1e-12)
 
-    def test_noisy_observations_differ_from_clean(self):
+    def test_noisy_observations_differ_from_clean(self, bkd):
         """Noisy observations differ from noiseless."""
-        model = self._make_isotropic_model()
+        model = self._make_isotropic_model(bkd)
         _, y_clean, y_noisy = model.generate_noisy_observations(10, seed=42)
-        diff = self._bkd.to_numpy(y_noisy - y_clean)
-        self.assertGreater(np.abs(diff).max(), 0.0)
+        diff = bkd.to_numpy(y_noisy - y_clean)
+        assert np.abs(diff).max() > 0.0
 
     # ==========================================================================
     # D-optimal objective
     # ==========================================================================
 
-    def test_d_optimal_is_negative_eig(self):
+    def test_d_optimal_is_negative_eig(self, bkd):
         """D-optimal objective = -exact_eig."""
-        model = self._make_isotropic_model()
+        model = self._make_isotropic_model(bkd)
         nobs = model.nobs()
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         eig = model.exact_eig(weights)
         d_opt = model.d_optimal_objective(weights)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([d_opt]),
-            self._bkd.asarray([-eig]),
+        bkd.assert_allclose(
+            bkd.asarray([d_opt]),
+            bkd.asarray([-eig]),
             rtol=1e-12,
         )
-
-
-class TestLinearGaussianOEDModelNumpy(TestLinearGaussianOEDModel[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLinearGaussianOEDModelTorch(TestLinearGaussianOEDModel[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

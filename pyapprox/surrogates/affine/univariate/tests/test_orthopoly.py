@@ -1,9 +1,9 @@
 """Tests for orthonormal polynomial univariate bases."""
 
-import unittest
 from abc import ABC, abstractmethod
 
 import numpy as np
+import pytest
 
 from pyapprox.surrogates.affine.univariate import (
     Chebyshev1stKindPolynomial1D,
@@ -19,8 +19,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 
 class _OrthonormalPolynomialTestBase(ABC):
     """Base class for orthonormal polynomial tests."""
-
-    __test__ = False
 
     @abstractmethod
     def _create_polynomial(self):
@@ -40,17 +38,17 @@ class _OrthonormalPolynomialTestBase(ABC):
     def test_set_nterms(self):
         """Test that nterms can be set and retrieved."""
         poly = self._create_polynomial()
-        self.assertEqual(poly.nterms(), 0)
+        assert poly.nterms() == 0
 
         poly.set_nterms(5)
-        self.assertEqual(poly.nterms(), 5)
+        assert poly.nterms() == 5
 
         poly.set_nterms(10)
-        self.assertEqual(poly.nterms(), 10)
+        assert poly.nterms() == 10
 
         # Can also reduce
         poly.set_nterms(3)
-        self.assertEqual(poly.nterms(), 3)
+        assert poly.nterms() == 3
 
     def test_evaluation_shape(self):
         """Test that evaluation returns correct shape."""
@@ -61,7 +59,7 @@ class _OrthonormalPolynomialTestBase(ABC):
         samples = bkd.linspace(-0.9, 0.9, 10)[None, :]
         vals = poly(samples)
 
-        self.assertEqual(vals.shape, (10, 5))
+        assert vals.shape == (10, 5)
 
     def test_jacobian_batch_shape(self):
         """Test that Jacobians have correct shape."""
@@ -72,7 +70,7 @@ class _OrthonormalPolynomialTestBase(ABC):
         samples = bkd.linspace(-0.9, 0.9, 10)[None, :]
         jacs = poly.jacobian_batch(samples)
 
-        self.assertEqual(jacs.shape, (10, 5))
+        assert jacs.shape == (10, 5)
 
     def test_hessian_batch_shape(self):
         """Test that Hessians have correct shape."""
@@ -83,7 +81,7 @@ class _OrthonormalPolynomialTestBase(ABC):
         samples = bkd.linspace(-0.9, 0.9, 10)[None, :]
         hess = poly.hessian_batch(samples)
 
-        self.assertEqual(hess.shape, (10, 5))
+        assert hess.shape == (10, 5)
 
     def test_jacobian_batch_finite_difference(self):
         """Test Jacobians against finite differences."""
@@ -110,8 +108,8 @@ class _OrthonormalPolynomialTestBase(ABC):
 
         points, weights = poly.gauss_quadrature_rule(5)
 
-        self.assertEqual(points.shape, (1, 5))
-        self.assertEqual(weights.shape, (5, 1))
+        assert points.shape == (1, 5)
+        assert weights.shape == (5, 1)
 
     def test_orthonormality(self):
         """Test that polynomials are orthonormal under quadrature."""
@@ -134,10 +132,8 @@ class _OrthonormalPolynomialTestBase(ABC):
         bkd.assert_allclose(mass, bkd.eye(nterms), rtol=1e-10, atol=1e-10)
 
 
-class TestLegendrePolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
+class TestLegendrePolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Legendre polynomials."""
-
-    __test__ = True
 
     def _create_polynomial(self):
         return LegendrePolynomial1D(NumpyBkd)
@@ -167,10 +163,8 @@ class TestLegendrePolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
         bkd.assert_allclose(vals[0, 1], 0.0, atol=1e-10)
 
 
-class TestJacobiPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
+class TestJacobiPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Jacobi polynomials."""
-
-    __test__ = True
 
     def _create_polynomial(self):
         return JacobiPolynomial1D(1.0, 2.0, NumpyBkd)
@@ -182,10 +176,8 @@ class TestJacobiPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
         return lambda x: (1 - x) ** 1.0 * (1 + x) ** 2.0
 
 
-class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
+class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Chebyshev polynomials of the first kind."""
-
-    __test__ = True
 
     def _create_polynomial(self):
         return Chebyshev1stKindPolynomial1D(NumpyBkd)
@@ -225,10 +217,8 @@ class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase, unittest.Te
         bkd.assert_allclose(actual_diag, expected_diag, rtol=1e-10, atol=1e-10)
 
 
-class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
+class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Chebyshev polynomials of the second kind."""
-
-    __test__ = True
 
     def _create_polynomial(self):
         return Chebyshev2ndKindPolynomial1D(NumpyBkd)
@@ -259,10 +249,8 @@ class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase, unittest.Te
         bkd.assert_allclose(mass, expected, rtol=1e-10, atol=1e-10)
 
 
-class TestHermitePolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
+class TestHermitePolynomial(_OrthonormalPolynomialTestBase):
     """Tests for Hermite polynomials."""
-
-    __test__ = True
 
     def _create_polynomial(self):
         return HermitePolynomial1D(NumpyBkd)
@@ -290,7 +278,7 @@ class TestHermitePolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
         bkd.assert_allclose(mass, bkd.eye(nterms), rtol=1e-10, atol=1e-10)
 
 
-class TestGaussQuadratureRule(unittest.TestCase):
+class TestGaussQuadratureRule:
     """Tests for Gaussian quadrature rule wrapper."""
 
     def test_quadrature_rule_accuracy(self):
@@ -321,11 +309,11 @@ class TestGaussQuadratureRule(unittest.TestCase):
         points2, weights2 = quad(5)
 
         # Should be the same objects if cached
-        self.assertTrue(points1 is points2)
-        self.assertTrue(weights1 is weights2)
+        assert points1 is points2
+        assert weights1 is weights2
 
 
-class TestGaussLobattoQuadratureRule(unittest.TestCase):
+class TestGaussLobattoQuadratureRule:
     """Tests for Gauss-Lobatto quadrature rule."""
 
     def test_endpoints_included(self):
@@ -340,7 +328,3 @@ class TestGaussLobattoQuadratureRule(unittest.TestCase):
         # First and last points should be -1 and 1
         bkd.assert_allclose(points[0, 0], -1.0, rtol=1e-14)
         bkd.assert_allclose(points[0, -1], 1.0, rtol=1e-14)
-
-
-if __name__ == "__main__":
-    unittest.main()

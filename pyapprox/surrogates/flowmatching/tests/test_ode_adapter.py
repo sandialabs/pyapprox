@@ -1,11 +1,6 @@
 """Tests for FlowODEResidual and integrate_flow."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerResidual,
@@ -18,34 +13,20 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
     FlowODEResidual,
     integrate_flow,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestFlowODEResidual(Generic[Array], unittest.TestCase):
+class TestFlowODEResidual:
     """Tests for FlowODEResidual."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_satisfies_protocol(self) -> None:
-        bkd = self._bkd
-
+    def test_satisfies_protocol(self, bkd) -> None:
         def dummy_vf(x):
             return bkd.zeros((1, x.shape[1]))
 
         res = FlowODEResidual(dummy_vf, bkd)
-        self.assertIsInstance(res, ODEResidualProtocol)
+        assert isinstance(res, ODEResidualProtocol)
 
-    def test_constant_vf(self) -> None:
+    def test_constant_vf(self, bkd) -> None:
         """v(t,x) = c => dx/dt = c at any state."""
-        bkd = self._bkd
         c_val = bkd.array([[2.0], [-1.0]])  # (2, 1)
 
         def const_vf(vf_input):
@@ -58,8 +39,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         result = res(state)
         bkd.assert_allclose(result, bkd.array([2.0, -1.0]), rtol=1e-12)
 
-    def test_output_shape(self) -> None:
-        bkd = self._bkd
+    def test_output_shape(self, bkd) -> None:
         d = 3
 
         def vf(x):
@@ -69,11 +49,10 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         res.set_time(0.0)
         state = bkd.zeros((d,))
         result = res(state)
-        self.assertEqual(result.shape, (d,))
+        assert result.shape == (d,)
 
-    def test_with_conditioning(self) -> None:
+    def test_with_conditioning(self, bkd) -> None:
         """VF that uses conditioning: v(t,x,c) = c (broadcast)."""
-        bkd = self._bkd
 
         def cond_vf(vf_input):
             # vf_input: (1 + d + m, 1)
@@ -89,8 +68,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         result = res(state)
         bkd.assert_allclose(result, bkd.array([3.0]), rtol=1e-12)
 
-    def test_jacobian_returns_zeros(self) -> None:
-        bkd = self._bkd
+    def test_jacobian_returns_zeros(self, bkd) -> None:
         d = 2
 
         def vf(x):
@@ -101,9 +79,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         jac = res.jacobian(state)
         bkd.assert_allclose(jac, bkd.zeros((d, d)), rtol=1e-12)
 
-    def test_mass_matrix_is_identity(self) -> None:
-        bkd = self._bkd
-
+    def test_mass_matrix_is_identity(self, bkd) -> None:
         def vf(x):
             return bkd.zeros((2, x.shape[1]))
 
@@ -111,9 +87,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         M = res.mass_matrix(2)
         bkd.assert_allclose(M, bkd.eye(2), rtol=1e-12)
 
-    def test_apply_mass_matrix_is_identity(self) -> None:
-        bkd = self._bkd
-
+    def test_apply_mass_matrix_is_identity(self, bkd) -> None:
         def vf(x):
             return bkd.zeros((2, x.shape[1]))
 
@@ -122,20 +96,11 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(res.apply_mass_matrix(vec), vec, rtol=1e-12)
 
 
-class TestIntegrateFlow(Generic[Array], unittest.TestCase):
+class TestIntegrateFlow:
     """Tests for integrate_flow helper."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_constant_vf_euler_exact(self) -> None:
+    def test_constant_vf_euler_exact(self, bkd) -> None:
         """v=c => x(T) = x0 + c*T. Euler is exact for constant VF."""
-        bkd = self._bkd
         c_val = bkd.array([[1.0], [-0.5]])  # (2, 1)
 
         def const_vf(vf_input):
@@ -157,9 +122,8 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         expected = bkd.array([[0.0 + 1.0, 1.0 + 1.0], [0.0 - 0.5, 2.0 - 0.5]])
         bkd.assert_allclose(result, expected, rtol=1e-10)
 
-    def test_constant_vf_with_conditioning(self) -> None:
+    def test_constant_vf_with_conditioning(self, bkd) -> None:
         """v(t,x,c) returns c as the velocity."""
-        bkd = self._bkd
         d, _m = 1, 1
 
         def cond_vf(vf_input):
@@ -182,9 +146,8 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         expected = bkd.array([[2.0, -1.0]])
         bkd.assert_allclose(result, expected, rtol=1e-10)
 
-    def test_linear_vf_euler_convergence(self) -> None:
+    def test_linear_vf_euler_convergence(self, bkd) -> None:
         """v=x => x(t)=x0*exp(t). Verify Euler O(h) convergence."""
-        bkd = self._bkd
 
         def linear_vf(vf_input):
             # vf_input: (1+d, ns), return x part
@@ -212,11 +175,10 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         # Check O(h) convergence: error ratio should be ~2 for halving h
         for i in range(len(errors) - 1):
             ratio = errors[i] / errors[i + 1]
-            self.assertGreater(ratio, 1.8, f"Euler convergence failed: ratio={ratio}")
+            assert ratio > 1.8, f"Euler convergence failed: ratio={ratio}"
 
-    def test_linear_vf_heun_convergence(self) -> None:
+    def test_linear_vf_heun_convergence(self, bkd) -> None:
         """v=x => x(t)=x0*exp(t). Verify Heun O(h^2) convergence."""
-        bkd = self._bkd
 
         def linear_vf(vf_input):
             return vf_input[1:, :]
@@ -243,10 +205,9 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         # Check O(h^2) convergence: error ratio should be ~4 for halving h
         for i in range(len(errors) - 1):
             ratio = errors[i] / errors[i + 1]
-            self.assertGreater(ratio, 3.5, f"Heun convergence failed: ratio={ratio}")
+            assert ratio > 3.5, f"Heun convergence failed: ratio={ratio}"
 
-    def test_output_shape(self) -> None:
-        bkd = self._bkd
+    def test_output_shape(self, bkd) -> None:
         d, nsamples = 3, 5
 
         def vf(x):
@@ -254,11 +215,10 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
 
         x0 = bkd.zeros((d, nsamples))
         result = integrate_flow(vf, x0, 0.0, 1.0, n_steps=5, bkd=bkd)
-        self.assertEqual(result.shape, (d, nsamples))
+        assert result.shape == (d, nsamples)
 
-    def test_batch_samples(self) -> None:
+    def test_batch_samples(self, bkd) -> None:
         """Multiple samples with different initial conditions."""
-        bkd = self._bkd
         c_val = 1.0
 
         def const_vf(vf_input):
@@ -277,28 +237,3 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         )
         expected = bkd.array([[0.5, 1.5, 2.5]])
         bkd.assert_allclose(result, expected, rtol=1e-10)
-
-
-class TestFlowODEResidualNumpy(TestFlowODEResidual[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFlowODEResidualTorch(TestFlowODEResidual[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestIntegrateFlowNumpy(TestIntegrateFlow[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestIntegrateFlowTorch(TestIntegrateFlow[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

@@ -11,7 +11,7 @@ pipeline is autograd-safe:
 - No .detach(), .data, .numpy(), .item() in production code
 - bkd.copy() = tensor.clone() (preserves graph)
 - set_observations()/set_latent_samples() store references (no detach)
-- LogEvidence uses log-sum-exp trick (max, exp, sum, log — all autograd-safe)
+- LogEvidence uses log-sum-exp trick (max, exp, sum, log -- all autograd-safe)
 
 Note on reparameterization: The analytical jacobians include a
 reparameterization term (Component 3) when latent_samples are set,
@@ -21,8 +21,6 @@ NOT set latent_samples. The full reparameterization path is tested
 through TestAutogradKLObjective, which generates observations as a
 function of design_weights.
 """
-
-import unittest
 
 import numpy as np
 import torch
@@ -34,18 +32,16 @@ from pyapprox.expdesign.likelihood import (
 )
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestAutogradOuterLikelihood(unittest.TestCase):
+class TestAutogradOuterLikelihood:
     """Test torch.autograd through GaussianOEDOuterLoopLikelihood.
 
     Observations are fixed data (not generated from design_weights), so
     latent_samples are NOT set to avoid the reparameterization term mismatch.
     """
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -67,6 +63,7 @@ class TestAutogradOuterLikelihood(unittest.TestCase):
 
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
+        self._setup_data()
         like = self._create_likelihood()
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
@@ -85,14 +82,13 @@ class TestAutogradOuterLikelihood(unittest.TestCase):
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
 
 
-class TestAutogradEvidence(unittest.TestCase):
+class TestAutogradEvidence:
     """Test torch.autograd through Evidence.
 
     Observations are fixed data, so latent_samples are NOT set.
     """
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
 
@@ -120,6 +116,7 @@ class TestAutogradEvidence(unittest.TestCase):
 
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
+        self._setup_data()
         ev = self._create_evidence()
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
@@ -137,14 +134,13 @@ class TestAutogradEvidence(unittest.TestCase):
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
 
 
-class TestAutogradLogEvidence(unittest.TestCase):
+class TestAutogradLogEvidence:
     """Test torch.autograd through LogEvidence.
 
     Observations are fixed data, so latent_samples are NOT set.
     """
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
 
@@ -172,6 +168,7 @@ class TestAutogradLogEvidence(unittest.TestCase):
 
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
+        self._setup_data()
         log_ev = self._create_log_evidence()
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
@@ -189,7 +186,7 @@ class TestAutogradLogEvidence(unittest.TestCase):
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
 
 
-class TestAutogradKLObjective(unittest.TestCase):
+class TestAutogradKLObjective:
     """Test torch.autograd through KLOEDObjective.
 
     This exercises the full path including reparameterization trick:
@@ -202,8 +199,7 @@ class TestAutogradKLObjective(unittest.TestCase):
     computation graph.
     """
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -234,6 +230,7 @@ class TestAutogradKLObjective(unittest.TestCase):
 
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
+        self._setup_data()
         obj = self._create_objective()
         np.random.seed(123)
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
@@ -251,7 +248,3 @@ class TestAutogradKLObjective(unittest.TestCase):
         autograd_jac = autograd_jac.squeeze(-1)
 
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
-
-
-if __name__ == "__main__":
-    unittest.main()

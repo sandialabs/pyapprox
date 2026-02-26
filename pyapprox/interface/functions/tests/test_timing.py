@@ -1,11 +1,9 @@
 """Tests for function timing wrappers."""
 
 import time
-import unittest
-from typing import Any, Generic
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
@@ -21,10 +19,7 @@ from pyapprox.interface.functions.timing import (
     TimedFunctionWithJacobianAndHVP,
     timed,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Test fixtures
@@ -143,15 +138,15 @@ class SleepFunctionWithInternalCall(SleepFunction[Array]):
 # ---------------------------------------------------------------------------
 
 
-class TestMethodTimer(unittest.TestCase):
+class TestMethodTimer:
     """Tests for MethodTimer (pure Python, no backend)."""
 
     def test_empty_raises(self) -> None:
         t = MethodTimer()
-        self.assertEqual(t.call_count(), 0)
-        self.assertEqual(t.total_evals(), 0)
-        self.assertAlmostEqual(t.total_time(), 0.0)
-        with self.assertRaises(ValueError):
+        assert t.call_count() == 0
+        assert t.total_evals() == 0
+        assert t.total_time() == pytest.approx(0.0)
+        with pytest.raises(ValueError):
             t.median()
 
     def test_single_eval_median(self) -> None:
@@ -159,59 +154,59 @@ class TestMethodTimer(unittest.TestCase):
         t.record(0.3, 1)
         t.record(0.1, 1)
         t.record(0.2, 1)
-        self.assertEqual(t.call_count(), 3)
-        self.assertEqual(t.total_evals(), 3)
-        self.assertAlmostEqual(t.median(), 0.2)
+        assert t.call_count() == 3
+        assert t.total_evals() == 3
+        assert t.median() == pytest.approx(0.2)
 
     def test_batch_eval_median(self) -> None:
         t = MethodTimer()
         t.record(0.1, 20)
         t.record(0.1, 80)
-        self.assertEqual(t.call_count(), 2)
-        self.assertEqual(t.total_evals(), 100)
-        self.assertAlmostEqual(t.median(), 0.2 / 100)
+        assert t.call_count() == 2
+        assert t.total_evals() == 100
+        assert t.median() == pytest.approx(0.2 / 100)
 
     def test_reset(self) -> None:
         t = MethodTimer()
         t.record(0.5, 1)
         t.record(0.3, 1)
-        self.assertEqual(t.call_count(), 2)
+        assert t.call_count() == 2
         t.reset()
-        self.assertEqual(t.call_count(), 0)
-        self.assertEqual(t.total_evals(), 0)
-        with self.assertRaises(ValueError):
+        assert t.call_count() == 0
+        assert t.total_evals() == 0
+        with pytest.raises(ValueError):
             t.median()
 
 
-class TestFunctionTimer(unittest.TestCase):
+class TestFunctionTimer:
     """Tests for FunctionTimer (pure Python, no backend)."""
 
     def test_auto_create(self) -> None:
         ft = FunctionTimer()
         t1 = ft.get("foo")
         t2 = ft.get("foo")
-        self.assertIs(t1, t2)
+        assert t1 is t2
         t3 = ft.get("bar")
-        self.assertIsNot(t1, t3)
+        assert t1 is not t3
 
     def test_reset(self) -> None:
         ft = FunctionTimer()
         ft.get("foo").record(0.1)
         ft.get("bar").record(0.2)
-        self.assertEqual(ft.get("foo").call_count(), 1)
-        self.assertEqual(ft.get("bar").call_count(), 1)
+        assert ft.get("foo").call_count() == 1
+        assert ft.get("bar").call_count() == 1
         ft.reset()
-        self.assertEqual(ft.get("foo").call_count(), 0)
-        self.assertEqual(ft.get("bar").call_count(), 0)
+        assert ft.get("foo").call_count() == 0
+        assert ft.get("bar").call_count() == 0
 
     def test_summary(self) -> None:
         ft = FunctionTimer()
         ft.get("foo").record(0.1)
         ft.get("foo").record(0.3)
         s = ft.summary()
-        self.assertIn("foo", s)
-        self.assertAlmostEqual(s["foo"]["total_time"], 0.4)
-        self.assertAlmostEqual(s["foo"]["call_count"], 2.0)
+        assert "foo" in s
+        assert s["foo"]["total_time"] == pytest.approx(0.4)
+        assert s["foo"]["call_count"] == pytest.approx(2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -221,71 +216,63 @@ class TestFunctionTimer(unittest.TestCase):
 RTOL = 0.15
 
 
-class TestTimedWrapper(Generic[Array], unittest.TestCase):
+class TestTimedWrapper:
     """Dual-backend tests for timed wrapper classes."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_call_median(self) -> None:
+    def test_call_median(self, bkd) -> None:
         """SleepFunction(call_time=0.05), call 3x with 1 sample each."""
-        fn = SleepFunction(self._bkd, call_time=0.05)
+        fn = SleepFunction(bkd, call_time=0.05)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         for _ in range(3):
             w(sample)
         t = w.timer().get("__call__")
-        self.assertEqual(t.call_count(), 3)
-        self.assertEqual(t.total_evals(), 3)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([t.median()]),
-            self._bkd.asarray([0.05]),
+        assert t.call_count() == 3
+        assert t.total_evals() == 3
+        bkd.assert_allclose(
+            bkd.asarray([t.median()]),
+            bkd.asarray([0.05]),
             rtol=RTOL,
         )
 
-    def test_jacobian_median(self) -> None:
+    def test_jacobian_median(self, bkd) -> None:
         """SleepFunction(jac_time=0.07), call jacobian 5x."""
-        fn = SleepFunction(self._bkd, jac_time=0.07)
+        fn = SleepFunction(bkd, jac_time=0.07)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         for _ in range(5):
             w.jacobian(sample)  # type: ignore[union-attr]
         t = w.timer().get("jacobian")
-        self.assertEqual(t.call_count(), 5)
-        self.assertEqual(t.total_evals(), 5)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([t.median()]),
-            self._bkd.asarray([0.07]),
+        assert t.call_count() == 5
+        assert t.total_evals() == 5
+        bkd.assert_allclose(
+            bkd.asarray([t.median()]),
+            bkd.asarray([0.07]),
             rtol=RTOL,
         )
 
-    def test_hvp_median(self) -> None:
+    def test_hvp_median(self, bkd) -> None:
         """SleepFunction(hvp_time=0.09), call hvp 3x."""
-        fn = SleepFunction(self._bkd, hvp_time=0.09)
+        fn = SleepFunction(bkd, hvp_time=0.09)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
-        vec = self._bkd.ones((2, 1))
+        sample = bkd.zeros((2, 1))
+        vec = bkd.ones((2, 1))
         for _ in range(3):
             w.hvp(sample, vec)  # type: ignore[union-attr]
         t = w.timer().get("hvp")
-        self.assertEqual(t.call_count(), 3)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([t.median()]),
-            self._bkd.asarray([0.09]),
+        assert t.call_count() == 3
+        bkd.assert_allclose(
+            bkd.asarray([t.median()]),
+            bkd.asarray([0.09]),
             rtol=RTOL,
         )
 
-    def test_different_methods_different_times(self) -> None:
+    def test_different_methods_different_times(self, bkd) -> None:
         """Each method has distinct sleep time; verify ordering."""
-        fn = SleepFunction(self._bkd, call_time=0.05, jac_time=0.08, hvp_time=0.06)
+        fn = SleepFunction(bkd, call_time=0.05, jac_time=0.08, hvp_time=0.06)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
-        vec = self._bkd.ones((2, 1))
+        sample = bkd.zeros((2, 1))
+        vec = bkd.ones((2, 1))
         for _ in range(3):
             w(sample)
             w.jacobian(sample)  # type: ignore[union-attr]
@@ -293,170 +280,142 @@ class TestTimedWrapper(Generic[Array], unittest.TestCase):
         call_med = w.timer().get("__call__").median()
         jac_med = w.timer().get("jacobian").median()
         hvp_med = w.timer().get("hvp").median()
-        self.assertGreater(jac_med, hvp_med)
-        self.assertGreater(hvp_med, call_med)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([call_med]),
-            self._bkd.asarray([0.05]),
+        assert jac_med > hvp_med
+        assert hvp_med > call_med
+        bkd.assert_allclose(
+            bkd.asarray([call_med]),
+            bkd.asarray([0.05]),
             rtol=RTOL,
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([jac_med]),
-            self._bkd.asarray([0.08]),
+        bkd.assert_allclose(
+            bkd.asarray([jac_med]),
+            bkd.asarray([0.08]),
             rtol=RTOL,
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([hvp_med]),
-            self._bkd.asarray([0.06]),
+        bkd.assert_allclose(
+            bkd.asarray([hvp_med]),
+            bkd.asarray([0.06]),
             rtol=RTOL,
         )
 
-    def test_median_true_median_for_individual(self) -> None:
+    def test_median_true_median_for_individual(self, bkd) -> None:
         """VariableSleepFunction alternating [0.05, 0.10]. Median=0.05."""
-        fn = VariableSleepFunction(self._bkd, time_a=0.05, time_b=0.10)
+        fn = VariableSleepFunction(bkd, time_a=0.05, time_b=0.10)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         for _ in range(5):
             w.jacobian(sample)  # type: ignore[union-attr]
         med = w.timer().get("jacobian").median()
-        self._bkd.assert_allclose(
-            self._bkd.asarray([med]),
-            self._bkd.asarray([0.05]),
+        bkd.assert_allclose(
+            bkd.asarray([med]),
+            bkd.asarray([0.05]),
             rtol=RTOL,
         )
         # Ensure it's NOT the mean (0.07)
-        self.assertLess(med, 0.06)
+        assert med < 0.06
 
-    def test_batch_median_is_weighted_mean(self) -> None:
+    def test_batch_median_is_weighted_mean(self, bkd) -> None:
         """SleepFunctionWithBatch: verify weighted-mean median."""
-        fn = SleepFunctionWithBatch(self._bkd, batch_time=0.1)
+        fn = SleepFunctionWithBatch(bkd, batch_time=0.1)
         w = timed(fn)
-        samples_20 = self._bkd.zeros((2, 20))
-        samples_80 = self._bkd.zeros((2, 80))
+        samples_20 = bkd.zeros((2, 20))
+        samples_80 = bkd.zeros((2, 80))
         w.jacobian_batch(samples_20)  # type: ignore[union-attr]
         w.jacobian_batch(samples_80)  # type: ignore[union-attr]
         t = w.timer().get("jacobian_batch")
-        self.assertEqual(t.call_count(), 2)
-        self.assertEqual(t.total_evals(), 100)
+        assert t.call_count() == 2
+        assert t.total_evals() == 100
         expected = t.total_time() / 100.0
-        self._bkd.assert_allclose(
-            self._bkd.asarray([t.median()]),
-            self._bkd.asarray([expected]),
+        bkd.assert_allclose(
+            bkd.asarray([t.median()]),
+            bkd.asarray([expected]),
         )
 
-    def test_call_nevals_is_nsamples(self) -> None:
+    def test_call_nevals_is_nsamples(self, bkd) -> None:
         """__call__ with 10 then 20 samples."""
-        fn = SleepFunction(self._bkd, call_time=0.05)
+        fn = SleepFunction(bkd, call_time=0.05)
         w = timed(fn)
-        w(self._bkd.zeros((2, 10)))
-        w(self._bkd.zeros((2, 20)))
+        w(bkd.zeros((2, 10)))
+        w(bkd.zeros((2, 20)))
         t = w.timer().get("__call__")
-        self.assertEqual(t.total_evals(), 30)
-        self.assertEqual(t.call_count(), 2)
+        assert t.total_evals() == 30
+        assert t.call_count() == 2
 
-    def test_protocol_preservation(self) -> None:
+    def test_protocol_preservation(self, bkd) -> None:
         """timed() returns appropriate wrapper type."""
-        fn = SleepFunction(self._bkd)
+        fn = SleepFunction(bkd)
         w = timed(fn)
-        self.assertIsInstance(w, TimedFunctionWithJacobianAndHVP)
-        self.assertTrue(isinstance(w, TimedFunctionWithJacobian))
-        self.assertTrue(isinstance(w, TimedFunction))
+        assert isinstance(w, TimedFunctionWithJacobianAndHVP)
+        assert isinstance(w, TimedFunctionWithJacobian)
+        assert isinstance(w, TimedFunction)
 
         # Plain FunctionProtocol should NOT get jacobian
         plain = FunctionFromCallable(
             nqoi=1,
             nvars=2,
-            fun=lambda s: self._bkd.zeros((1, s.shape[1])),
-            bkd=self._bkd,
+            fun=lambda s: bkd.zeros((1, s.shape[1])),
+            bkd=bkd,
         )
         w_plain = timed(plain)
-        self.assertIsInstance(w_plain, TimedFunction)
-        self.assertNotIsInstance(w_plain, TimedFunctionWithJacobian)
-        self.assertFalse(hasattr(w_plain, "jacobian"))
+        assert isinstance(w_plain, TimedFunction)
+        assert not isinstance(w_plain, TimedFunctionWithJacobian)
+        assert not hasattr(w_plain, "jacobian")
 
-    def test_values_unchanged(self) -> None:
+    def test_values_unchanged(self, bkd) -> None:
         """IshigamiFunction: wrapped and unwrapped give identical results."""
-        fn = IshigamiFunction(self._bkd, a=7.0, b=0.1)
+        fn = IshigamiFunction(bkd, a=7.0, b=0.1)
         w = timed(fn)
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             [[0.5, 1.0, -0.3], [0.2, -1.5, 0.8], [1.0, 0.5, -1.0]]
         )
-        self._bkd.assert_allclose(w(samples), fn(samples))
+        bkd.assert_allclose(w(samples), fn(samples))
 
         sample = samples[:, 0:1]
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             w.jacobian(sample),  # type: ignore[union-attr]
             fn.jacobian(sample),
         )
-        vec = self._bkd.ones((3, 1))
-        self._bkd.assert_allclose(
+        vec = bkd.ones((3, 1))
+        bkd.assert_allclose(
             w.hvp(sample, vec),  # type: ignore[union-attr]
             fn.hvp(sample, vec),
         )
 
-    def test_no_double_counting(self) -> None:
+    def test_no_double_counting(self, bkd) -> None:
         """Internal self(sample) in jacobian goes through inner, not wrapper."""
-        fn = SleepFunctionWithInternalCall(self._bkd, jac_time=0.05)
+        fn = SleepFunctionWithInternalCall(bkd, jac_time=0.05)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         w.jacobian(sample)  # type: ignore[union-attr]
-        self.assertEqual(w.timer().get("jacobian").call_count(), 1)
-        # __call__ timer should have 0 calls — the internal self(sample)
+        assert w.timer().get("jacobian").call_count() == 1
+        # __call__ timer should have 0 calls -- the internal self(sample)
         # goes through the inner object, not the wrapper.
-        self.assertEqual(w.timer().get("__call__").call_count(), 0)
+        assert w.timer().get("__call__").call_count() == 0
 
-    def test_shared_timer(self) -> None:
+    def test_shared_timer(self, bkd) -> None:
         """Two functions sharing one FunctionTimer."""
         shared = FunctionTimer()
-        fn1 = SleepFunction(self._bkd, jac_time=0.05)
-        fn2 = SleepFunction(self._bkd, jac_time=0.08)
+        fn1 = SleepFunction(bkd, jac_time=0.05)
+        fn2 = SleepFunction(bkd, jac_time=0.08)
         w1 = timed(fn1, timer=shared)
         w2 = timed(fn2, timer=shared)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         w1.jacobian(sample)  # type: ignore[union-attr]
         w2.jacobian(sample)  # type: ignore[union-attr]
-        self.assertEqual(shared.get("jacobian").call_count(), 2)
+        assert shared.get("jacobian").call_count() == 2
 
-    def test_reset(self) -> None:
+    def test_reset(self, bkd) -> None:
         """Reset clears all timing data."""
-        fn = SleepFunction(self._bkd, jac_time=0.05)
+        fn = SleepFunction(bkd, jac_time=0.05)
         w = timed(fn)
-        sample = self._bkd.zeros((2, 1))
+        sample = bkd.zeros((2, 1))
         for _ in range(3):
             w.jacobian(sample)  # type: ignore[union-attr]
-        self.assertEqual(w.timer().get("jacobian").call_count(), 3)
+        assert w.timer().get("jacobian").call_count() == 3
         w.timer().reset()
-        self.assertEqual(w.timer().get("jacobian").call_count(), 0)
-        self.assertEqual(w.timer().get("jacobian").total_evals(), 0)
-        with self.assertRaises(ValueError):
+        assert w.timer().get("jacobian").call_count() == 0
+        assert w.timer().get("jacobian").total_evals() == 0
+        with pytest.raises(ValueError):
             w.timer().get("jacobian").median()
         w.jacobian(sample)  # type: ignore[union-attr]
-        self.assertEqual(w.timer().get("jacobian").call_count(), 1)
-
-
-# ---------------------------------------------------------------------------
-# Concrete backend test classes
-# ---------------------------------------------------------------------------
-
-
-class TestTimedWrapperNumpy(TestTimedWrapper[NDArray[Any]]):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestTimedWrapperTorch(TestTimedWrapper[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert w.timer().get("jacobian").call_count() == 1

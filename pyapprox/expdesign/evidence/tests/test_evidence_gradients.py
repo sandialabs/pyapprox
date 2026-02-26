@@ -9,13 +9,8 @@ Tests verify correctness using:
 3. Shape and positivity checks
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.expdesign.evidence import Evidence, LogEvidence
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
@@ -25,33 +20,24 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestEvidenceGradientsStandalone(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestEvidenceGradientsStandalone:
     """Standalone tests for Evidence and LogEvidence gradients."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
+    @pytest.fixture(autouse=True)
+    def _setup(self, bkd):
         # Default test dimensions
         self._nobs = 3
         self._ninner = 30
         self._nouter = 20
 
     def _create_likelihood_and_evidence(
-        self, nobs: int, ninner: int, nouter: int
+        self, bkd, nobs: int, ninner: int, nouter: int
     ) -> tuple:
         """Create likelihood, Evidence, and LogEvidence with test data.
 
@@ -67,7 +53,6 @@ class TestEvidenceGradientsStandalone(
         not a function of the weights."
         """
         np.random.seed(42)
-        bkd = self._bkd
 
         # Create noise variances (heteroscedastic)
         noise_variances = bkd.asarray(np.random.uniform(0.1, 0.5, nobs))
@@ -91,7 +76,7 @@ class TestEvidenceGradientsStandalone(
 
         return inner_loglike, evidence, log_evidence, nobs
 
-    def _create_evidence_checker_function(self, evidence_obj: Evidence[Array]):
+    def _create_evidence_checker_function(self, bkd, evidence_obj):
         """
         Wrap Evidence for DerivativeChecker.
 
@@ -105,22 +90,22 @@ class TestEvidenceGradientsStandalone(
             d/dw scalar_f = sum_j d/dw evidence[j] = sum over rows of jacobian
         """
 
-        def value_fun(samples: Array) -> Array:
+        def value_fun(samples):
             # samples: (nvars, nsamples) where nvars = nobs
             nsamples = samples.shape[1]
             results = []
             for ii in range(nsamples):
                 w = samples[:, ii : ii + 1]  # (nobs, 1)
                 evidence_vals = evidence_obj(w)  # (1, nouter)
-                scalar_sum = self._bkd.sum(evidence_vals)  # sum over outer samples
+                scalar_sum = bkd.sum(evidence_vals)  # sum over outer samples
                 results.append(scalar_sum)
-            return self._bkd.reshape(self._bkd.stack(results), (1, nsamples))
+            return bkd.reshape(bkd.stack(results), (1, nsamples))
 
-        def jacobian_fun(sample: Array) -> Array:
+        def jacobian_fun(sample):
             # sample: (nobs, 1)
             jac = evidence_obj.jacobian(sample)  # (nouter, nobs)
             # Sum over outer samples (axis 0) to get scalar objective gradient
-            return self._bkd.sum(jac, axis=0, keepdims=True)  # (1, nobs)
+            return bkd.sum(jac, axis=0, keepdims=True)  # (1, nobs)
 
         nobs = evidence_obj._loglike.nobs()
         return FunctionWithJacobianFromCallable(
@@ -128,54 +113,54 @@ class TestEvidenceGradientsStandalone(
             nvars=nobs,
             fun=value_fun,
             jacobian=jacobian_fun,
-            bkd=self._bkd,
+            bkd=bkd,
         )
 
     # ==========================================================================
     # Shape tests
     # ==========================================================================
 
-    def test_evidence_shape(self) -> None:
+    def test_evidence_shape(self, bkd) -> None:
         """Test Evidence output shape is (1, nouter)."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         result = evidence(weights)
-        self.assertEqual(result.shape, (1, self._nouter))
+        assert result.shape == (1, self._nouter)
 
-    def test_log_evidence_shape(self) -> None:
+    def test_log_evidence_shape(self, bkd) -> None:
         """Test LogEvidence output shape is (1, nouter)."""
         _, _, log_evidence, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         result = log_evidence(weights)
-        self.assertEqual(result.shape, (1, self._nouter))
+        assert result.shape == (1, self._nouter)
 
-    def test_evidence_jacobian_shape(self) -> None:
+    def test_evidence_jacobian_shape(self, bkd) -> None:
         """Test Evidence Jacobian shape is (nouter, nobs)."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         jac = evidence.jacobian(weights)
-        self.assertEqual(jac.shape, (self._nouter, nobs))
+        assert jac.shape == (self._nouter, nobs)
 
-    def test_log_evidence_jacobian_shape(self) -> None:
+    def test_log_evidence_jacobian_shape(self, bkd) -> None:
         """Test LogEvidence Jacobian shape is (nouter, nobs)."""
         _, _, log_evidence, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         jac = log_evidence.jacobian(weights)
-        self.assertEqual(jac.shape, (self._nouter, nobs))
+        assert jac.shape == (self._nouter, nobs)
 
     # ==========================================================================
     # Gradient verification tests
     # ==========================================================================
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,ninner,nouter",
         [
             (3, 30, 20),  # Small case
@@ -184,29 +169,29 @@ class TestEvidenceGradientsStandalone(
         ],
     )
     def test_evidence_jacobian_derivative_checker(
-        self, nobs: int, ninner: int, nouter: int
+        self, bkd, nobs: int, ninner: int, nouter: int
     ) -> None:
         """Test Evidence.jacobian using DerivativeChecker."""
-        _, evidence, _, _ = self._create_likelihood_and_evidence(nobs, ninner, nouter)
-        wrapped = self._create_evidence_checker_function(evidence)
+        _, evidence, _, _ = self._create_likelihood_and_evidence(
+            bkd, nobs, ninner, nouter
+        )
+        wrapped = self._create_evidence_checker_function(bkd, evidence)
         checker = DerivativeChecker(wrapped)
 
         np.random.seed(123)
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
 
         # Use smaller step sizes to avoid numerical issues with large perturbations
         # Default is logspace(-13, 0, 14) which includes step=1.0 that's too large
-        fd_eps = self._bkd.flip(self._bkd.logspace(-12, -1, 12))
+        fd_eps = bkd.flip(bkd.logspace(-12, -1, 12))
         errors = checker.check_derivatives(weights, fd_eps=fd_eps)
 
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(self._bkd.to_numpy(ratio)),
-            1e-5,
-            f"Evidence Jacobian check failed: ratio={ratio}",
+        assert float(bkd.to_numpy(ratio)) <= 1e-5, (
+            f"Evidence Jacobian check failed: ratio={ratio}"
         )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,ninner,nouter",
         [
             (3, 30, 20),  # Small case
@@ -215,75 +200,72 @@ class TestEvidenceGradientsStandalone(
         ],
     )
     def test_log_evidence_jacobian_derivative_checker(
-        self, nobs: int, ninner: int, nouter: int
+        self, bkd, nobs: int, ninner: int, nouter: int
     ) -> None:
         """Test LogEvidence.jacobian using DerivativeChecker."""
         _, _, log_evidence, _ = self._create_likelihood_and_evidence(
-            nobs, ninner, nouter
+            bkd, nobs, ninner, nouter
         )
-        wrapped = self._create_evidence_checker_function(log_evidence)
+        wrapped = self._create_evidence_checker_function(bkd, log_evidence)
         checker = DerivativeChecker(wrapped)
 
         np.random.seed(123)
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
 
         # Use smaller step sizes to avoid numerical issues with large perturbations
-        fd_eps = self._bkd.flip(self._bkd.logspace(-12, -1, 12))
+        fd_eps = bkd.flip(bkd.logspace(-12, -1, 12))
         errors = checker.check_derivatives(weights, fd_eps=fd_eps)
 
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(self._bkd.to_numpy(ratio)),
-            1e-5,
-            f"LogEvidence Jacobian check failed: ratio={ratio}",
+        assert float(bkd.to_numpy(ratio)) <= 1e-5, (
+            f"LogEvidence Jacobian check failed: ratio={ratio}"
         )
 
     # ==========================================================================
     # Value property tests
     # ==========================================================================
 
-    def test_evidence_positive(self) -> None:
+    def test_evidence_positive(self, bkd) -> None:
         """Test all evidence values are positive."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         result = evidence(weights)
 
-        result_np = self._bkd.to_numpy(result)
-        self.assertTrue(np.all(result_np > 0), "Evidence values must be positive")
+        result_np = bkd.to_numpy(result)
+        assert np.all(result_np > 0), "Evidence values must be positive"
 
-    def test_log_evidence_finite(self) -> None:
+    def test_log_evidence_finite(self, bkd) -> None:
         """Test all log-evidence values are finite."""
         _, _, log_evidence, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
         result = log_evidence(weights)
 
-        result_np = self._bkd.to_numpy(result)
-        self.assertTrue(
-            np.all(np.isfinite(result_np)), "Log-evidence values must be finite"
+        result_np = bkd.to_numpy(result)
+        assert np.all(np.isfinite(result_np)), (
+            "Log-evidence values must be finite"
         )
 
-    def test_log_evidence_equals_log_of_evidence(self) -> None:
+    def test_log_evidence_equals_log_of_evidence(self, bkd) -> None:
         """Test log(Evidence()) approximately equals LogEvidence()."""
         _, evidence, log_evidence, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
 
         evidence_vals = evidence(weights)
         log_evidence_vals = log_evidence(weights)
 
         # log(Evidence) should equal LogEvidence
-        log_of_evidence = self._bkd.log(evidence_vals)
+        log_of_evidence = bkd.log(evidence_vals)
 
-        self._bkd.assert_allclose(log_of_evidence, log_evidence_vals, rtol=1e-10)
+        bkd.assert_allclose(log_of_evidence, log_evidence_vals, rtol=1e-10)
 
-    def test_log_evidence_numerical_stability(self) -> None:
+    def test_log_evidence_numerical_stability(self, bkd) -> None:
         """Test LogEvidence handles very small likelihood values."""
-        bkd = self._bkd
         nobs, ninner, nouter = 2, 20, 10
 
         # Create likelihood with large noise (small likelihoods)
@@ -306,97 +288,68 @@ class TestEvidenceGradientsStandalone(
         result_np = bkd.to_numpy(result)
 
         # Should be finite (not -inf or nan)
-        self.assertTrue(
-            np.all(np.isfinite(result_np)),
-            "LogEvidence must be numerically stable for small likelihoods",
+        assert np.all(np.isfinite(result_np)), (
+            "LogEvidence must be numerically stable for small likelihoods"
         )
 
     # ==========================================================================
     # Consistency and auxiliary tests
     # ==========================================================================
 
-    def test_evidence_jacobian_finite(self) -> None:
+    def test_evidence_jacobian_finite(self, bkd) -> None:
         """Test Evidence Jacobian values are finite."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
         np.random.seed(456)
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
         jac = evidence.jacobian(weights)
 
-        jac_np = self._bkd.to_numpy(jac)
-        self.assertTrue(np.all(np.isfinite(jac_np)))
+        jac_np = bkd.to_numpy(jac)
+        assert np.all(np.isfinite(jac_np))
 
-    def test_log_evidence_jacobian_finite(self) -> None:
+    def test_log_evidence_jacobian_finite(self, bkd) -> None:
         """Test LogEvidence Jacobian values are finite."""
         _, _, log_evidence, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
         np.random.seed(456)
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
         jac = log_evidence.jacobian(weights)
 
-        jac_np = self._bkd.to_numpy(jac)
-        self.assertTrue(np.all(np.isfinite(jac_np)))
+        jac_np = bkd.to_numpy(jac)
+        assert np.all(np.isfinite(jac_np))
 
-    def test_evidence_jacobian_changes_with_weights(self) -> None:
+    def test_evidence_jacobian_changes_with_weights(self, bkd) -> None:
         """Test Evidence Jacobian changes with different weights."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
 
-        weights1 = self._bkd.ones((nobs, 1)) * 0.5
-        weights2 = self._bkd.ones((nobs, 1)) * 2.0
+        weights1 = bkd.ones((nobs, 1)) * 0.5
+        weights2 = bkd.ones((nobs, 1)) * 2.0
 
         jac1 = evidence.jacobian(weights1)
         jac2 = evidence.jacobian(weights2)
 
-        jac1_np = self._bkd.to_numpy(jac1)
-        jac2_np = self._bkd.to_numpy(jac2)
+        jac1_np = bkd.to_numpy(jac1)
+        jac2_np = bkd.to_numpy(jac2)
 
-        self.assertFalse(
-            np.allclose(jac1_np, jac2_np),
-            "Jacobians should differ at different weights",
+        assert not np.allclose(jac1_np, jac2_np), (
+            "Jacobians should differ at different weights"
         )
 
-    def test_evidence_deterministic(self) -> None:
+    def test_evidence_deterministic(self, bkd) -> None:
         """Test Evidence evaluation is deterministic."""
         _, evidence, _, nobs = self._create_likelihood_and_evidence(
-            self._nobs, self._ninner, self._nouter
+            bkd, self._nobs, self._ninner, self._nouter
         )
-        weights = self._bkd.ones((nobs, 1)) / nobs
+        weights = bkd.ones((nobs, 1)) / nobs
 
         val1 = evidence(weights)
         val2 = evidence(weights)
         jac1 = evidence.jacobian(weights)
         jac2 = evidence.jacobian(weights)
 
-        self._bkd.assert_allclose(val1, val2, rtol=1e-12)
-        self._bkd.assert_allclose(jac1, jac2, rtol=1e-12)
-
-
-class TestEvidenceGradientsStandaloneNumpy(
-    TestEvidenceGradientsStandalone[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestEvidenceGradientsStandaloneTorch(
-    TestEvidenceGradientsStandalone[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(val1, val2, rtol=1e-12)
+        bkd.assert_allclose(jac1, jac2, rtol=1e-12)

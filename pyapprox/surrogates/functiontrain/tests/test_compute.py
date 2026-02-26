@@ -10,12 +10,8 @@ Tests validate:
 - with_params + cached pipeline matches original pipeline
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -32,27 +28,17 @@ from pyapprox.surrogates.functiontrain.compute import (
     ft_eval_cached,
     ft_jacobian_wrt_params_cached,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
+class TestCacheBasisMatrices:
     """Tests for cache_basis_matrices deduplication."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_uniform_pce_deduplication(self) -> None:
+    def test_uniform_pce_deduplication(self, bkd) -> None:
         """Shared basis objects produce one cache entry per variable."""
-        bkd = self._bkd
         nvars = 4
         rank = 3
         max_level = 4
@@ -69,9 +55,8 @@ class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
             bkd.asarray([float(nvars)]),
         )
 
-    def test_additive_ft_skips_constants(self) -> None:
+    def test_additive_ft_skips_constants(self, bkd) -> None:
         """ConstantExpansion has no get_basis, so it's skipped in cache."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -96,9 +81,8 @@ class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
             bkd.asarray([float(nvars)]),
         )
 
-    def test_cache_values_match_basis_eval(self) -> None:
+    def test_cache_values_match_basis_eval(self, bkd) -> None:
         """Cached basis matrices match direct basis(sample_1d)."""
-        bkd = self._bkd
         nvars = 3
         max_level = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
@@ -123,35 +107,15 @@ class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
                     bkd.assert_allclose(cached, expected, rtol=1e-14)
 
 
-class TestCacheBasisMatricesNumpy(TestCacheBasisMatrices[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCacheBasisMatricesTorch(TestCacheBasisMatrices[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestCoreEvalCached(Generic[Array], unittest.TestCase):
+class TestCoreEvalCached:
     """Tests for core_eval_cached correctness."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_pce_core_eval_matches_original(self) -> None:
+    def test_pce_core_eval_matches_original(self, bkd) -> None:
         """Cached core eval matches FunctionTrainCore.__call__."""
-        bkd = self._bkd
         nvars = 3
         max_level = 4
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
@@ -166,9 +130,8 @@ class TestCoreEvalCached(Generic[Array], unittest.TestCase):
             cached = core_eval_cached(core, sample_1d, cache, bkd)
             bkd.assert_allclose(cached, reference, rtol=1e-13)
 
-    def test_additive_core_eval_matches_original(self) -> None:
+    def test_additive_core_eval_matches_original(self, bkd) -> None:
         """Cached core eval matches original for additive FT with constants."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -191,35 +154,15 @@ class TestCoreEvalCached(Generic[Array], unittest.TestCase):
             bkd.assert_allclose(cached, reference, rtol=1e-13)
 
 
-class TestCoreEvalCachedNumpy(TestCoreEvalCached[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCoreEvalCachedTorch(TestCoreEvalCached[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestFTEvalCached(Generic[Array], unittest.TestCase):
+class TestFTEvalCached:
     """Tests for ft_eval_cached correctness."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_uniform_pce_eval(self) -> None:
+    def test_uniform_pce_eval(self, bkd) -> None:
         """Cached FT eval matches FT.__call__ for uniform PCE."""
-        bkd = self._bkd
         nvars = 5
         max_level = 5
         rank = 4
@@ -236,9 +179,8 @@ class TestFTEvalCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_additive_ft_eval(self) -> None:
+    def test_additive_ft_eval(self, bkd) -> None:
         """Cached FT eval matches FT.__call__ for additive FT."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -259,9 +201,8 @@ class TestFTEvalCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_rank_2_nvars_2(self) -> None:
+    def test_rank_2_nvars_2(self, bkd) -> None:
         """Edge case: 2 variables, rank 2 (only first and last core)."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
         ft = create_pce_functiontrain(marginals, 3, [2], bkd, init_scale=0.5)
         nsamples = 30
@@ -273,9 +214,8 @@ class TestFTEvalCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_convenience_method(self) -> None:
+    def test_convenience_method(self, bkd) -> None:
         """FunctionTrain.eval_cached matches FT.__call__."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         ft = create_pce_functiontrain(marginals, 4, [2, 2], bkd, init_scale=0.3)
@@ -289,35 +229,15 @@ class TestFTEvalCached(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
 
-class TestFTEvalCachedNumpy(TestFTEvalCached[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFTEvalCachedTorch(TestFTEvalCached[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestFTJacobianCached(Generic[Array], unittest.TestCase):
+class TestFTJacobianCached:
     """Tests for ft_jacobian_wrt_params_cached correctness."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_uniform_pce_jacobian(self) -> None:
+    def test_uniform_pce_jacobian(self, bkd) -> None:
         """Cached jacobian matches FT.jacobian_wrt_params for uniform PCE."""
-        bkd = self._bkd
         nvars = 5
         max_level = 5
         rank = 4
@@ -334,9 +254,8 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_additive_ft_jacobian(self) -> None:
+    def test_additive_ft_jacobian(self, bkd) -> None:
         """Cached jacobian matches original for additive FT."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -357,9 +276,8 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_rank_2_nvars_2_jacobian(self) -> None:
+    def test_rank_2_nvars_2_jacobian(self, bkd) -> None:
         """Edge case: 2 variables, rank 2."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
         ft = create_pce_functiontrain(marginals, 3, [2], bkd, init_scale=0.5)
         nsamples = 20
@@ -371,9 +289,8 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_convenience_method(self) -> None:
+    def test_convenience_method(self, bkd) -> None:
         """FunctionTrain.jacobian_wrt_params_cached matches original."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         ft = create_pce_functiontrain(marginals, 4, [2, 2], bkd, init_scale=0.3)
@@ -386,9 +303,8 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cached, reference, rtol=1e-12)
 
-    def test_with_params_then_cached(self) -> None:
+    def test_with_params_then_cached(self, bkd) -> None:
         """with_params + cached pipeline matches original after param change."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         ft = create_pce_functiontrain(marginals, 4, [3, 3], bkd, init_scale=0.3)
@@ -411,9 +327,8 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
         cached_jac = ft_jacobian_wrt_params_cached(ft_new.cores(), samples, cache, bkd)
         bkd.assert_allclose(cached_jac, ref_jac, rtol=1e-12)
 
-    def test_varying_ranks(self) -> None:
+    def test_varying_ranks(self, bkd) -> None:
         """Non-uniform ranks across cores."""
-        bkd = self._bkd
         nvars = 4
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         ranks = [2, 4, 3]
@@ -431,35 +346,15 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(cached_jac, ref_jac, rtol=1e-12)
 
 
-class TestFTJacobianCachedNumpy(TestFTJacobianCached[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFTJacobianCachedTorch(TestFTJacobianCached[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestCoreConvenienceMethod(Generic[Array], unittest.TestCase):
+class TestCoreConvenienceMethod:
     """Tests for FunctionTrainCore.eval_cached convenience method."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_core_eval_cached_matches(self) -> None:
+    def test_core_eval_cached_matches(self, bkd) -> None:
         """Core.eval_cached matches Core.__call__."""
-        bkd = self._bkd
         nvars = 3
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         ft = create_pce_functiontrain(marginals, 4, [2, 2], bkd, init_scale=0.5)
@@ -472,21 +367,3 @@ class TestCoreConvenienceMethod(Generic[Array], unittest.TestCase):
             reference = core(sample_1d)
             cached = core.eval_cached(sample_1d, cache)
             bkd.assert_allclose(cached, reference, rtol=1e-13)
-
-
-class TestCoreConvenienceMethodNumpy(TestCoreConvenienceMethod[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCoreConvenienceMethodTorch(TestCoreConvenienceMethod[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

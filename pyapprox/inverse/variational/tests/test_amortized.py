@@ -10,12 +10,9 @@ All tests that require optimization or gradients are Torch-only, since
 NumPy does not yet support analytical or autograd derivatives.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.expdesign.quadrature.gaussian import (
     GaussianQuadratureSampler,
@@ -63,9 +60,7 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.test_utils import slow_test
 
 
@@ -165,7 +160,7 @@ def _make_cond_low_rank_nd(
     """Create a ConditionalLowRankCholGaussian with nvars_in-dim input.
 
     Sets a lower bound on log_diag_func coefficients to prevent D from
-    becoming too small, which would make Σ = D² + VV^T numerically
+    becoming too small, which would make Sigma = D^2 + VV^T numerically
     singular during Cholesky factorization in reparameterize().
     """
     mean_func = _make_expansion_nd_nqoi(bkd, nvars_in, degree, nqoi=d)
@@ -193,24 +188,26 @@ def _make_cond_low_rank_nd(
     )
 
 
-class TestAmortizedBase(Generic[Array], unittest.TestCase):
+@pytest.fixture()
+def torch_bkd():
+    """Lazy-import TorchBkd fixture for Torch-only tests."""
+    import torch
+
+    from pyapprox.util.backends.torch import TorchBkd
+
+    torch.set_default_dtype(torch.float64)
+    return TorchBkd()
+
+
+class TestAmortizedBase:
     """Base test class for amortized VI.
 
     Contains only tests that do not require optimization or gradients,
     so they work with both NumPy and Torch backends.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_amortized_polynomial_shape(self) -> None:
+    def test_amortized_polynomial_shape(self, bkd) -> None:
         """Degree-2 expansion, verify ELBO callable with label nodes."""
-        bkd = self._bkd
         degree = 2
 
         cond = _make_cond_gaussian_degree(bkd, degree)
@@ -243,18 +240,17 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
         )
 
         # nvars = nterms_mean + nterms_logstdev = (degree+1)*2 = 6
-        self.assertEqual(elbo.nqoi(), 1)
-        self.assertEqual(elbo.nvars(), 2 * (degree + 1))
+        assert elbo.nqoi() == 1
+        assert elbo.nvars() == 2 * (degree + 1)
 
         params = bkd.zeros((elbo.nvars(), 1))
         result = elbo(params)
-        self.assertEqual(result.shape, (1, 1))
+        assert result.shape == (1, 1)
 
-        self.assertIsInstance(elbo, FunctionProtocol)
+        assert isinstance(elbo, FunctionProtocol)
 
-    def test_make_discrete_group_elbo_joint_nodes_shape(self) -> None:
+    def test_make_discrete_group_elbo_joint_nodes_shape(self, bkd) -> None:
         """Verify joint nodes have correct shape (nlabel_dims + nbase, K*M)."""
-        bkd = self._bkd
         degree = 1
         cond = _make_cond_gaussian_degree(bkd, degree)
         var_dist = ConditionalIndependentJoint([cond], bkd)
@@ -284,9 +280,9 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
         )
 
         # K*M = 4*10 = 40 joint quadrature points
-        self.assertEqual(elbo._joint_nodes.shape[1], K * M)
+        assert elbo._joint_nodes.shape[1] == K * M
         # nlabel_dims=1, nbase=1 -> 2 rows
-        self.assertEqual(elbo._joint_nodes.shape[0], 2)
+        assert elbo._joint_nodes.shape[0] == 2
         # Weights should sum to 1
         weight_sum = bkd.sum(elbo._joint_weights)
         bkd.assert_allclose(
@@ -295,9 +291,8 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_elbo_deterministic(self) -> None:
+    def test_elbo_deterministic(self, bkd) -> None:
         """Calling amortized ELBO twice with same params gives same result."""
-        bkd = self._bkd
         degree = 1
         cond = _make_cond_gaussian_degree(bkd, degree)
         var_dist = ConditionalIndependentJoint([cond], bkd)
@@ -331,26 +326,18 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(v1, v2, rtol=1e-12)
 
 
-class TestAmortizedNumpy(TestAmortizedBase[NDArray[Any]], unittest.TestCase):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
+class TestAmortizedTorchOnly:
     """Torch-only tests including optimization and gradient checks.
 
     All tests that require the optimizer or autograd jacobian live here,
     since NumPy does not yet support analytical or autograd derivatives.
     """
 
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
     # --- Generalization test infrastructure ---
 
     def _run_generalization_test_multivariate(
         self,
+        torch_bkd,
         obs_matrix,
         noise_cov,
         prior_cov,
@@ -389,7 +376,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         var_dist_factory : callable
             (bkd, nlabel_dims, nlatent, degree) -> var_dist
         """
-        bkd = self._bkd
+        bkd = torch_bkd
         nobs_dim = obs_matrix.shape[0]
         nlatent = obs_matrix.shape[1]
         nlabel_dims = nobs_dim
@@ -552,19 +539,20 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
     # --- Generalization tests (Torch-only, require optimizer) ---
 
     @slow_test
-    def test_amortized_generalization_1d(self) -> None:
+    def test_amortized_generalization_1d(self, torch_bkd) -> None:
         """1D generalization using ConditionalDenseCholGaussian(d=1).
 
         1D latent z ~ N(0,1), obs y = z + eps, eps ~ N(0, 0.5).
         Training groups from Gauss-Hermite quadrature over prior.
         Degree-1 PCE exactly represents the affine map S -> mu_post.
         """
-        bkd = self._bkd
+        bkd = torch_bkd
 
         def factory(bkd, nlabel_dims, nlatent, degree):
             return _make_cond_dense_chol_nd(bkd, nlabel_dims, nlatent, degree)
 
         self._run_generalization_test_multivariate(
+            torch_bkd,
             obs_matrix=bkd.asarray([[1.0]]),
             noise_cov=bkd.asarray([[0.5]]),
             prior_cov=bkd.asarray([[1.0]]),
@@ -575,7 +563,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         )
 
     @slow_test
-    def test_amortized_generalization_2d_coupled(self) -> None:
+    def test_amortized_generalization_2d_coupled(self, torch_bkd) -> None:
         """2D generalization with non-diagonal A and non-diagonal noise.
 
         2D latent z ~ N(0, I_2).
@@ -587,12 +575,13 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         Uses ConditionalDenseCholGaussian to capture the full posterior
         covariance including off-diagonal terms.
         """
-        bkd = self._bkd
+        bkd = torch_bkd
 
         def factory(bkd, nlabel_dims, nlatent, degree):
             return _make_cond_dense_chol_nd(bkd, nlabel_dims, nlatent, degree)
 
         self._run_generalization_test_multivariate(
+            torch_bkd,
             obs_matrix=bkd.asarray([[1.0, 0.5], [0.3, 1.0]]),
             noise_cov=bkd.asarray([[0.5, 0.1], [0.1, 0.4]]),
             prior_cov=bkd.asarray([[1.0, 0.0], [0.0, 1.0]]),
@@ -604,14 +593,14 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         )
 
     @slow_test
-    def test_amortized_generalization_2d_lowrank(self) -> None:
+    def test_amortized_generalization_2d_lowrank(self, torch_bkd) -> None:
         """2D generalization using low-rank (rank=d) variational dist.
 
         Same problem as test_amortized_generalization_2d_coupled but
         using ConditionalLowRankCholGaussian with rank=d=2, which has
         sufficient capacity to represent any covariance.
         """
-        bkd = self._bkd
+        bkd = torch_bkd
 
         def factory(bkd, nlabel_dims, nlatent, degree):
             return _make_cond_low_rank_nd(
@@ -623,6 +612,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             )
 
         self._run_generalization_test_multivariate(
+            torch_bkd,
             obs_matrix=bkd.asarray([[1.0, 0.5], [0.3, 1.0]]),
             noise_cov=bkd.asarray([[0.5, 0.1], [0.1, 0.4]]),
             prior_cov=bkd.asarray([[1.0, 0.0], [0.0, 1.0]]),
@@ -636,13 +626,13 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
     # --- DerivativeChecker tests (Torch-only, require autograd) ---
 
     @slow_test
-    def test_amortized_elbo_derivative_checker(self) -> None:
+    def test_amortized_elbo_derivative_checker(self, torch_bkd) -> None:
         """DerivativeChecker on ELBO with ConditionalIndependentJoint."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
-        bkd = self._bkd
+        bkd = torch_bkd
         degree = 1
         cond = _make_cond_gaussian_degree(bkd, degree)
         var_dist = ConditionalIndependentJoint([cond], bkd)
@@ -671,20 +661,20 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             bkd,
         )
 
-        self.assertTrue(hasattr(elbo, "jacobian"))
+        assert hasattr(elbo, "jacobian")
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
+        assert float(bkd.flatten(ratio)[0]) <= 1e-5
 
-    def test_elbo_derivative_checker_dense_chol(self) -> None:
+    def test_elbo_derivative_checker_dense_chol(self, torch_bkd) -> None:
         """DerivativeChecker on ELBO with ConditionalDenseCholGaussian."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
-        bkd = self._bkd
+        bkd = torch_bkd
         d = 2
         nlabel_dims = 2
         degree = 1
@@ -726,20 +716,20 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             bkd,
         )
 
-        self.assertTrue(hasattr(elbo, "jacobian"))
+        assert hasattr(elbo, "jacobian")
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
+        assert float(bkd.flatten(ratio)[0]) <= 1e-5
 
-    def test_elbo_derivative_checker_low_rank(self) -> None:
+    def test_elbo_derivative_checker_low_rank(self, torch_bkd) -> None:
         """DerivativeChecker on ELBO with ConditionalLowRankCholGaussian."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
-        bkd = self._bkd
+        bkd = torch_bkd
         d = 2
         rank = 2
         nlabel_dims = 2
@@ -788,16 +778,16 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             bkd,
         )
 
-        self.assertTrue(hasattr(elbo, "jacobian"))
+        assert hasattr(elbo, "jacobian")
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
+        assert float(bkd.flatten(ratio)[0]) <= 1e-5
 
-    def test_amortized_jacobian_shape(self) -> None:
+    def test_amortized_jacobian_shape(self, torch_bkd) -> None:
         """Verify Jacobian shape for amortized ELBO."""
-        bkd = self._bkd
+        bkd = torch_bkd
         degree = 1
         cond = _make_cond_gaussian_degree(bkd, degree)
         var_dist = ConditionalIndependentJoint([cond], bkd)
@@ -826,10 +816,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             bkd,
         )
 
-        self.assertTrue(hasattr(elbo, "jacobian"))
+        assert hasattr(elbo, "jacobian")
         params = bkd.zeros((elbo.nvars(), 1))
         jac = elbo.jacobian(params)
-        self.assertEqual(jac.shape, (1, elbo.nvars()))
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+        assert jac.shape == (1, elbo.nvars())

@@ -18,13 +18,8 @@ for all t in (0,1), so the CFM loss converges to zero with increasing
 polynomial degree.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
@@ -51,9 +46,6 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test, slower_test
 
 
@@ -154,20 +146,11 @@ def _build_conjugate_setup(bkd, d, m, degree, n_per_dim=6):
     return vf, path, loss, quad_data, conjugate, test_y
 
 
-class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    @parametrize("d,m", [(1, 1), (2, 1)])
+class TestGaussianConjugate:
+    @pytest.mark.parametrize("d,m", [(1, 1), (2, 1)])
     @slower_test
-    def test_loss_decreases_with_degree(self, d: int, m: int) -> None:
+    def test_loss_decreases_with_degree(self, bkd, d: int, m: int) -> None:
         """Training loss decreases monotonically; degree-4 loss < 1e-4."""
-        bkd = self._bkd
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
@@ -181,20 +164,17 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
-            self.assertGreater(
-                losses[i],
-                losses[i + 1],
+            assert losses[i] > losses[i + 1], (
                 f"Loss did not decrease from degree {degrees[i]} "
                 f"({losses[i]:.2e}) to {degrees[i + 1]} "
-                f"({losses[i + 1]:.2e})",
+                f"({losses[i + 1]:.2e})"
             )
-        self.assertLess(losses[-1], 1e-4)
+        assert losses[-1] < 1e-4
 
-    @parametrize("d,m", [(1, 1)])
+    @pytest.mark.parametrize("d,m", [(1, 1)])
     @slow_test
-    def test_fitters_agree(self, d: int, m: int) -> None:
+    def test_fitters_agree(self, bkd, d: int, m: int) -> None:
         """Both fitters achieve similar loss."""
-        bkd = self._bkd
         for deg in [2, 4]:
             vf, path, loss, qd, _, _ = _build_conjugate_setup(
                 bkd,
@@ -204,12 +184,11 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
             )
             lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).training_loss()
             opt_loss = OptimizerFitter(bkd).fit(vf, path, loss, qd).training_loss()
-            self.assertLess(opt_loss, max(lstsq_loss * 100, 1e-4))
+            assert opt_loss < max(lstsq_loss * 100, 1e-4)
 
-    @parametrize("d,m", [(1, 1)])
-    def test_posterior_mean(self, d: int, m: int) -> None:
+    @pytest.mark.parametrize("d,m", [(1, 1)])
+    def test_posterior_mean(self, bkd, d: int, m: int) -> None:
         """ODE-integrated samples approximate posterior mean."""
-        bkd = self._bkd
         deg = 4
         vf, path, loss, qd, conjugate, test_y = _build_conjugate_setup(
             bkd,
@@ -251,11 +230,10 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
             atol=0.05,
         )
 
-    @parametrize("d,m", [(1, 1)])
+    @pytest.mark.parametrize("d,m", [(1, 1)])
     @slow_test
-    def test_posterior_covariance(self, d: int, m: int) -> None:
+    def test_posterior_covariance(self, bkd, d: int, m: int) -> None:
         """ODE-integrated samples approximate posterior covariance."""
-        bkd = self._bkd
         deg = 4
         vf, path, loss, qd, conjugate, test_y = _build_conjugate_setup(
             bkd,
@@ -299,17 +277,3 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
             bkd.array(Sigma_post_np.tolist()),
             atol=0.1,
         )
-
-
-class TestGaussianConjugateNumpy(TestGaussianConjugate[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianConjugateTorch(TestGaussianConjugate[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

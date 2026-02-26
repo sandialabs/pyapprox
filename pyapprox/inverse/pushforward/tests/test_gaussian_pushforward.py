@@ -2,267 +2,177 @@
 Tests for Gaussian pushforward.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestGaussianPushforwardBase(Generic[Array], unittest.TestCase):
+class TestGaussianPushforwardBase:
     """Base test class for GaussianPushforward."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        # 2D input, 2D output (square transformation for positive definite output)
-        self.nvars = 2
-        self.nqoi = 2
+    def _make_pf(self, bkd):
+        """Create pushforward objects for tests."""
+        nvars = 2
+        nqoi = 2
 
         # Linear transformation matrix (full rank for positive definite output)
-        self.matrix = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0]])
+        matrix = bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
 
         # Input Gaussian
-        self.mean = self.bkd().asarray([[1.0], [2.0]])
-        self.cov = self.bkd().asarray([[1.0, 0.3], [0.3, 1.0]])
+        mean = bkd.asarray([[1.0], [2.0]])
+        cov = bkd.asarray([[1.0, 0.3], [0.3, 1.0]])
 
         # Offset
-        self.offset = self.bkd().asarray([[0.1], [0.2]])
+        offset = bkd.asarray([[0.1], [0.2]])
 
         # Create pushforward without offset
-        self.pf = GaussianPushforward(self.matrix, self.mean, self.cov, self.bkd())
+        pf = GaussianPushforward(matrix, mean, cov, bkd)
 
         # Create pushforward with offset
-        self.pf_offset = GaussianPushforward(
-            self.matrix, self.mean, self.cov, self.bkd(), self.offset
+        pf_offset = GaussianPushforward(
+            matrix, mean, cov, bkd, offset
         )
+        return pf, pf_offset, nvars, nqoi
 
-    def test_nvars(self) -> None:
+    def test_nvars(self, bkd) -> None:
         """Test nvars returns correct value."""
-        self.assertEqual(self.pf.nvars(), self.nvars)
+        pf, _, nvars, _ = self._make_pf(bkd)
+        assert pf.nvars() == nvars
 
-    def test_nqoi(self) -> None:
+    def test_nqoi(self, bkd) -> None:
         """Test nqoi returns correct value."""
-        self.assertEqual(self.pf.nqoi(), self.nqoi)
+        pf, _, _, nqoi = self._make_pf(bkd)
+        assert pf.nqoi() == nqoi
 
-    def test_mean_shape(self) -> None:
+    def test_mean_shape(self, bkd) -> None:
         """Test mean has correct shape."""
-        mean = self.pf.mean()
-        self.assertEqual(mean.shape, (self.nqoi, 1))
+        pf, _, _, nqoi = self._make_pf(bkd)
+        mean = pf.mean()
+        assert mean.shape == (nqoi, 1)
 
-    def test_covariance_shape(self) -> None:
+    def test_covariance_shape(self, bkd) -> None:
         """Test covariance has correct shape."""
-        cov = self.pf.covariance()
-        self.assertEqual(cov.shape, (self.nqoi, self.nqoi))
+        pf, _, _, nqoi = self._make_pf(bkd)
+        cov = pf.covariance()
+        assert cov.shape == (nqoi, nqoi)
 
-    def test_covariance_symmetric(self) -> None:
+    def test_covariance_symmetric(self, bkd) -> None:
         """Test covariance is symmetric."""
-        cov = self.pf.covariance()
-        cov_np = self.bkd().to_numpy(cov)
+        pf, _, _, _ = self._make_pf(bkd)
+        cov = pf.covariance()
+        cov_np = bkd.to_numpy(cov)
         np.testing.assert_array_almost_equal(cov_np, cov_np.T)
 
-    def test_covariance_positive_semidefinite(self) -> None:
+    def test_covariance_positive_semidefinite(self, bkd) -> None:
         """Test covariance is positive semidefinite."""
-        cov = self.pf.covariance()
-        cov_np = self.bkd().to_numpy(cov)
+        pf, _, _, _ = self._make_pf(bkd)
+        cov = pf.covariance()
+        cov_np = bkd.to_numpy(cov)
         eigenvalues = np.linalg.eigvalsh(cov_np)
-        self.assertTrue(all(eigenvalues >= -1e-10))  # Allow for numerical error
+        assert all(eigenvalues >= -1e-10)  # Allow for numerical error
 
-    def test_pushforward_variable_returns_gaussian(self) -> None:
+    def test_pushforward_variable_returns_gaussian(self, bkd) -> None:
         """Test pushforward_variable returns a Gaussian distribution."""
-        pf_var = self.pf.pushforward_variable()
-        self.assertTrue(hasattr(pf_var, "logpdf"))
-        self.assertTrue(hasattr(pf_var, "rvs"))
+        pf, _, _, _ = self._make_pf(bkd)
+        pf_var = pf.pushforward_variable()
+        assert hasattr(pf_var, "logpdf")
+        assert hasattr(pf_var, "rvs")
 
 
-class TestGaussianPushforwardAnalytical(Generic[Array], unittest.TestCase):
+class TestGaussianPushforwardAnalytical:
     """Test against analytical formulas."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_mean_formula(self) -> None:
+    def test_mean_formula(self, bkd) -> None:
         """Test pushforward mean = A @ mean + offset."""
-        matrix = self.bkd().asarray([[1.0, 2.0], [3.0, 4.0]])
-        mean = self.bkd().asarray([[1.0], [1.0]])
-        cov = self.bkd().eye(2)
-        offset = self.bkd().asarray([[0.5], [1.5]])
+        matrix = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        mean = bkd.asarray([[1.0], [1.0]])
+        cov = bkd.eye(2)
+        offset = bkd.asarray([[0.5], [1.5]])
 
-        pf = GaussianPushforward(matrix, mean, cov, self.bkd(), offset)
+        pf = GaussianPushforward(matrix, mean, cov, bkd, offset)
 
-        pf_mean = self.bkd().to_numpy(pf.mean())
+        pf_mean = bkd.to_numpy(pf.mean())
         # Expected: [[1*1 + 2*1 + 0.5], [3*1 + 4*1 + 1.5]] = [[3.5], [8.5]]
         expected = np.array([[3.5], [8.5]])
         np.testing.assert_array_almost_equal(pf_mean, expected)
 
-    def test_covariance_formula(self) -> None:
+    def test_covariance_formula(self, bkd) -> None:
         """Test pushforward cov = A @ cov @ A.T."""
-        matrix = self.bkd().asarray([[1.0, 0.0], [0.0, 2.0]])
-        mean = self.bkd().zeros((2, 1))
-        cov = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0]])
+        matrix = bkd.asarray([[1.0, 0.0], [0.0, 2.0]])
+        mean = bkd.zeros((2, 1))
+        cov = bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
 
-        pf = GaussianPushforward(matrix, mean, cov, self.bkd())
+        pf = GaussianPushforward(matrix, mean, cov, bkd)
 
-        pf_cov = self.bkd().to_numpy(pf.covariance())
+        pf_cov = bkd.to_numpy(pf.covariance())
         # A @ cov @ A.T = [[1, 0], [0, 2]] @ [[1, 0.5], [0.5, 1]] @ [[1, 0], [0, 2]]
         #               = [[1, 0.5], [1, 2]] @ [[1, 0], [0, 2]]
         #               = [[1, 1], [1, 4]]
         expected = np.array([[1.0, 1.0], [1.0, 4.0]])
         np.testing.assert_array_almost_equal(pf_cov, expected)
 
-    def test_identity_transform(self) -> None:
+    def test_identity_transform(self, bkd) -> None:
         """Test identity transformation preserves distribution."""
         nvars = 3
-        matrix = self.bkd().eye(nvars)
-        mean = self.bkd().asarray([[1.0], [2.0], [3.0]])
-        cov = self.bkd().asarray([[1.0, 0.2, 0.1], [0.2, 1.0, 0.3], [0.1, 0.3, 1.0]])
+        matrix = bkd.eye(nvars)
+        mean = bkd.asarray([[1.0], [2.0], [3.0]])
+        cov = bkd.asarray([[1.0, 0.2, 0.1], [0.2, 1.0, 0.3], [0.1, 0.3, 1.0]])
 
-        pf = GaussianPushforward(matrix, mean, cov, self.bkd())
+        pf = GaussianPushforward(matrix, mean, cov, bkd)
 
-        pf_mean = self.bkd().to_numpy(pf.mean())
-        pf_cov = self.bkd().to_numpy(pf.covariance())
+        pf_mean = bkd.to_numpy(pf.mean())
+        pf_cov = bkd.to_numpy(pf.covariance())
 
-        np.testing.assert_array_almost_equal(pf_mean, self.bkd().to_numpy(mean))
-        np.testing.assert_array_almost_equal(pf_cov, self.bkd().to_numpy(cov))
+        np.testing.assert_array_almost_equal(pf_mean, bkd.to_numpy(mean))
+        np.testing.assert_array_almost_equal(pf_cov, bkd.to_numpy(cov))
 
-    def test_scalar_output(self) -> None:
+    def test_scalar_output(self, bkd) -> None:
         """Test pushforward to 1D output."""
-        matrix = self.bkd().asarray([[1.0, 1.0]])  # Sum of inputs
-        mean = self.bkd().asarray([[1.0], [2.0]])
-        cov = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0]])
+        matrix = bkd.asarray([[1.0, 1.0]])  # Sum of inputs
+        mean = bkd.asarray([[1.0], [2.0]])
+        cov = bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
 
-        pf = GaussianPushforward(matrix, mean, cov, self.bkd())
+        pf = GaussianPushforward(matrix, mean, cov, bkd)
 
-        pf_mean = self.bkd().to_numpy(pf.mean())
-        pf_var = self.bkd().to_numpy(pf.covariance())
+        pf_mean = bkd.to_numpy(pf.mean())
+        pf_var = bkd.to_numpy(pf.covariance())
 
         # Mean should be sum of input means: 1 + 2 = 3
-        self.assertAlmostEqual(pf_mean[0, 0], 3.0, places=5)
+        assert pf_mean[0, 0] == pytest.approx(3.0, abs=1e-5)
 
         # Var([1, 1] @ x) = [1, 1] @ cov @ [1, 1]^T = 1 + 0.5 + 0.5 + 1 = 3
-        self.assertAlmostEqual(pf_var[0, 0], 3.0, places=5)
+        assert pf_var[0, 0] == pytest.approx(3.0, abs=1e-5)
 
 
-class TestGaussianPushforwardValidation(Generic[Array], unittest.TestCase):
+class TestGaussianPushforwardValidation:
     """Test input validation."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_wrong_mean_shape_raises(self) -> None:
+    def test_wrong_mean_shape_raises(self, bkd) -> None:
         """Test wrong mean shape raises error."""
-        matrix = self.bkd().eye(2)
-        mean = self.bkd().zeros((3, 1))  # Wrong shape
-        cov = self.bkd().eye(2)
+        matrix = bkd.eye(2)
+        mean = bkd.zeros((3, 1))  # Wrong shape
+        cov = bkd.eye(2)
 
-        with self.assertRaises(ValueError):
-            GaussianPushforward(matrix, mean, cov, self.bkd())
+        with pytest.raises(ValueError):
+            GaussianPushforward(matrix, mean, cov, bkd)
 
-    def test_wrong_cov_shape_raises(self) -> None:
+    def test_wrong_cov_shape_raises(self, bkd) -> None:
         """Test wrong covariance shape raises error."""
-        matrix = self.bkd().eye(2)
-        mean = self.bkd().zeros((2, 1))
-        cov = self.bkd().eye(3)  # Wrong shape
+        matrix = bkd.eye(2)
+        mean = bkd.zeros((2, 1))
+        cov = bkd.eye(3)  # Wrong shape
 
-        with self.assertRaises(ValueError):
-            GaussianPushforward(matrix, mean, cov, self.bkd())
+        with pytest.raises(ValueError):
+            GaussianPushforward(matrix, mean, cov, bkd)
 
-    def test_wrong_offset_shape_raises(self) -> None:
+    def test_wrong_offset_shape_raises(self, bkd) -> None:
         """Test wrong offset shape raises error."""
-        matrix = self.bkd().eye(2)
-        mean = self.bkd().zeros((2, 1))
-        cov = self.bkd().eye(2)
-        offset = self.bkd().zeros((3, 1))  # Wrong shape
+        matrix = bkd.eye(2)
+        mean = bkd.zeros((2, 1))
+        cov = bkd.eye(2)
+        offset = bkd.zeros((3, 1))  # Wrong shape
 
-        with self.assertRaises(ValueError):
-            GaussianPushforward(matrix, mean, cov, self.bkd(), offset)
-
-
-# NumPy backend tests
-class TestGaussianPushforwardNumpy(TestGaussianPushforwardBase[NDArray[Any]]):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestGaussianPushforwardAnalyticalNumpy(
-    TestGaussianPushforwardAnalytical[NDArray[Any]]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestGaussianPushforwardValidationNumpy(
-    TestGaussianPushforwardValidation[NDArray[Any]]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# PyTorch backend tests
-class TestGaussianPushforwardTorch(TestGaussianPushforwardBase[torch.Tensor]):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-class TestGaussianPushforwardAnalyticalTorch(
-    TestGaussianPushforwardAnalytical[torch.Tensor]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = TorchBkd()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-class TestGaussianPushforwardValidationTorch(
-    TestGaussianPushforwardValidation[torch.Tensor]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = TorchBkd()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        with pytest.raises(ValueError):
+            GaussianPushforward(matrix, mean, cov, bkd, offset)

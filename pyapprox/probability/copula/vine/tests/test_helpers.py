@@ -2,41 +2,24 @@
 Tests for D-vine helper functions.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.probability.copula.vine.helpers import (
     compute_dvine_partial_correlations,
     correlation_from_partial_correlations,
     precision_bandwidth,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestHelpersBase(Generic[Array], unittest.TestCase):
+class TestHelpers:
     """Base tests for vine helper functions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_precision_bandwidth_diagonal(self) -> None:
+    def test_precision_bandwidth_diagonal(self, bkd) -> None:
         """Diagonal precision matrix has bandwidth 0."""
-        P = self._bkd.asarray(np.diag([2.0, 3.0, 1.0, 4.0]))
-        self.assertEqual(precision_bandwidth(P, self._bkd), 0)
+        P = bkd.asarray(np.diag([2.0, 3.0, 1.0, 4.0]))
+        assert precision_bandwidth(P, bkd) == 0
 
-    def test_precision_bandwidth_tridiagonal(self) -> None:
+    def test_precision_bandwidth_tridiagonal(self, bkd) -> None:
         """Tridiagonal precision matrix has bandwidth 1."""
         P_np = np.array(
             [
@@ -46,10 +29,10 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 [0.0, 0.0, -0.4, 2.0],
             ]
         )
-        P = self._bkd.asarray(P_np)
-        self.assertEqual(precision_bandwidth(P, self._bkd), 1)
+        P = bkd.asarray(P_np)
+        assert precision_bandwidth(P, bkd) == 1
 
-    def test_precision_bandwidth_pentadiagonal(self) -> None:
+    def test_precision_bandwidth_pentadiagonal(self, bkd) -> None:
         """Pentadiagonal precision matrix has bandwidth 2."""
         P_np = np.array(
             [
@@ -60,10 +43,10 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 [0.0, 0.0, 0.2, -0.3, 3.0],
             ]
         )
-        P = self._bkd.asarray(P_np)
-        self.assertEqual(precision_bandwidth(P, self._bkd), 2)
+        P = bkd.asarray(P_np)
+        assert precision_bandwidth(P, bkd) == 2
 
-    def test_partial_correlations_tree1(self) -> None:
+    def test_partial_correlations_tree1(self, bkd) -> None:
         """Tree-1 partial correlations equal pairwise correlations."""
         R_np = np.array(
             [
@@ -73,17 +56,17 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 [0.1, 0.2, 0.7, 1.0],
             ]
         )
-        R = self._bkd.asarray(R_np)
-        pc = compute_dvine_partial_correlations(R, 1, self._bkd)
+        R = bkd.asarray(R_np)
+        pc = compute_dvine_partial_correlations(R, 1, bkd)
 
-        self.assertEqual(len(pc[1]), 3)
-        self._bkd.assert_allclose(
-            self._bkd.asarray(pc[1]),
-            self._bkd.asarray([0.6, 0.5, 0.7]),
+        assert len(pc[1]) == 3
+        bkd.assert_allclose(
+            bkd.asarray(pc[1]),
+            bkd.asarray([0.6, 0.5, 0.7]),
             rtol=1e-12,
         )
 
-    def test_partial_correlations_tree2(self) -> None:
+    def test_partial_correlations_tree2(self, bkd) -> None:
         """Tree-2 partial correlations from known correlation matrix."""
         # Build a known positive definite correlation matrix
         R_np = np.array(
@@ -94,8 +77,8 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 [0.1, 0.2, 0.7, 1.0],
             ]
         )
-        R = self._bkd.asarray(R_np)
-        pc = compute_dvine_partial_correlations(R, 2, self._bkd)
+        R = bkd.asarray(R_np)
+        pc = compute_dvine_partial_correlations(R, 2, bkd)
 
         # Verify tree 2 partial correlations via submatrix inversion
         # Edge (0,2|1): invert R[0:3, 0:3]
@@ -108,21 +91,21 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
         P = np.linalg.inv(sub)
         expected_13_2 = -P[0, 2] / np.sqrt(P[0, 0] * P[2, 2])
 
-        self.assertEqual(len(pc[2]), 2)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([pc[2][0]]),
-            self._bkd.asarray([expected_02_1]),
+        assert len(pc[2]) == 2
+        bkd.assert_allclose(
+            bkd.asarray([pc[2][0]]),
+            bkd.asarray([expected_02_1]),
             rtol=1e-10,
             atol=1e-14,
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([pc[2][1]]),
-            self._bkd.asarray([expected_13_2]),
+        bkd.assert_allclose(
+            bkd.asarray([pc[2][1]]),
+            bkd.asarray([expected_13_2]),
             rtol=1e-10,
             atol=1e-14,
         )
 
-    def test_partial_correlations_near_singular(self) -> None:
+    def test_partial_correlations_near_singular(self, bkd) -> None:
         """High correlations (0.95) don't cause numerical issues."""
         # Build correlation matrix with high correlations
         n = 4
@@ -140,19 +123,17 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 R_np[i, j] = prod
                 R_np[j, i] = prod
 
-        R = self._bkd.asarray(R_np)
-        pc = compute_dvine_partial_correlations(R, n - 1, self._bkd)
+        R = bkd.asarray(R_np)
+        pc = compute_dvine_partial_correlations(R, n - 1, bkd)
 
         # Should not raise and partial correlations should be finite
         for t in pc:
             for val in pc[t]:
-                self.assertTrue(
-                    np.isfinite(val), f"Non-finite partial corr at tree {t}"
-                )
-                self.assertGreater(val, -1.0)
-                self.assertLess(val, 1.0)
+                assert np.isfinite(val), f"Non-finite partial corr at tree {t}"
+                assert val > -1.0
+                assert val < 1.0
 
-    def test_correlation_roundtrip(self) -> None:
+    def test_correlation_roundtrip(self, bkd) -> None:
         """Roundtrip: R -> partial correlations -> R."""
         R_np = np.array(
             [
@@ -162,15 +143,15 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
                 [0.1, 0.2, 0.7, 1.0],
             ]
         )
-        R = self._bkd.asarray(R_np)
+        R = bkd.asarray(R_np)
         n = 4
 
-        pc = compute_dvine_partial_correlations(R, n - 1, self._bkd)
-        R_recovered = correlation_from_partial_correlations(pc, n, self._bkd)
+        pc = compute_dvine_partial_correlations(R, n - 1, bkd)
+        R_recovered = correlation_from_partial_correlations(pc, n, bkd)
 
-        self._bkd.assert_allclose(R_recovered, R, rtol=1e-10)
+        bkd.assert_allclose(R_recovered, R, rtol=1e-10)
 
-    def test_correlation_roundtrip_5d(self) -> None:
+    def test_correlation_roundtrip_5d(self, bkd) -> None:
         """Roundtrip for 5x5 matrix."""
         # Build positive definite correlation matrix
         np.random.seed(42)
@@ -179,32 +160,10 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
         D = np.sqrt(np.diag(Sigma))
         R_np = Sigma / np.outer(D, D)
 
-        R = self._bkd.asarray(R_np)
+        R = bkd.asarray(R_np)
         n = 5
 
-        pc = compute_dvine_partial_correlations(R, n - 1, self._bkd)
-        R_recovered = correlation_from_partial_correlations(pc, n, self._bkd)
+        pc = compute_dvine_partial_correlations(R, n - 1, bkd)
+        R_recovered = correlation_from_partial_correlations(pc, n, bkd)
 
-        self._bkd.assert_allclose(R_recovered, R, rtol=1e-8)
-
-
-class TestHelpersNumpy(TestHelpersBase[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestHelpersTorch(TestHelpersBase[torch.Tensor]):
-    __test__ = True
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(R_recovered, R, rtol=1e-8)

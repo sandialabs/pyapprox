@@ -3,7 +3,7 @@
 Numpy-only tests using matplotlib Agg backend.
 """
 
-import unittest
+import pytest
 
 import matplotlib
 
@@ -14,10 +14,9 @@ import numpy as np
 from pyapprox.surrogates.sparsegrids.plot import (
     plot_sparse_grid_points,
 )
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestPlotSparseGridPoints(unittest.TestCase):
+class TestPlotSparseGridPoints:
     """Smoke tests for plot_sparse_grid_points."""
 
     def test_2d_selected_only(self) -> None:
@@ -25,9 +24,9 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         fig, ax = plt.subplots()
         selected = np.array([[0.0, 0.5, -0.5, 1.0], [0.0, 0.5, -0.5, -1.0]])
         result = plot_sparse_grid_points(ax, selected)
-        self.assertIn("selected", result)
-        self.assertIsNotNone(result["selected"])
-        self.assertIsNone(result["candidate"])
+        assert "selected" in result
+        assert result["selected"] is not None
+        assert result["candidate"] is None
         plt.close(fig)
 
     def test_2d_with_candidates(self) -> None:
@@ -36,8 +35,8 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         selected = np.array([[0.0, 0.5], [0.0, 0.5]])
         candidates = np.array([[-0.5, 1.0], [-0.5, -1.0]])
         result = plot_sparse_grid_points(ax, selected, candidates)
-        self.assertIsNotNone(result["selected"])
-        self.assertIsNotNone(result["candidate"])
+        assert result["selected"] is not None
+        assert result["candidate"] is not None
         plt.close(fig)
 
     def test_1d_selected_only(self) -> None:
@@ -45,8 +44,8 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         fig, ax = plt.subplots()
         selected = np.array([[0.0, 0.5, -0.5, 1.0, -1.0]])
         result = plot_sparse_grid_points(ax, selected)
-        self.assertIsNotNone(result["selected"])
-        self.assertIsNone(result["candidate"])
+        assert result["selected"] is not None
+        assert result["candidate"] is None
         plt.close(fig)
 
     def test_1d_with_candidates(self) -> None:
@@ -55,8 +54,8 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         selected = np.array([[0.0, 0.5]])
         candidates = np.array([[-0.5, 1.0]])
         result = plot_sparse_grid_points(ax, selected, candidates)
-        self.assertIsNotNone(result["selected"])
-        self.assertIsNotNone(result["candidate"])
+        assert result["selected"] is not None
+        assert result["candidate"] is not None
         plt.close(fig)
 
     def test_axis_labels_and_title(self) -> None:
@@ -69,9 +68,9 @@ class TestPlotSparseGridPoints(unittest.TestCase):
             axis_labels=["$z_1$", "$z_2$"],
             title="Test Grid",
         )
-        self.assertEqual(ax.get_xlabel(), "$z_1$")
-        self.assertEqual(ax.get_ylabel(), "$z_2$")
-        self.assertEqual(ax.get_title(), "Test Grid")
+        assert ax.get_xlabel() == "$z_1$"
+        assert ax.get_ylabel() == "$z_2$"
+        assert ax.get_title() == "Test Grid"
         plt.close(fig)
 
     def test_empty_candidates(self) -> None:
@@ -80,15 +79,15 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         selected = np.array([[0.0, 1.0], [0.0, 1.0]])
         candidates = np.zeros((2, 0))
         result = plot_sparse_grid_points(ax, selected, candidates)
-        self.assertIsNotNone(result["selected"])
-        self.assertIsNone(result["candidate"])
+        assert result["selected"] is not None
+        assert result["candidate"] is None
         plt.close(fig)
 
     def test_3d_raises(self) -> None:
         """3D input raises ValueError."""
         fig, ax = plt.subplots()
         selected = np.array([[0.0], [0.0], [0.0]])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             plot_sparse_grid_points(ax, selected)
         plt.close(fig)
 
@@ -97,9 +96,5 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         fig, ax = plt.subplots()
         selected = np.array([[0.0, 1.0], [0.0, 1.0]])
         result = plot_sparse_grid_points(ax, selected)
-        self.assertEqual(set(result.keys()), {"selected", "candidate"})
+        assert set(result.keys()) == {"selected", "candidate"}
         plt.close(fig)
-
-
-if __name__ == "__main__":
-    unittest.main()

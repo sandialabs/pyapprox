@@ -4,12 +4,9 @@ Tests validate FunctionTrainMSELoss gradient accuracy using DerivativeChecker
 per CLAUDE.md convention.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
+import pytest
 import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -24,50 +21,35 @@ from pyapprox.surrogates.functiontrain import (
     FunctionTrainMSELoss,
     create_additive_functiontrain,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
+class TestFunctionTrainMSELoss:
     """Tests for FunctionTrainMSELoss."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_univariate_expansion(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[Array]:
+    def _create_univariate_expansion(self, bkd, max_level, nqoi=1):
         """Create a univariate polynomial expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_additive_ft(
-        self, nvars: int = 3, max_level: int = 2, nqoi: int = 1
-    ) -> FunctionTrain[Array]:
+    def _create_additive_ft(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create an additive FunctionTrain for testing."""
-        bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def test_initialization(self) -> None:
+    def test_initialization(self, bkd) -> None:
         """Test loss initialization."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=1)
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
@@ -76,14 +58,13 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         loss = FunctionTrainMSELoss(ft, samples, values, bkd)
 
         # Check nvars corresponds to number of parameters
-        self.assertEqual(loss.nvars(), ft.nparams())
-        self.assertEqual(loss.nqoi(), 1)
+        assert loss.nvars() == ft.nparams()
+        assert loss.nqoi() == 1
 
-    def test_loss_evaluation(self) -> None:
+    def test_loss_evaluation(self, bkd) -> None:
         """Test basic loss evaluation."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=1)
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
@@ -98,17 +79,16 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         mse = loss(params)
 
         # Check output shape and properties
-        self.assertEqual(mse.shape, (1, 1))
-        self.assertTrue(bkd.all_bool(bkd.isfinite(mse)))
+        assert mse.shape == (1, 1)
+        assert bkd.all_bool(bkd.isfinite(mse))
 
         # MSE should be non-negative
-        self.assertGreaterEqual(float(mse[0, 0]), 0)
+        assert float(mse[0, 0]) >= 0
 
-    def test_loss_changes_with_params(self) -> None:
+    def test_loss_changes_with_params(self, bkd) -> None:
         """Test that loss changes when parameters change."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=1)
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
@@ -125,14 +105,13 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         mse2 = loss(params2)
 
         # Loss should be different
-        self.assertNotEqual(float(mse1[0, 0]), float(mse2[0, 0]))
+        assert float(mse1[0, 0]) != float(mse2[0, 0])
 
-    def test_loss_zero_at_target(self) -> None:
+    def test_loss_zero_at_target(self, bkd) -> None:
         """Test that loss is zero when FT exactly matches target."""
-        bkd = self._bkd
         nvars = 3
         max_level = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=1)
 
         # Set known parameters
         nparams = ft.nparams()
@@ -150,11 +129,10 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         mse = loss(params)
         bkd.assert_allclose(mse, bkd.zeros((1, 1)), atol=1e-12)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian output shape."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=1)
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
@@ -166,15 +144,14 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         grad = loss.jacobian(params)
 
         # Check gradient shape: (1, nparams)
-        self.assertEqual(grad.shape, (1, loss.nvars()))
-        self.assertTrue(bkd.all_bool(bkd.isfinite(grad)))
+        assert grad.shape == (1, loss.nvars())
+        assert bkd.all_bool(bkd.isfinite(grad))
 
-    def test_jacobian_zero_at_minimum(self) -> None:
+    def test_jacobian_zero_at_minimum(self, bkd) -> None:
         """Test that gradient is zero at the optimal solution."""
-        bkd = self._bkd
         nvars = 3
         max_level = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=1)
 
         # Set known parameters
         nparams = ft.nparams()
@@ -192,18 +169,15 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         grad = loss.jacobian(params)
         bkd.assert_allclose(grad, bkd.zeros((1, nparams)), atol=1e-10)
 
-    def test_gradient_derivative_checker(self) -> None:
+    def test_gradient_derivative_checker(self, bkd) -> None:
         """Test gradient using DerivativeChecker."""
-        bkd = self._bkd
         nvars = 2
         max_level = 1
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=1)
 
         nsamples = 15
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = bkd.asarray(np.random.randn(1, nsamples))
-
-        loss = FunctionTrainMSELoss(ft, samples, values, bkd)
 
         # Set non-zero parameters
         nparams = ft.nparams()
@@ -230,24 +204,22 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         grad_error = errors[0]
 
         # All errors should be finite
-        self.assertTrue(
-            bkd.all_bool(bkd.isfinite(grad_error)),
-            "Gradient errors contain non-finite values",
-        )
+        assert bkd.all_bool(
+            bkd.isfinite(grad_error)
+        ), "Gradient errors contain non-finite values"
 
         # Error ratio should indicate good convergence
         error_ratio = float(checker.error_ratio(grad_error))
-        self.assertLess(
-            error_ratio, 1e-6, f"Error ratio {error_ratio:.2e} exceeds threshold"
-        )
+        assert (
+            error_ratio < 1e-6
+        ), f"Error ratio {error_ratio:.2e} exceeds threshold"
 
-    def test_gradient_derivative_checker_multi_qoi(self) -> None:
+    def test_gradient_derivative_checker_multi_qoi(self, bkd) -> None:
         """Test gradient with multiple QoIs using DerivativeChecker."""
-        bkd = self._bkd
         nvars = 2
         max_level = 1
         nqoi = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=nqoi)
 
         nsamples = 15
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
@@ -271,27 +243,33 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         )
 
         error_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(error_ratio, 1e-6)
+        assert error_ratio < 1e-6
 
 
-# NumPy backend tests
-class TestFunctionTrainMSELossNumpy(TestFunctionTrainMSELoss[NDArray[Any]]):
-    __test__ = True
+# Torch-only test
+class TestFunctionTrainMSELossAutograd:
+    """Verify analytical gradient matches torch autograd."""
 
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-class TestFunctionTrainMSELossTorch(TestFunctionTrainMSELoss[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         torch.set_default_dtype(torch.float64)
-        super().setUp()
+        self._bkd = TorchBkd()
+        np.random.seed(42)
+
+    def _create_univariate_expansion(self, max_level, nqoi=1):
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        return BasisExpansion(basis, bkd, nqoi=nqoi)
+
+    def _create_additive_ft(self, nvars=3, max_level=2, nqoi=1):
+        bkd = self._bkd
+        univariate_bases = [
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
+        ]
+        return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
     def test_gradient_matches_autograd(self) -> None:
         """Verify analytical gradient matches torch autograd."""
@@ -323,7 +301,3 @@ class TestFunctionTrainMSELossTorch(TestFunctionTrainMSELoss[torch.Tensor]):
         # Shape: (nparams,)
 
         bkd.assert_allclose(analytical_grad[0, :], autograd_grad, rtol=1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()

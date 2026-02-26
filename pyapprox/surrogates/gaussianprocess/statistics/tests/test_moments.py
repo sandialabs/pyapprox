@@ -5,12 +5,10 @@ Tests the SeparableKernelIntegralCalculator and GaussianProcessStatistics
 classes for computing statistical quantities from fitted GPs.
 """
 import math
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
@@ -26,15 +24,12 @@ from pyapprox.surrogates.kernels.matern import (
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 def _create_quadrature_bases(
-    marginals: List[Any], nquad_points: int, bkd: Backend[Array]
-) -> List[Any]:
+    marginals, nquad_points, bkd,
+):
     """Helper to create quadrature bases from marginals."""
     factories = create_basis_factories(marginals, bkd, "gauss")
     bases = [f.create_basis() for f in factories]
@@ -43,292 +38,293 @@ def _create_quadrature_bases(
     return bases
 
 
-class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
+class TestSeparableKernelIntegralCalculator:
     """
-    Base test class for SeparableKernelIntegralCalculator.
-
-    Derived classes must implement the bkd() method.
+    Test class for SeparableKernelIntegralCalculator.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment."""
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
         np.random.seed(42)
 
         # Create 2D GP with separable product kernel
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        self._kernel = SeparableProductKernel([k1, k2], self._bkd)
+        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
 
-        self._gp = ExactGaussianProcess(
-            self._kernel,
+        gp = ExactGaussianProcess(
+            kernel,
             nvars=2,
-            bkd=self._bkd,
+            bkd=bkd,
             nugget=1e-6
         )
         # Skip hyperparameter optimization for these tests
-        self._gp.hyp_list().set_all_inactive()
+        gp.hyp_list().set_all_inactive()
 
         # Training data
-        self._n_train = 10
-        X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        self._X_train = self._bkd.array(X_train_np)
+        n_train = 10
+        X_train_np = np.random.rand(2, n_train) * 2 - 1  # [-1, 1]^2
+        X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
-        self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) *
-            self._bkd.cos(math.pi * self._X_train[1, :]),
+        y_train = bkd.reshape(
+            bkd.sin(math.pi * X_train[0, :]) *
+            bkd.cos(math.pi * X_train[1, :]),
             (1, -1)
         )
 
-        self._gp.fit(self._X_train, self._y_train)
+        gp.fit(X_train, y_train)
 
         # Marginal distributions
-        self._marginals = [
-            UniformMarginal(-1.0, 1.0, self._bkd),
-            UniformMarginal(-1.0, 1.0, self._bkd),
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
         ]
 
         # Create quadrature bases using sparse grid infrastructure
-        self._nquad_points = 20
+        nquad_points = 20
         bases = _create_quadrature_bases(
-            self._marginals, self._nquad_points, self._bkd
+            marginals, nquad_points, bkd
         )
 
         # Create calculator
-        self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, self._marginals, bkd=self._bkd
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
         )
 
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
+        return calc, n_train
 
-    def test_tau_shape(self) -> None:
+    def test_tau_shape(self, bkd) -> None:
         """Test tau has correct shape (N,)."""
-        tau = self._calc.tau_C()
-        self.assertEqual(tau.shape, (self._n_train,))
+        calc, n_train = self._setup(bkd)
+        tau = calc.tau_C()
+        assert tau.shape == (n_train,)
 
-    def test_tau_positive(self) -> None:
+    def test_tau_positive(self, bkd) -> None:
         """Test tau values are positive (kernel is positive)."""
-        tau = self._calc.tau_C()
-        self.assertTrue(self._bkd.all_bool(tau > 0))
+        calc, _ = self._setup(bkd)
+        tau = calc.tau_C()
+        assert bkd.all_bool(tau > 0)
 
-    def test_P_shape(self) -> None:
+    def test_P_shape(self, bkd) -> None:
         """Test P has correct shape (N, N)."""
-        P = self._calc.P()
-        self.assertEqual(P.shape, (self._n_train, self._n_train))
+        calc, n_train = self._setup(bkd)
+        P = calc.P()
+        assert P.shape == (n_train, n_train)
 
-    def test_P_symmetric(self) -> None:
+    def test_P_symmetric(self, bkd) -> None:
         """Test P is symmetric."""
-        P = self._calc.P()
-        self._bkd.assert_allclose(P, P.T, rtol=1e-12)
+        calc, _ = self._setup(bkd)
+        P = calc.P()
+        bkd.assert_allclose(P, P.T, rtol=1e-12)
 
-    def test_P_positive_semidefinite(self) -> None:
+    def test_P_positive_semidefinite(self, bkd) -> None:
         """Test P is positive semi-definite."""
-        P = self._calc.P()
-        eigvals = self._bkd.eigvalsh(P)
+        calc, _ = self._setup(bkd)
+        P = calc.P()
+        eigvals = bkd.eigvalsh(P)
         # Allow small negative eigenvalues due to numerical error
-        self.assertTrue(self._bkd.all_bool(eigvals > -1e-10))
+        assert bkd.all_bool(eigvals > -1e-10)
 
-    def test_u_positive(self) -> None:
+    def test_u_positive(self, bkd) -> None:
         """Test u is positive."""
-        u = self._calc.u()
-        self.assertGreater(float(self._bkd.to_numpy(u)), 0.0)
+        calc, _ = self._setup(bkd)
+        u = calc.u()
+        assert float(bkd.to_numpy(u)) > 0.0
 
-    def test_caching(self) -> None:
+    def test_caching(self, bkd) -> None:
         """Test that results are cached."""
-        tau1 = self._calc.tau_C()
-        tau2 = self._calc.tau_C()
+        calc, _ = self._setup(bkd)
+        tau1 = calc.tau_C()
+        tau2 = calc.tau_C()
         # Same object (cached)
-        self.assertIs(tau1, tau2)
+        assert tau1 is tau2
 
-    def test_conditional_P_subset(self) -> None:
+    def test_conditional_P_subset(self, bkd) -> None:
         """Test conditional_P with binary index vector.
 
         index[k] = 1: dimension k is CONDITIONED ON (use standard P_k)
-        index[k] = 0: dimension k is INTEGRATED OUT (use P̃_k = τ_k τ_k^T)
+        index[k] = 0: dimension k is INTEGRATED OUT (use P_tilde_k = tau_k tau_k^T)
         """
+        calc, n_train = self._setup(bkd)
         # Condition on dimension 0, integrate out dimension 1
         # index = [1, 0] means: dim 0 conditioned (use P_0),
-        # dim 1 integrated (use τ_1 τ_1^T)
-        index = self._bkd.asarray([1.0, 0.0])
-        P_cond = self._calc.conditional_P(index)
+        # dim 1 integrated (use tau_1 tau_1^T)
+        index = bkd.asarray([1.0, 0.0])
+        P_cond = calc.conditional_P(index)
 
         # Should have correct shape
-        self.assertEqual(P_cond.shape, (self._n_train, self._n_train))
+        assert P_cond.shape == (n_train, n_train)
         # P_cond should be symmetric
-        self._bkd.assert_allclose(P_cond, P_cond.T, rtol=1e-12)
+        bkd.assert_allclose(P_cond, P_cond.T, rtol=1e-12)
         # P_cond should be positive semi-definite
-        eigvals = self._bkd.eigvalsh(P_cond)
-        self.assertTrue(self._bkd.all_bool(eigvals > -1e-10))
+        eigvals = bkd.eigvalsh(P_cond)
+        assert bkd.all_bool(eigvals > -1e-10)
 
-    def test_conditional_u_subset(self) -> None:
+    def test_conditional_u_subset(self, bkd) -> None:
         """Test conditional_u with binary index vector.
 
         index[k] = 1: dimension k is CONDITIONED ON (factor = 1)
         index[k] = 0: dimension k is INTEGRATED OUT (factor = u_k)
         """
+        calc, _ = self._setup(bkd)
         # Condition on dimension 0, integrate out dimension 1
         # u_p = 1 * u_1 (only dim 1 contributes to the integral)
-        index = self._bkd.asarray([1.0, 0.0])
-        u_cond = self._calc.conditional_u(index)
+        index = bkd.asarray([1.0, 0.0])
+        u_cond = calc.conditional_u(index)
 
         # Should be positive and <= 1 (max kernel value for normalized kernels)
-        u_cond_val = float(self._bkd.to_numpy(u_cond))
-        self.assertGreater(u_cond_val, 0.0)
-        self.assertLessEqual(u_cond_val, 1.0 + 1e-10)
+        u_cond_val = float(bkd.to_numpy(u_cond))
+        assert u_cond_val > 0.0
+        assert u_cond_val <= 1.0 + 1e-10
 
 
-class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
+class TestGaussianProcessStatistics:
     """
-    Base test class for GaussianProcessStatistics.
-
-    Derived classes must implement the bkd() method.
+    Test class for GaussianProcessStatistics.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment."""
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
         np.random.seed(42)
 
         # Create 2D GP with separable product kernel
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        self._kernel = SeparableProductKernel([k1, k2], self._bkd)
+        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
 
-        self._gp = ExactGaussianProcess(
-            self._kernel,
+        gp = ExactGaussianProcess(
+            kernel,
             nvars=2,
-            bkd=self._bkd,
+            bkd=bkd,
             nugget=1e-6
         )
         # Skip hyperparameter optimization for these tests
-        self._gp.hyp_list().set_all_inactive()
+        gp.hyp_list().set_all_inactive()
 
         # Training data
-        self._n_train = 10
-        X_train_np = np.random.rand(2, self._n_train) * 2 - 1
-        self._X_train = self._bkd.array(X_train_np)
+        n_train = 10
+        X_train_np = np.random.rand(2, n_train) * 2 - 1
+        X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
-        self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) *
-            self._bkd.cos(math.pi * self._X_train[1, :]),
+        y_train = bkd.reshape(
+            bkd.sin(math.pi * X_train[0, :]) *
+            bkd.cos(math.pi * X_train[1, :]),
             (1, -1)
         )
 
-        self._gp.fit(self._X_train, self._y_train)
+        gp.fit(X_train, y_train)
 
         # Marginal distributions
-        self._marginals = [
-            UniformMarginal(-1.0, 1.0, self._bkd),
-            UniformMarginal(-1.0, 1.0, self._bkd),
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
         ]
 
         # Create quadrature bases and calculator
-        bases = _create_quadrature_bases(self._marginals, 30, self._bkd)
-        self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, self._marginals, bkd=self._bkd
+        bases = _create_quadrature_bases(marginals, 30, bkd)
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
         )
-        self._stats = GaussianProcessStatistics(self._gp, self._calc)
+        stats = GaussianProcessStatistics(gp, calc)
 
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
+        return stats, gp, marginals
 
-    def test_mean_of_mean_scalar(self) -> None:
+    def test_mean_of_mean_scalar(self, bkd) -> None:
         """Test mean_of_mean returns a scalar."""
-        eta = self._stats.mean_of_mean()
+        stats, _, _ = self._setup(bkd)
+        eta = stats.mean_of_mean()
         # Should be a scalar (0-dim array)
-        self.assertEqual(len(eta.shape), 0)
+        assert len(eta.shape) == 0
 
-    def test_variance_of_mean_nonnegative(self) -> None:
+    def test_variance_of_mean_nonnegative(self, bkd) -> None:
         """Test Var[mu_f] >= 0."""
-        var_mu = self._stats.variance_of_mean()
-        self.assertGreaterEqual(float(self._bkd.to_numpy(var_mu)), 0.0)
+        stats, _, _ = self._setup(bkd)
+        var_mu = stats.variance_of_mean()
+        assert float(bkd.to_numpy(var_mu)) >= 0.0
 
-    def test_mean_of_variance_nonnegative(self) -> None:
+    def test_mean_of_variance_nonnegative(self, bkd) -> None:
         """Test E[gamma_f] >= 0."""
-        mean_var = self._stats.mean_of_variance()
-        self.assertGreaterEqual(float(self._bkd.to_numpy(mean_var)), 0.0)
+        stats, _, _ = self._setup(bkd)
+        mean_var = stats.mean_of_variance()
+        assert float(bkd.to_numpy(mean_var)) >= 0.0
 
-    def test_caching(self) -> None:
+    def test_caching(self, bkd) -> None:
         """Test that results are cached."""
-        eta1 = self._stats.mean_of_mean()
-        eta2 = self._stats.mean_of_mean()
+        stats, _, _ = self._setup(bkd)
+        eta1 = stats.mean_of_mean()
+        eta2 = stats.mean_of_mean()
         # Same object (cached)
-        self.assertIs(eta1, eta2)
+        assert eta1 is eta2
 
-    def test_variance_of_variance_nonnegative(self) -> None:
+    def test_variance_of_variance_nonnegative(self, bkd) -> None:
         """Test Var[gamma_f] >= 0."""
-        var_var = self._stats.variance_of_variance()
-        self.assertGreaterEqual(float(self._bkd.to_numpy(var_var)), 0.0)
+        stats, _, _ = self._setup(bkd)
+        var_var = stats.variance_of_variance()
+        assert float(bkd.to_numpy(var_var)) >= 0.0
 
-    def test_variance_of_variance_scalar(self) -> None:
+    def test_variance_of_variance_scalar(self, bkd) -> None:
         """Test variance_of_variance returns a scalar."""
-        var_var = self._stats.variance_of_variance()
+        stats, _, _ = self._setup(bkd)
+        var_var = stats.variance_of_variance()
         # Should be a scalar (0-dim array)
-        self.assertEqual(len(var_var.shape), 0)
+        assert len(var_var.shape) == 0
 
-    def test_variance_of_variance_caching(self) -> None:
+    def test_variance_of_variance_caching(self, bkd) -> None:
         """Test that variance_of_variance results are cached."""
-        var_var1 = self._stats.variance_of_variance()
-        var_var2 = self._stats.variance_of_variance()
+        stats, _, _ = self._setup(bkd)
+        var_var1 = stats.variance_of_variance()
+        var_var2 = stats.variance_of_variance()
         # Same object (cached)
-        self.assertIs(var_var1, var_var2)
+        assert var_var1 is var_var2
 
     @slow_test
-    def test_limit_many_training_points(self) -> None:
+    def test_limit_many_training_points(self, bkd) -> None:
         """Test that Var[mu_f] -> 0 as N -> infinity."""
+        stats, _, marginals = self._setup(bkd)
         np.random.seed(123)
 
         # Create GP with more training points
         n_train_large = 100
         X_train_np = np.random.rand(2, n_train_large) * 2 - 1
-        X_train = self._bkd.array(X_train_np)
+        X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
-        y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * X_train[0, :]) *
-            self._bkd.cos(math.pi * X_train[1, :]),
+        y_train = bkd.reshape(
+            bkd.sin(math.pi * X_train[0, :]) *
+            bkd.cos(math.pi * X_train[1, :]),
             (1, -1)
         )
 
-        k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
-        k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
-        kernel = SeparableProductKernel([k1, k2], self._bkd)
+        k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp_large = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-6)
+        gp_large = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for this test
         gp_large.hyp_list().set_all_inactive()
         gp_large.fit(X_train, y_train)
 
         # Create quadrature bases
-        bases_large = _create_quadrature_bases(self._marginals, 30, self._bkd)
+        bases_large = _create_quadrature_bases(marginals, 30, bkd)
         calc_large = SeparableKernelIntegralCalculator(
-            gp_large, bases_large, self._marginals, bkd=self._bkd
+            gp_large, bases_large, marginals, bkd=bkd
         )
         stats_large = GaussianProcessStatistics(gp_large, calc_large)
 
         # Variance of mean should be small with many training points
         var_mu_large = stats_large.variance_of_mean()
-        var_mu_small = self._stats.variance_of_mean()
+        var_mu_small = stats.variance_of_mean()
 
-        var_large_val = float(self._bkd.to_numpy(var_mu_large))
-        var_small_val = float(self._bkd.to_numpy(var_mu_small))
+        var_large_val = float(bkd.to_numpy(var_mu_large))
+        var_small_val = float(bkd.to_numpy(var_mu_small))
 
         # More data should give smaller variance
         # When both are numerically zero, they're effectively equal (which is OK)
         if var_small_val < 1e-12:
             # Original variance already tiny - just check large is also small
-            self.assertLess(var_large_val, 1e-10)
+            assert var_large_val < 1e-10
         else:
-            self.assertLess(var_large_val, var_small_val)
+            assert var_large_val < var_small_val
 
 
-class TestMCComparison(Generic[Array], unittest.TestCase):
+class TestMCComparison:
     """
     Test Monte Carlo comparison for GP statistics.
 
@@ -339,102 +335,93 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
     in regions covered by the quadrature rule.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment with sparse training data."""
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
         np.random.seed(42)
 
         # Create 1D GP with shorter length scale
         # Shorter length scale = more local correlation = higher posterior variance
         # between training points
-        k1 = SquaredExponentialKernel([0.3], (0.1, 10.0), 1, self._bkd)
-        self._kernel = k1
+        k1 = SquaredExponentialKernel([0.3], (0.1, 10.0), 1, bkd)
+        kernel = k1
 
-        self._gp = ExactGaussianProcess(
-            self._kernel,
+        gp = ExactGaussianProcess(
+            kernel,
             nvars=1,
-            bkd=self._bkd,
+            bkd=bkd,
             nugget=1e-6
         )
         # Skip hyperparameter optimization for these tests
-        self._gp.hyp_list().set_all_inactive()
+        gp.hyp_list().set_all_inactive()
 
         # SPARSE training data - only 3 points at boundaries and center
         # With short length scale, regions between points have high uncertainty
-        self._n_train = 3
-        X_train = self._bkd.array([[-1.0, 0.0, 1.0]])  # Only 3 points
+        n_train = 3
+        X_train = bkd.array([[-1.0, 0.0, 1.0]])  # Only 3 points
         # Use bkd.sin for backend compatibility
-        y_train = self._bkd.reshape(
-            self._bkd.sin(3.14159 * X_train[0, :]), (1, -1)
+        y_train = bkd.reshape(
+            bkd.sin(3.14159 * X_train[0, :]), (1, -1)
         )
 
-        self._X_train = X_train
-        self._y_train = y_train
-
-        self._gp.fit(self._X_train, self._y_train)
+        gp.fit(X_train, y_train)
 
         # Marginal distributions
-        self._marginals = [UniformMarginal(-1.0, 1.0, self._bkd)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
 
         # Create quadrature bases and calculator
-        self._nquad = 30
-        bases = _create_quadrature_bases(self._marginals, self._nquad, self._bkd)
-        self._bases = bases
-        self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, self._marginals, bkd=self._bkd
+        nquad = 30
+        bases = _create_quadrature_bases(marginals, nquad, bkd)
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
         )
-        self._stats = GaussianProcessStatistics(self._gp, self._calc)
+        stats = GaussianProcessStatistics(gp, calc)
 
         # Verify posterior variance is non-negligible at quadrature points
         quad_pts, _ = bases[0].quadrature_rule()
-        post_std = self._gp.predict_std(quad_pts)
-        mean_post_var = float(self._bkd.mean(post_std**2))
+        post_std = gp.predict_std(quad_pts)
+        mean_post_var = float(bkd.mean(post_std**2))
         assert mean_post_var > 0.01, (
             f"Posterior variance too small ({mean_post_var:.6f}). "
             "Test setup needs sparser training data."
         )
 
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
+        return stats, gp, bases
 
     @slow_test
-    def test_mc_convergence_mean_of_mean(self) -> None:
+    def test_mc_convergence_mean_of_mean(self, bkd) -> None:
         """Compare quadrature E[mu] to MC estimate."""
+        stats, gp, _ = self._setup(bkd)
         np.random.seed(12345)
 
         # Quadrature estimate
-        eta_quad = self._stats.mean_of_mean()
+        eta_quad = stats.mean_of_mean()
 
         # MC estimate - generate random samples and convert to backend array
         n_mc = 10000
-        X_mc = self._bkd.array(np.random.rand(1, n_mc) * 2 - 1)  # Uniform [-1, 1]
+        X_mc = bkd.array(np.random.rand(1, n_mc) * 2 - 1)  # Uniform [-1, 1]
 
         # Evaluate GP mean at MC samples
-        mu_mc = self._gp.predict(X_mc)  # Shape: (n_mc, 1)
-        eta_mc = self._bkd.mean(mu_mc)
+        mu_mc = gp.predict(X_mc)  # Shape: (n_mc, 1)
+        eta_mc = bkd.mean(mu_mc)
 
         # Compare (allow for MC error)
-        eta_quad_val = float(self._bkd.to_numpy(eta_quad))
-        eta_mc_val = float(self._bkd.to_numpy(eta_mc))
+        eta_quad_val = float(bkd.to_numpy(eta_quad))
+        eta_mc_val = float(bkd.to_numpy(eta_mc))
 
         # MC should be within ~3 standard errors (allowing for randomness)
         # Standard error is O(1/sqrt(n_mc)) ~ 0.01 for n_mc=10000
-        self.assertAlmostEqual(eta_quad_val, eta_mc_val, delta=0.05)
+        assert abs(eta_quad_val - eta_mc_val) < 0.05
 
     @slow_test
-    def test_mc_convergence_variance_of_mean(self) -> None:
+    def test_mc_convergence_variance_of_mean(self, bkd) -> None:
         """
-        Compare quadrature Var[μ_f] to MC estimate.
+        Compare quadrature Var[mu_f] to MC estimate.
 
-        Var[μ_f] = Var[∫ f(z) dF(z)] requires sampling from the GP posterior.
+        Var[mu_f] = Var[integral f(z) dF(z)] requires sampling from the GP posterior.
 
         For each sample f^(r) from the posterior:
         1. Evaluate f^(r) at quadrature points
-        2. Compute μ^(r) = Σ_j w_j f^(r)(z_j)
-        3. Compute Var[{μ^(r)}] across samples
+        2. Compute mu^(r) = Sum_j w_j f^(r)(z_j)
+        3. Compute Var[{mu^(r)}] across samples
 
         GP posterior at points Z has:
         - Mean: m*(Z) = K(Z,X) @ A^{-1} @ y
@@ -442,160 +429,162 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
 
         Sample via: f = m* + L @ z where L = cholesky(C*), z ~ N(0,I)
         """
+        stats, gp, bases = self._setup(bkd)
         np.random.seed(12345)
 
         # Quadrature estimate
-        var_quad = self._stats.variance_of_mean()
+        var_quad = stats.variance_of_mean()
 
         # Get quadrature points and weights from the bases used by the calculator
-        quad_pts, quad_wts = self._bases[0].quadrature_rule()
+        quad_pts, quad_wts = bases[0].quadrature_rule()
         # quad_pts shape: (1, nquad), quad_wts shape: (nquad, 1)
-        quad_wts = self._bkd.reshape(quad_wts, (-1,))  # (nquad,)
+        quad_wts = bkd.reshape(quad_wts, (-1,))  # (nquad,)
         nquad = quad_pts.shape[1]
 
         # Compute GP posterior mean and covariance at quadrature points
-        X_train = self._gp.data().X()  # (1, n_train)
-        y_train = self._gp.data().y()  # (nqoi, n_train)
+        X_train = gp.data().X()  # (1, n_train)
+        y_train = gp.data().y()  # (nqoi, n_train)
 
         # Prior covariance matrices
-        K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
-        K_qt = self._gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
+        K_qq = gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
+        K_qt = gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
-        chol = self._gp.cholesky()
+        chol = gp.cholesky()
         alpha = chol.solve(y_train.T)  # A^{-1} @ y.T, shape (n_train, 1)
         m_star = K_qt @ alpha  # (nquad, 1)
-        m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
+        m_star = bkd.reshape(m_star, (-1,))  # (nquad,)
 
         # Posterior covariance: C* = K_qq - K_qt @ A^{-1} @ K_tq
         A_inv_K_tq = chol.solve(K_qt.T)  # (n_train, nquad)
         C_star = K_qq - K_qt @ A_inv_K_tq  # (nquad, nquad)
 
         # Add small jitter for numerical stability
-        C_star = C_star + 1e-8 * self._bkd.eye(nquad)
+        C_star = C_star + 1e-8 * bkd.eye(nquad)
 
         # Cholesky of posterior covariance
-        L_star = self._bkd.cholesky(C_star)  # (nquad, nquad)
+        L_star = bkd.cholesky(C_star)  # (nquad, nquad)
 
-        # Sample from GP posterior and compute μ^(r) for each sample
+        # Sample from GP posterior and compute mu^(r) for each sample
         n_samples = 10000
         mu_samples = []
 
         for _ in range(n_samples):
             # Sample z ~ N(0, I)
-            z = self._bkd.array(np.random.randn(nquad))
+            z = bkd.array(np.random.randn(nquad))
 
             # Sample f = m* + L @ z
             f_sample = m_star + L_star @ z  # (nquad,)
 
-            # Compute μ^(r) = Σ_j w_j f^(r)(z_j)
-            mu_r = self._bkd.sum(quad_wts * f_sample)
-            mu_samples.append(float(self._bkd.to_numpy(mu_r)))
+            # Compute mu^(r) = Sum_j w_j f^(r)(z_j)
+            mu_r = bkd.sum(quad_wts * f_sample)
+            mu_samples.append(float(bkd.to_numpy(mu_r)))
 
         # Compute variance across samples
         mu_samples_arr = np.array(mu_samples)
         var_mc = np.var(mu_samples_arr)
 
         # Compare
-        var_quad_val = float(self._bkd.to_numpy(var_quad))
+        var_quad_val = float(bkd.to_numpy(var_quad))
 
         # Allow tolerance for MC error
         # With 10000 samples and variance ~O(0.1), relative error should be ~1-2%
         # Use relative comparison for robustness
         rel_error = abs(var_quad_val - var_mc) / max(var_quad_val, 1e-10)
-        self.assertLess(rel_error, 0.1,
+        assert rel_error < 0.1, (
             f"Relative error {rel_error:.4f} too large: "
             f"quad={var_quad_val:.6f}, mc={var_mc:.6f}")
 
     @slow_test
-    def test_mc_convergence_variance_of_variance(self) -> None:
+    def test_mc_convergence_variance_of_variance(self, bkd) -> None:
         """
-        Compare quadrature Var[γ_f] to MC estimate.
+        Compare quadrature Var[gamma_f] to MC estimate.
 
-        Var[γ_f] requires sampling from the GP posterior and computing
+        Var[gamma_f] requires sampling from the GP posterior and computing
         variance statistics across samples.
 
         For each sample f^(r) from the posterior:
         1. Evaluate f^(r) at quadrature points
-        2. Compute κ^(r) = Σ_j w_j [f^(r)(z_j)]²
-        3. Compute μ^(r) = Σ_j w_j f^(r)(z_j)
-        4. Compute γ^(r) = κ^(r) - [μ^(r)]²
-        5. Compute Var[{γ^(r)}] across samples
+        2. Compute kappa^(r) = Sum_j w_j [f^(r)(z_j)]**2
+        3. Compute mu^(r) = Sum_j w_j f^(r)(z_j)
+        4. Compute gamma^(r) = kappa^(r) - [mu^(r)]**2
+        5. Compute Var[{gamma^(r)}] across samples
         """
+        stats, gp, bases = self._setup(bkd)
         np.random.seed(12345)
 
         # Quadrature estimate
-        var_var_quad = self._stats.variance_of_variance()
+        var_var_quad = stats.variance_of_variance()
 
         # Get quadrature points and weights from the bases used by the calculator
-        quad_pts, quad_wts = self._bases[0].quadrature_rule()
+        quad_pts, quad_wts = bases[0].quadrature_rule()
         # quad_pts shape: (1, nquad), quad_wts shape: (nquad, 1)
-        quad_wts = self._bkd.reshape(quad_wts, (-1,))  # (nquad,)
+        quad_wts = bkd.reshape(quad_wts, (-1,))  # (nquad,)
         nquad = quad_pts.shape[1]
 
         # Compute GP posterior mean and covariance at quadrature points
-        X_train = self._gp.data().X()  # (1, n_train)
-        y_train = self._gp.data().y()  # (nqoi, n_train)
+        X_train = gp.data().X()  # (1, n_train)
+        y_train = gp.data().y()  # (nqoi, n_train)
 
         # Prior covariance matrices
-        K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
-        K_qt = self._gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
+        K_qq = gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
+        K_qt = gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
-        chol = self._gp.cholesky()
+        chol = gp.cholesky()
         alpha = chol.solve(y_train.T)  # A^{-1} @ y.T, shape (n_train, 1)
         m_star = K_qt @ alpha  # (nquad, 1)
-        m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
+        m_star = bkd.reshape(m_star, (-1,))  # (nquad,)
 
         # Posterior covariance: C* = K_qq - K_qt @ A^{-1} @ K_tq
         A_inv_K_tq = chol.solve(K_qt.T)  # (n_train, nquad)
         C_star = K_qq - K_qt @ A_inv_K_tq  # (nquad, nquad)
 
         # Add small jitter for numerical stability
-        C_star = C_star + 1e-8 * self._bkd.eye(nquad)
+        C_star = C_star + 1e-8 * bkd.eye(nquad)
 
         # Cholesky of posterior covariance
-        L_star = self._bkd.cholesky(C_star)  # (nquad, nquad)
+        L_star = bkd.cholesky(C_star)  # (nquad, nquad)
 
-        # Sample from GP posterior and compute γ^(r) for each sample
+        # Sample from GP posterior and compute gamma^(r) for each sample
         n_samples = 10000
         gamma_samples = []
 
         for _ in range(n_samples):
             # Sample z ~ N(0, I)
-            z = self._bkd.array(np.random.randn(nquad))
+            z = bkd.array(np.random.randn(nquad))
 
             # Sample f = m* + L @ z
             f_sample = m_star + L_star @ z  # (nquad,)
 
-            # Compute κ^(r) = Σ_j w_j [f^(r)(z_j)]²
-            kappa_r = self._bkd.sum(quad_wts * f_sample ** 2)
+            # Compute kappa^(r) = Sum_j w_j [f^(r)(z_j)]**2
+            kappa_r = bkd.sum(quad_wts * f_sample ** 2)
 
-            # Compute μ^(r) = Σ_j w_j f^(r)(z_j)
-            mu_r = self._bkd.sum(quad_wts * f_sample)
+            # Compute mu^(r) = Sum_j w_j f^(r)(z_j)
+            mu_r = bkd.sum(quad_wts * f_sample)
 
-            # Compute γ^(r) = κ^(r) - [μ^(r)]²
+            # Compute gamma^(r) = kappa^(r) - [mu^(r)]**2
             gamma_r = kappa_r - mu_r ** 2
-            gamma_samples.append(float(self._bkd.to_numpy(gamma_r)))
+            gamma_samples.append(float(bkd.to_numpy(gamma_r)))
 
         # Compute variance across samples
         gamma_samples_arr = np.array(gamma_samples)
         var_var_mc = np.var(gamma_samples_arr)
 
         # Compare
-        var_var_quad_val = float(self._bkd.to_numpy(var_var_quad))
+        var_var_quad_val = float(bkd.to_numpy(var_var_quad))
 
         # Allow tolerance for MC error
         # Variance of variance is a fourth-moment statistic, so has higher
         # MC error than variance of mean
         rel_error = abs(var_var_quad_val - var_var_mc) / max(var_var_quad_val, 1e-10)
-        self.assertLess(rel_error, 0.2,
+        assert rel_error < 0.2, (
             f"Relative error {rel_error:.4f} too large: "
             f"quad={var_var_quad_val:.6f}, "
             f"mc={var_var_mc:.6f}")
 
 
-class TestKnownMoments(Generic[Array], unittest.TestCase):
+class TestKnownMoments:
     """
     Test GP statistics against functions with analytically known moments.
 
@@ -603,35 +592,28 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
     the GP statistics should match the analytical moments of the function.
 
     For a function f(z) with z ~ Uniform[-1, 1]^d:
-    - E[μ_f] = E[f(z)] (mean of the function)
-    - E[γ_f] ≈ Var[f(z)] (mean of GP variance ≈ function variance)
+    - E[mu_f] = E[f(z)] (mean of the function)
+    - E[gamma_f] approx Var[f(z)] (mean of GP variance approx function variance)
 
     CRITICAL: We first verify the GP interpolation error is small (< stats_tol)
     at test points. This is a necessary condition for accurate statistics.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment."""
-        self._bkd = self.bkd()
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
-
     def _verify_gp_interpolation(
         self,
-        gp: ExactGaussianProcess[Array],
-        test_func: Any,
-        X_test: Array,
-        stats_tol: float,
-    ) -> float:
+        bkd,
+        gp,
+        test_func,
+        X_test,
+        stats_tol,
+    ):
         """
         Verify GP interpolation error is below stats tolerance.
 
         Parameters
         ----------
+        bkd : Backend
+            Backend instance.
         gp : ExactGaussianProcess
             Fitted GP.
         test_func : callable
@@ -651,8 +633,6 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         AssertionError
             If max error exceeds stats_tol.
         """
-        bkd = self._bkd
-
         # Get GP predictions
         y_pred = gp.predict(X_test)  # Shape: (n_test, 1)
         y_pred = bkd.reshape(y_pred, (-1,))
@@ -674,7 +654,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         return max_error
 
     @slow_test
-    def test_linear_function_mean(self) -> None:
+    def test_linear_function_mean(self, bkd) -> None:
         """
         Test GP on linear function f(x) = a*x_1 + b*x_2 + c.
 
@@ -682,20 +662,19 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         - E[z_i] = 0
         - E[f] = c (since E[z_i] = 0)
         - Var[z_i] = 1/3
-        - Var[f] = a²/3 + b²/3
+        - Var[f] = a**2/3 + b**2/3
 
         Uses dense training grid and optimized hyperparameters so GP
         interpolates to within tolerance.
         """
         np.random.seed(42)
-        bkd = self._bkd
 
         # Linear function parameters
         a, b, c = 2.0, 3.0, 1.5
 
         # Expected moments
         expected_mean = c  # E[f] = c since E[z_i] = 0
-        expected_var = (a**2 + b**2) / 3.0  # Var[f] = (a² + b²) * Var[z]
+        expected_var = (a**2 + b**2) / 3.0  # Var[f] = (a**2 + b**2) * Var[z]
 
         # Tolerance for GP interpolation and statistics comparison
         # GP cannot achieve machine precision; use achievable tolerance
@@ -703,7 +682,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         stats_tol = 2e-3
 
         # Define test function
-        def linear_func(X: Array) -> Array:
+        def linear_func(X):
             return bkd.reshape(
                 a * X[0, :] + b * X[1, :] + c, (1, -1)
             )
@@ -738,7 +717,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         X_test = bkd.array(np.random.rand(2, n_test) * 2 - 1)
 
         # Verify GP interpolation error is small enough
-        self._verify_gp_interpolation(gp, linear_func, X_test, stats_tol)
+        self._verify_gp_interpolation(bkd, gp, linear_func, X_test, stats_tol)
 
         # Create quadrature bases with high order
         marginals = [
@@ -757,7 +736,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([eta_val]),
             bkd.asarray([expected_mean]),
             rtol=stats_tol,
-            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+            err_msg=f"E[mu_f] = {eta_val}, expected {expected_mean}",
         )
 
         # Test mean of variance - tolerance should be comparable to GP error
@@ -767,35 +746,34 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([mean_var_val]),
             bkd.asarray([expected_var]),
             rtol=stats_tol,
-            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+            err_msg=f"E[gamma_f] = {mean_var_val}, expected {expected_var}",
         )
 
     @slow_test
-    def test_quadratic_function_mean(self) -> None:
+    def test_quadratic_function_mean(self, bkd) -> None:
         """
-        Test GP on quadratic function f(x) = x_1² + x_2².
+        Test GP on quadratic function f(x) = x_1**2 + x_2**2.
 
         For z ~ Uniform[-1, 1]^2:
-        - E[z_i²] = 1/3
-        - E[f] = E[z_1²] + E[z_2²] = 2/3
-        - Var[z_i²] = E[z_i⁴] - E[z_i²]² = 1/5 - 1/9 = 4/45
-        - Var[f] = Var[z_1²] + Var[z_2²] = 8/45 (since x_1², x_2² are independent)
+        - E[z_i**2] = 1/3
+        - E[f] = E[z_1**2] + E[z_2**2] = 2/3
+        - Var[z_i**2] = E[z_i**4] - E[z_i**2]**2 = 1/5 - 1/9 = 4/45
+        - Var[f] = Var[z_1**2] + Var[z_2**2] = 8/45 (since x_1**2, x_2**2 are independent)
 
         Uses dense training grid and optimized hyperparameters so GP
         interpolates to within tolerance.
         """
         np.random.seed(42)
-        bkd = self._bkd
 
-        # Expected moments for f = x_1² + x_2²
-        expected_mean = 2.0 / 3.0  # E[f] = 2 * E[z²]
-        expected_var = 8.0 / 45.0  # Var[f] = 2 * Var[z²]
+        # Expected moments for f = x_1**2 + x_2**2
+        expected_mean = 2.0 / 3.0  # E[f] = 2 * E[z**2]
+        expected_var = 8.0 / 45.0  # Var[f] = 2 * Var[z**2]
 
         # Tolerance for GP interpolation and statistics comparison
         stats_tol = 2e-3
 
         # Define test function
-        def quadratic_func(X: Array) -> Array:
+        def quadratic_func(X):
             return bkd.reshape(X[0, :] ** 2 + X[1, :] ** 2, (1, -1))
 
         # Create GP with separable product kernel
@@ -825,7 +803,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         X_test = bkd.array(np.random.rand(2, n_test) * 2 - 1)
 
         # Verify GP interpolation error is small enough
-        self._verify_gp_interpolation(gp, quadratic_func, X_test, stats_tol)
+        self._verify_gp_interpolation(bkd, gp, quadratic_func, X_test, stats_tol)
 
         # Create quadrature bases with high order
         marginals = [
@@ -844,7 +822,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([eta_val]),
             bkd.asarray([expected_mean]),
             rtol=stats_tol,
-            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+            err_msg=f"E[mu_f] = {eta_val}, expected {expected_mean}",
         )
 
         # Test mean of variance - tolerance should be comparable to GP error
@@ -854,28 +832,27 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([mean_var_val]),
             bkd.asarray([expected_var]),
             rtol=stats_tol,
-            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+            err_msg=f"E[gamma_f] = {mean_var_val}, expected {expected_var}",
         )
 
     @slow_test
-    def test_sinusoidal_function_mean(self) -> None:
+    def test_sinusoidal_function_mean(self, bkd) -> None:
         """
-        Test GP on sinusoidal function f(x) = sin(π*x_1).
+        Test GP on sinusoidal function f(x) = sin(pi*x_1).
 
         For z_1 ~ Uniform[-1, 1]:
-        - E[sin(π*z_1)] = ∫_{-1}^{1} sin(π*z) * (1/2) dz = 0 (odd function)
-        - E[sin²(π*z_1)] = ∫_{-1}^{1} sin²(π*z) * (1/2) dz = 1/2
-        - Var[f] = E[f²] - E[f]² = 1/2 - 0 = 1/2
+        - E[sin(pi*z_1)] = integral_{-1}^{1} sin(pi*z) * (1/2) dz = 0 (odd function)
+        - E[sin**2(pi*z_1)] = integral_{-1}^{1} sin**2(pi*z) * (1/2) dz = 1/2
+        - Var[f] = E[f**2] - E[f]**2 = 1/2 - 0 = 1/2
 
         Uses dense training grid and optimized hyperparameters so GP
         interpolates to within tolerance.
         """
         np.random.seed(42)
-        bkd = self._bkd
 
-        # Expected moments for f = sin(π*x_1)
-        expected_mean = 0.0  # E[sin(π*z)] = 0 (odd function)
-        expected_var = 0.5  # Var[sin(π*z)] = E[sin²] = 1/2
+        # Expected moments for f = sin(pi*x_1)
+        expected_mean = 0.0  # E[sin(pi*z)] = 0 (odd function)
+        expected_var = 0.5  # Var[sin(pi*z)] = E[sin**2] = 1/2
 
         # Tolerance for GP interpolation and statistics comparison
         stats_tol = 2e-3
@@ -884,7 +861,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         import math
         pi = math.pi
 
-        def sin_func(X: Array) -> Array:
+        def sin_func(X):
             return bkd.reshape(bkd.sin(pi * X[0, :]), (1, -1))
 
         # Create 1D GP
@@ -906,7 +883,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         X_test = bkd.array(np.random.rand(1, n_test) * 2 - 1)
 
         # Verify GP interpolation error is small enough
-        self._verify_gp_interpolation(gp, sin_func, X_test, stats_tol)
+        self._verify_gp_interpolation(bkd, gp, sin_func, X_test, stats_tol)
 
         # Create quadrature bases with high order
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
@@ -922,7 +899,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([eta_val]),
             bkd.asarray([expected_mean]),
             atol=stats_tol,
-            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+            err_msg=f"E[mu_f] = {eta_val}, expected {expected_mean}",
         )
 
         # Test mean of variance
@@ -932,181 +909,64 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([mean_var_val]),
             bkd.asarray([expected_var]),
             rtol=stats_tol,
-            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+            err_msg=f"E[gamma_f] = {mean_var_val}, expected {expected_var}",
         )
 
 
-class TestValidation(Generic[Array], unittest.TestCase):
+class TestValidation:
     """Test validation and error handling."""
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment."""
-        self._bkd = self.bkd()
-        np.random.seed(42)
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
-
-    def test_unfitted_gp_raises_error(self) -> None:
+    def test_unfitted_gp_raises_error(self, bkd) -> None:
         """Test that unfitted GP raises RuntimeError."""
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        gp = ExactGaussianProcess(k1, nvars=1, bkd=self._bkd)
+        np.random.seed(42)
+        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        gp = ExactGaussianProcess(k1, nvars=1, bkd=bkd)
 
-        marginals = [UniformMarginal(-1.0, 1.0, self._bkd)]
-        bases = _create_quadrature_bases(marginals, 10, self._bkd)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+        bases = _create_quadrature_bases(marginals, 10, bkd)
 
-        with self.assertRaises(RuntimeError):
-            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
+        with pytest.raises(RuntimeError):
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
-    def test_wrong_number_of_bases_raises_error(self) -> None:
+    def test_wrong_number_of_bases_raises_error(self, bkd) -> None:
         """Test that wrong number of quadrature bases raises ValueError."""
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        kernel = SeparableProductKernel([k1, k2], self._bkd)
+        np.random.seed(42)
+        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd)
         # Skip hyperparameter optimization for this test
         gp.hyp_list().set_all_inactive()
-        X = self._bkd.array(np.random.rand(2, 5))
-        y = self._bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
+        X = bkd.array(np.random.rand(2, 5))
+        y = bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
         gp.fit(X, y)
 
         # Only 1 basis for 2D GP
-        marginals = [UniformMarginal(-1.0, 1.0, self._bkd)]
-        bases = _create_quadrature_bases(marginals, 10, self._bkd)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+        bases = _create_quadrature_bases(marginals, 10, bkd)
 
-        with self.assertRaises(ValueError):
-            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
+        with pytest.raises(ValueError):
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
-    def test_non_separable_kernel_raises_error(self) -> None:
+    def test_non_separable_kernel_raises_error(self, bkd) -> None:
         """Test that non-separable kernel raises TypeError."""
+        np.random.seed(42)
         # Matern 5/2 is NOT separable (uses combined distance in polynomial)
-        kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
+        kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), 2, bkd)
 
-        gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd)
         # Skip hyperparameter optimization for this test
         gp.hyp_list().set_all_inactive()
-        X = self._bkd.array(np.random.rand(2, 5))
-        y = self._bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
+        X = bkd.array(np.random.rand(2, 5))
+        y = bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
         gp.fit(X, y)
 
         marginals = [
-            UniformMarginal(-1.0, 1.0, self._bkd),
-            UniformMarginal(-1.0, 1.0, self._bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
         ]
-        bases = _create_quadrature_bases(marginals, 10, self._bkd)
+        bases = _create_quadrature_bases(marginals, 10, bkd)
 
-        with self.assertRaises(TypeError):
-            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
-
-
-# NumPy backend tests
-class TestSeparableKernelIntegralCalculatorNumpy(
-    TestSeparableKernelIntegralCalculator[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianProcessStatisticsNumpy(
-    TestGaussianProcessStatistics[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMCComparisonNumpy(TestMCComparison[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestKnownMomentsNumpy(TestKnownMoments[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestValidationNumpy(TestValidation[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-class TestSeparableKernelIntegralCalculatorTorch(
-    TestSeparableKernelIntegralCalculator[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestGaussianProcessStatisticsTorch(
-    TestGaussianProcessStatistics[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestMCComparisonTorch(TestMCComparison[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestKnownMomentsTorch(TestKnownMoments[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestValidationTorch(TestValidation[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        with pytest.raises(TypeError):
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)

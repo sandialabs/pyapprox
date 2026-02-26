@@ -6,12 +6,8 @@ HasObservationModel, HasPredictionModel, HasExactEIG, and HasPrior
 protocol combinations.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 # Ensure all OED benchmarks are registered by importing the package
 import pyapprox.expdesign.benchmarks  # noqa: F401
@@ -22,31 +18,19 @@ from pyapprox.benchmarks.protocols import (
     HasPrior,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slowest_test,
 )
 
 
-class TestOEDDiscovery(Generic[Array], unittest.TestCase):
+class TestOEDDiscovery:
     """Test OED benchmark discovery via protocol-based filtering."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
     @slowest_test
-    def test_has_observation_model_names(self):
+    def test_has_observation_model_names(self, bkd):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
-            bkd=self._bkd,
+            bkd=bkd,
         )
         for expected in [
             "linear_gaussian_oed",
@@ -54,14 +38,14 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
             "linear_gaussian_pred_oed",
             "lotka_volterra_oed",
         ]:
-            self.assertIn(expected, names)
+            assert expected in names
 
     @slowest_test
-    def test_has_observation_model_and_prior(self):
+    def test_has_observation_model_and_prior(self, bkd):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
             HasPrior,
-            bkd=self._bkd,
+            bkd=bkd,
         )
         for expected in [
             "linear_gaussian_oed",
@@ -69,79 +53,79 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
             "linear_gaussian_pred_oed",
             "lotka_volterra_oed",
         ]:
-            self.assertIn(expected, names)
+            assert expected in names
 
     @slowest_test
-    def test_has_prediction_model_names(self):
+    def test_has_prediction_model_names(self, bkd):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
             HasPredictionModel,
             HasPrior,
-            bkd=self._bkd,
+            bkd=bkd,
         )
         for expected in [
             "nonlinear_gaussian_oed",
             "linear_gaussian_pred_oed",
             "lotka_volterra_oed",
         ]:
-            self.assertIn(expected, names)
-        self.assertNotIn("linear_gaussian_oed", names)
+            assert expected in names
+        assert "linear_gaussian_oed" not in names
 
     @slowest_test
-    def test_has_exact_eig_names(self):
+    def test_has_exact_eig_names(self, bkd):
         names = BenchmarkRegistry.names_satisfying(
             HasExactEIG,
-            bkd=self._bkd,
+            bkd=bkd,
         )
-        self.assertIn("linear_gaussian_oed", names)
+        assert "linear_gaussian_oed" in names
         # Benchmarks without exact_eig should not appear
-        self.assertNotIn("nonlinear_gaussian_oed", names)
-        self.assertNotIn("linear_gaussian_pred_oed", names)
-        self.assertNotIn("lotka_volterra_oed", names)
+        assert "nonlinear_gaussian_oed" not in names
+        assert "linear_gaussian_pred_oed" not in names
+        assert "lotka_volterra_oed" not in names
 
-    def test_observation_model_callable(self):
-        bm = BenchmarkRegistry.get("linear_gaussian_oed", self._bkd)
+    def test_observation_model_callable(self, bkd):
+        bm = BenchmarkRegistry.get("linear_gaussian_oed", bkd)
         obs_model = bm.observation_model()
         nparams = bm.nparams()
         nobs = bm.nobs()
-        samples = self._bkd.ones((nparams, 3))
+        samples = bkd.ones((nparams, 3))
         result = obs_model(samples)
-        self.assertEqual(result.shape, (nobs, 3))
+        assert result.shape == (nobs, 3)
 
-    def test_prediction_model_callable_nonlinear(self):
-        bm = BenchmarkRegistry.get("nonlinear_gaussian_oed", self._bkd)
+    def test_prediction_model_callable_nonlinear(self, bkd):
+        bm = BenchmarkRegistry.get("nonlinear_gaussian_oed", bkd)
         pred_model = bm.prediction_model()
         nparams = bm.nparams()
         npred = bm.npred()
-        samples = self._bkd.zeros((nparams, 2))
+        samples = bkd.zeros((nparams, 2))
         result = pred_model(samples)
-        self.assertEqual(result.shape, (npred, 2))
+        assert result.shape == (npred, 2)
         # exp(0) = 1.0 for all entries
-        expected = self._bkd.ones((npred, 2))
-        self._bkd.assert_allclose(result, expected)
+        expected = bkd.ones((npred, 2))
+        bkd.assert_allclose(result, expected)
 
-    def test_prediction_model_callable_linear(self):
-        bm = BenchmarkRegistry.get("linear_gaussian_pred_oed", self._bkd)
+    def test_prediction_model_callable_linear(self, bkd):
+        bm = BenchmarkRegistry.get("linear_gaussian_pred_oed", bkd)
         pred_model = bm.prediction_model()
         nparams = bm.nparams()
         npred = bm.npred()
-        samples = self._bkd.zeros((nparams, 2))
+        samples = bkd.zeros((nparams, 2))
         result = pred_model(samples)
-        self.assertEqual(result.shape, (npred, 2))
-        expected = self._bkd.zeros((npred, 2))
-        self._bkd.assert_allclose(result, expected)
+        assert result.shape == (npred, 2)
+        expected = bkd.zeros((npred, 2))
+        bkd.assert_allclose(result, expected)
 
-    def test_observation_model_matches_design_matrix(self):
-        bm = BenchmarkRegistry.get("linear_gaussian_oed", self._bkd)
+    def test_observation_model_matches_design_matrix(self, bkd):
+        bm = BenchmarkRegistry.get("linear_gaussian_oed", bkd)
         obs_model = bm.observation_model()
         np.random.seed(42)
         theta_np = np.random.randn(bm.nparams(), 5)
-        theta = self._bkd.asarray(theta_np)
+        theta = bkd.asarray(theta_np)
         result = obs_model(theta)
-        expected = self._bkd.dot(bm.design_matrix(), theta)
-        self._bkd.assert_allclose(result, expected)
+        expected = bkd.dot(bm.design_matrix(), theta)
+        bkd.assert_allclose(result, expected)
 
-    def test_all_registered_oed_benchmarks(self):
+    def test_all_registered_oed_benchmarks(self, bkd):
         oed_names = BenchmarkRegistry.list_category("oed")
         for expected in [
             "linear_gaussian_oed",
@@ -149,15 +133,4 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
             "linear_gaussian_pred_oed",
             "lotka_volterra_oed",
         ]:
-            self.assertIn(expected, oed_names)
-
-
-class TestOEDDiscoveryNumpy(TestOEDDiscovery[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOEDDiscoveryTorch(TestOEDDiscovery[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+            assert expected in oed_names

@@ -10,8 +10,6 @@ tests verify compiled results match vectorized reference results computed
 using the vectorized implementations directly.
 """
 
-import unittest
-
 import numpy as np
 import torch
 
@@ -24,20 +22,19 @@ from pyapprox.expdesign.likelihood.compute import (
 )
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
-# Fixed dimensions — shared across all test classes to minimize recompilation.
+# Fixed dimensions -- shared across all test classes to minimize recompilation.
 _NOBS = 5
 _NINNER = 20
 _NOUTER = 15
 
 
 @slow_test
-class TestCompiledLogpdfMatrix(unittest.TestCase):
+class TestCompiledLogpdfMatrix:
     """Verify compiled logpdf_matrix matches vectorized reference."""
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -49,6 +46,7 @@ class TestCompiledLogpdfMatrix(unittest.TestCase):
 
     def test_compiled_matches_vectorized(self):
         """torch.compile logpdf_matrix matches vectorized computation."""
+        self._setup_data()
         like = GaussianOEDInnerLoopLikelihood(
             self._noise_variances,
             self._bkd,
@@ -71,11 +69,10 @@ class TestCompiledLogpdfMatrix(unittest.TestCase):
 
 
 @slow_test
-class TestCompiledJacobianMatrix(unittest.TestCase):
+class TestCompiledJacobianMatrix:
     """Verify compiled jacobian_matrix matches vectorized reference."""
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -88,6 +85,7 @@ class TestCompiledJacobianMatrix(unittest.TestCase):
 
     def test_compiled_matches_vectorized_no_latent(self):
         """torch.compile jacobian matches vectorized without latent samples."""
+        self._setup_data()
         like = GaussianOEDInnerLoopLikelihood(
             self._noise_variances,
             self._bkd,
@@ -111,6 +109,7 @@ class TestCompiledJacobianMatrix(unittest.TestCase):
 
     def test_compiled_matches_vectorized_with_latent(self):
         """torch.compile jacobian matches vectorized with latent samples."""
+        self._setup_data()
         like = GaussianOEDInnerLoopLikelihood(
             self._noise_variances,
             self._bkd,
@@ -135,11 +134,10 @@ class TestCompiledJacobianMatrix(unittest.TestCase):
 
 
 @slow_test
-class TestCompiledKLObjective(unittest.TestCase):
+class TestCompiledKLObjective:
     """Verify compiled KL objective produces correct results."""
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -166,27 +164,28 @@ class TestCompiledKLObjective(unittest.TestCase):
 
     def test_objective_runs(self):
         """torch.compile KL objective evaluates without error."""
+        self._setup_data()
         np.random.seed(42)
         obj = self._create_objective()
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (_NOBS, 1)))
         result = obj(weights)
-        self.assertEqual(result.shape, (1, 1))
+        assert result.shape == (1, 1)
 
     def test_jacobian_runs(self):
         """torch.compile KL objective jacobian evaluates without error."""
+        self._setup_data()
         np.random.seed(42)
         obj = self._create_objective()
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (_NOBS, 1)))
         result = obj.jacobian(weights)
-        self.assertEqual(result.shape, (1, _NOBS))
+        assert result.shape == (1, _NOBS)
 
 
 @slow_test
-class TestCompiledAutograd(unittest.TestCase):
+class TestCompiledAutograd:
     """Verify torch.autograd works through the compiled path."""
 
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
+    def _setup_data(self):
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
 
@@ -218,6 +217,7 @@ class TestCompiledAutograd(unittest.TestCase):
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical through compiled
         path."""
+        self._setup_data()
         obj = self._create_objective()
         np.random.seed(123)
         weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (_NOBS, 1)))
@@ -232,7 +232,3 @@ class TestCompiledAutograd(unittest.TestCase):
         autograd_jac = autograd_jac.squeeze(-1)
 
         self._bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
-
-
-if __name__ == "__main__":
-    unittest.main()

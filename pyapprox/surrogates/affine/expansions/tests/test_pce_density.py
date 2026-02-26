@@ -10,12 +10,9 @@ Tests include:
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 from scipy import stats
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
@@ -32,26 +29,14 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
 from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import (
     convert_orthonormal_to_monomials_1d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestMonomialConversion(Generic[Array], unittest.TestCase):
+class TestMonomialConversion:
     """Test conversion from orthonormal basis to monomial coefficients."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_hermite_conversion(self):
+    def test_hermite_conversion(self, bkd):
         """Verify Hermite-to-monomial conversion by pointwise evaluation."""
-        bkd = self._bkd
         nterms = 6
         poly = HermitePolynomial1D(bkd)
         poly.set_nterms(nterms)
@@ -78,9 +63,8 @@ class TestMonomialConversion(Generic[Array], unittest.TestCase):
                 rtol=1e-12,
             )
 
-    def test_legendre_conversion(self):
+    def test_legendre_conversion(self, bkd):
         """Verify Legendre-to-monomial conversion by pointwise evaluation."""
-        bkd = self._bkd
         nterms = 6
         poly = LegendrePolynomial1D(bkd)
         poly.set_nterms(nterms)
@@ -105,31 +89,11 @@ class TestMonomialConversion(Generic[Array], unittest.TestCase):
             )
 
 
-class TestMonomialConversionNumpy(TestMonomialConversion[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMonomialConversionTorch(TestMonomialConversion[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestLinearPCEDensity(Generic[Array], unittest.TestCase):
+class TestLinearPCEDensity:
     """Test PDF of linear PCE Y = a + b*xi against analytical references."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_linear_gaussian(self):
+    def test_linear_gaussian(self, bkd):
         """Y = 2 + 3*xi, xi ~ N(0,1). f_Y(y) = phi((y-2)/3) / 3."""
-        bkd = self._bkd
         a, b = 2.0, 3.0
 
         marginal = GaussianMarginal(0.0, 1.0, bkd)
@@ -159,9 +123,8 @@ class TestLinearPCEDensity(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_linear_uniform(self):
+    def test_linear_uniform(self, bkd):
         """Y = a + b*xi, xi ~ Uniform(-1,1). f_Y(y) = 1/(2|b|) on support."""
-        bkd = self._bkd
         a, b = 1.0, 2.0
 
         marginal = UniformMarginal(-1.0, 1.0, bkd)
@@ -191,32 +154,11 @@ class TestLinearPCEDensity(Generic[Array], unittest.TestCase):
         )
 
 
-class TestLinearPCEDensityNumpy(TestLinearPCEDensity[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLinearPCEDensityTorch(TestLinearPCEDensity[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestQuadraticPCEDensity(Generic[Array], unittest.TestCase):
+class TestQuadraticPCEDensity:
     """Test PDF of quadratic PCE against chi-squared reference."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_quadratic_chi_squared(self):
+    def test_quadratic_chi_squared(self, bkd):
         """Y = psi_2(xi) for standard Hermite. Y+1 = xi^2 ~ chi2(1)."""
-        bkd = self._bkd
-
         marginal = GaussianMarginal(0.0, 1.0, bkd)
         pce = create_pce_from_marginals([marginal], max_level=2, bkd=bkd)
 
@@ -259,32 +201,11 @@ class TestQuadraticPCEDensity(Generic[Array], unittest.TestCase):
         )
 
 
-class TestQuadraticPCEDensityNumpy(TestQuadraticPCEDensity[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestQuadraticPCEDensityTorch(TestQuadraticPCEDensity[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestMomentsExact(Generic[Array], unittest.TestCase):
+class TestMomentsExact:
     """Test exact moment computation via quadrature."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_moments_match_pce_statistics(self):
+    def test_moments_match_pce_statistics(self, bkd):
         """Verify moments_exact matches PCE mean and variance."""
-        bkd = self._bkd
-
         marginal = GaussianMarginal(0.0, 1.0, bkd)
         pce = create_pce_from_marginals([marginal], max_level=5, bkd=bkd)
 
@@ -314,17 +235,6 @@ class TestMomentsExact(Generic[Array], unittest.TestCase):
         )
 
 
-class TestMomentsExactNumpy(TestMomentsExact[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMomentsExactTorch(TestMomentsExact[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
 def _build_pce_for_function(func, marginal, max_level, bkd):
     """Helper: build PCE by spectral projection for a given function."""
     pce = create_pce_from_marginals([marginal], max_level=max_level, bkd=bkd)
@@ -343,23 +253,14 @@ def _build_pce_for_function(func, marginal, max_level, bkd):
     return pce
 
 
-class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
+class TestConvergenceGaussian:
     """Convergence test: g(x)=x*cos(x), xi ~ N(0,1), Hermite basis."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     def _target_func(self, x):
         return x * np.cos(x)
 
-    def test_moment_matching(self):
+    def test_moment_matching(self, bkd):
         """Verify moments from quadrature match PCE statistics at P=15."""
-        bkd = self._bkd
         P = 15
 
         marginal = GaussianMarginal(0.0, 1.0, bkd)
@@ -372,9 +273,7 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        self.assertLess(
-            max_approx_err, 1e-5, f"PCE approximation error too large: {max_approx_err}"
-        )
+        assert max_approx_err < 1e-5, f"PCE approximation error too large: {max_approx_err}"
 
         density = UnivariatePCEDensity(pce, marginal)
 
@@ -395,9 +294,8 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
         )
 
     @slow_test
-    def test_l1_convergence(self):
+    def test_l1_convergence(self, bkd):
         """Verify PDF converges in L1 as PCE order increases."""
-        bkd = self._bkd
         marginal = GaussianMarginal(0.0, 1.0, bkd)
 
         # Evaluate successive PDFs on a common grid and check L1
@@ -423,45 +321,23 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
         for ii in range(1, len(l1_diffs)):
             if l1_diffs[ii - 1] < 1e-10:
                 continue
-            self.assertLess(
-                l1_diffs[ii],
-                l1_diffs[ii - 1],
+            assert l1_diffs[ii] < l1_diffs[ii - 1], (
                 f"L1 diff not decreasing: "
                 f"P={orders[ii]}->{orders[ii + 1]} ({l1_diffs[ii]:.6f}) >= "
-                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})",
+                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})"
             )
         # Final consecutive difference should be small
-        self.assertLess(l1_diffs[-1], 0.01, f"Final L1 diff too large: {l1_diffs[-1]}")
+        assert l1_diffs[-1] < 0.01, f"Final L1 diff too large: {l1_diffs[-1]}"
 
 
-class TestConvergenceGaussianNumpy(TestConvergenceGaussian[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestConvergenceGaussianTorch(TestConvergenceGaussian[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestConvergenceUniform(Generic[Array], unittest.TestCase):
+class TestConvergenceUniform:
     """Convergence test: g(x)=x*cos(x), xi ~ Uniform(-1,1), Legendre basis."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     def _target_func(self, x):
         return x * np.cos(x)
 
-    def test_moment_matching(self):
+    def test_moment_matching(self, bkd):
         """Verify moments from quadrature match PCE statistics at P=15."""
-        bkd = self._bkd
         P = 15
 
         marginal = UniformMarginal(-1.0, 1.0, bkd)
@@ -474,9 +350,7 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        self.assertLess(
-            max_approx_err, 1e-5, f"PCE approximation error too large: {max_approx_err}"
-        )
+        assert max_approx_err < 1e-5, f"PCE approximation error too large: {max_approx_err}"
 
         density = UnivariatePCEDensity(pce, marginal)
 
@@ -497,9 +371,8 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
         )
 
     @slow_test
-    def test_l1_convergence(self):
+    def test_l1_convergence(self, bkd):
         """Verify PDF converges in L1 as PCE order increases."""
-        bkd = self._bkd
         marginal = UniformMarginal(-1.0, 1.0, bkd)
 
         # Evaluate successive PDFs on a common grid and check L1
@@ -525,23 +398,10 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
         for ii in range(1, len(l1_diffs)):
             if l1_diffs[ii - 1] < 1e-10:
                 continue
-            self.assertLess(
-                l1_diffs[ii],
-                l1_diffs[ii - 1],
+            assert l1_diffs[ii] < l1_diffs[ii - 1], (
                 f"L1 diff not decreasing: "
                 f"P={orders[ii]}->{orders[ii + 1]} ({l1_diffs[ii]:.6f}) >= "
-                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})",
+                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})"
             )
         # Final consecutive difference should be small
-        self.assertLess(l1_diffs[-1], 0.01, f"Final L1 diff too large: {l1_diffs[-1]}")
-
-
-class TestConvergenceUniformNumpy(TestConvergenceUniform[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestConvergenceUniformTorch(TestConvergenceUniform[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert l1_diffs[-1] < 0.01, f"Final L1 diff too large: {l1_diffs[-1]}"

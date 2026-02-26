@@ -1,11 +1,7 @@
 """Tests for ALSFitter."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -17,70 +13,53 @@ from pyapprox.surrogates.functiontrain import (
     FunctionTrain,
     create_additive_functiontrain,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestALSFitter(Generic[Array], unittest.TestCase):
+class TestALSFitter:
     """Base class for ALSFitter tests."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_univariate_expansion(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[Array]:
+    def _create_univariate_expansion(self, bkd, max_level, nqoi=1):
         """Create a univariate polynomial expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_additive_ft(
-        self, nvars: int = 3, max_level: int = 2, nqoi: int = 1
-    ) -> FunctionTrain[Array]:
+    def _create_additive_ft(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create an additive FunctionTrain for testing."""
-        bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def test_als_rejects_non_functiontrain(self) -> None:
+    def test_als_rejects_non_functiontrain(self, bkd) -> None:
         """Test that ALSFitter raises TypeError for non-FunctionTrain."""
-        bkd = self._bkd
         fitter = ALSFitter(bkd)
 
         # Try to fit a BasisExpansion instead of FunctionTrain
-        expansion = self._create_univariate_expansion(2)
+        expansion = self._create_univariate_expansion(bkd, 2)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 10)))
         values = bkd.asarray(np.random.randn(1, 10))
 
-        with self.assertRaises(TypeError) as ctx:
+        with pytest.raises(TypeError) as ctx:
             fitter.fit(expansion, samples, values)
 
-        self.assertIn("ALSFitter only works with FunctionTrain", str(ctx.exception))
+        assert "ALSFitter only works with FunctionTrain" in str(ctx.value)
 
-    def test_als_fits_own_output(self) -> None:
+    def test_als_fits_own_output(self, bkd) -> None:
         """Test ALS can fit FunctionTrain to its own output (exact recovery).
 
         Following the legacy test pattern: set coefficients, evaluate,
         then fit to that output. This ensures exact recovery is possible.
         """
-        bkd = self._bkd
         nvars = 3
         max_level = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level)
 
         # Set known coefficients on all trainable expansions
         nparams = ft.nparams()
@@ -106,15 +85,14 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(predictions, values, rtol=1e-6, atol=1e-6)
 
-    def test_als_fits_additive_polynomial(self) -> None:
+    def test_als_fits_additive_polynomial(self, bkd) -> None:
         """Test ALS fits additive polynomial functions accurately.
 
         Uses polynomials that are exactly representable by the model.
         """
-        bkd = self._bkd
         nvars = 3
         max_level = 2  # Quadratic polynomials
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level)
 
         # Set specific coefficients to create a known additive function
         # Each univariate expansion has (max_level + 1) = 3 terms
@@ -141,16 +119,15 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(predictions, values, rtol=1e-6, atol=1e-6)
 
-    def test_als_converges_for_additive(self) -> None:
+    def test_als_converges_for_additive(self, bkd) -> None:
         """Test that ALS converges for additive FT.
 
         For additive FunctionTrain, the tensor structure allows rapid
         convergence.
         """
-        bkd = self._bkd
         nvars = 3
         max_level = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level)
 
         # Create target with known params
         nparams = ft.nparams()
@@ -175,10 +152,9 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         # Should get very good fit
         bkd.assert_allclose(predictions, values, rtol=1e-6, atol=1e-6)
 
-    def test_als_immutability(self) -> None:
+    def test_als_immutability(self, bkd) -> None:
         """Test that ALS doesn't modify original FunctionTrain."""
-        bkd = self._bkd
-        ft = self._create_additive_ft(nvars=3, max_level=1)
+        ft = self._create_additive_ft(bkd, nvars=3, max_level=1)
 
         # Get original parameters
         original_params = bkd.copy(ft._flatten_params())
@@ -194,10 +170,9 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         # Original should be unchanged
         bkd.assert_allclose(ft._flatten_params(), original_params, rtol=1e-12)
 
-    def test_als_result_contains_surrogate(self) -> None:
+    def test_als_result_contains_surrogate(self, bkd) -> None:
         """Test that ALSFitterResult contains the fitted surrogate."""
-        bkd = self._bkd
-        ft = self._create_additive_ft(nvars=2, max_level=1)
+        ft = self._create_additive_ft(bkd, nvars=2, max_level=1)
 
         nsamples = 20
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
@@ -207,16 +182,15 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(ft, samples, values)
 
         # Check result attributes
-        self.assertIsInstance(result.surrogate(), FunctionTrain)
-        self.assertIsInstance(result.n_sweeps(), int)
-        self.assertIsInstance(result.residual_history(), list)
-        self.assertIsInstance(result.converged(), bool)
+        assert isinstance(result.surrogate(), FunctionTrain)
+        assert isinstance(result.n_sweeps(), int)
+        assert isinstance(result.residual_history(), list)
+        assert isinstance(result.converged(), bool)
 
-    def test_als_residual_decreases(self) -> None:
+    def test_als_residual_decreases(self, bkd) -> None:
         """Test that residual generally decreases over sweeps."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2)
 
         # Generate noisy data
         nsamples = 50
@@ -231,12 +205,11 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         history = result.residual_history()
 
         # Initial residual should be larger than final
-        self.assertGreater(history[0], history[-1])
+        assert history[0] > history[-1]
 
-    def test_als_handles_1d_values(self) -> None:
+    def test_als_handles_1d_values(self, bkd) -> None:
         """Test that ALS handles 1D values array."""
-        bkd = self._bkd
-        ft = self._create_additive_ft(nvars=2, max_level=1)
+        ft = self._create_additive_ft(bkd, nvars=2, max_level=1)
 
         nsamples = 20
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
@@ -246,25 +219,23 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(ft, samples, values_1d)
 
         # Should work without error
-        self.assertIsInstance(result.surrogate(), FunctionTrain)
+        assert isinstance(result.surrogate(), FunctionTrain)
 
-    def test_als_validates_dimension_mismatch(self) -> None:
+    def test_als_validates_dimension_mismatch(self, bkd) -> None:
         """Test that ALS validates input dimensions."""
-        bkd = self._bkd
-        ft = self._create_additive_ft(nvars=3, max_level=1)
+        ft = self._create_additive_ft(bkd, nvars=3, max_level=1)
 
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, 10)))  # Wrong nvars
         values = bkd.asarray(np.random.randn(1, 10))
 
         fitter = ALSFitter(bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             fitter.fit(ft, samples, values)
 
-    def test_als_convergence_flag(self) -> None:
+    def test_als_convergence_flag(self, bkd) -> None:
         """Test that convergence flag is set correctly."""
-        bkd = self._bkd
-        ft = self._create_additive_ft(nvars=2, max_level=1)
+        ft = self._create_additive_ft(bkd, nvars=2, max_level=1)
 
         # Simple linear function that should converge quickly
         nsamples = 30
@@ -280,28 +251,4 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         result_loose = fitter_loose.fit(ft, samples, values)
 
         # Loose tolerance should converge
-        self.assertTrue(result_loose.converged())
-
-
-# NumPy backend tests
-class TestALSFitterNumpy(TestALSFitter[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-class TestALSFitterTorch(TestALSFitter[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result_loose.converged()

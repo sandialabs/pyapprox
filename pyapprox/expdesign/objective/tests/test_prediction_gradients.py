@@ -8,13 +8,8 @@ Tests gradient verification using DerivativeChecker for combinations of:
 - Risk measures: Mean, Variance
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.expdesign import (
     PredictionOEDObjective,
@@ -26,31 +21,20 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase):
+class TestPredictionOEDGradientsStandalone:
     """Standalone tests for prediction OED gradients using DerivativeChecker."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         self._nobs = 3
         self._ninner = 30
         self._nouter = 20
         self._npred = 2
         np.random.seed(42)
 
-    def _create_test_data(self):
+    def _create_test_data(self, bkd):
         """Create test data for gradient verification."""
-        bkd = self._bkd
         noise_variances = bkd.asarray(np.array([0.1, 0.15, 0.2]))
         outer_shapes = bkd.asarray(np.random.randn(self._nobs, self._nouter))
         inner_shapes = bkd.asarray(np.random.randn(self._nobs, self._ninner))
@@ -58,7 +42,7 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
         qoi_vals = bkd.asarray(np.random.randn(self._ninner, self._npred))
         return noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals
 
-    def _create_derivative_checker_function(self, obj: PredictionOEDObjective[Array]):
+    def _create_derivative_checker_function(self, bkd, obj):
         """Wrap objective for DerivativeChecker compatibility.
 
         DerivativeChecker expects:
@@ -70,7 +54,7 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
         - jacobian(weights): (nobs, 1) -> (1, nobs)
         """
 
-        def value_fun(samples: Array) -> Array:
+        def value_fun(samples):
             # samples: (nvars, nsamples) = (nobs, nsamples)
             nsamples = samples.shape[1]
             results = []
@@ -78,9 +62,9 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
                 w = samples[:, ii : ii + 1]  # (nobs, 1)
                 val = obj(w)  # (1, 1)
                 results.append(val[0, 0])
-            return self._bkd.reshape(self._bkd.stack(results), (1, nsamples))
+            return bkd.reshape(bkd.stack(results), (1, nsamples))
 
-        def jacobian_fun(sample: Array) -> Array:
+        def jacobian_fun(sample):
             # sample: (nvars, 1) = (nobs, 1)
             jac = obj.jacobian(sample)  # (1, nobs)
             return jac  # (nqoi=1, nvars=nobs)
@@ -90,10 +74,10 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             nvars=obj.nvars(),
             fun=value_fun,
             jacobian=jacobian_fun,
-            bkd=self._bkd,
+            bkd=bkd,
         )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "deviation_type,risk_type",
         [
             ("stdev", "mean"),
@@ -102,10 +86,11 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             ("entropic", "variance"),
         ],
     )
-    def test_jacobian_derivative_checker(self, deviation_type, risk_type):
+    def test_jacobian_derivative_checker(self, bkd, deviation_type, risk_type):
         """Test Jacobian using DerivativeChecker for all combinations."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         # Handle entropic alpha parameter
@@ -119,30 +104,29 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type=deviation_type,
             risk_type=risk_type,
             **extra_kwargs,
         )
 
-        wrapped = self._create_derivative_checker_function(objective)
+        wrapped = self._create_derivative_checker_function(bkd, objective)
         checker = DerivativeChecker(wrapped)
 
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         errors = checker.check_derivatives(weights)
 
         # Jacobian errors should show second-order convergence
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(self._bkd.to_numpy(ratio)),
-            1e-5,
-            f"DerivativeChecker failed for {deviation_type}/{risk_type}: ratio={ratio}",
+        assert float(bkd.to_numpy(ratio)) <= 1e-5, (
+            f"DerivativeChecker failed for {deviation_type}/{risk_type}: ratio={ratio}"
         )
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self, bkd):
         """Test Jacobian has correct shape."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         objective = create_prediction_oed_objective(
@@ -151,22 +135,23 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type="stdev",
             risk_type="mean",
         )
 
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+        weights = bkd.ones((self._nobs, 1)) / self._nobs
         jac = objective.jacobian(weights)
 
-        jac_np = self._bkd.to_numpy(jac)
+        jac_np = bkd.to_numpy(jac)
         # Shape should be (1, nobs) for scalar objective
-        self.assertEqual(jac_np.shape, (1, self._nobs))
+        assert jac_np.shape == (1, self._nobs)
 
-    def test_jacobian_is_finite(self):
+    def test_jacobian_is_finite(self, bkd):
         """Test Jacobian values are finite."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         objective = create_prediction_oed_objective(
@@ -175,28 +160,29 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type="stdev",
             risk_type="mean",
         )
 
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         jac = objective.jacobian(weights)
 
-        jac_np = self._bkd.to_numpy(jac)
-        self.assertTrue(np.all(np.isfinite(jac_np)))
+        jac_np = bkd.to_numpy(jac)
+        assert np.all(np.isfinite(jac_np))
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "deviation_type",
         [
-            ("stdev",),
-            ("entropic",),
+            "stdev",
+            "entropic",
         ],
     )
-    def test_jacobian_nonzero_for_deviation(self, deviation_type):
+    def test_jacobian_nonzero_for_deviation(self, bkd, deviation_type):
         """Test Jacobian is non-zero for different deviation types."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         extra_kwargs = {}
@@ -209,23 +195,24 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type=deviation_type,
             risk_type="mean",
             **extra_kwargs,
         )
 
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
         jac = objective.jacobian(weights)
 
-        jac_np = self._bkd.to_numpy(jac)
+        jac_np = bkd.to_numpy(jac)
         # At least some gradient components should be non-zero
-        self.assertFalse(np.allclose(jac_np, 0.0))
+        assert not np.allclose(jac_np, 0.0)
 
-    def test_jacobian_changes_with_weights(self):
+    def test_jacobian_changes_with_weights(self, bkd):
         """Test Jacobian values change with different weights."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         objective = create_prediction_oed_objective(
@@ -234,27 +221,28 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type="stdev",
             risk_type="mean",
         )
 
-        weights1 = self._bkd.ones((self._nobs, 1)) * 0.5
-        weights2 = self._bkd.ones((self._nobs, 1)) * 2.0
+        weights1 = bkd.ones((self._nobs, 1)) * 0.5
+        weights2 = bkd.ones((self._nobs, 1)) * 2.0
 
         jac1 = objective.jacobian(weights1)
         jac2 = objective.jacobian(weights2)
 
-        jac1_np = self._bkd.to_numpy(jac1)
-        jac2_np = self._bkd.to_numpy(jac2)
+        jac1_np = bkd.to_numpy(jac1)
+        jac2_np = bkd.to_numpy(jac2)
 
         # Jacobians should be different at different weights
-        self.assertFalse(np.allclose(jac1_np, jac2_np))
+        assert not np.allclose(jac1_np, jac2_np)
 
-    def test_objective_value_and_jacobian_consistency(self):
+    def test_objective_value_and_jacobian_consistency(self, bkd):
         """Test objective value and Jacobian are computed consistently."""
+        self._setup_data(bkd)
         noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals = (
-            self._create_test_data()
+            self._create_test_data(bkd)
         )
 
         objective = create_prediction_oed_objective(
@@ -263,12 +251,12 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
             inner_shapes,
             latent_samples,
             qoi_vals,
-            self._bkd,
+            bkd,
             deviation_type="stdev",
             risk_type="mean",
         )
 
-        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
+        weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
         # Compute multiple times - should be deterministic
         val1 = objective(weights)
@@ -276,32 +264,5 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
         jac1 = objective.jacobian(weights)
         jac2 = objective.jacobian(weights)
 
-        self._bkd.assert_allclose(val1, val2, rtol=1e-12)
-        self._bkd.assert_allclose(jac1, jac2, rtol=1e-12)
-
-
-class TestPredictionOEDGradientsStandaloneNumpy(
-    TestPredictionOEDGradientsStandalone[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPredictionOEDGradientsStandaloneTorch(
-    TestPredictionOEDGradientsStandalone[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(val1, val2, rtol=1e-12)
+        bkd.assert_allclose(jac1, jac2, rtol=1e-12)

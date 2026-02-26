@@ -5,12 +5,8 @@ including derivative checks via DerivativeChecker and integration
 accuracy tests matching legacy test_leja.py test cases.
 """
 
-import unittest
-from typing import Any, Callable, Generic, Tuple
-
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
+from typing import Any, Callable, Tuple
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -37,27 +33,24 @@ from pyapprox.surrogates.affine.univariate import (
 from pyapprox.surrogates.affine.univariate.lagrange import (
     LagrangeBasis1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 # =============================================================================
 # Helper functions for PDFWeighting wrappers
 # =============================================================================
 def _make_pdf_wrappers(
-    marginal: Any, bkd: Backend[Array]
+    marginal: Any, bkd
 ) -> Tuple[Callable[..., Any], Callable[..., Any]]:
     """Create (nsamples,)->(nsamples,) wrappers for marginal pdf/jacobian.
 
     PDFWeighting expects 1D callables but marginals use (1, nsamples) shapes.
     """
 
-    def pdf_1d(samples: Array) -> Array:
+    def pdf_1d(samples):
         return marginal.pdf(bkd.reshape(samples, (1, -1)))[0, :]
 
-    def pdf_jac_1d(samples: Array) -> Array:
+    def pdf_jac_1d(samples):
         return marginal.pdf_jacobian(bkd.reshape(samples, (1, -1)))[0, :]
 
     return pdf_1d, pdf_jac_1d
@@ -96,75 +89,99 @@ TWO_POINT_COMBOS = [
 ]
 
 
+def _create_poly_and_weighting(bkd, poly_type, weighting_type):
+    """Create polynomial and weighting from type strings."""
+    if poly_type == "hermite":
+        poly = HermitePolynomial1D(bkd)
+    elif poly_type == "legendre":
+        poly = LegendrePolynomial1D(bkd)
+    elif poly_type == "jacobi11":
+        # Jacobi(alpha=1, beta=1) for Beta(2,2)
+        poly = JacobiPolynomial1D(1.0, 1.0, bkd)
+    else:
+        raise ValueError(f"Unknown poly_type: {poly_type}")
+
+    if weighting_type == "christoffel":
+        weighting = ChristoffelWeighting(bkd)
+    elif weighting_type == "pdf_uniform":
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+        weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+    elif weighting_type == "pdf_beta22":
+        marginal = BetaMarginal(2.0, 2.0, bkd, lb=-1.0, ub=1.0)
+        pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+        weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+    elif weighting_type == "pdf_gaussian":
+        marginal = GaussianMarginal(0.0, 1.0, bkd)
+        pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+        weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+    else:
+        raise ValueError(f"Unknown weighting_type: {weighting_type}")
+
+    return poly, weighting
+
+
 # =============================================================================
 # LejaSequence1D tests
 # =============================================================================
-class TestLejaSequence1D(Generic[Array], unittest.TestCase):
+class TestLejaSequence1D:
     """Tests for univariate Leja sequence generation."""
 
-    __test__ = False
+    def _create_leja(self, bkd):
+        poly = LegendrePolynomial1D(bkd)
+        weighting = ChristoffelWeighting(bkd)
+        return LejaSequence1D(bkd, poly, weighting, bounds=(-1.0, 1.0))
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_leja(self) -> LejaSequence1D[Array]:
-        poly = LegendrePolynomial1D(self._bkd)
-        weighting = ChristoffelWeighting(self._bkd)
-        return LejaSequence1D(self._bkd, poly, weighting, bounds=(-1.0, 1.0))
-
-    def test_quadrature_rule_shape(self) -> None:
+    def test_quadrature_rule_shape(self, bkd) -> None:
         """Test that quadrature_rule returns correct shapes."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples, weights = leja.quadrature_rule(5)
-        self.assertEqual(samples.shape, (1, 5))
-        self.assertEqual(weights.shape, (5, 1))
+        assert samples.shape == (1, 5)
+        assert weights.shape == (5, 1)
 
-    def test_extend_sequence(self) -> None:
+    def test_extend_sequence(self, bkd) -> None:
         """Test extending the Leja sequence."""
-        leja = self._create_leja()
-        self.assertEqual(leja.npoints(), 1)
+        leja = self._create_leja(bkd)
+        assert leja.npoints() == 1
         leja.extend(4)
-        self.assertEqual(leja.npoints(), 5)
+        assert leja.npoints() == 5
 
-    def test_nested_property(self) -> None:
+    def test_nested_property(self, bkd) -> None:
         """Test that Leja sequences are nested."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples_3, _ = leja.quadrature_rule(3)
         samples_5, _ = leja.quadrature_rule(5)
-        self._bkd.assert_allclose(samples_3, samples_5[:, :3], rtol=1e-12)
+        bkd.assert_allclose(samples_3, samples_5[:, :3], rtol=1e-12)
 
-    def test_points_within_bounds(self) -> None:
+    def test_points_within_bounds(self, bkd) -> None:
         """Test that all points are within bounds."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples, _ = leja.quadrature_rule(10)
-        self.assertTrue(self._bkd.all_bool(samples >= -1.0 - 1e-10))
-        self.assertTrue(self._bkd.all_bool(samples <= 1.0 + 1e-10))
+        assert bkd.all_bool(samples >= -1.0 - 1e-10)
+        assert bkd.all_bool(samples <= 1.0 + 1e-10)
 
-    def test_clear_cache(self) -> None:
+    def test_clear_cache(self, bkd) -> None:
         """Test clearing the cache resets to initial point."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         leja.quadrature_rule(5)
-        self.assertEqual(leja.npoints(), 5)
+        assert leja.npoints() == 5
         leja.clear_cache()
-        self.assertEqual(leja.npoints(), 1)
+        assert leja.npoints() == 1
 
-    def test_with_lagrange_basis(self) -> None:
+    def test_with_lagrange_basis(self, bkd) -> None:
         """Test using LejaSequence1D with LagrangeBasis1D."""
-        leja = self._create_leja()
-        lagrange = LagrangeBasis1D(self._bkd, leja.quadrature_rule)
+        leja = self._create_leja(bkd)
+        lagrange = LagrangeBasis1D(bkd, leja.quadrature_rule)
         lagrange.set_nterms(5)
-        samples = self._bkd.asarray([[0.0, 0.5, -0.5]])
+        samples = bkd.asarray([[0.0, 0.5, -0.5]])
         values = lagrange(samples)
-        self.assertEqual(values.shape, (3, 5))
+        assert values.shape == (3, 5)
 
 
 # =============================================================================
 # LejaObjective tests
 # =============================================================================
-class TestLejaObjective(Generic[Array], unittest.TestCase):
+class TestLejaObjective:
     """Tests for LejaObjective.
 
     Matches legacy test_one_point_leja_objective:
@@ -174,73 +191,63 @@ class TestLejaObjective(Generic[Array], unittest.TestCase):
     - Jacobian via DerivativeChecker (2 combos: Christoffel, PDF)
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_objective(
-        self, weighting_cls: str = "christoffel"
-    ) -> LejaObjective[Array]:
-        poly = LegendrePolynomial1D(self._bkd)
+    def _create_objective(self, bkd, weighting_cls="christoffel"):
+        poly = LegendrePolynomial1D(bkd)
         if weighting_cls == "christoffel":
-            weighting = ChristoffelWeighting(self._bkd)
+            weighting = ChristoffelWeighting(bkd)
         else:
-            marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        objective = LejaObjective(self._bkd, poly, weighting, bounds=(-1.0, 1.0))
-        initial = self._bkd.asarray([[0.1, 0.9]])
+            marginal = UniformMarginal(-1.0, 1.0, bkd)
+            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+            weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+        objective = LejaObjective(bkd, poly, weighting, bounds=(-1.0, 1.0))
+        initial = bkd.asarray([[0.1, 0.9]])
         objective.set_sequence(initial)
         return objective
 
-    def test_objective_shape(self) -> None:
+    def test_objective_shape(self, bkd) -> None:
         """Test that objective returns (nqoi, nsamples) shape."""
-        objective = self._create_objective()
-        test_points = self._bkd.asarray([[0.5, -0.5, 0.8]])
+        objective = self._create_objective(bkd)
+        test_points = bkd.asarray([[0.5, -0.5, 0.8]])
         values = objective(test_points)
-        self.assertEqual(values.shape, (1, 3))
+        assert values.shape == (1, 3)
 
-    def test_objective_negative(self) -> None:
+    def test_objective_negative(self, bkd) -> None:
         """Test that objective values are non-positive (minimization)."""
-        objective = self._create_objective()
-        test_points = self._bkd.asarray([[0.5, -0.5, 0.8]])
+        objective = self._create_objective(bkd)
+        test_points = bkd.asarray([[0.5, -0.5, 0.8]])
         values = objective(test_points)
-        self.assertTrue(self._bkd.all_bool(values <= 0))
+        assert bkd.all_bool(values <= 0)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian shape is (nqoi, nvars) = (1, 1)."""
-        objective = self._create_objective()
-        sample = self._bkd.asarray([[0.5]])
+        objective = self._create_objective(bkd)
+        sample = bkd.asarray([[0.5]])
         jac = objective.jacobian(sample)
-        self.assertEqual(jac.shape, (1, 1))
+        assert jac.shape == (1, 1)
 
-    def test_jacobian_christoffel_derivative_checker(self) -> None:
+    def test_jacobian_christoffel_derivative_checker(self, bkd) -> None:
         """Test Jacobian via DerivativeChecker with Christoffel weighting."""
-        objective = self._create_objective("christoffel")
-        sample = self._bkd.asarray([[0.5]])
+        objective = self._create_objective(bkd, "christoffel")
+        sample = bkd.asarray([[0.5]])
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = float(checker.error_ratio(errors[0]).item())
-        self.assertLess(error_ratio, 1e-6)
+        assert error_ratio < 1e-6
 
-    def test_jacobian_pdf_derivative_checker(self) -> None:
+    def test_jacobian_pdf_derivative_checker(self, bkd) -> None:
         """Test Jacobian via DerivativeChecker with PDF weighting."""
-        objective = self._create_objective("pdf")
-        sample = self._bkd.asarray([[0.5]])
+        objective = self._create_objective(bkd, "pdf")
+        sample = bkd.asarray([[0.5]])
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = float(checker.error_ratio(errors[0]).item())
-        self.assertLess(error_ratio, 1e-6)
+        assert error_ratio < 1e-6
 
 
 # =============================================================================
 # TwoPointLejaObjective tests
 # =============================================================================
-class TestTwoPointLejaObjective(Generic[Array], unittest.TestCase):
+class TestTwoPointLejaObjective:
     """Tests for TwoPointLejaObjective.
 
     Matches legacy test_two_point_leja_objective:
@@ -250,152 +257,132 @@ class TestTwoPointLejaObjective(Generic[Array], unittest.TestCase):
     - Jacobian via DerivativeChecker (Christoffel and PDF weightings)
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_objective(
-        self, weighting_cls: str = "christoffel"
-    ) -> TwoPointLejaObjective[Array]:
-        poly = LegendrePolynomial1D(self._bkd)
+    def _create_objective(self, bkd, weighting_cls="christoffel"):
+        poly = LegendrePolynomial1D(bkd)
         if weighting_cls == "christoffel":
-            weighting = ChristoffelWeighting(self._bkd)
+            weighting = ChristoffelWeighting(bkd)
         else:
-            marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
+            marginal = UniformMarginal(-1.0, 1.0, bkd)
+            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+            weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
         objective = TwoPointLejaObjective(
-            self._bkd, poly, weighting, bounds=(-1.0, 1.0)
+            bkd, poly, weighting, bounds=(-1.0, 1.0)
         )
-        initial = self._bkd.asarray([[0.0, -0.8, 0.8]])
+        initial = bkd.asarray([[0.0, -0.8, 0.8]])
         objective.set_sequence(initial)
         return objective
 
-    def test_objective_shape(self) -> None:
+    def test_objective_shape(self, bkd) -> None:
         """Test that two-point objective returns (nqoi, nsamples) shape."""
-        objective = self._create_objective()
-        test_points = self._bkd.asarray([[0.5, -0.5], [0.3, 0.7]])
+        objective = self._create_objective(bkd)
+        test_points = bkd.asarray([[0.5, -0.5], [0.3, 0.7]])
         values = objective(test_points)
-        self.assertEqual(values.shape, (1, 2))
+        assert values.shape == (1, 2)
 
-    def test_objective_negative(self) -> None:
+    def test_objective_negative(self, bkd) -> None:
         """Test that objective values are non-positive."""
-        objective = self._create_objective()
-        test_points = self._bkd.asarray([[0.5, -0.5, 0.1], [0.3, 0.7, -0.2]])
+        objective = self._create_objective(bkd)
+        test_points = bkd.asarray([[0.5, -0.5, 0.1], [0.3, 0.7, -0.2]])
         values = objective(test_points)
-        self.assertTrue(self._bkd.all_bool(values <= 0))
+        assert bkd.all_bool(values <= 0)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian shape is (nqoi, nvars) = (1, 2)."""
-        objective = self._create_objective()
-        sample = self._bkd.asarray([[0.3], [0.7]])
+        objective = self._create_objective(bkd)
+        sample = bkd.asarray([[0.3], [0.7]])
         jac = objective.jacobian(sample)
-        self.assertEqual(jac.shape, (1, 2))
+        assert jac.shape == (1, 2)
 
-    def test_nvars(self) -> None:
+    def test_nvars(self, bkd) -> None:
         """Test nvars returns 2."""
-        objective = self._create_objective()
-        self.assertEqual(objective.nvars(), 2)
+        objective = self._create_objective(bkd)
+        assert objective.nvars() == 2
 
-    def test_initial_iterates_shape(self) -> None:
+    def test_initial_iterates_shape(self, bkd) -> None:
         """Test initial iterates are pairs."""
-        objective = self._create_objective()
+        objective = self._create_objective(bkd)
         iterates, bounds_list = objective.initial_iterates_and_bounds()
-        self.assertEqual(iterates.shape[0], 2)
+        assert iterates.shape[0] == 2
         for b in bounds_list:
-            self.assertEqual(b.shape, (2, 2))
+            assert b.shape == (2, 2)
 
-    def test_jacobian_christoffel_derivative_checker(self) -> None:
+    def test_jacobian_christoffel_derivative_checker(self, bkd) -> None:
         """Test Jacobian via DerivativeChecker with Christoffel weighting."""
-        objective = self._create_objective("christoffel")
-        sample = self._bkd.asarray([[0.3], [0.7]])
+        objective = self._create_objective(bkd, "christoffel")
+        sample = bkd.asarray([[0.3], [0.7]])
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = float(checker.error_ratio(errors[0]).item())
-        self.assertLess(error_ratio, 1e-6)
+        assert error_ratio < 1e-6
 
-    def test_jacobian_pdf_derivative_checker(self) -> None:
+    def test_jacobian_pdf_derivative_checker(self, bkd) -> None:
         """Test Jacobian via DerivativeChecker with PDF weighting."""
-        objective = self._create_objective("pdf")
-        sample = self._bkd.asarray([[0.3], [0.7]])
+        objective = self._create_objective(bkd, "pdf")
+        sample = bkd.asarray([[0.3], [0.7]])
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = float(checker.error_ratio(errors[0]).item())
-        self.assertLess(error_ratio, 1e-6)
+        assert error_ratio < 1e-6
 
 
 # =============================================================================
 # TwoPointLejaSequence1D tests
 # =============================================================================
-class TestTwoPointLejaSequence1D(Generic[Array], unittest.TestCase):
+class TestTwoPointLejaSequence1D:
     """Tests for LejaSequence1D with TwoPointLejaObjective."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_leja(self) -> LejaSequence1D[Array]:
-        poly = LegendrePolynomial1D(self._bkd)
-        weighting = ChristoffelWeighting(self._bkd)
+    def _create_leja(self, bkd):
+        poly = LegendrePolynomial1D(bkd)
+        weighting = ChristoffelWeighting(bkd)
         return LejaSequence1D(
-            self._bkd,
+            bkd,
             poly,
             weighting,
             bounds=(-1.0, 1.0),
             objective_class=TwoPointLejaObjective,
         )
 
-    def test_extend_adds_two_points(self) -> None:
+    def test_extend_adds_two_points(self, bkd) -> None:
         """Test that each step adds 2 points."""
-        leja = self._create_leja()
-        self.assertEqual(leja.npoints(), 1)
+        leja = self._create_leja(bkd)
+        assert leja.npoints() == 1
         leja.extend(2)
-        self.assertEqual(leja.npoints(), 3)
+        assert leja.npoints() == 3
         leja.extend(2)
-        self.assertEqual(leja.npoints(), 5)
+        assert leja.npoints() == 5
 
-    def test_extend_validation(self) -> None:
+    def test_extend_validation(self, bkd) -> None:
         """Test ValueError for non-even n_new_points."""
-        leja = self._create_leja()
-        with self.assertRaises(ValueError):
+        leja = self._create_leja(bkd)
+        with pytest.raises(ValueError):
             leja.extend(3)
 
-    def test_nested_property(self) -> None:
+    def test_nested_property(self, bkd) -> None:
         """Test that two-point sequence is nested."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples_3, _ = leja.quadrature_rule(3)
         samples_5, _ = leja.quadrature_rule(5)
-        self._bkd.assert_allclose(samples_3, samples_5[:, :3], rtol=1e-12)
+        bkd.assert_allclose(samples_3, samples_5[:, :3], rtol=1e-12)
 
-    def test_points_within_bounds(self) -> None:
+    def test_points_within_bounds(self, bkd) -> None:
         """Test that all points are within bounds."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples, _ = leja.quadrature_rule(7)
-        self.assertTrue(self._bkd.all_bool(samples >= -1.0 - 1e-10))
-        self.assertTrue(self._bkd.all_bool(samples <= 1.0 + 1e-10))
+        assert bkd.all_bool(samples >= -1.0 - 1e-10)
+        assert bkd.all_bool(samples <= 1.0 + 1e-10)
 
-    def test_quadrature_rule_shape(self) -> None:
+    def test_quadrature_rule_shape(self, bkd) -> None:
         """Test quadrature_rule returns correct shapes."""
-        leja = self._create_leja()
+        leja = self._create_leja(bkd)
         samples, weights = leja.quadrature_rule(5)
-        self.assertEqual(samples.shape, (1, 5))
-        self.assertEqual(weights.shape, (5, 1))
+        assert samples.shape == (1, 5)
+        assert weights.shape == (5, 1)
 
 
 # =============================================================================
 # Parametrized integration accuracy tests (one-point)
 # =============================================================================
-class TestOnePointLejaIntegration(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestOnePointLejaIntegration:
     """Integration accuracy tests for one-point Leja sequences.
 
     Matches legacy test_leja_sequence: 5-point Leja sequence should
@@ -408,53 +395,13 @@ class TestOnePointLejaIntegration(
     - Jacobi(1,1) + PDF(beta(2,2))
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_poly_and_weighting(
-        self, poly_type: str, weighting_type: str
-    ) -> Tuple[Any, Any]:
-        """Create polynomial and weighting from type strings."""
-        if poly_type == "hermite":
-            poly = HermitePolynomial1D(self._bkd)
-        elif poly_type == "legendre":
-            poly = LegendrePolynomial1D(self._bkd)
-        elif poly_type == "jacobi11":
-            # Jacobi(alpha=1, beta=1) for Beta(2,2)
-            poly = JacobiPolynomial1D(1.0, 1.0, self._bkd)
-        else:
-            raise ValueError(f"Unknown poly_type: {poly_type}")
-
-        if weighting_type == "christoffel":
-            weighting = ChristoffelWeighting(self._bkd)
-        elif weighting_type == "pdf_uniform":
-            marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        elif weighting_type == "pdf_beta22":
-            marginal = BetaMarginal(2.0, 2.0, self._bkd, lb=-1.0, ub=1.0)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        elif weighting_type == "pdf_gaussian":
-            marginal = GaussianMarginal(0.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        else:
-            raise ValueError(f"Unknown weighting_type: {weighting_type}")
-
-        return poly, weighting
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,poly_type,weighting_type,bounds,exact",
         ONE_POINT_COMBOS,
     )
     def test_integration_x4(
         self,
+        bkd,
         name: str,
         poly_type: str,
         weighting_type: str,
@@ -462,9 +409,9 @@ class TestOnePointLejaIntegration(
         exact: float,
     ) -> None:
         """Test that 5-point one-point Leja sequence exactly integrates x^4."""
-        poly, weighting = self._create_poly_and_weighting(poly_type, weighting_type)
+        poly, weighting = _create_poly_and_weighting(bkd, poly_type, weighting_type)
         leja = LejaSequence1D(
-            self._bkd,
+            bkd,
             poly,
             weighting,
             bounds=bounds,
@@ -473,10 +420,10 @@ class TestOnePointLejaIntegration(
         samples, weights = leja.quadrature_rule(5)
 
         # Integrate x^4 using quadrature: sum(w_i * x_i^4)
-        integral = self._bkd.sum(weights[:, 0] * samples[0, :] ** 4)
-        self._bkd.assert_allclose(
-            self._bkd.reshape(integral, (1,)),
-            self._bkd.asarray([exact]),
+        integral = bkd.sum(weights[:, 0] * samples[0, :] ** 4)
+        bkd.assert_allclose(
+            bkd.reshape(integral, (1,)),
+            bkd.asarray([exact]),
             rtol=1e-6,
         )
 
@@ -484,9 +431,7 @@ class TestOnePointLejaIntegration(
 # =============================================================================
 # Parametrized integration accuracy tests (two-point)
 # =============================================================================
-class TestTwoPointLejaIntegration(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestTwoPointLejaIntegration:
     """Integration accuracy tests for two-point Leja sequences.
 
     Same as one-point but using TwoPointLejaObjective. 5-point sequence
@@ -499,53 +444,14 @@ class TestTwoPointLejaIntegration(
     - Hermite + Christoffel
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_poly_and_weighting(
-        self, poly_type: str, weighting_type: str
-    ) -> Tuple[Any, Any]:
-        """Create polynomial and weighting from type strings."""
-        if poly_type == "hermite":
-            poly = HermitePolynomial1D(self._bkd)
-        elif poly_type == "legendre":
-            poly = LegendrePolynomial1D(self._bkd)
-        elif poly_type == "jacobi11":
-            poly = JacobiPolynomial1D(1.0, 1.0, self._bkd)
-        else:
-            raise ValueError(f"Unknown poly_type: {poly_type}")
-
-        if weighting_type == "christoffel":
-            weighting = ChristoffelWeighting(self._bkd)
-        elif weighting_type == "pdf_uniform":
-            marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        elif weighting_type == "pdf_beta22":
-            marginal = BetaMarginal(2.0, 2.0, self._bkd, lb=-1.0, ub=1.0)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        elif weighting_type == "pdf_gaussian":
-            marginal = GaussianMarginal(0.0, 1.0, self._bkd)
-            pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
-            weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        else:
-            raise ValueError(f"Unknown weighting_type: {weighting_type}")
-
-        return poly, weighting
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,poly_type,weighting_type,bounds,exact",
         TWO_POINT_COMBOS,
     )
     @slow_test
     def test_integration_x4(
         self,
+        bkd,
         name: str,
         poly_type: str,
         weighting_type: str,
@@ -553,9 +459,9 @@ class TestTwoPointLejaIntegration(
         exact: float,
     ) -> None:
         """Test that 5-point two-point Leja sequence exactly integrates x^4."""
-        poly, weighting = self._create_poly_and_weighting(poly_type, weighting_type)
+        poly, weighting = _create_poly_and_weighting(bkd, poly_type, weighting_type)
         leja = LejaSequence1D(
-            self._bkd,
+            bkd,
             poly,
             weighting,
             bounds=bounds,
@@ -564,103 +470,9 @@ class TestTwoPointLejaIntegration(
         samples, weights = leja.quadrature_rule(5)
 
         # Integrate x^4 using quadrature: sum(w_i * x_i^4)
-        integral = self._bkd.sum(weights[:, 0] * samples[0, :] ** 4)
-        self._bkd.assert_allclose(
-            self._bkd.reshape(integral, (1,)),
-            self._bkd.asarray([exact]),
+        integral = bkd.sum(weights[:, 0] * samples[0, :] ** 4)
+        bkd.assert_allclose(
+            bkd.reshape(integral, (1,)),
+            bkd.asarray([exact]),
             rtol=1e-6,
         )
-
-
-# =============================================================================
-# NumPy backend concrete classes
-# =============================================================================
-class TestLejaSequence1DNumpy(TestLejaSequence1D[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLejaObjectiveNumpy(TestLejaObjective[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTwoPointLejaObjectiveNumpy(TestTwoPointLejaObjective[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTwoPointLejaSequence1DNumpy(TestTwoPointLejaSequence1D[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOnePointLejaIntegrationNumpy(TestOnePointLejaIntegration[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTwoPointLejaIntegrationNumpy(TestTwoPointLejaIntegration[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# =============================================================================
-# PyTorch backend concrete classes
-# =============================================================================
-class TestLejaSequence1DTorch(TestLejaSequence1D[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestLejaObjectiveTorch(TestLejaObjective[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestTwoPointLejaObjectiveTorch(TestTwoPointLejaObjective[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestTwoPointLejaSequence1DTorch(TestTwoPointLejaSequence1D[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestOnePointLejaIntegrationTorch(TestOnePointLejaIntegration[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestTwoPointLejaIntegrationTorch(TestTwoPointLejaIntegration[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

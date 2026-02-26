@@ -7,26 +7,19 @@ PDE benchmarks (expensive) are gated behind ``@slow_test`` /
 ``@slower_test`` decorators.
 """
 
-import unittest
-from typing import Any, Generic
-
-from numpy.typing import NDArray
-
 import pyapprox.benchmarks.instances  # noqa: F401
 from pyapprox.benchmarks.protocols import HasJacobian
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.tests.harnesses import verify_jacobian_fd
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import (  # noqa: F401
+from pyapprox.util.test_utils import (
     slowest_test,
-    load_tests,
     slow_test,
     slower_test,
 )
 
 # ---------------------------------------------------------------------------
-# Analytic benchmarks — fast
+# Analytic benchmarks --- fast
 # ---------------------------------------------------------------------------
 
 _ANALYTIC_JACOBIAN_NAMES = [
@@ -44,7 +37,7 @@ _ANALYTIC_JACOBIAN_NAMES = [
     "genz_gaussian_peak_5d",
 ]
 
-# PDE benchmarks — progressively more expensive
+# PDE benchmarks --- progressively more expensive
 _PDE_FAST_JACOBIAN_NAMES = [
     "elastic_bar_1d_linear",
     "elastic_bar_1d_hyperelastic",
@@ -56,26 +49,18 @@ _PDE_SLOW_JACOBIAN_NAMES = [
 ]
 
 
-class TestAnalyticJacobians(Generic[Array], unittest.TestCase):
+class TestAnalyticJacobians:
     """Jacobian FD convergence for all analytic benchmarks."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _run_jacobian_check(self, name: str) -> None:
-        bm = BenchmarkRegistry.get(name, self._bkd)
-        self.assertIsInstance(bm, HasJacobian)
-        verify_jacobian_fd(bm, self._bkd, n_tests=3, rtol=1e-4)
+    def _run_jacobian_check(self, bkd, name: str) -> None:
+        bm = BenchmarkRegistry.get(name, bkd)
+        assert isinstance(bm, HasJacobian)
+        verify_jacobian_fd(bm, bkd, n_tests=3, rtol=1e-4)
 
 
 def _make_analytic_test(name: str):
-    def test_method(self):
-        self._run_jacobian_check(name)
+    def test_method(self, bkd):
+        self._run_jacobian_check(bkd, name)
 
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestAnalyticJacobians.test_jacobian_{name}"
@@ -86,37 +71,24 @@ for _name in _ANALYTIC_JACOBIAN_NAMES:
     setattr(TestAnalyticJacobians, f"test_jacobian_{_name}", _make_analytic_test(_name))
 
 
-class TestAnalyticJacobiansNumpy(TestAnalyticJacobians[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # ---------------------------------------------------------------------------
-# PDE benchmarks — moderate cost (elastic bar: ~1ms)
+# PDE benchmarks --- moderate cost (elastic bar: ~1ms)
 # ---------------------------------------------------------------------------
 
 
 @slow_test
-class TestPDEFastJacobians(Generic[Array], unittest.TestCase):
+class TestPDEFastJacobians:
     """Jacobian FD convergence for fast PDE benchmarks."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _run_jacobian_check(self, name: str) -> None:
-        bm = BenchmarkRegistry.get(name, self._bkd)
-        self.assertIsInstance(bm, HasJacobian)
-        verify_jacobian_fd(bm, self._bkd, n_tests=2, rtol=1e-4)
+    def _run_jacobian_check(self, bkd, name: str) -> None:
+        bm = BenchmarkRegistry.get(name, bkd)
+        assert isinstance(bm, HasJacobian)
+        verify_jacobian_fd(bm, bkd, n_tests=2, rtol=1e-4)
 
 
 def _make_pde_fast_test(name: str):
-    def test_method(self):
-        self._run_jacobian_check(name)
+    def test_method(self, bkd):
+        self._run_jacobian_check(bkd, name)
 
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestPDEFastJacobians.test_jacobian_{name}"
@@ -127,37 +99,24 @@ for _name in _PDE_FAST_JACOBIAN_NAMES:
     setattr(TestPDEFastJacobians, f"test_jacobian_{_name}", _make_pde_fast_test(_name))
 
 
-class TestPDEFastJacobiansNumpy(TestPDEFastJacobians[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # ---------------------------------------------------------------------------
-# PDE benchmarks — expensive (pressurized cylinder: ~0.4s)
+# PDE benchmarks --- expensive (pressurized cylinder: ~0.4s)
 # ---------------------------------------------------------------------------
 
 
 @slower_test
-class TestPDESlowJacobians(Generic[Array], unittest.TestCase):
+class TestPDESlowJacobians:
     """Jacobian FD convergence for expensive PDE benchmarks."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _run_jacobian_check(self, name: str) -> None:
-        bm = BenchmarkRegistry.get(name, self._bkd)
-        self.assertIsInstance(bm, HasJacobian)
-        verify_jacobian_fd(bm, self._bkd, n_tests=1, rtol=1e-3)
+    def _run_jacobian_check(self, bkd, name: str) -> None:
+        bm = BenchmarkRegistry.get(name, bkd)
+        assert isinstance(bm, HasJacobian)
+        verify_jacobian_fd(bm, bkd, n_tests=1, rtol=1e-3)
 
 
 def _make_pde_slow_test(name: str):
-    def test_method(self):
-        self._run_jacobian_check(name)
+    def test_method(self, bkd):
+        self._run_jacobian_check(bkd, name)
 
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestPDESlowJacobians.test_jacobian_{name}"
@@ -168,18 +127,13 @@ for _name in _PDE_SLOW_JACOBIAN_NAMES:
     setattr(TestPDESlowJacobians, f"test_jacobian_{_name}", _make_pde_slow_test(_name))
 
 
-class TestPDESlowJacobiansNumpy(TestPDESlowJacobians[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # ---------------------------------------------------------------------------
-# Dynamic discovery test — verifies exhaustiveness
+# Dynamic discovery test --- verifies exhaustiveness
 # ---------------------------------------------------------------------------
 
 
 @slowest_test
-class TestJacobianCoverage(unittest.TestCase):
+class TestJacobianCoverage:
     """Verify that all HasJacobian benchmarks are covered by harness tests."""
 
     def test_all_jacobian_benchmarks_covered(self):
@@ -191,8 +145,6 @@ class TestJacobianCoverage(unittest.TestCase):
             + _PDE_SLOW_JACOBIAN_NAMES
         )
         missing = registered - covered
-        self.assertEqual(
-            missing,
-            set(),
-            f"Benchmarks with HasJacobian not covered by harness: {missing}",
-        )
+        assert (
+            missing == set()
+        ), f"Benchmarks with HasJacobian not covered by harness: {missing}"

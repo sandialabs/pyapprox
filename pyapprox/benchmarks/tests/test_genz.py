@@ -14,13 +14,11 @@ Tests verify:
 """
 
 import math
-import unittest
+import pytest
 from abc import abstractmethod
-from typing import Any, Generic
+from typing import Any
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.benchmarks.functions.genz import (
     CornerPeakFunction,
@@ -37,77 +35,65 @@ from pyapprox.interface.functions.protocols.function import (
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
+class GenzFunctionTestBase:
     """Base test class for all Genz functions.
 
     Subclasses must implement:
-    - bkd() -> Backend[Array]
-    - _create_function_2d() -> function instance
-    - _create_function_5d() -> function instance
+    - _create_function_2d(bkd) -> function instance
+    - _create_function_5d(bkd) -> function instance
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
     @abstractmethod
-    def _create_function_2d(self) -> Any:
+    def _create_function_2d(self, bkd) -> Any:
         """Create a 2D version of the Genz function."""
         raise NotImplementedError
 
     @abstractmethod
-    def _create_function_5d(self) -> Any:
+    def _create_function_5d(self, bkd) -> Any:
         """Create a 5D version of the Genz function."""
         raise NotImplementedError
 
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
     # Protocol compliance tests
-    def test_protocol_compliance_function(self) -> None:
+    def test_protocol_compliance_function(self, bkd) -> None:
         """Test that function satisfies FunctionProtocol."""
-        func = self._create_function_2d()
-        self.assertIsInstance(func, FunctionProtocol)
+        func = self._create_function_2d(bkd)
+        assert isinstance(func, FunctionProtocol)
 
-    def test_protocol_compliance_jacobian_hvp(self) -> None:
+    def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
         """Test protocol compliance with Jacobian and HVP."""
-        func = self._create_function_2d()
-        self.assertIsInstance(func, FunctionWithJacobianAndHVPProtocol)
+        func = self._create_function_2d(bkd)
+        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
 
     # nvars and nqoi tests
-    def test_nvars_2d(self) -> None:
+    def test_nvars_2d(self, bkd) -> None:
         """Test nvars returns 2 for 2D function."""
-        func = self._create_function_2d()
-        self.assertEqual(func.nvars(), 2)
+        func = self._create_function_2d(bkd)
+        assert func.nvars() == 2
 
-    def test_nvars_5d(self) -> None:
+    def test_nvars_5d(self, bkd) -> None:
         """Test nvars returns 5 for 5D function."""
-        func = self._create_function_5d()
-        self.assertEqual(func.nvars(), 5)
+        func = self._create_function_5d(bkd)
+        assert func.nvars() == 5
 
-    def test_nqoi(self) -> None:
+    def test_nqoi(self, bkd) -> None:
         """Test nqoi returns 1."""
-        func = self._create_function_2d()
-        self.assertEqual(func.nqoi(), 1)
+        func = self._create_function_2d(bkd)
+        assert func.nqoi() == 1
 
     # Evaluation tests
-    def test_evaluation_batch_2d(self) -> None:
+    def test_evaluation_batch_2d(self, bkd) -> None:
         """Test evaluation at multiple samples (2D)."""
-        func = self._create_function_2d()
-        samples = self._bkd.array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]])
+        func = self._create_function_2d(bkd)
+        samples = bkd.array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]])
         result = func(samples)
-        self.assertEqual(result.shape, (1, 3))
+        assert result.shape == (1, 3)
 
-    def test_evaluation_batch_5d(self) -> None:
+    def test_evaluation_batch_5d(self, bkd) -> None:
         """Test evaluation at multiple samples (5D)."""
-        func = self._create_function_5d()
-        samples = self._bkd.array(
+        func = self._create_function_5d(bkd)
+        samples = bkd.array(
             [
                 [0.0, 0.5, 1.0],
                 [0.1, 0.4, 0.9],
@@ -117,86 +103,86 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
             ]
         )
         result = func(samples)
-        self.assertEqual(result.shape, (1, 3))
+        assert result.shape == (1, 3)
 
     # Jacobian tests
-    def test_jacobian_shape_2d(self) -> None:
+    def test_jacobian_shape_2d(self, bkd) -> None:
         """Test Jacobian has correct shape (2D)."""
-        func = self._create_function_2d()
-        sample = self._bkd.array([[0.5], [0.3]])
+        func = self._create_function_2d(bkd)
+        sample = bkd.array([[0.5], [0.3]])
         jac = func.jacobian(sample)
-        self.assertEqual(jac.shape, (1, 2))
+        assert jac.shape == (1, 2)
 
-    def test_jacobian_shape_5d(self) -> None:
+    def test_jacobian_shape_5d(self, bkd) -> None:
         """Test Jacobian has correct shape (5D)."""
-        func = self._create_function_5d()
-        sample = self._bkd.array([[0.5], [0.3], [0.7], [0.2], [0.8]])
+        func = self._create_function_5d(bkd)
+        sample = bkd.array([[0.5], [0.3], [0.7], [0.2], [0.8]])
         jac = func.jacobian(sample)
-        self.assertEqual(jac.shape, (1, 5))
+        assert jac.shape == (1, 5)
 
-    def test_jacobian_invalid_shape(self) -> None:
+    def test_jacobian_invalid_shape(self, bkd) -> None:
         """Test Jacobian raises for invalid input shape."""
-        func = self._create_function_2d()
-        sample = self._bkd.array([[0.5, 0.1], [0.3, 0.2]])
-        with self.assertRaises(ValueError):
+        func = self._create_function_2d(bkd)
+        sample = bkd.array([[0.5, 0.1], [0.3, 0.2]])
+        with pytest.raises(ValueError):
             func.jacobian(sample)
 
     # HVP tests
-    def test_hvp_shape_2d(self) -> None:
+    def test_hvp_shape_2d(self, bkd) -> None:
         """Test HVP has correct shape (2D)."""
-        func = self._create_function_2d()
-        sample = self._bkd.array([[0.5], [0.3]])
-        vec = self._bkd.array([[1.0], [0.0]])
+        func = self._create_function_2d(bkd)
+        sample = bkd.array([[0.5], [0.3]])
+        vec = bkd.array([[1.0], [0.0]])
         hvp = func.hvp(sample, vec)
-        self.assertEqual(hvp.shape, (2, 1))
+        assert hvp.shape == (2, 1)
 
-    def test_hvp_shape_5d(self) -> None:
+    def test_hvp_shape_5d(self, bkd) -> None:
         """Test HVP has correct shape (5D)."""
-        func = self._create_function_5d()
-        sample = self._bkd.array([[0.5], [0.3], [0.7], [0.2], [0.8]])
-        vec = self._bkd.array([[1.0], [0.0], [0.5], [-0.5], [0.2]])
+        func = self._create_function_5d(bkd)
+        sample = bkd.array([[0.5], [0.3], [0.7], [0.2], [0.8]])
+        vec = bkd.array([[1.0], [0.0], [0.5], [-0.5], [0.2]])
         hvp = func.hvp(sample, vec)
-        self.assertEqual(hvp.shape, (5, 1))
+        assert hvp.shape == (5, 1)
 
     # Derivative checker tests
-    def test_derivative_checker_jacobian_2d(self) -> None:
+    def test_derivative_checker_jacobian_2d(self, bkd) -> None:
         """Test Jacobian passes derivative checker (2D)."""
-        func = self._create_function_2d()
+        func = self._create_function_2d(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.3], [0.7]])
+        sample = bkd.array([[0.3], [0.7]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 5e-6)
+        assert error_ratio < 5e-6
 
-    def test_derivative_checker_jacobian_5d(self) -> None:
+    def test_derivative_checker_jacobian_5d(self, bkd) -> None:
         """Test Jacobian passes derivative checker (5D)."""
-        func = self._create_function_5d()
+        func = self._create_function_5d(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
+        sample = bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 5e-6)
+        assert error_ratio < 5e-6
 
-    def test_derivative_checker_hvp_2d(self) -> None:
+    def test_derivative_checker_hvp_2d(self, bkd) -> None:
         """Test HVP passes derivative checker (2D)."""
-        func = self._create_function_2d()
+        func = self._create_function_2d(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.3], [0.7]])
+        sample = bkd.array([[0.3], [0.7]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 2e-6)
+        assert error_ratio < 2e-6
 
-    def test_derivative_checker_hvp_5d(self) -> None:
+    def test_derivative_checker_hvp_5d(self, bkd) -> None:
         """Test HVP passes derivative checker (5D)."""
-        func = self._create_function_5d()
+        func = self._create_function_5d(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
+        sample = bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 5e-6)
+        assert error_ratio < 5e-6
 
     # MC integral convergence tests
-    def _run_mc_convergence_test(self, func: Any) -> None:
+    def _run_mc_convergence_test(self, bkd, func: Any) -> None:
         """Run MC convergence test for a function.
 
         Verifies that Monte Carlo integration error decreases at the expected
@@ -217,8 +203,8 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
             for _ in range(n_trials):
                 # Use numpy for random sampling (acceptable in tests)
                 samples_np = rng.uniform(0, 1, (func.nvars(), n))
-                samples = self._bkd.asarray(samples_np)
-                mc_estimate = float(self._bkd.mean(func(samples)))
+                samples = bkd.asarray(samples_np)
+                mc_estimate = float(bkd.mean(func(samples)))
                 squared_errors.append((mc_estimate - exact_integral) ** 2)
             mse_values.append(sum(squared_errors) / n_trials)
 
@@ -238,203 +224,131 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
         slope = numerator / denominator
 
         # Slope should be approximately -1 (within +/- 0.05)
-        self.assertGreater(slope, -1.05)
-        self.assertLess(slope, -0.95)
+        assert slope > -1.05
+        assert slope < -0.95
 
-    def test_integrate_mc_convergence_2d(self) -> None:
+    def test_integrate_mc_convergence_2d(self, bkd) -> None:
         """Test integral via MC convergence rate (2D)."""
-        self._run_mc_convergence_test(self._create_function_2d())
+        self._run_mc_convergence_test(bkd, self._create_function_2d(bkd))
 
-    def test_integrate_mc_convergence_5d(self) -> None:
+    def test_integrate_mc_convergence_5d(self, bkd) -> None:
         """Test integral via MC convergence rate (5D)."""
-        self._run_mc_convergence_test(self._create_function_5d())
+        self._run_mc_convergence_test(bkd, self._create_function_5d(bkd))
 
 
 # =============================================================================
 # Oscillatory Function Tests
 # =============================================================================
-class TestOscillatoryFunctionBase(GenzFunctionTestBase[Array]):
+class TestOscillatoryFunctionBase(GenzFunctionTestBase):
     """Base tests for OscillatoryFunction."""
 
-    __test__ = False
-
-    def _create_function_2d(self) -> OscillatoryFunction[Array]:
+    def _create_function_2d(self, bkd):
         """Create 2D oscillatory function."""
-        return OscillatoryFunction(self._bkd, c=[1.0, 2.0], w=[0.25, 0.25])
+        return OscillatoryFunction(bkd, c=[1.0, 2.0], w=[0.25, 0.25])
 
-    def _create_function_5d(self) -> OscillatoryFunction[Array]:
+    def _create_function_5d(self, bkd):
         """Create 5D oscillatory function."""
-        return OscillatoryFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.25] * 5)
+        return OscillatoryFunction(bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.25] * 5)
 
-    def test_empty_c_raises(self) -> None:
+    def test_empty_c_raises(self, bkd) -> None:
         """Test that empty c raises ValueError."""
-        with self.assertRaises(ValueError):
-            OscillatoryFunction(self._bkd, c=[], w=[])
-
-
-class TestOscillatoryFunctionNumpy(TestOscillatoryFunctionBase[NDArray[Any]]):
-    """NumPy backend tests for OscillatoryFunction."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOscillatoryFunctionTorch(TestOscillatoryFunctionBase[torch.Tensor]):
-    """PyTorch backend tests for OscillatoryFunction."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        with pytest.raises(ValueError):
+            OscillatoryFunction(bkd, c=[], w=[])
 
 
 # =============================================================================
 # Product Peak Function Tests
 # =============================================================================
-class TestProductPeakFunctionBase(GenzFunctionTestBase[Array]):
+class TestProductPeakFunctionBase(GenzFunctionTestBase):
     """Base tests for ProductPeakFunction."""
 
-    __test__ = False
-
-    def _create_function_2d(self) -> ProductPeakFunction[Array]:
+    def _create_function_2d(self, bkd):
         """Create 2D product peak function."""
-        return ProductPeakFunction(self._bkd, c=[1.0, 2.0], w=[0.5, 0.5])
+        return ProductPeakFunction(bkd, c=[1.0, 2.0], w=[0.5, 0.5])
 
-    def _create_function_5d(self) -> ProductPeakFunction[Array]:
+    def _create_function_5d(self, bkd):
         """Create 5D product peak function."""
-        return ProductPeakFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
+        return ProductPeakFunction(bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
 
-    def test_evaluation_at_center(self) -> None:
+    def test_evaluation_at_center(self, bkd) -> None:
         """Test evaluation at peak center."""
-        func = ProductPeakFunction(self._bkd, c=[1.0, 1.0], w=[0.5, 0.5])
-        sample = self._bkd.array([[0.5], [0.5]])
+        func = ProductPeakFunction(bkd, c=[1.0, 1.0], w=[0.5, 0.5])
+        sample = bkd.array([[0.5], [0.5]])
         result = func(sample)
         # At w, f = prod(c_i^2) = 1.0
-        self._bkd.assert_allclose(result, self._bkd.array([[1.0]]), rtol=1e-10)
+        bkd.assert_allclose(result, bkd.array([[1.0]]), rtol=1e-10)
 
-    def test_jacobian_at_center_is_zero(self) -> None:
+    def test_jacobian_at_center_is_zero(self, bkd) -> None:
         """Test Jacobian at center is zero (gradient is zero at peak)."""
-        func = ProductPeakFunction(self._bkd, c=[1.0, 1.0], w=[0.5, 0.5])
-        sample = self._bkd.array([[0.5], [0.5]])
+        func = ProductPeakFunction(bkd, c=[1.0, 1.0], w=[0.5, 0.5])
+        sample = bkd.array([[0.5], [0.5]])
         jac = func.jacobian(sample)
-        self._bkd.assert_allclose(jac, self._bkd.zeros((1, 2)), atol=1e-10)
+        bkd.assert_allclose(jac, bkd.zeros((1, 2)), atol=1e-10)
 
-    def test_empty_c_raises(self) -> None:
+    def test_empty_c_raises(self, bkd) -> None:
         """Test that empty c raises ValueError."""
-        with self.assertRaises(ValueError):
-            ProductPeakFunction(self._bkd, c=[], w=[])
-
-
-class TestProductPeakFunctionNumpy(TestProductPeakFunctionBase[NDArray[Any]]):
-    """NumPy backend tests for ProductPeakFunction."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestProductPeakFunctionTorch(TestProductPeakFunctionBase[torch.Tensor]):
-    """PyTorch backend tests for ProductPeakFunction."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        with pytest.raises(ValueError):
+            ProductPeakFunction(bkd, c=[], w=[])
 
 
 # =============================================================================
 # Corner Peak Function Tests
 # =============================================================================
-class TestCornerPeakFunctionBase(GenzFunctionTestBase[Array]):
+class TestCornerPeakFunctionBase(GenzFunctionTestBase):
     """Base tests for CornerPeakFunction."""
 
-    __test__ = False
-
-    def _create_function_2d(self) -> CornerPeakFunction[Array]:
+    def _create_function_2d(self, bkd):
         """Create 2D corner peak function."""
-        return CornerPeakFunction(self._bkd, c=[1.0, 2.0])
+        return CornerPeakFunction(bkd, c=[1.0, 2.0])
 
-    def _create_function_5d(self) -> CornerPeakFunction[Array]:
+    def _create_function_5d(self, bkd):
         """Create 5D corner peak function."""
-        return CornerPeakFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0])
+        return CornerPeakFunction(bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0])
 
-    def test_evaluation_at_origin(self) -> None:
+    def test_evaluation_at_origin(self, bkd) -> None:
         """Test evaluation at origin (corner)."""
-        func = CornerPeakFunction(self._bkd, c=[1.0, 1.0])
-        sample = self._bkd.array([[0.0], [0.0]])
+        func = CornerPeakFunction(bkd, c=[1.0, 1.0])
+        sample = bkd.array([[0.0], [0.0]])
         result = func(sample)
         # At origin, f = 1^{-(D+1)} = 1
-        self._bkd.assert_allclose(result, self._bkd.array([[1.0]]), rtol=1e-10)
+        bkd.assert_allclose(result, bkd.array([[1.0]]), rtol=1e-10)
 
-    def test_empty_c_raises(self) -> None:
+    def test_empty_c_raises(self, bkd) -> None:
         """Test that empty c raises ValueError."""
-        with self.assertRaises(ValueError):
-            CornerPeakFunction(self._bkd, c=[])
-
-
-class TestCornerPeakFunctionNumpy(TestCornerPeakFunctionBase[NDArray[Any]]):
-    """NumPy backend tests for CornerPeakFunction."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCornerPeakFunctionTorch(TestCornerPeakFunctionBase[torch.Tensor]):
-    """PyTorch backend tests for CornerPeakFunction."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        with pytest.raises(ValueError):
+            CornerPeakFunction(bkd, c=[])
 
 
 # =============================================================================
 # Gaussian Peak Function Tests
 # =============================================================================
-class TestGaussianPeakFunctionBase(GenzFunctionTestBase[Array]):
+class TestGaussianPeakFunctionBase(GenzFunctionTestBase):
     """Base tests for GaussianPeakFunction."""
 
-    __test__ = False
-
-    def _create_function_2d(self) -> GaussianPeakFunction[Array]:
+    def _create_function_2d(self, bkd):
         """Create 2D Gaussian peak function."""
-        return GaussianPeakFunction(self._bkd, c=[1.0, 2.0], w=[0.5, 0.5])
+        return GaussianPeakFunction(bkd, c=[1.0, 2.0], w=[0.5, 0.5])
 
-    def _create_function_5d(self) -> GaussianPeakFunction[Array]:
+    def _create_function_5d(self, bkd):
         """Create 5D Gaussian peak function."""
-        return GaussianPeakFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
+        return GaussianPeakFunction(bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
 
-    def test_evaluation_at_center(self) -> None:
+    def test_evaluation_at_center(self, bkd) -> None:
         """Test evaluation at peak center."""
-        func = GaussianPeakFunction(self._bkd, c=[1.0, 1.0], w=[0.5, 0.5])
-        sample = self._bkd.array([[0.5], [0.5]])
+        func = GaussianPeakFunction(bkd, c=[1.0, 1.0], w=[0.5, 0.5])
+        sample = bkd.array([[0.5], [0.5]])
         result = func(sample)
         # At w, f = exp(0) = 1
-        self._bkd.assert_allclose(result, self._bkd.array([[1.0]]), rtol=1e-10)
+        bkd.assert_allclose(result, bkd.array([[1.0]]), rtol=1e-10)
 
-    def test_jacobian_at_center_is_zero(self) -> None:
+    def test_jacobian_at_center_is_zero(self, bkd) -> None:
         """Test Jacobian at center is zero (gradient is zero at peak)."""
-        func = GaussianPeakFunction(self._bkd, c=[1.0, 1.0], w=[0.5, 0.5])
-        sample = self._bkd.array([[0.5], [0.5]])
+        func = GaussianPeakFunction(bkd, c=[1.0, 1.0], w=[0.5, 0.5])
+        sample = bkd.array([[0.5], [0.5]])
         jac = func.jacobian(sample)
-        self._bkd.assert_allclose(jac, self._bkd.zeros((1, 2)), atol=1e-10)
+        bkd.assert_allclose(jac, bkd.zeros((1, 2)), atol=1e-10)
 
-    def test_empty_c_raises(self) -> None:
+    def test_empty_c_raises(self, bkd) -> None:
         """Test that empty c raises ValueError."""
-        with self.assertRaises(ValueError):
-            GaussianPeakFunction(self._bkd, c=[], w=[])
-
-
-class TestGaussianPeakFunctionNumpy(TestGaussianPeakFunctionBase[NDArray[Any]]):
-    """NumPy backend tests for GaussianPeakFunction."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianPeakFunctionTorch(TestGaussianPeakFunctionBase[torch.Tensor]):
-    """PyTorch backend tests for GaussianPeakFunction."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        with pytest.raises(ValueError):
+            GaussianPeakFunction(bkd, c=[], w=[])

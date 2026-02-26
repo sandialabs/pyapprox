@@ -5,12 +5,7 @@ This module tests mean function implementations, focusing on
 Jacobian accuracy using DerivativeChecker.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -19,137 +14,159 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ConstantMean,
     ZeroMean,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Backend
 
 
-class TestMeanFunctions(Generic[Array], unittest.TestCase):
+class TestMeanFunctions:
     """
-    Base test class for mean functions.
-
-    Derived classes must implement the bkd() method.
+    Test class for mean functions.
     """
-
-    __test__ = False
-
-    def setUp(self) -> None:
-        """Set up test environment."""
-        np.random.seed(42)
-        self.nvars = 2
-        self.n_points = 10
-
-        # Create test points (use numpy for random generation, then convert)
-        X_np = np.random.randn(self.nvars, self.n_points)
-        self.X = self.bkd().array(X_np)
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError
 
     # ========== ZeroMean Tests ==========
 
-    def test_zero_mean_evaluation(self) -> None:
+    def test_zero_mean_evaluation(self, bkd) -> None:
         """Test ZeroMean evaluation."""
-        mean = ZeroMean(self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
 
-        m = mean(self.X)
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        mean = ZeroMean(bkd)
+
+        m = mean(X)
 
         # Check shape - (1, n_points) per convention
-        self.assertEqual(m.shape, (1, self.n_points))
+        assert m.shape == (1, n_points)
 
         # Check all zeros
-        self.assertTrue(self.bkd().all_bool(m == 0.0))
+        assert bkd.all_bool(m == 0.0)
 
-    def test_zero_mean_hyperparameters(self) -> None:
+    def test_zero_mean_hyperparameters(self, bkd) -> None:
         """Test ZeroMean has no hyperparameters."""
-        mean = ZeroMean(self.bkd())
+        mean = ZeroMean(bkd)
 
         hyp_list = mean.hyp_list()
 
         # No hyperparameters
-        self.assertEqual(hyp_list.nparams(), 0)
-        self.assertEqual(hyp_list.nactive_params(), 0)
+        assert hyp_list.nparams() == 0
+        assert hyp_list.nactive_params() == 0
 
-    def test_zero_mean_jacobian_shape(self) -> None:
+    def test_zero_mean_jacobian_shape(self, bkd) -> None:
         """Test ZeroMean Jacobian shape."""
-        mean = ZeroMean(self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
 
-        jac = mean.jacobian_wrt_params(self.X)
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        mean = ZeroMean(bkd)
+
+        jac = mean.jacobian_wrt_params(X)
 
         # Should have shape (0, 1, n_points) since no parameters
-        self.assertEqual(jac.shape, (0, 1, self.n_points))
+        assert jac.shape == (0, 1, n_points)
 
     # ========== ConstantMean Tests ==========
 
-    def test_constant_mean_evaluation(self) -> None:
+    def test_constant_mean_evaluation(self, bkd) -> None:
         """Test ConstantMean evaluation."""
-        constant_value = 2.5
-        mean = ConstantMean(constant_value, (-10.0, 10.0), self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
 
-        m = mean(self.X)
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        constant_value = 2.5
+        mean = ConstantMean(constant_value, (-10.0, 10.0), bkd)
+
+        m = mean(X)
 
         # Check shape - (1, n_points) per convention
-        self.assertEqual(m.shape, (1, self.n_points))
+        assert m.shape == (1, n_points)
 
         # Check all equal to constant using backend
-        expected = self.bkd().full((1, self.n_points), constant_value)
-        self.bkd().assert_allclose(m, expected)
+        expected = bkd.full((1, n_points), constant_value)
+        bkd.assert_allclose(m, expected)
 
-    def test_constant_mean_hyperparameters(self) -> None:
+    def test_constant_mean_hyperparameters(self, bkd) -> None:
         """Test ConstantMean hyperparameters."""
         constant_value = 1.5
-        mean = ConstantMean(constant_value, (-10.0, 10.0), self.bkd())
+        mean = ConstantMean(constant_value, (-10.0, 10.0), bkd)
 
         hyp_list = mean.hyp_list()
 
         # One hyperparameter
-        self.assertEqual(hyp_list.nparams(), 1)
-        self.assertEqual(hyp_list.nactive_params(), 1)
+        assert hyp_list.nparams() == 1
+        assert hyp_list.nactive_params() == 1
 
         # Check value using backend
         values = hyp_list.get_active_values()
-        expected = self.bkd().array([constant_value])
-        self.bkd().assert_allclose(values, expected, rtol=1e-10)
+        expected = bkd.array([constant_value])
+        bkd.assert_allclose(values, expected, rtol=1e-10)
 
-    def test_constant_mean_jacobian_shape(self) -> None:
+    def test_constant_mean_jacobian_shape(self, bkd) -> None:
         """Test ConstantMean Jacobian shape."""
-        mean = ConstantMean(1.0, (-10.0, 10.0), self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
 
-        jac = mean.jacobian_wrt_params(self.X)
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        mean = ConstantMean(1.0, (-10.0, 10.0), bkd)
+
+        jac = mean.jacobian_wrt_params(X)
 
         # Should have shape (1, 1, n_points) - one parameter
-        self.assertEqual(jac.shape, (1, 1, self.n_points))
+        assert jac.shape == (1, 1, n_points)
 
-    def test_constant_mean_jacobian_values(self) -> None:
+    def test_constant_mean_jacobian_values(self, bkd) -> None:
         """Test ConstantMean Jacobian values."""
-        mean = ConstantMean(2.0, (-10.0, 10.0), self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
 
-        jac = mean.jacobian_wrt_params(self.X)
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
 
-        # For constant mean m(x) = c, we have ∂m/∂c = 1
+        mean = ConstantMean(2.0, (-10.0, 10.0), bkd)
+
+        jac = mean.jacobian_wrt_params(X)
+
+        # For constant mean m(x) = c, we have dm/dc = 1
         # So Jacobian should be all ones
-        expected = self.bkd().ones((1, 1, self.n_points))
-        self.bkd().assert_allclose(jac, expected)
+        expected = bkd.ones((1, 1, n_points))
+        bkd.assert_allclose(jac, expected)
 
-    def test_constant_mean_jacobian_finite_difference(self) -> None:
+    def test_constant_mean_jacobian_finite_difference(self, bkd) -> None:
         """
         Test ConstantMean Jacobian using finite differences.
 
         Uses DerivativeChecker to validate analytical Jacobian.
         """
-        mean = ConstantMean(2.0, (-10.0, 10.0), self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
+
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        mean = ConstantMean(2.0, (-10.0, 10.0), bkd)
 
         # Create a wrapper class that implements the protocol
         class MeanFunctionWrapper:
             """Wrapper to make mean function compatible with DerivativeChecker."""
 
-            def __init__(self, mean_func: ConstantMean, X: Array, bkd: Backend[Array]):
+            def __init__(self, mean_func, X_data, bkd_inst):
                 self._mean = mean_func
-                self._X = X
-                self._bkd = bkd
+                self._X = X_data
+                self._bkd = bkd_inst
 
-            def bkd(self) -> Backend[Array]:
+            def bkd(self):
                 return self._bkd
 
             def nvars(self) -> int:
@@ -160,7 +177,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 """Number of outputs - number of samples in this case."""
                 return self._X.shape[1]
 
-            def __call__(self, params: Array) -> Array:
+            def __call__(self, params):
                 """
                 Evaluate mean function with given parameters.
 
@@ -184,7 +201,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 # Transpose to (n_points, 1) for DerivativeChecker
                 return self._mean(self._X).T
 
-            def jacobian(self, params: Array) -> Array:
+            def jacobian(self, params):
                 """
                 Compute Jacobian of mean function.
 
@@ -196,7 +213,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 Returns
                 -------
                 Array, shape (nqoi, nvars) = (n_points, nparams)
-                    Jacobian ∂m/∂θ.
+                    Jacobian dm/dtheta.
                 """
                 # Flatten params if needed
                 params_flat = self._bkd.reshape(params, (-1,))
@@ -209,14 +226,14 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
                 # Reshape to (n_points, nparams) for DerivativeChecker
                 nparams = jac.shape[0]
-                n_points = jac.shape[2]
-                jac = self._bkd.reshape(jac, (nparams, n_points))
+                n_pts = jac.shape[2]
+                jac = self._bkd.reshape(jac, (nparams, n_pts))
                 # Transpose to (n_points, nparams)
                 jac = jac.T
 
                 return jac
 
-            def jvp(self, params: Array, v: Array) -> Array:
+            def jvp(self, params, v):
                 """
                 Compute Jacobian-vector product.
 
@@ -242,7 +259,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 return J @ v_reshaped
 
         # Create wrapper
-        wrapper = MeanFunctionWrapper(mean, self.X, self.bkd())
+        wrapper = MeanFunctionWrapper(mean, X, bkd)
 
         # Create derivative checker
         checker = DerivativeChecker(wrapper)
@@ -251,7 +268,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         params = mean.hyp_list().get_active_values()
 
         # Use logarithmically-spaced step sizes
-        fd_eps = self.bkd().flip(self.bkd().logspace(-14, 0, 15))
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
         # Check gradient accuracy
         errors = checker.check_derivatives(
@@ -265,64 +282,31 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         grad_error = errors[0]
 
         # Minimum error should be small
-        min_error = float(self.bkd().min(grad_error))
-        self.assertLess(
-            min_error,
-            1e-6,
-            f"Minimum gradient relative error {min_error} exceeds threshold",
-        )
+        min_error = float(bkd.min(grad_error))
+        assert min_error < 1e-6, \
+            f"Minimum gradient relative error {min_error} exceeds threshold"
 
-    def test_constant_mean_updates(self) -> None:
+    def test_constant_mean_updates(self, bkd) -> None:
         """Test ConstantMean updates when hyperparameters change."""
-        mean = ConstantMean(1.0, (-10.0, 10.0), self.bkd())
+        np.random.seed(42)
+        nvars = 2
+        n_points = 10
+
+        X_np = np.random.randn(nvars, n_points)
+        X = bkd.array(X_np)
+
+        mean = ConstantMean(1.0, (-10.0, 10.0), bkd)
 
         # Initial evaluation
-        m1 = mean(self.X)
-        expected1 = self.bkd().full((1, self.n_points), 1.0)
-        self.bkd().assert_allclose(m1, expected1)
+        m1 = mean(X)
+        expected1 = bkd.full((1, n_points), 1.0)
+        bkd.assert_allclose(m1, expected1)
 
         # Update hyperparameter
-        new_value = self.bkd().array([3.5])
+        new_value = bkd.array([3.5])
         mean.hyp_list().set_active_values(new_value)
 
         # Evaluate again
-        m2 = mean(self.X)
-        expected2 = self.bkd().full((1, self.n_points), 3.5)
-        self.bkd().assert_allclose(m2, expected2)
-
-
-# ========== Backend-Specific Test Classes ==========
-
-
-class TestMeanFunctionsNumpy(TestMeanFunctions[NDArray[Any]]):
-    """Test mean functions with NumPy backend."""
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        """Return NumPy backend."""
-        return self._bkd
-
-
-class TestMeanFunctionsTorch(TestMeanFunctions[torch.Tensor]):
-    """Test mean functions with PyTorch backend."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        """Return PyTorch backend."""
-        return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+        m2 = mean(X)
+        expected2 = bkd.full((1, n_points), 3.5)
+        bkd.assert_allclose(m2, expected2)

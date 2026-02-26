@@ -10,13 +10,7 @@ verify monotone loss decrease with degree and accuracy of ODE-integrated
 moments at moderate polynomial degree.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase
 
 from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.probability import GaussianMarginal, UniformMarginal
@@ -37,9 +31,6 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -85,18 +76,9 @@ def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
     return vf, path, loss, quad_data
 
 
-class TestChiSquared(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_loss_decreases_with_degree(self) -> None:
+class TestChiSquared:
+    def test_loss_decreases_with_degree(self, bkd) -> None:
         """Training loss should decrease with polynomial degree."""
-        bkd = self._bkd
         degrees = [2, 3, 4, 5, 6]
         losses = []
         for deg in degrees:
@@ -105,18 +87,15 @@ class TestChiSquared(Generic[Array], ParametrizedTestCase, unittest.TestCase):
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
-            self.assertGreaterEqual(
-                losses[i],
-                losses[i + 1],
+            assert losses[i] >= losses[i + 1], (
                 f"Loss did not decrease from degree {degrees[i]} "
                 f"({losses[i]:.2e}) to degree {degrees[i + 1]} "
-                f"({losses[i + 1]:.2e})",
+                f"({losses[i + 1]:.2e})"
             )
 
     @slow_test
-    def test_chi_squared_moments(self) -> None:
+    def test_chi_squared_moments(self, bkd) -> None:
         """ODE-integrated samples should match chi^2(1) moments."""
-        bkd = self._bkd
         deg = 4
         vf, path, loss, qd = _build_chi_squared_setup(bkd, deg)
         result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
@@ -142,19 +121,5 @@ class TestChiSquared(Generic[Array], ParametrizedTestCase, unittest.TestCase):
         sample_var = float(np.var(x1_np))
 
         # chi^2(1): E[X] = 1, Var[X] = 2
-        self.assertAlmostEqual(sample_mean, 1.0, delta=0.15)
-        self.assertAlmostEqual(sample_var, 2.0, delta=0.5)
-
-
-class TestChiSquaredNumpy(TestChiSquared[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestChiSquaredTorch(TestChiSquared[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+        assert abs(sample_mean - 1.0) < 0.15
+        assert abs(sample_var - 2.0) < 0.5

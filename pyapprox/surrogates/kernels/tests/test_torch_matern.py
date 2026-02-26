@@ -2,8 +2,6 @@
 Tests for TorchMaternKernel with arbitrary nu.
 """
 
-import unittest
-
 import torch
 
 from pyapprox.surrogates.kernels import Matern32Kernel, Matern52Kernel
@@ -11,10 +9,10 @@ from pyapprox.surrogates.kernels.torch_matern import TorchMaternKernel
 from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestTorchMaternKernel(unittest.TestCase):
+class TestTorchMaternKernel:
     """Tests for TorchMaternKernel."""
 
-    def setUp(self):
+    def setup_method(self):
         torch.set_default_dtype(torch.float64)
         self.bkd = TorchBkd()
 
@@ -28,7 +26,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         X2 = torch.randn(2, 5)
 
         K = kernel(X1, X2)
-        self.assertEqual(K.shape, (10, 5))
+        assert K.shape == (10, 5)
 
     def test_kernel_symmetry(self):
         """Test kernel is symmetric when X1 = X2."""
@@ -39,7 +37,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         X = torch.randn(1, 10)
         K = kernel(X, X)
 
-        self.assertTrue(torch.allclose(K, K.T, rtol=1e-10))
+        assert torch.allclose(K, K.T, rtol=1e-10)
 
     def test_kernel_positive_definite(self):
         """Test kernel matrix is positive definite."""
@@ -55,7 +53,7 @@ class TestTorchMaternKernel(unittest.TestCase):
 
         # Check eigenvalues are positive
         eigenvalues = torch.linalg.eigvalsh(K_stable)
-        self.assertTrue(torch.all(eigenvalues > 0))
+        assert torch.all(eigenvalues > 0)
 
     def test_diagonal_is_one(self):
         """Test diagonal elements are 1."""
@@ -67,7 +65,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         K = kernel(X, X)
         diag = torch.diag(K)
 
-        self.assertTrue(torch.allclose(diag, torch.ones_like(diag), rtol=1e-6))
+        assert torch.allclose(diag, torch.ones_like(diag), rtol=1e-6)
 
     def test_nu_25_matches_matern52(self):
         """Test nu=2.5 matches backend-agnostic Matern52Kernel."""
@@ -83,7 +81,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         K_torch = torch_kernel(X, X)
         K_ref = ref_kernel(X, X)
 
-        self.assertTrue(torch.allclose(K_torch, K_ref, rtol=1e-5, atol=1e-6))
+        assert torch.allclose(K_torch, K_ref, rtol=1e-5, atol=1e-6)
 
     def test_nu_15_matches_matern32(self):
         """Test nu=1.5 matches backend-agnostic Matern32Kernel."""
@@ -99,7 +97,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         K_torch = torch_kernel(X, X)
         K_ref = ref_kernel(X, X)
 
-        self.assertTrue(torch.allclose(K_torch, K_ref, rtol=1e-5, atol=1e-6))
+        assert torch.allclose(K_torch, K_ref, rtol=1e-5, atol=1e-6)
 
     def test_arbitrary_nu(self):
         """Test kernel works with arbitrary nu values."""
@@ -113,11 +111,11 @@ class TestTorchMaternKernel(unittest.TestCase):
             K = kernel(X, X)
 
             # Check basic properties
-            self.assertEqual(K.shape, (10, 10))
-            self.assertTrue(torch.allclose(K, K.T, rtol=1e-10))
+            assert K.shape == (10, 10)
+            assert torch.allclose(K, K.T, rtol=1e-10)
             # For general nu, asymptotic approximation may not give exactly 1
             # on diagonal due to numerical stability epsilon
-            self.assertTrue(torch.allclose(torch.diag(K), torch.ones(10), rtol=1e-3))
+            assert torch.allclose(torch.diag(K), torch.ones(10), rtol=1e-3)
 
     def test_large_nu_approximates_rbf(self):
         """Test large nu approximates RBF/squared exponential kernel."""
@@ -132,7 +130,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         distances = torch.cdist(X.T, X.T)
         K_rbf = torch.exp(-0.5 * distances**2)
 
-        self.assertTrue(torch.allclose(K, K_rbf, rtol=1e-3, atol=1e-4))
+        assert torch.allclose(K, K_rbf, rtol=1e-3, atol=1e-4)
 
     def test_length_scale_effect(self):
         """Test length scale affects correlation range."""
@@ -154,7 +152,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         off_diag_small = K_small[0, 5]
         off_diag_large = K_large[0, 5]
 
-        self.assertGreater(float(off_diag_large), float(off_diag_small))
+        assert float(off_diag_large) > float(off_diag_small)
 
     def test_autograd_compatible(self):
         """Test kernel is compatible with autograd."""
@@ -170,8 +168,8 @@ class TestTorchMaternKernel(unittest.TestCase):
         loss = K.sum()
         loss.backward()
 
-        self.assertIsNotNone(X.grad)
-        self.assertEqual(X.grad.shape, X.shape)
+        assert X.grad is not None
+        assert X.grad.shape == X.shape
 
     def test_hyp_list(self):
         """Test hyperparameter list."""
@@ -180,7 +178,7 @@ class TestTorchMaternKernel(unittest.TestCase):
         )
 
         hyp_list = kernel.hyp_list()
-        self.assertEqual(hyp_list.nparams(), 2)
+        assert hyp_list.nparams() == 2
 
     def test_repr(self):
         """Test string representation."""
@@ -189,9 +187,5 @@ class TestTorchMaternKernel(unittest.TestCase):
         )
 
         repr_str = repr(kernel)
-        self.assertIn("GeneralMaternKernel", repr_str)
-        self.assertIn("nu=2.5", repr_str)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert "GeneralMaternKernel" in repr_str
+        assert "nu=2.5" in repr_str

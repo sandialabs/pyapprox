@@ -23,3 +23,19 @@ pyapprox/_version.py
 
 # Patch files
 *.patch
+
+# Migration scripts
+_migrate*.py
+_fixup*.py
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/

@@ -11,12 +11,9 @@ using DerivativeChecker per CLAUDE.md convention. Tests cover:
 - Single and batch derivative methods
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
+import pytest
 import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     BatchDerivativeChecker,
@@ -43,32 +40,20 @@ from pyapprox.surrogates.affine.univariate import (
     MonomialBasis1D,
     create_bases_1d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerLegendre:
     """Test derivatives for Legendre polynomial expansion."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
+    def _create_pce(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Test Jacobian for 1D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=1, max_level=5, nqoi=1)
+        pce = self._create_pce(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -78,12 +63,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
+        pce = self._create_pce(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -93,12 +77,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_3d(self):
+    def test_jacobian_3d(self, bkd):
         """Test Jacobian for 3D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=3, max_level=2, nqoi=1)
+        pce = self._create_pce(bkd, nvars=3, max_level=2, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -108,12 +91,12 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_1d(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_hessian_1d(self, bkd):
         """Test Hessian for 1D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=1, max_level=5, nqoi=1)
+        pce = self._create_pce(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -123,12 +106,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_hessian_2d(self):
+    def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
+        pce = self._create_pce(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -138,12 +120,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_hessian_3d(self):
+    def test_hessian_3d(self, bkd):
         """Test Hessian for 3D Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=3, max_level=2, nqoi=1)
+        pce = self._create_pce(bkd, nvars=3, max_level=2, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -153,12 +134,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_jacobian_batch(self):
+    def test_jacobian_batch(self, bkd):
         """Test jacobian_batch for Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=2)
+        pce = self._create_pce(bkd, nvars=2, max_level=3, nqoi=2)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
@@ -170,12 +150,11 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_hessian_batch(self):
+    def test_hessian_batch(self, bkd):
         """Test hessian_batch for Legendre expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
+        pce = self._create_pce(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -187,36 +166,10 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
         errors = checker.check_hessian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
 
-class TestDerivativeCheckerLegendreNumpy(TestDerivativeCheckerLegendre[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerLegendreTorch(TestDerivativeCheckerLegendre[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    @slow_test
-    def test_hessian_1d(self):
-        super().test_hessian_1d()
-
-
-class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerHermite:
     """Test derivatives for Hermite polynomial expansion.
 
     Hermite polynomials are orthonormal with respect to the standard
@@ -224,26 +177,16 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
     range to avoid numerical issues with large polynomial values.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_hermite_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
+    def _create_hermite_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Test Jacobian for 1D Hermite expansion."""
-        bkd = self._bkd
-        exp = self._create_hermite_expansion(nvars=1, max_level=5, nqoi=1)
+        exp = self._create_hermite_expansion(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -254,12 +197,11 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Hermite expansion."""
-        bkd = self._bkd
-        exp = self._create_hermite_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_hermite_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -269,12 +211,11 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_2d(self):
+    def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Hermite expansion."""
-        bkd = self._bkd
-        exp = self._create_hermite_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_hermite_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -284,12 +225,11 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_jacobian_batch(self):
+    def test_jacobian_batch(self, bkd):
         """Test jacobian_batch for Hermite expansion."""
-        bkd = self._bkd
-        exp = self._create_hermite_expansion(nvars=2, max_level=3, nqoi=2)
+        exp = self._create_hermite_expansion(bkd, nvars=2, max_level=3, nqoi=2)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 2)))
@@ -301,32 +241,10 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
 
-class TestDerivativeCheckerHermiteNumpy(TestDerivativeCheckerHermite[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerHermiteTorch(TestDerivativeCheckerHermite[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerLaguerre:
     """Test derivatives for Laguerre polynomial expansion.
 
     Laguerre polynomials are orthonormal with respect to the exponential
@@ -334,26 +252,16 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
     to stay in the support while avoiding boundary issues.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_laguerre_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
+    def _create_laguerre_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         marginals = [GammaMarginal(1.0, 1.0, bkd=bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Test Jacobian for 1D Laguerre expansion."""
-        bkd = self._bkd
-        exp = self._create_laguerre_expansion(nvars=1, max_level=5, nqoi=1)
+        exp = self._create_laguerre_expansion(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -364,12 +272,11 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Laguerre expansion."""
-        bkd = self._bkd
-        exp = self._create_laguerre_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_laguerre_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -379,12 +286,11 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_2d(self):
+    def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Laguerre expansion."""
-        bkd = self._bkd
-        exp = self._create_laguerre_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_laguerre_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -394,50 +300,19 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
 
-class TestDerivativeCheckerLaguerreNumpy(TestDerivativeCheckerLaguerre[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerLaguerreTorch(TestDerivativeCheckerLaguerre[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerJacobi:
     """Test derivatives for Jacobi polynomial expansion.
 
     Jacobi polynomials with parameters (alpha, beta) are orthonormal
     with respect to the beta distribution. Tests use alpha=0.5, beta=1.0.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
     def _create_jacobi_expansion(
-        self, nvars: int, max_level: int, alpha: float, beta: float, nqoi: int = 1
+        self, bkd, nvars: int, max_level: int, alpha: float, beta: float, nqoi: int = 1
     ):
-        bkd = self._bkd
         # BetaMarginal(a, b) on [0, 1] -> Jacobi(b-1, a-1) on [-1, 1]
         # For Jacobi(alpha, beta), use Beta(beta+1, alpha+1)
         marginals = [BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)]
@@ -446,11 +321,10 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Test Jacobian for 1D Jacobi expansion."""
-        bkd = self._bkd
         exp = self._create_jacobi_expansion(
-            nvars=1, max_level=5, alpha=0.5, beta=1.0, nqoi=1
+            bkd, nvars=1, max_level=5, alpha=0.5, beta=1.0, nqoi=1
         )
 
         np.random.seed(42)
@@ -461,13 +335,12 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Jacobi expansion."""
-        bkd = self._bkd
         exp = self._create_jacobi_expansion(
-            nvars=2, max_level=3, alpha=0.5, beta=1.0, nqoi=1
+            bkd, nvars=2, max_level=3, alpha=0.5, beta=1.0, nqoi=1
         )
 
         np.random.seed(42)
@@ -478,13 +351,12 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_2d(self):
+    def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Jacobi expansion."""
-        bkd = self._bkd
         exp = self._create_jacobi_expansion(
-            nvars=2, max_level=3, alpha=0.5, beta=1.0, nqoi=1
+            bkd, nvars=2, max_level=3, alpha=0.5, beta=1.0, nqoi=1
         )
 
         np.random.seed(42)
@@ -495,13 +367,12 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_different_alpha_beta(self):
+    def test_different_alpha_beta(self, bkd):
         """Test Jacobian for Jacobi with different alpha, beta."""
-        bkd = self._bkd
         exp = self._create_jacobi_expansion(
-            nvars=2, max_level=3, alpha=2.0, beta=0.5, nqoi=1
+            bkd, nvars=2, max_level=3, alpha=2.0, beta=0.5, nqoi=1
         )
 
         np.random.seed(42)
@@ -512,50 +383,19 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
 
-class TestDerivativeCheckerJacobiNumpy(TestDerivativeCheckerJacobi[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerJacobiTorch(TestDerivativeCheckerJacobi[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerChebyshev:
     """Test derivatives for Chebyshev polynomial expansion.
 
     Chebyshev polynomials (1st kind) are orthonormal with respect to
     the arcsine distribution on [-1, 1] (Beta(0.5, 0.5)).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
     def _create_chebyshev_expansion(
-        self, nvars: int, max_level: int, nqoi: int = 1, kind: int = 1
+        self, bkd, nvars: int, max_level: int, nqoi: int = 1, kind: int = 1
     ):
-        bkd = self._bkd
         # Chebyshev 1st kind: Beta(0.5, 0.5) -> Jacobi(-0.5, -0.5)
         # Chebyshev 2nd kind: Beta(1.5, 1.5) -> Jacobi(0.5, 0.5)
         if kind == 1:
@@ -567,10 +407,9 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d_first_kind(self):
+    def test_jacobian_1d_first_kind(self, bkd):
         """Test Jacobian for 1D Chebyshev 1st kind expansion."""
-        bkd = self._bkd
-        exp = self._create_chebyshev_expansion(nvars=1, max_level=5, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(bkd, nvars=1, max_level=5, nqoi=1, kind=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -580,12 +419,11 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d_first_kind(self):
+    def test_jacobian_2d_first_kind(self, bkd):
         """Test Jacobian for 2D Chebyshev 1st kind expansion."""
-        bkd = self._bkd
-        exp = self._create_chebyshev_expansion(nvars=2, max_level=3, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -595,12 +433,11 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_2d_first_kind(self):
+    def test_hessian_2d_first_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 1st kind expansion."""
-        bkd = self._bkd
-        exp = self._create_chebyshev_expansion(nvars=2, max_level=3, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -610,12 +447,11 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_jacobian_2d_second_kind(self):
+    def test_jacobian_2d_second_kind(self, bkd):
         """Test Jacobian for 2D Chebyshev 2nd kind expansion."""
-        bkd = self._bkd
-        exp = self._create_chebyshev_expansion(nvars=2, max_level=3, nqoi=1, kind=2)
+        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=2)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -625,12 +461,11 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_2d_second_kind(self):
+    def test_hessian_2d_second_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 2nd kind expansion."""
-        bkd = self._bkd
-        exp = self._create_chebyshev_expansion(nvars=2, max_level=3, nqoi=1, kind=2)
+        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=2)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -640,55 +475,23 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
 
-class TestDerivativeCheckerChebyshevNumpy(TestDerivativeCheckerChebyshev[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerChebyshevTorch(TestDerivativeCheckerChebyshev[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeCheckerMultiQoi(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerMultiQoi:
     """Test derivatives for multi-QoI expansions.
 
     These tests verify derivatives work correctly for expansions with
     multiple quantities of interest (nqoi > 1).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
+    def _create_pce(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
-    def test_jacobian_batch_multi_qoi(self):
+    def test_jacobian_batch_multi_qoi(self, bkd):
         """Test jacobian_batch for multi-QoI expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=3)
+        pce = self._create_pce(bkd, nvars=2, max_level=3, nqoi=3)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 3)))
@@ -700,12 +503,11 @@ class TestDerivativeCheckerMultiQoi(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_jacobian_batch_3d_multi_qoi(self):
+    def test_jacobian_batch_3d_multi_qoi(self, bkd):
         """Test jacobian_batch for 3D multi-QoI expansion."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=3, max_level=2, nqoi=2)
+        pce = self._create_pce(bkd, nvars=3, max_level=2, nqoi=2)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
@@ -717,49 +519,18 @@ class TestDerivativeCheckerMultiQoi(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
 
-class TestDerivativeCheckerMultiQoiNumpy(TestDerivativeCheckerMultiQoi[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerMultiQoiTorch(TestDerivativeCheckerMultiQoi[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
+class TestDerivativeCheckerMonomial:
     """Test derivatives for Monomial basis expansion.
 
-    Monomial polynomials {1, x, x², ...} provide a non-orthonormal basis.
+    Monomial polynomials {1, x, x^2, ...} provide a non-orthonormal basis.
     Tests use MultiIndexBasis directly (not OrthonormalPolynomialBasis).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_monomial_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_monomial_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         """Create a BasisExpansion with MonomialBasis1D univariate bases."""
-        bkd = self._bkd
         bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         # MultiIndexBasis is marked ABC but has no abstract methods
@@ -767,10 +538,9 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         MultiIndexBasis.__init__(basis, bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Test Jacobian for 1D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=1, max_level=5, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -780,12 +550,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -795,12 +564,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_3d(self):
+    def test_jacobian_3d(self, bkd):
         """Test Jacobian for 3D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=3, max_level=2, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=3, max_level=2, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -810,12 +578,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_1d(self):
+    def test_hessian_1d(self, bkd):
         """Test Hessian for 1D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=1, max_level=5, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=1, max_level=5, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -825,12 +592,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_hessian_2d(self):
+    def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -840,12 +606,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_hessian_3d(self):
+    def test_hessian_3d(self, bkd):
         """Test Hessian for 3D Monomial expansion."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=3, max_level=2, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=3, max_level=2, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -855,12 +620,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_jacobian_batch(self):
+    def test_jacobian_batch(self, bkd):
         """Test batch Jacobian via BatchDerivativeChecker."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -872,12 +636,11 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_hessian_batch(self):
+    def test_hessian_batch(self, bkd):
         """Test batch Hessian via BatchDerivativeChecker."""
-        bkd = self._bkd
-        exp = self._create_monomial_expansion(nvars=2, max_level=3, nqoi=1)
+        exp = self._create_monomial_expansion(bkd, nvars=2, max_level=3, nqoi=1)
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -889,59 +652,27 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
         errors = checker.check_hessian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
 
-class TestDerivativeCheckerMonomialNumpy(TestDerivativeCheckerMonomial[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDerivativeCheckerMonomialTorch(TestDerivativeCheckerMonomial[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
+class TestMixedBasisDerivatives:
     """Test derivative checking with mixed polynomial bases.
 
     Tests validate Jacobian and Hessian computations for PCE with
     different polynomial types per variable (e.g., Legendre + Hermite).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_mixed_pce(self, nqoi: int = 1):
+    def _create_mixed_pce(self, bkd, nqoi: int = 1):
         """Create PCE with Legendre and Hermite bases."""
-        bkd = self._bkd
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
             GaussianMarginal(0.0, 1.0, bkd),
         ]
         return create_pce_from_marginals(marginals, max_level=3, bkd=bkd, nqoi=nqoi)
 
-    def test_jacobian_with_derivative_checker(self):
+    def test_jacobian_with_derivative_checker(self, bkd):
         """Validate jacobian for mixed basis using DerivativeChecker."""
-        bkd = self._bkd
-        pce = self._create_mixed_pce(nqoi=1)
+        pce = self._create_mixed_pce(bkd, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -952,12 +683,11 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_hessian_with_derivative_checker(self):
+    def test_hessian_with_derivative_checker(self, bkd):
         """Validate hessian for mixed basis using DerivativeChecker."""
-        bkd = self._bkd
-        pce = self._create_mixed_pce(nqoi=1)
+        pce = self._create_mixed_pce(bkd, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -967,12 +697,11 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
+        assert float(hess_error) < 1e-6
 
-    def test_jacobian_batch_with_derivative_checker(self):
+    def test_jacobian_batch_with_derivative_checker(self, bkd):
         """Validate jacobian_batch for mixed basis using BatchDerivativeChecker."""
-        bkd = self._bkd
-        pce = self._create_mixed_pce(nqoi=1)
+        pce = self._create_mixed_pce(bkd, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -982,12 +711,11 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_hessian_batch_with_derivative_checker(self):
+    def test_hessian_batch_with_derivative_checker(self, bkd):
         """Validate hessian_batch for mixed basis using BatchDerivativeChecker."""
-        bkd = self._bkd
-        pce = self._create_mixed_pce(nqoi=1)
+        pce = self._create_mixed_pce(bkd, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -997,12 +725,11 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
         errors = checker.check_hessian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_jacobian_batch_multi_qoi(self):
+    def test_jacobian_batch_multi_qoi(self, bkd):
         """Validate jacobian_batch for mixed basis with multiple QoIs."""
-        bkd = self._bkd
-        pce = self._create_mixed_pce(nqoi=3)
+        pce = self._create_mixed_pce(bkd, nqoi=3)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 3)))
@@ -1012,32 +739,10 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
         errors = checker.check_jacobian_batch(verbosity=0)
 
         error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
 
-class TestMixedBasisDerivativesNumpy(TestMixedBasisDerivatives[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMixedBasisDerivativesTorch(TestMixedBasisDerivatives[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
+class TestJacobianWrtParams:
     """Test jacobian_wrt_params for BasisExpansion.
 
     Tests validate that jacobian_wrt_params (derivatives w.r.t. active coefficients)
@@ -1047,24 +752,14 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
     By default all params are active, so nactive_params == nparams.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
+    def _create_pce(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     @slow_test
-    def test_jacobian_wrt_params_1d(self):
+    def test_jacobian_wrt_params_1d(self, bkd):
         """Test jacobian_wrt_params for 1D expansion with nqoi=1."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=1, max_level=3, nqoi=1)
+        pce = self._create_pce(bkd, nvars=1, max_level=3, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -1080,13 +775,13 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         # By default all params are active
         nactive = pce.nactive_params()
 
-        def fun(params: Array) -> Array:
+        def fun(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             return pce(samples).T  # (nsamples, nqoi)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
@@ -1109,12 +804,11 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_wrt_params_2d(self):
+    def test_jacobian_wrt_params_2d(self, bkd):
         """Test jacobian_wrt_params for 2D expansion with nqoi=1."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+        pce = self._create_pce(bkd, nvars=2, max_level=2, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -1128,12 +822,12 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
 
         nactive = pce.nactive_params()
 
-        def fun(params: Array) -> Array:
+        def fun(params):
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             return pce(samples).T  # (nsamples, nqoi)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
@@ -1153,12 +847,11 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_wrt_params_multi_qoi(self):
+    def test_jacobian_wrt_params_multi_qoi(self, bkd):
         """Test jacobian_wrt_params for expansion with nqoi > 1."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=2, nqoi=2)
+        pce = self._create_pce(bkd, nvars=2, max_level=2, nqoi=2)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
@@ -1172,14 +865,14 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
 
         nactive = pce.nactive_params()
 
-        def fun(params: Array) -> Array:
+        def fun(params):
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             # pce(samples) returns (nqoi, nsamples)
             # For FunctionFromCallable we need (nqoi, 1) output
             return pce(samples)  # (nqoi, nsamples=1)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             jac = pce.jacobian_wrt_params(samples)  # (1, nqoi, nactive_params)
@@ -1199,16 +892,15 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_jacobian_wrt_params_with_fixed_params(self):
+    def test_jacobian_wrt_params_with_fixed_params(self, bkd):
         """Test jacobian_wrt_params when some params are fixed (inactive).
 
         Verifies that jacobian only includes active parameters and that
         the derivative check passes for the reduced parameter space.
         """
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+        pce = self._create_pce(bkd, nvars=2, max_level=2, nqoi=1)
 
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
@@ -1220,7 +912,7 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         pce.hyp_list().set_active_indices(active_indices)
 
         nactive = pce.nactive_params()
-        self.assertEqual(nactive, nparams_total - 2)
+        assert nactive == nparams_total - 2
 
         # Evaluate at a single sample
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
@@ -1229,13 +921,13 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
             FunctionWithJacobianFromCallable,
         )
 
-        def fun(params: Array) -> Array:
+        def fun(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             return pce(samples).T  # (nsamples, nqoi)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
             pce._sync_from_hyp_list()
             jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
@@ -1255,33 +947,25 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
         # Verify the jacobian shape is correct (only active params)
         jac = pce.jacobian_wrt_params(samples)
-        self.assertEqual(jac.shape, (1, 1, nactive))
+        assert jac.shape == (1, 1, nactive)
 
 
-class TestJacobianWrtParamsNumpy(TestJacobianWrtParams[NDArray[Any]]):
-    """NumPy backend tests."""
+class TestJacobianWrtParamsAutograd:
+    """Torch-only tests for jacobian_wrt_params using torch.autograd."""
 
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestJacobianWrtParamsTorch(TestJacobianWrtParams[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         torch.set_default_dtype(torch.float64)
-        super().setUp()
+        self._bkd = TorchBkd()
+
+    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_jacobian_wrt_params_autograd(self):
         """Verify jacobian_wrt_params matches torch autograd."""
@@ -1352,7 +1036,3 @@ class TestJacobianWrtParamsTorch(TestJacobianWrtParams[torch.Tensor]):
         analytical_flat = bkd.reshape(analytical_jac, (nsamples * pce.nqoi(), nactive))
 
         bkd.assert_allclose(analytical_flat, autograd_jac, rtol=1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -3,12 +3,7 @@
 Ports legacy tests from pyapprox/surrogates/affine/tests/test_kle.py.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
@@ -20,10 +15,7 @@ from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):
@@ -40,24 +32,15 @@ def _gauss_legendre_quad(lb, ub, npts, bkd):
     return pts, wts[:, 0]
 
 
-class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(1)
-        self._bkd = self.bkd()
+class TestDataDrivenKLE:
 
     @slow_test
-    def test_data_driven_kle_vs_mesh_kle(self) -> None:
+    def test_data_driven_kle_vs_mesh_kle(self, bkd) -> None:
         """Port of legacy test_data_driven_kle (part 1).
 
         Build MeshKLE (no weights), generate 10k samples, build
         DataDrivenKLE from realizations, verify eigenvalues match.
         """
-        bkd = self._bkd
         nterms = 3
         level = 6
         len_scale, sigma = 1.0, 1.0
@@ -95,13 +78,12 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         )
 
     @slow_test
-    def test_data_driven_kle_with_weights(self) -> None:
+    def test_data_driven_kle_with_weights(self, bkd) -> None:
         """Port of legacy test_data_driven_kle (part 3).
 
         MeshKLE with quad weights -> generate samples ->
         DataDrivenKLE with same weights -> eigenvalues match.
         """
-        bkd = self._bkd
         nterms = 3
         level = 6
         len_scale, sigma = 1.0, 1.0
@@ -140,36 +122,13 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         )
 
 
-class TestDataDrivenKLENumpy(TestDataDrivenKLE[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
+class TestPCA:
 
-
-class TestDataDrivenKLETorch(TestDataDrivenKLE[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestPCA(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(1)
-        self._bkd = self.bkd()
-
-    def test_pca_low_rank_recovery(self) -> None:
+    def test_pca_low_rank_recovery(self, bkd) -> None:
         """Port of legacy test_PCA_low_rank_matrix_recovery.
 
         PCA with nterms=rank recovers low-rank matrix exactly.
         """
-        bkd = self._bkd
         B = bkd.asarray(np.random.rand(5, 3))
         A = B.T @ B  # shape (3, 3), rank <= 3
 
@@ -191,9 +150,8 @@ class TestPCA(Generic[Array], unittest.TestCase):
         # Verify that the recovered matrix matches the original
         bkd.assert_allclose(recovered_A, A, rtol=1e-6, atol=1e-8)
 
-    def test_pca_reduce_expand_cycle(self) -> None:
+    def test_pca_reduce_expand_cycle(self, bkd) -> None:
         """Test that reduce -> expand is identity for normalized snapshots."""
-        bkd = self._bkd
         ncoords, nsamples = 10, 5
         data = bkd.asarray(np.random.rand(ncoords, nsamples))
         rank = bkd.rank(data)
@@ -208,24 +166,3 @@ class TestPCA(Generic[Array], unittest.TestCase):
         expanded = pca.expand_reduced_state(reduced)
 
         bkd.assert_allclose(expanded, normalized, rtol=1e-6, atol=1e-8)
-
-
-class TestPCANumpy(TestPCA[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPCATorch(TestPCA[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)

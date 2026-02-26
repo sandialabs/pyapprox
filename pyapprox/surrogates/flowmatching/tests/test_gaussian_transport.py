@@ -8,13 +8,8 @@ with zero conditional variance. The VF is rational in t; a polynomial
 approximation converges rapidly to zero training loss.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.probability import GaussianMarginal, UniformMarginal
@@ -38,9 +33,6 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -95,20 +87,11 @@ def _build_transport_setup(bkd, d, degree, n_per_dim=6):
     return vf, path, loss, quad_data, mu, L
 
 
-class TestGaussianTransport(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    @parametrize("d", [(1,), (2,)])
+class TestGaussianTransport:
+    @pytest.mark.parametrize("d", [1, 2])
     @slow_test
-    def test_loss_decreases_with_degree(self, d: int) -> None:
+    def test_loss_decreases_with_degree(self, bkd, d: int) -> None:
         """Training loss decreases monotonically; degree-4 loss < 1e-4."""
-        bkd = self._bkd
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
@@ -117,29 +100,25 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase, unittest.TestC
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
-            self.assertGreater(
-                losses[i],
-                losses[i + 1],
+            assert losses[i] > losses[i + 1], (
                 f"Loss did not decrease from degree {degrees[i]} "
                 f"({losses[i]:.2e}) to {degrees[i + 1]} "
-                f"({losses[i + 1]:.2e})",
+                f"({losses[i + 1]:.2e})"
             )
-        self.assertLess(losses[-1], 1e-4)
+        assert losses[-1] < 1e-4
 
-    @parametrize("d", [(1,)])
-    def test_fitters_agree(self, d: int) -> None:
+    @pytest.mark.parametrize("d", [1])
+    def test_fitters_agree(self, bkd, d: int) -> None:
         """Both fitters achieve similar loss at each degree."""
-        bkd = self._bkd
         for deg in [2, 4]:
             vf, path, loss, qd, _, _ = _build_transport_setup(bkd, d, deg)
             lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).training_loss()
             opt_loss = OptimizerFitter(bkd).fit(vf, path, loss, qd).training_loss()
-            self.assertLess(opt_loss, max(lstsq_loss * 100, 1e-4))
+            assert opt_loss < max(lstsq_loss * 100, 1e-4)
 
-    @parametrize("d", [(1,), (2,)])
-    def test_target_moments(self, d: int) -> None:
+    @pytest.mark.parametrize("d", [1, 2])
+    def test_target_moments(self, bkd, d: int) -> None:
         """ODE-integrated samples match target mean and cov."""
-        bkd = self._bkd
         vf, path, loss, qd, mu, L = _build_transport_setup(bkd, d, degree=4)
         fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).surrogate()
 
@@ -174,17 +153,3 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase, unittest.TestC
             bkd.array(Sigma_np.tolist()),
             atol=0.1,
         )
-
-
-class TestGaussianTransportNumpy(TestGaussianTransport[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianTransportTorch(TestGaussianTransport[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

@@ -7,12 +7,8 @@ recovers the exact conjugate posterior.
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.inverse.conjugate.beta import BetaConjugatePosterior
 from pyapprox.inverse.conjugate.gaussian import (
@@ -46,9 +42,7 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.test_utils import slow_test
 
 
@@ -105,39 +99,30 @@ def _extract_beta_params(cond: ConditionalBeta, bkd: Backend) -> tuple:
     return bkd.exp(log_alpha), bkd.exp(log_beta)
 
 
-class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
+class TestGaussianConjugateRecoveryBase:
     """Base test class for Gaussian conjugate recovery."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _make_cond_gaussian_joint(self, nvars: int) -> ConditionalIndependentJoint:
+    def _make_cond_gaussian_joint(self, bkd, nvars: int) -> ConditionalIndependentJoint:
         """Create a variational distribution for nvars dimensions.
 
         Always returns a ConditionalIndependentJoint, even for nvars=1.
         """
-        bkd = self._bkd
         conditionals = [_make_cond_gaussian(bkd) for _ in range(nvars)]
         return ConditionalIndependentJoint(conditionals, bkd)
 
     def _run_vi_recovery(
         self,
+        bkd,
         nvars: int,
-        obs_matrix: Array,
+        obs_matrix,
         prior_mean_vals: list,
         prior_var_vals: list,
         noise_var: float,
-        observations: Array,
+        observations,
         nsamples: int = 500,
         maxiter: int = 200,
     ) -> tuple:
         """Run VI and return (vi_mean, vi_var, exact_mean, exact_var)."""
-        bkd = self._bkd
         nobs = obs_matrix.shape[0]
 
         # Exact conjugate posterior
@@ -156,7 +141,7 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         exact_cov = conjugate.posterior_covariance()
 
         # VI setup using conditional distributions
-        var_dist = self._make_cond_gaussian_joint(nvars)
+        var_dist = self._make_cond_gaussian_joint(bkd, nvars)
 
         # Prior: IndependentJoint of GaussianMarginals
         prior_marginals = [
@@ -174,7 +159,7 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
             bkd,
         )
 
-        def log_likelihood_fn(z: Array) -> Array:
+        def log_likelihood_fn(z):
             return multi_lik.logpdf(obs_matrix @ z)
 
         np.random.seed(42)
@@ -207,13 +192,13 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         return vi_mean, vi_var, exact_mean, exact_cov
 
     @slow_test
-    def test_gaussian_1d_conjugate(self) -> None:
+    def test_gaussian_1d_conjugate(self, bkd) -> None:
         """1D linear model: A=[[1]], prior N(0,1), noise_var=0.5, obs=[2.0]."""
-        bkd = self._bkd
         obs_matrix = bkd.asarray([[1.0]])
         observations = bkd.asarray([[2.0]])
 
         vi_mean, vi_var, exact_mean, exact_cov = self._run_vi_recovery(
+            bkd,
             nvars=1,
             obs_matrix=obs_matrix,
             prior_mean_vals=[0.0],
@@ -231,13 +216,13 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(vi_var, exact_var_diag, rtol=0.3)
 
     @slow_test
-    def test_gaussian_2d_conjugate(self) -> None:
+    def test_gaussian_2d_conjugate(self, bkd) -> None:
         """2D linear model: A=[[1,0],[0,1]], prior N(0,I), noise_var=0.5."""
-        bkd = self._bkd
         obs_matrix = bkd.eye(2)
         observations = bkd.asarray([[1.5], [2.5]])
 
         vi_mean, vi_var, exact_mean, exact_cov = self._run_vi_recovery(
+            bkd,
             nvars=2,
             obs_matrix=obs_matrix,
             prior_mean_vals=[0.0, 0.0],
@@ -255,14 +240,14 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(vi_var, exact_var_diag, rtol=0.3)
 
     @slow_test
-    def test_gaussian_more_data_closer(self) -> None:
+    def test_gaussian_more_data_closer(self, bkd) -> None:
         """More observations should make VI closer to exact posterior."""
-        bkd = self._bkd
         obs_matrix = bkd.asarray([[1.0]])
 
         # Few observations
         obs_few = bkd.asarray([[2.0]])
         vi_mean_few, vi_var_few, exact_mean_few, exact_cov_few = self._run_vi_recovery(
+            bkd,
             nvars=1,
             obs_matrix=obs_matrix,
             prior_mean_vals=[0.0],
@@ -277,6 +262,7 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         obs_many = bkd.asarray([[2.0, 1.8, 2.2]])
         vi_mean_many, vi_var_many, exact_mean_many, exact_cov_many = (
             self._run_vi_recovery(
+                bkd,
                 nvars=1,
                 obs_matrix=obs_matrix,
                 prior_mean_vals=[0.0],
@@ -291,45 +277,21 @@ class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
         # More data -> smaller posterior variance
         exact_var_few = exact_cov_few[0, 0]
         exact_var_many = exact_cov_many[0, 0]
-        self.assertLess(
-            float(bkd.flatten(exact_var_many)[0]), float(bkd.flatten(exact_var_few)[0])
+        assert float(bkd.flatten(exact_var_many)[0]) < float(
+            bkd.flatten(exact_var_few)[0]
         )
 
-        self.assertLess(
-            float(bkd.flatten(vi_var_many)[0]), float(bkd.flatten(vi_var_few)[0])
+        assert float(bkd.flatten(vi_var_many)[0]) < float(
+            bkd.flatten(vi_var_few)[0]
         )
 
 
-class TestGaussianConjugateRecoveryNumpy(
-    TestGaussianConjugateRecoveryBase[NDArray[Any]], unittest.TestCase
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianConjugateRecoveryTorch(
-    TestGaussianConjugateRecoveryBase[torch.Tensor], unittest.TestCase
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
+class TestBetaBernoulliRecoveryBase:
     """Test recovering Beta-Bernoulli conjugate posterior via VI."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
     @slow_test
-    def test_beta_bernoulli_conjugate(self) -> None:
+    def test_beta_bernoulli_conjugate(self, bkd) -> None:
         """Prior Beta(2,2), obs=[1,1,0,1,0] -> exact Beta(5,4)."""
-        bkd = self._bkd
         prior_alpha, prior_beta = 2.0, 2.0
         obs_list = [1.0, 1.0, 0.0, 1.0, 0.0]
 
@@ -353,7 +315,7 @@ class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
         # Bernoulli log-likelihood: sum_i obs_i*log(p) + (1-obs_i)*log(1-p)
         obs = bkd.asarray([obs_list])  # (1, 5)
 
-        def log_likelihood_fn(z: Array) -> Array:
+        def log_likelihood_fn(z):
             # z: (1, N) -- probability values in (0, 1)
             p = bkd.clip(z, 1e-8, 1.0 - 1e-8)
             log_p = bkd.log(p)  # (1, N)
@@ -392,22 +354,7 @@ class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
         )
 
 
-class TestBetaBernoulliRecoveryNumpy(
-    TestBetaBernoulliRecoveryBase[NDArray[Any]], unittest.TestCase
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBetaBernoulliRecoveryTorch(
-    TestBetaBernoulliRecoveryBase[torch.Tensor], unittest.TestCase
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
+class TestGaussianEquivalenceBase:
     """Test that ConditionalIndependentJoint with a single ConditionalGaussian
     produces identical results to a standalone ConditionalGaussian.
 
@@ -416,18 +363,8 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
     should agree to near machine precision.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_logpdf_equivalence(self) -> None:
+    def test_logpdf_equivalence(self, bkd) -> None:
         """logpdf from single vs joint-wrapped conditional agrees."""
-        bkd = self._bkd
-
         # Single ConditionalGaussian
         cond_single = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
 
@@ -442,10 +379,8 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
         logp_joint = cond_joint.logpdf(x, y)
         bkd.assert_allclose(logp_single, logp_joint, rtol=1e-12)
 
-    def test_reparameterize_equivalence(self) -> None:
+    def test_reparameterize_equivalence(self, bkd) -> None:
         """reparameterize from single vs joint-wrapped conditional agrees."""
-        bkd = self._bkd
-
         cond_single = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
 
         cond_inner = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
@@ -460,9 +395,8 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(z_single, z_joint, rtol=1e-12)
 
     @slow_test
-    def test_converged_optima_equivalence(self) -> None:
+    def test_converged_optima_equivalence(self, bkd) -> None:
         """Single conditional and joint-wrapped conditional converge to same result."""
-        bkd = self._bkd
         obs_matrix = bkd.asarray([[1.0]])
         observations = bkd.asarray([[2.0]])
         noise_var = 0.5
@@ -476,7 +410,7 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
             bkd,
         )
 
-        def log_likelihood_fn(z: Array) -> Array:
+        def log_likelihood_fn(z):
             return multi_lik.logpdf(obs_matrix @ z)
 
         np.random.seed(42)
@@ -529,21 +463,3 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
             bkd.asarray([joint_stdev]),
             rtol=1e-8,
         )
-
-
-class TestGaussianEquivalenceNumpy(
-    TestGaussianEquivalenceBase[NDArray[Any]], unittest.TestCase
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGaussianEquivalenceTorch(
-    TestGaussianEquivalenceBase[torch.Tensor], unittest.TestCase
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

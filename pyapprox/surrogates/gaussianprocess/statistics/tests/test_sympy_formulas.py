@@ -9,30 +9,28 @@ Tests use SymPy to verify symbolic expressions match expected forms.
 This catches formula errors early and serves as executable documentation.
 """
 
-import unittest
-
 from sympy import MatrixSymbol, Transpose, expand, simplify, symbols
 
 
-class TestMeanOfGPMeanFormulas(unittest.TestCase):
+class TestMeanOfGPMeanFormulas:
     """SymPy tests for mean and variance of GP mean formulas.
 
     Reference: docs/plans/gp_integration/02_1_mean_of_gp.qmd
 
     Code mapping (moments.py):
-    - η = τᵀA⁻¹y → mean_of_mean() returns eta = tau @ alpha
-    - ϖ = τᵀA⁻¹τ → computed as tau @ A_inv_tau in variance_of_mean()
-    - ς² = u - ϖ → computed as varsigma_sq = u - tau @ A_inv_tau
-    - Var[μ_f] = s²ς² → variance_of_mean() returns s2 * varsigma_sq
+    - eta = tau^T A^{-1} y -> mean_of_mean() returns eta = tau @ alpha
+    - varpi = tau^T A^{-1} tau -> computed as tau @ A_inv_tau in variance_of_mean()
+    - varsigma**2 = u - varpi -> computed as varsigma_sq = u - tau @ A_inv_tau
+    - Var[mu_f] = s**2 * varsigma**2 -> variance_of_mean() returns s2 * varsigma_sq
     """
 
     def test_varpi_derivation(self) -> None:
-        """Verify ϖ = τᵀA⁻¹τ simplification from double integral.
+        """Verify varpi = tau^T A^{-1} tau simplification from double integral.
 
         From @eq-varpi:
-        ϖ = ∫∫ t(z)ᵀ A⁻¹ t(w) dF(z)dF(w)
-          = (∫ t(z) dF(z))ᵀ A⁻¹ (∫ t(w) dF(w))
-          = τᵀ A⁻¹ τ
+        varpi = integral integral t(z)^T A^{-1} t(w) dF(z)dF(w)
+              = (integral t(z) dF(z))^T A^{-1} (integral t(w) dF(w))
+              = tau^T A^{-1} tau
 
         This verifies the linearity of integration allows factorization.
         """
@@ -46,17 +44,17 @@ class TestMeanOfGPMeanFormulas(unittest.TestCase):
         varpi = Transpose(tau) * A_inv * tau
 
         # Verify shape is scalar (1x1)
-        self.assertEqual(varpi.shape, (1, 1))
+        assert varpi.shape == (1, 1)
 
     def test_varsigma_sq_formula(self) -> None:
-        """Verify ς² = u - ϖ for variance of GP mean.
+        """Verify varsigma**2 = u - varpi for variance of GP mean.
 
         From @eq-varsigma-sq:
-        ς² = s⁻² Var[μ_f | θ, y] = u - ϖ
+        varsigma**2 = s**{-2} Var[mu_f | theta, y] = u - varpi
 
         where:
-        - u = ∫∫ C(z,w) dF(z)dF(w) (prior variance integral)
-        - ϖ = τᵀA⁻¹τ (reduction from conditioning)
+        - u = integral integral C(z,w) dF(z)dF(w) (prior variance integral)
+        - varpi = tau^T A^{-1} tau (reduction from conditioning)
         """
         u, varpi = symbols("u varpi", real=True, positive=True)
 
@@ -68,19 +66,19 @@ class TestMeanOfGPMeanFormulas(unittest.TestCase):
         # reduces variance)
         target = u - varpi
 
-        self.assertEqual(simplify(varsigma_sq - target), 0)
+        assert simplify(varsigma_sq - target) == 0
 
     def test_eta_dimension_check(self) -> None:
-        """Verify η = τᵀA⁻¹y has correct dimensions.
+        """Verify eta = tau^T A^{-1} y has correct dimensions.
 
         From @eq-eta:
-        η = E[μ_f | θ, y] = τᵀ A⁻¹ y
+        eta = E[mu_f | theta, y] = tau^T A^{-1} y
 
         Dimensions:
-        - τᵀ: 1 × N
-        - A⁻¹: N × N
-        - y: N × 1
-        - Result: 1 × 1 (scalar)
+        - tau^T: 1 x N
+        - A^{-1}: N x N
+        - y: N x 1
+        - Result: 1 x 1 (scalar)
         """
         N = symbols("N", integer=True, positive=True)
 
@@ -93,15 +91,15 @@ class TestMeanOfGPMeanFormulas(unittest.TestCase):
         eta = Transpose(tau) * A_inv * y
 
         # Verify shape is scalar (1x1)
-        self.assertEqual(eta.shape, (1, 1))
+        assert eta.shape == (1, 1)
 
     def test_tau_dimension_check(self) -> None:
-        """Verify τ = ∫ t(z) dF(z) has correct dimensions.
+        """Verify tau = integral t(z) dF(z) has correct dimensions.
 
         From @eq-tau:
-        τ = ∫ t(z) dF(z) ∈ ℝᴺ
+        tau = integral t(z) dF(z) in R^N
 
-        where t(z) ∈ ℝᴺ is the vector of kernel evaluations
+        where t(z) in R^N is the vector of kernel evaluations
         t(z)_j = k(z, x^(j)) for training points x^(j).
         """
         N = symbols("N", integer=True, positive=True)
@@ -110,17 +108,17 @@ class TestMeanOfGPMeanFormulas(unittest.TestCase):
         tau = MatrixSymbol("tau", N, 1)
 
         # Verify shape
-        self.assertEqual(tau.shape, (N, 1))
+        assert tau.shape == (N, 1)
 
 
-class TestVarianceOfVarianceFormulas(unittest.TestCase):
+class TestVarianceOfVarianceFormulas:
     """SymPy tests for variance of variance formulas.
 
     Reference: docs/plans/gp_integration/02_2_2_variance_of_variance.qmd
     """
 
     def test_E_Xi2_Xk2_from_isserlis(self) -> None:
-        """Verify E[X_i² X_k²] simplification from Isserlis' theorem.
+        """Verify E[X_i**2 X_k**2] simplification from Isserlis' theorem.
 
         From @eq-mgf-4-prod-gauss with i=j, k=l.
         """
@@ -142,31 +140,31 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         E_Xi2_Xk2_equal = E_Xi2_Xk2_general.subs([(mu_k, mu_i), (omega_kk, omega_ii)])
         E_Xi2_Xk2_simplified = simplify(E_Xi2_Xk2_equal)
 
-        # Target: 4*mu_i²*omega_ik + 2*omega_ik² + (mu_i² + omega_ii)²
+        # Target: 4*mu_i**2*omega_ik + 2*omega_ik**2 + (mu_i**2 + omega_ii)**2
         target = 4 * mu_i**2 * omega_ik + 2 * omega_ik**2 + (mu_i**2 + omega_ii) ** 2
 
-        self.assertEqual(simplify(E_Xi2_Xk2_simplified - target), 0)
+        assert simplify(E_Xi2_Xk2_simplified - target) == 0
 
     def test_chi_expansion(self) -> None:
-        """Verify χ = ν + varphi - 2ψ via algebraic expansion.
+        """Verify chi = nu + varphi - 2*psi via algebraic expansion.
 
-        χ = ∫∫ C*(x,z)² dF(x)dF(z)
-        where C*(x,z) = C(x,z) - t(x)ᵀA⁻¹t(z)
+        chi = integral integral C*(x,z)**2 dF(x)dF(z)
+        where C*(x,z) = C(x,z) - t(x)^T A^{-1} t(z)
 
-        Expanding (C - tᵀA⁻¹t)² gives:
-        C² + (tᵀA⁻¹t)² - 2C(tᵀA⁻¹t) = ν + varphi - 2ψ
+        Expanding (C - t^T A^{-1} t)**2 gives:
+        C**2 + (t^T A^{-1} t)**2 - 2*C*(t^T A^{-1} t) = nu + varphi - 2*psi
         """
         C, tAt = symbols("C tAt", real=True)
         C_star = C - tAt
         C_star_sq = expand(C_star**2)
 
-        # Target: C² + tAt² - 2*C*tAt
+        # Target: C**2 + tAt**2 - 2*C*tAt
         target = C**2 + tAt**2 - 2 * C * tAt
 
-        self.assertEqual(simplify(C_star_sq - target), 0)
+        assert simplify(C_star_sq - target) == 0
 
     def test_E_XiXjXk2_from_isserlis(self) -> None:
-        """Verify E[X_i X_j X_k²] with μ_i = μ_j from Isserlis' theorem.
+        """Verify E[X_i X_j X_k**2] with mu_i = mu_j from Isserlis' theorem.
 
         From @eq-mgf-4-prod-gauss with k=l.
         """
@@ -201,15 +199,15 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
             + mu_i**2 * omega_kk
         )
 
-        self.assertEqual(simplify(expand(E_XiXjXk2_equal) - expand(target)), 0)
+        assert simplify(expand(E_XiXjXk2_equal) - expand(target)) == 0
 
     def test_xi_expansion(self) -> None:
-        """Verify ξ = ξ₁ - 2ξ₂ + ξ₃ via algebraic expansion.
+        """Verify xi = xi_1 - 2*xi_2 + xi_3 via algebraic expansion.
 
-        ξ = ∫∫∫ C*(w,x)C*(w,z) dF³
-        where C*(a,b) = C(a,b) - t(a)ᵀA⁻¹t(b)
+        xi = integral integral integral C*(w,x)*C*(w,z) dF**3
+        where C*(a,b) = C(a,b) - t(a)^T A^{-1} t(b)
 
-        Expanding gives four terms that combine to ξ₁ - 2ξ₂ + ξ₃.
+        Expanding gives four terms that combine to xi_1 - 2*xi_2 + xi_3.
         """
         C_wx, C_wz, tAt_x, tAt_z = symbols("C_wx C_wz tAt_x tAt_z", real=True)
         C_star_wx = C_wx - tAt_x
@@ -219,53 +217,55 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Target: C_wx*C_wz - C_wx*tAt_z - C_wz*tAt_x + tAt_x*tAt_z
         target = C_wx * C_wz - C_wx * tAt_z - C_wz * tAt_x + tAt_x * tAt_z
 
-        self.assertEqual(simplify(product - target), 0)
+        assert simplify(product - target) == 0
 
     def test_vartheta3_from_fourth_moment(self) -> None:
-        """Verify ϑ₃ = 6η²ς²s² + 3ς⁴s⁴ + η⁴ from E[X⁴] for Gaussian.
+        """Verify vartheta_3 = 6*eta**2*varsigma**2*s**2 + 3*varsigma**4*s**4 + eta**4
+        from E[X**4] for Gaussian.
 
-        E[X⁴] for X ~ N(μ, σ²) is: μ⁴ + 6μ²σ² + 3σ⁴
+        E[X**4] for X ~ N(mu, sigma**2) is: mu**4 + 6*mu**2*sigma**2 + 3*sigma**4
 
-        For μ_f ~ N(η, s²ς²), substitute μ = η, σ² = s²ς²:
-        ϑ₃ = η⁴ + 6η²(s²ς²) + 3(s²ς²)² = η⁴ + 6η²ς²s² + 3ς⁴s⁴
+        For mu_f ~ N(eta, s**2*varsigma**2), substitute mu = eta, sigma**2 = s**2*varsigma**2:
+        vartheta_3 = eta**4 + 6*eta**2*(s**2*varsigma**2) + 3*(s**2*varsigma**2)**2
+                   = eta**4 + 6*eta**2*varsigma**2*s**2 + 3*varsigma**4*s**4
 
-        This verifies the correct formula is 3ς⁴s⁴, NOT 3ς²s² (typo).
+        This verifies the correct formula is 3*varsigma**4*s**4, NOT 3*varsigma**2*s**2 (typo).
         """
-        # E[X⁴] for X ~ N(μ, σ²)
+        # E[X**4] for X ~ N(mu, sigma**2)
         mu, sigma_sq = symbols("mu sigma_sq", real=True, positive=True)
         E_X4 = mu**4 + 6 * mu**2 * sigma_sq + 3 * sigma_sq**2
 
-        # Substitute for μ_f ~ N(η, s²ς²)
+        # Substitute for mu_f ~ N(eta, s**2*varsigma**2)
         eta, s_sq, varsigma_sq = symbols(
             "eta s_sq varsigma_sq", real=True, positive=True
         )
         vartheta3 = E_X4.subs([(mu, eta), (sigma_sq, s_sq * varsigma_sq)])
         vartheta3_expanded = expand(vartheta3)
 
-        # Expected correct form: η⁴ + 6η²ς²s² + 3ς⁴s⁴
+        # Expected correct form: eta**4 + 6*eta**2*varsigma**2*s**2 + 3*varsigma**4*s**4
         expected_correct = (
             eta**4 + 6 * eta**2 * varsigma_sq * s_sq + 3 * varsigma_sq**2 * s_sq**2
         )
 
-        # Wrong form (typo): η⁴ + 6η²ς²s² + 3ς²s²
+        # Wrong form (typo): eta**4 + 6*eta**2*varsigma**2*s**2 + 3*varsigma**2*s**2
         wrong_form = eta**4 + 6 * eta**2 * varsigma_sq * s_sq + 3 * varsigma_sq * s_sq
 
         # Verify correct formula matches
-        self.assertEqual(simplify(vartheta3_expanded - expected_correct), 0)
+        assert simplify(vartheta3_expanded - expected_correct) == 0
 
         # Verify wrong formula does NOT match
-        self.assertNotEqual(simplify(vartheta3_expanded - wrong_form), 0)
+        assert simplify(vartheta3_expanded - wrong_form) != 0
 
     def test_phi_integrand_expansion(self) -> None:
-        """Verify φ integrand: m*(x)·m*(z)·C*(x,z) expansion.
+        """Verify phi integrand: m*(x)*m*(z)*C*(x,z) expansion.
 
-        φ = ∫∫ m*(x)m*(z)C*(x,z) dFdF
+        phi = integral integral m*(x)*m*(z)*C*(x,z) dF dF
 
-        Expanding m*(x)·m*(z)·(C - tᵀA⁻¹t) gives two terms:
-        - Term 1: m*(x)·m*(z)·C(x,z) → yᵀA⁻¹ΠA⁻¹y
-        - Term 2: m*(x)·m*(z)·tᵀA⁻¹t → yᵀA⁻¹PA⁻¹PA⁻¹y
+        Expanding m*(x)*m*(z)*(C - t^T A^{-1} t) gives two terms:
+        - Term 1: m*(x)*m*(z)*C(x,z) -> y^T A^{-1} Pi A^{-1} y
+        - Term 2: m*(x)*m*(z)*t^T A^{-1} t -> y^T A^{-1} P A^{-1} P A^{-1} y
 
-        Therefore: φ = yᵀA⁻¹ΠA⁻¹y - yᵀA⁻¹PA⁻¹PA⁻¹y
+        Therefore: phi = y^T A^{-1} Pi A^{-1} y - y^T A^{-1} P A^{-1} P A^{-1} y
         """
         m_x, m_z, C_xz, tAt_xz = symbols("m_x m_z C_xz tAt_xz", real=True)
         integrand = m_x * m_z * (C_xz - tAt_xz)
@@ -274,18 +274,18 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Target: m_x*m_z*C_xz - m_x*m_z*tAt_xz
         target = m_x * m_z * C_xz - m_x * m_z * tAt_xz
 
-        self.assertEqual(simplify(expanded - target), 0)
+        assert simplify(expanded - target) == 0
 
     def test_varrho_integrand_expansion(self) -> None:
-        """Verify ϱ integrand: m*(x)·C*(x,z) expansion.
+        """Verify varrho integrand: m*(x)*C*(x,z) expansion.
 
-        ϱ = ∫∫ m*(x)C*(x,z) dFdF
+        varrho = integral integral m*(x)*C*(x,z) dF dF
 
-        Expanding m*(x)·(C - tᵀA⁻¹t) gives two terms:
-        - Term 1: m*(x)·C(x,z) → λᵀA⁻¹y
-        - Term 2: m*(x)·tᵀA⁻¹t → τᵀA⁻¹PA⁻¹y
+        Expanding m*(x)*(C - t^T A^{-1} t) gives two terms:
+        - Term 1: m*(x)*C(x,z) -> lambda^T A^{-1} y
+        - Term 2: m*(x)*t^T A^{-1} t -> tau^T A^{-1} P A^{-1} y
 
-        Therefore: ϱ = λᵀA⁻¹y - τᵀA⁻¹PA⁻¹y
+        Therefore: varrho = lambda^T A^{-1} y - tau^T A^{-1} P A^{-1} y
         """
         m_x, C_xz, tAt_xz = symbols("m_x C_xz tAt_xz", real=True)
         integrand = m_x * (C_xz - tAt_xz)
@@ -294,14 +294,14 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Target: m_x*C_xz - m_x*tAt_xz
         target = m_x * C_xz - m_x * tAt_xz
 
-        self.assertEqual(simplify(expanded - target), 0)
+        assert simplify(expanded - target) == 0
 
     def test_E_X4_for_gaussian(self) -> None:
-        """Verify E[X⁴] = μ⁴ + 6μ²σ² + 3σ⁴ for X ~ N(μ, σ²).
+        """Verify E[X**4] = mu**4 + 6*mu**2*sigma**2 + 3*sigma**4 for X ~ N(mu, sigma**2).
 
         This is a standard result (kurtosis formula).
         Using i=j=k=l in Isserlis' theorem:
-        E[X⁴] = 6μ²ω + 3ω² + μ⁴  where ω = σ²
+        E[X**4] = 6*mu**2*omega + 3*omega**2 + mu**4  where omega = sigma**2
         """
         mu, sigma_sq = symbols("mu sigma_sq", real=True, positive=True)
 
@@ -311,30 +311,30 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Standard form
         E_X4_standard = mu**4 + 6 * mu**2 * sigma_sq + 3 * sigma_sq**2
 
-        self.assertEqual(simplify(E_X4_isserlis - E_X4_standard), 0)
+        assert simplify(E_X4_isserlis - E_X4_standard) == 0
 
     def test_E_Xi2_Xk_Xl_from_isserlis(self) -> None:
-        """Verify E[X_i² X_k X_l] from Isserlis' theorem for ϑ₂.
+        """Verify E[X_i**2 X_k X_l] from Isserlis' theorem for vartheta_2.
 
-        For E[κμ²] = E[∫f²dF · (∫fdF)²], we need E[f(x)²f(w)f(z)].
+        For E[kappa*mu**2] = E[integral f**2 dF * (integral f dF)**2], we need E[f(x)**2*f(w)*f(z)].
         Using Isserlis with i=j (same point x), k (at w), l (at z):
 
-        E[X_i X_j X_k X_l] with i=j gives E[X_i² X_k X_l]
+        E[X_i X_j X_k X_l] with i=j gives E[X_i**2 X_k X_l]
 
         From the general Isserlis formula:
-        E[X_i X_j X_k X_l] = μ_i μ_j μ_k μ_l
-                          + ω_ij ω_kl + ω_ik ω_jl + ω_il ω_jk
+        E[X_i X_j X_k X_l] = mu_i mu_j mu_k mu_l
+                          + omega_ij omega_kl + omega_ik omega_jl + omega_il omega_jk
                           + (6 mixed terms with 2 means and 1 covariance)
 
         Setting i=j:
-        E[X_i² X_k X_l] = μ_i² μ_k μ_l
-                        + ω_ii ω_kl + ω_ik ω_il + ω_il ω_ik
-                        + μ_i μ_i ω_kl + μ_i μ_k ω_il + μ_i μ_l ω_ik
-                        + μ_i μ_k ω_il + μ_i μ_l ω_ik + μ_k μ_l ω_ii
+        E[X_i**2 X_k X_l] = mu_i**2 mu_k mu_l
+                        + omega_ii omega_kl + omega_ik omega_il + omega_il omega_ik
+                        + mu_i mu_i omega_kl + mu_i mu_k omega_il + mu_i mu_l omega_ik
+                        + mu_i mu_k omega_il + mu_i mu_l omega_ik + mu_k mu_l omega_ii
 
-        Simplifying (note ω_ik ω_il appears twice):
-        = μ_i² μ_k μ_l + ω_ii ω_kl + 2 ω_ik ω_il
-          + μ_i² ω_kl + 2 μ_i μ_k ω_il + 2 μ_i μ_l ω_ik + μ_k μ_l ω_ii
+        Simplifying (note omega_ik omega_il appears twice):
+        = mu_i**2 mu_k mu_l + omega_ii omega_kl + 2 omega_ik omega_il
+          + mu_i**2 omega_kl + 2 mu_i mu_k omega_il + 2 mu_i mu_l omega_ik + mu_k mu_l omega_ii
         """
         mu_i, mu_k, mu_l = symbols("mu_i mu_k mu_l", real=True)
         omega_ii, omega_kl, omega_ik, omega_il = symbols(
@@ -344,37 +344,37 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Direct derivation from Isserlis with i=j
         E_Xi2_Xk_Xl = (
             mu_i**2 * mu_k * mu_l  # all means
-            + omega_ii * omega_kl  # ω_ij ω_kl with i=j
-            + 2 * omega_ik * omega_il  # ω_ik ω_jl + ω_il ω_jk with i=j
-            + mu_i**2 * omega_kl  # μ_i μ_j ω_kl with i=j
-            + 2 * mu_i * mu_k * omega_il  # μ_i μ_k ω_jl + μ_j μ_k ω_il with i=j
-            + 2 * mu_i * mu_l * omega_ik  # μ_i μ_l ω_jk + μ_j μ_l ω_ik with i=j
-            + mu_k * mu_l * omega_ii  # μ_k μ_l ω_ij with i=j
+            + omega_ii * omega_kl  # omega_ij omega_kl with i=j
+            + 2 * omega_ik * omega_il  # omega_ik omega_jl + omega_il omega_jk with i=j
+            + mu_i**2 * omega_kl  # mu_i mu_j omega_kl with i=j
+            + 2 * mu_i * mu_k * omega_il  # mu_i mu_k omega_jl + mu_j mu_k omega_il with i=j
+            + 2 * mu_i * mu_l * omega_ik  # mu_i mu_l omega_jk + mu_j mu_l omega_ik with i=j
+            + mu_k * mu_l * omega_ii  # mu_k mu_l omega_ij with i=j
         )
 
-        # Verify the structure contains the key term 2*ω_ik*ω_il
-        # This is what generates the Γ integral when integrated
+        # Verify the structure contains the key term 2*omega_ik*omega_il
+        # This is what generates the Gamma integral when integrated
         coeff_omega_ik_omega_il = E_Xi2_Xk_Xl.coeff(omega_ik * omega_il)
-        self.assertEqual(coeff_omega_ik_omega_il, 2)
+        assert coeff_omega_ik_omega_il == 2
 
-        # Also verify ω_ii*ω_kl coefficient
+        # Also verify omega_ii*omega_kl coefficient
         coeff_omega_ii_omega_kl = E_Xi2_Xk_Xl.coeff(omega_ii * omega_kl)
-        self.assertEqual(coeff_omega_ii_omega_kl, 1)
+        assert coeff_omega_ii_omega_kl == 1
 
     def test_vartheta2_covariance_product_expansion(self) -> None:
-        """Verify the expansion of ∫∫∫ C*(x,w)C*(x,z) dF³ for ϑ₂.
+        """Verify the expansion of integral integral integral C*(x,w)*C*(x,z) dF**3 for vartheta_2.
 
-        The term 2*ω_ik*ω_il in E[X_i² X_k X_l] integrates to:
-        2s⁴ ∫∫∫ C*(x,w)C*(x,z) dF(x)dF(w)dF(z)
+        The term 2*omega_ik*omega_il in E[X_i**2 X_k X_l] integrates to:
+        2*s**4 integral integral integral C*(x,w)*C*(x,z) dF(x)dF(w)dF(z)
 
-        where C*(a,b) = C(a,b) - t(a)ᵀA⁻¹t(b).
+        where C*(a,b) = C(a,b) - t(a)^T A^{-1} t(b).
 
-        Expanding C*(x,w)C*(x,z):
-        = [C(x,w) - t(x)ᵀA⁻¹t(w)] [C(x,z) - t(x)ᵀA⁻¹t(z)]
-        = C(x,w)C(x,z)
-          - C(x,w) t(x)ᵀA⁻¹t(z)
-          - C(x,z) t(x)ᵀA⁻¹t(w)
-          + [t(x)ᵀA⁻¹t(w)] [t(x)ᵀA⁻¹t(z)]
+        Expanding C*(x,w)*C*(x,z):
+        = [C(x,w) - t(x)^T A^{-1} t(w)] [C(x,z) - t(x)^T A^{-1} t(z)]
+        = C(x,w)*C(x,z)
+          - C(x,w) t(x)^T A^{-1} t(z)
+          - C(x,z) t(x)^T A^{-1} t(w)
+          + [t(x)^T A^{-1} t(w)] [t(x)^T A^{-1} t(z)]
 
         After integration over (x, w, z), this gives 4 distinct terms.
         """
@@ -390,77 +390,77 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # Expected: C_xw*C_xz - C_xw*tAt_xz - C_xz*tAt_xw + tAt_xw*tAt_xz
         expected = C_xw * C_xz - C_xw * tAt_xz - C_xz * tAt_xw + tAt_xw * tAt_xz
 
-        self.assertEqual(simplify(product - expected), 0)
+        assert simplify(product - expected) == 0
 
-        # Verify the 4 terms are distinct (not reducible to 3 like in ξ)
+        # Verify the 4 terms are distinct (not reducible to 3 like in xi)
         # The cross terms -C_xw*tAt_xz and -C_xz*tAt_xw are NOT equal
         # because x appears in different kernel arguments
-        self.assertNotEqual(C_xw * tAt_xz, C_xz * tAt_xw)
+        assert C_xw * tAt_xz != C_xz * tAt_xw
 
     def test_vartheta2_integral_mapping(self) -> None:
-        """Verify the mapping from C*(x,w)C*(x,z) expansion to integral symbols.
+        """Verify the mapping from C*(x,w)*C*(x,z) expansion to integral symbols.
 
-        After expanding C*(x,w)C*(x,z) and integrating ∫∫∫ dF(x)dF(w)dF(z):
+        After expanding C*(x,w)*C*(x,z) and integrating integral integral integral dF(x)dF(w)dF(z):
 
-        Term 1: ∫∫∫ C(x,w)C(x,z) dF³ = ξ₁
-        Term 2: ∫∫∫ C(x,w) t(x)ᵀA⁻¹t(z) dF³ = βᵀΓ  (NOT ξ₂!)
-        Term 3: ∫∫∫ C(x,z) t(x)ᵀA⁻¹t(w) dF³ = βᵀΓ  (same as Term 2 by symmetry)
-        Term 4: ∫∫∫ [t(x)ᵀA⁻¹t(w)][t(x)ᵀA⁻¹t(z)] dF³ = βᵀPβ
+        Term 1: integral integral integral C(x,w)*C(x,z) dF**3 = xi_1
+        Term 2: integral integral integral C(x,w) t(x)^T A^{-1} t(z) dF**3 = beta^T Gamma  (NOT xi_2!)
+        Term 3: integral integral integral C(x,z) t(x)^T A^{-1} t(w) dF**3 = beta^T Gamma  (same as Term 2 by symmetry)
+        Term 4: integral integral integral [t(x)^T A^{-1} t(w)][t(x)^T A^{-1} t(z)] dF**3 = beta^T P beta
 
-        Combined: ξ₁ - 2βᵀΓ + βᵀPβ
+        Combined: xi_1 - 2*beta^T Gamma + beta^T P beta
 
         where:
-        - β = A⁻¹τ
-        - Γᵢ = ∫∫ C(xᵢ,z)C(z,v) dF(z)dF(v)
+        - beta = A^{-1} tau
+        - Gamma_i = integral integral C(x_i,z)*C(z,v) dF(z)dF(v)
 
-        NOTE: The old wrong formula used ξ = ξ₁ - 2ξ₂ + ξ₃ where ξ₂ = λᵀA⁻¹τ.
-        This is WRONG because ξ₂ comes from ∫∫∫ C(w,x) t(w)ᵀA⁻¹t(z) dF³
+        NOTE: The old wrong formula used xi = xi_1 - 2*xi_2 + xi_3 where xi_2 = lambda^T A^{-1} tau.
+        This is WRONG because xi_2 comes from integral integral integral C(w,x) t(w)^T A^{-1} t(z) dF**3
         where the kernel C(w,x) has w as first argument, not x.
 
-        The correct Term 2 has C(x,w) with x as first argument, giving Γ not λ.
+        The correct Term 2 has C(x,w) with x as first argument, giving Gamma not lambda.
         """
         # Define symbolic integral quantities
-        xi_1 = symbols("xi_1", real=True)  # ∫∫∫ C(x,w)C(x,z) dF³
-        beta_Gamma = symbols("beta_Gamma", real=True)  # βᵀΓ
-        beta_P_beta = symbols("beta_P_beta", real=True)  # βᵀPβ
+        xi_1 = symbols("xi_1", real=True)  # integral integral integral C(x,w)*C(x,z) dF**3
+        beta_Gamma = symbols("beta_Gamma", real=True)  # beta^T Gamma
+        beta_P_beta = symbols("beta_P_beta", real=True)  # beta^T P beta
 
-        # Correct combination from C*(x,w)C*(x,z) expansion
+        # Correct combination from C*(x,w)*C*(x,z) expansion
         correct_term = xi_1 - 2 * beta_Gamma + beta_P_beta
 
-        # Wrong combination that was used before (using ξ)
-        xi_2 = symbols("xi_2", real=True)  # λᵀA⁻¹τ (WRONG for this integral)
-        xi_3 = symbols("xi_3", real=True)  # τᵀA⁻¹PA⁻¹τ = βᵀPβ
+        # Wrong combination that was used before (using xi)
+        xi_2 = symbols("xi_2", real=True)  # lambda^T A^{-1} tau (WRONG for this integral)
+        xi_3 = symbols("xi_3", real=True)  # tau^T A^{-1} P A^{-1} tau = beta^T P beta
         wrong_term = xi_1 - 2 * xi_2 + xi_3
 
-        # These are NOT equal because beta_Gamma ≠ xi_2
-        # beta_Gamma = βᵀΓ where Γᵢ = ∫∫ C(xᵢ,z)C(z,v) dF²
-        # xi_2 = λᵀA⁻¹τ where λᵢ = ∫∫ C(x,z)C(x,xᵢ) dF²
+        # These are NOT equal because beta_Gamma != xi_2
+        # beta_Gamma = beta^T Gamma where Gamma_i = integral integral C(x_i,z)*C(z,v) dF**2
+        # xi_2 = lambda^T A^{-1} tau where lambda_i = integral integral C(x,z)*C(x,x_i) dF**2
         # The difference is which argument of C contains the training point
-        self.assertNotEqual(correct_term.subs(beta_P_beta, xi_3), wrong_term)
+        assert correct_term.subs(beta_P_beta, xi_3) != wrong_term
 
 
-class TestConditionalPFormulas(unittest.TestCase):
+class TestConditionalPFormulas:
     """SymPy tests for conditional P matrix formulas for sensitivity analysis.
 
     Reference: docs/plans/gp-stats-phase4-sensitivity-bugfix.md
 
     These tests verify the mathematical derivation that shows:
-    - Standard P_k: ∫ C(x, x^(i)) C(x, x^(j)) ρ(x) dx (single integration point)
-    - Conditional P̃_k: ∫∫ C(x, x^(i)) C(z, x^(j)) ρ(x)ρ(z) dx dz = τ_i · τ_j
+    - Standard P_k: integral C(x, x^(i)) C(x, x^(j)) rho(x) dx (single integration point)
+    - Conditional P_tilde_k: integral integral C(x, x^(i)) C(z, x^(j)) rho(x)rho(z) dx dz = tau_i * tau_j
 
-    The key insight is that P̃ factors into τ τᵀ because x and z are independent.
+    The key insight is that P_tilde factors into tau tau^T because x and z are independent.
     """
 
     def test_conditional_P_outer_product_factorization(self) -> None:
         """
-        Verify that P̃_{k,ij} = τ_{k,i} · τ_{k,j} for integrated-out dimensions.
+        Verify that P_tilde_{k,ij} = tau_{k,i} * tau_{k,j} for integrated-out dimensions.
 
         Mathematical derivation:
-        P̃_{k,ij} = ∫∫ C(x, x^(i)) C(z, x^(j)) ρ(x) ρ(z) dx dz
+        P_tilde_{k,ij} = integral integral C(x, x^(i)) C(z, x^(j)) rho(x) rho(z) dx dz
 
         Since x and z are INDEPENDENT integration variables:
-        = [∫ C(x, x^(i)) ρ(x) dx] · [∫ C(z, x^(j)) ρ(z) dz]
-        = τ_{k,i} · τ_{k,j}
+        = [integral C(x, x^(i)) rho(x) dx] * [integral C(z, x^(j)) rho(z) dz]
+        = tau_{k,i} * tau_{k,j}
 
         This test verifies this factorization symbolically with actual assertions.
         """
@@ -472,7 +472,7 @@ class TestConditionalPFormulas(unittest.TestCase):
         ell = symbols("ell", positive=True)  # Length scale
 
         # Use concrete Gaussian kernel for numerical verification
-        # k(a, b) = exp(-(a-b)²/(2ℓ²))
+        # k(a, b) = exp(-(a-b)**2/(2*ell**2))
         def gaussian_kernel(a, b):
             return exp(-((a - b) ** 2) / (2 * ell**2))
 
@@ -480,18 +480,18 @@ class TestConditionalPFormulas(unittest.TestCase):
         rho_x = exp(-(x**2) / 2) / sqrt(2 * pi)
         rho_z = exp(-(z**2) / 2) / sqrt(2 * pi)
 
-        # For a concrete case, verify numerically that P̃ = τ τᵀ
-        # τ_i = ∫ k(x, x_i) ρ(x) dx
+        # For a concrete case, verify numerically that P_tilde = tau tau^T
+        # tau_i = integral k(x, x_i) rho(x) dx
         tau_i_integrand = gaussian_kernel(x, x_i) * rho_x
         tau_j_integrand = gaussian_kernel(z, x_j) * rho_z
 
-        # P̃_{ij} integrand = k(x, x_i) k(z, x_j) ρ(x) ρ(z)
+        # P_tilde_{ij} integrand = k(x, x_i) k(z, x_j) rho(x) rho(z)
         P_tilde_integrand = (
             gaussian_kernel(x, x_i) * gaussian_kernel(z, x_j) * rho_x * rho_z
         )
 
         # The key mathematical fact: since x and z don't interact in the integrand,
-        # the double integral factors: ∫∫ f(x)g(z) dx dz = (∫ f(x) dx)(∫ g(z) dz)
+        # the double integral factors: integral integral f(x)g(z) dx dz = (integral f(x) dx)(integral g(z) dz)
         # This is because P_tilde_integrand = tau_i_integrand * tau_j_integrand
 
         # Verify the factorization algebraically
@@ -499,18 +499,16 @@ class TestConditionalPFormulas(unittest.TestCase):
         diff = simplify(P_tilde_integrand - product_of_integrands)
 
         # ASSERTION: The integrands are identical
-        self.assertEqual(
-            diff,
-            0,
-            f"P̃ integrand should equal τ_i integrand × τ_j integrand, "
-            f"but diff = {diff}",
+        assert diff == 0, (
+            f"P_tilde integrand should equal tau_i integrand x tau_j integrand, "
+            f"but diff = {diff}"
         )
 
     def test_conditional_P_vs_standard_P_no_factorization(self) -> None:
         """
-        Verify that standard P does NOT factor, unlike conditional P̃.
+        Verify that standard P does NOT factor, unlike conditional P_tilde.
 
-        Standard P: ∫ C(x, x^(i)) C(x, x^(j)) ρ(x) dx
+        Standard P: integral C(x, x^(i)) C(x, x^(j)) rho(x) dx
                    The SAME point x appears in BOTH kernels.
 
         The key point: k(x, x_i) * k(x, x_j) cannot be written as f(x_i) * g(x_j)
@@ -531,8 +529,8 @@ class TestConditionalPFormulas(unittest.TestCase):
 
         # Expand to see that x_i and x_j are coupled through x
         expanded = simplify(P_integrand)
-        # = exp(-[(x-x_i)² + (x-x_j)²]/(2ℓ²))
-        # = exp(-[2x² - 2x(x_i+x_j) + x_i² + x_j²]/(2ℓ²))
+        # = exp(-[(x-x_i)**2 + (x-x_j)**2]/(2*ell**2))
+        # = exp(-[2x**2 - 2x(x_i+x_j) + x_i**2 + x_j**2]/(2*ell**2))
 
         # The presence of the cross-term 2x(x_i + x_j) means this
         # cannot be factored as f(x, x_i) * g(x_j)
@@ -540,44 +538,44 @@ class TestConditionalPFormulas(unittest.TestCase):
         # ASSERTION: The integrand contains x_i and x_j together with x
         # (they are coupled, so the integral cannot factor)
         free_symbols = expanded.free_symbols
-        self.assertIn(x, free_symbols, "x should appear in integrand")
-        self.assertIn(x_i, free_symbols, "x_i should appear in integrand")
-        self.assertIn(x_j, free_symbols, "x_j should appear in integrand")
+        assert x in free_symbols, "x should appear in integrand"
+        assert x_i in free_symbols, "x_i should appear in integrand"
+        assert x_j in free_symbols, "x_j should appear in integrand"
 
     def test_cauchy_schwarz_inequality_P_geq_P_tilde(self) -> None:
         """
-        Verify that P_{k,ii} >= P̃_{k,ii} follows from Cauchy-Schwarz.
+        Verify that P_{k,ii} >= P_tilde_{k,ii} follows from Cauchy-Schwarz.
 
-        P_{k,ii} = ∫ C(x, x^(i))² ρ(x) dx = E[X²]
-        P̃_{k,ii} = (∫ C(x, x^(i)) ρ(x) dx)² = E[X]² = τ_i²
+        P_{k,ii} = integral C(x, x^(i))**2 rho(x) dx = E[X**2]
+        P_tilde_{k,ii} = (integral C(x, x^(i)) rho(x) dx)**2 = E[X]**2 = tau_i**2
 
-        By Cauchy-Schwarz (or Jensen's inequality): E[X²] >= E[X]²
-        Therefore: P_{k,ii} >= P̃_{k,ii}
+        By Cauchy-Schwarz (or Jensen's inequality): E[X**2] >= E[X]**2
+        Therefore: P_{k,ii} >= P_tilde_{k,ii}
         """
         from sympy import expand, symbols
 
         # Symbolic representation
-        E_X = symbols("E_X", real=True, positive=True)  # τ_i = E[k(x, x_i)]
-        symbols("E_X2", real=True, positive=True)  # E[k(x, x_i)²]
+        E_X = symbols("E_X", real=True, positive=True)  # tau_i = E[k(x, x_i)]
+        symbols("E_X2", real=True, positive=True)  # E[k(x, x_i)**2]
         Var_X = symbols("Var_X", real=True, positive=True)  # Var[k(x, x_i)]
 
-        # Variance definition: Var[X] = E[X²] - E[X]²
-        # Rearranging: E[X²] = Var[X] + E[X]²
+        # Variance definition: Var[X] = E[X**2] - E[X]**2
+        # Rearranging: E[X**2] = Var[X] + E[X]**2
         E_X2_expanded = Var_X + E_X**2
 
-        # Since variance is non-negative: E[X²] >= E[X]²
-        # P_{ii} = E[X²] >= E[X]² = P̃_{ii}
+        # Since variance is non-negative: E[X**2] >= E[X]**2
+        # P_{ii} = E[X**2] >= E[X]**2 = P_tilde_{ii}
 
         # Verify the algebraic identity
         diff = expand(E_X2_expanded - E_X**2)
-        self.assertEqual(diff, Var_X, "E[X²] - E[X]² should equal Var[X]")
+        assert diff == Var_X, "E[X**2] - E[X]**2 should equal Var[X]"
 
     def test_conditional_P_special_case_all_conditioned(self) -> None:
         """
         Verify that when all dimensions are conditioned, P_p = P (standard).
 
         index = [1, 1, ..., 1] means all dimensions use standard P_k.
-        The product ∏_k P_k gives the full P matrix.
+        The product prod_k P_k gives the full P matrix.
         """
         from sympy import MatrixSymbol, symbols
 
@@ -585,22 +583,22 @@ class TestConditionalPFormulas(unittest.TestCase):
         symbols("d", integer=True, positive=True)
 
         # When all dims are conditioned, we use P_k for each dimension
-        # P_p = ∏_k P_k = P (standard Hadamard product formula)
+        # P_p = prod_k P_k = P (standard Hadamard product formula)
         P = MatrixSymbol("P", N, N)
         P_p = MatrixSymbol("P_p", N, N)
 
         # For all conditioned case, P_p should equal P
         # This is verified in numerical tests; symbolically we just
         # confirm the shapes match
-        self.assertEqual(P.shape, P_p.shape)
+        assert P.shape == P_p.shape
 
     def test_conditional_P_special_case_none_conditioned(self) -> None:
         """
-        Verify that when no dimensions are conditioned, P_p = τ τᵀ.
+        Verify that when no dimensions are conditioned, P_p = tau tau^T.
 
-        index = [0, 0, ..., 0] means all dimensions use P̃_k = τ_k τ_k^T.
+        index = [0, 0, ..., 0] means all dimensions use P_tilde_k = tau_k tau_k^T.
         The Hadamard product of outer products gives another outer product:
-        ∏_k (τ_k τ_k^T) = (∏_k τ_k) (∏_k τ_k)^T = τ τ^T
+        prod_k (tau_k tau_k^T) = (prod_k tau_k) (prod_k tau_k)^T = tau tau^T
         """
         from sympy import MatrixSymbol, Transpose, symbols
 
@@ -609,12 +607,8 @@ class TestConditionalPFormulas(unittest.TestCase):
         # tau vector (N x 1)
         tau = MatrixSymbol("tau", N, 1)
 
-        # P_p = τ τᵀ when all dimensions are integrated out
+        # P_p = tau tau^T when all dimensions are integrated out
         P_p = tau * Transpose(tau)
 
         # Verify shape is (N, N)
-        self.assertEqual(P_p.shape, (N, N))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert P_p.shape == (N, N)

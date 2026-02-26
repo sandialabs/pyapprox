@@ -1,11 +1,7 @@
 """Tests for BraninFunction."""
 
 import math
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.benchmarks.functions.algebraic.branin import (
     BRANIN_GLOBAL_MINIMUM,
@@ -21,161 +17,131 @@ from pyapprox.interface.functions.protocols.function import (
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestBraninFunction(Generic[Array], unittest.TestCase):
+class TestBraninFunction:
     """Base tests for BraninFunction."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_protocol_compliance_function(self) -> None:
+    def test_protocol_compliance_function(self, bkd) -> None:
         """Test that BraninFunction satisfies FunctionProtocol."""
-        func = BraninFunction(self._bkd)
-        self.assertIsInstance(func, FunctionProtocol)
+        func = BraninFunction(bkd)
+        assert isinstance(func, FunctionProtocol)
 
-    def test_protocol_compliance_jacobian_hvp(self) -> None:
+    def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
         """Test that BraninFunction satisfies FunctionWithJacobianAndHVPProtocol."""
-        func = BraninFunction(self._bkd)
-        self.assertIsInstance(func, FunctionWithJacobianAndHVPProtocol)
+        func = BraninFunction(bkd)
+        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
 
-    def test_nvars(self) -> None:
+    def test_nvars(self, bkd) -> None:
         """Test nvars returns 2."""
-        func = BraninFunction(self._bkd)
-        self.assertEqual(func.nvars(), 2)
+        func = BraninFunction(bkd)
+        assert func.nvars() == 2
 
-    def test_nqoi(self) -> None:
+    def test_nqoi(self, bkd) -> None:
         """Test nqoi returns 1."""
-        func = BraninFunction(self._bkd)
-        self.assertEqual(func.nqoi(), 1)
+        func = BraninFunction(bkd)
+        assert func.nqoi() == 1
 
-    def test_evaluation_at_minimizer_1(self) -> None:
+    def test_evaluation_at_minimizer_1(self, bkd) -> None:
         """Test evaluation at first global minimizer."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         x1, x2 = BRANIN_MINIMIZERS[0]
-        sample = self._bkd.array([[x1], [x2]])
+        sample = bkd.array([[x1], [x2]])
         result = func(sample)
-        expected = self._bkd.array([[BRANIN_GLOBAL_MINIMUM]])
-        self._bkd.assert_allclose(result, expected, rtol=1e-4)
+        expected = bkd.array([[BRANIN_GLOBAL_MINIMUM]])
+        bkd.assert_allclose(result, expected, rtol=1e-4)
 
-    def test_evaluation_at_minimizer_2(self) -> None:
+    def test_evaluation_at_minimizer_2(self, bkd) -> None:
         """Test evaluation at second global minimizer."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         x1, x2 = BRANIN_MINIMIZERS[1]
-        sample = self._bkd.array([[x1], [x2]])
+        sample = bkd.array([[x1], [x2]])
         result = func(sample)
-        expected = self._bkd.array([[BRANIN_GLOBAL_MINIMUM]])
-        self._bkd.assert_allclose(result, expected, rtol=1e-4)
+        expected = bkd.array([[BRANIN_GLOBAL_MINIMUM]])
+        bkd.assert_allclose(result, expected, rtol=1e-4)
 
-    def test_evaluation_at_minimizer_3(self) -> None:
+    def test_evaluation_at_minimizer_3(self, bkd) -> None:
         """Test evaluation at third global minimizer."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         x1, x2 = BRANIN_MINIMIZERS[2]
-        sample = self._bkd.array([[x1], [x2]])
+        sample = bkd.array([[x1], [x2]])
         result = func(sample)
-        expected = self._bkd.array([[BRANIN_GLOBAL_MINIMUM]])
-        self._bkd.assert_allclose(result, expected, rtol=1e-4)
+        expected = bkd.array([[BRANIN_GLOBAL_MINIMUM]])
+        bkd.assert_allclose(result, expected, rtol=1e-4)
 
-    def test_evaluation_batch(self) -> None:
+    def test_evaluation_batch(self, bkd) -> None:
         """Test evaluation at multiple samples."""
-        func = BraninFunction(self._bkd)
-        samples = self._bkd.array(
+        func = BraninFunction(bkd)
+        samples = bkd.array(
             [
                 [0.0, -math.pi, math.pi],
                 [0.0, 12.275, 2.275],
             ]
         )
         result = func(samples)
-        self.assertEqual(result.shape, (1, 3))
+        assert result.shape == (1, 3)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test Jacobian has correct shape."""
-        func = BraninFunction(self._bkd)
-        sample = self._bkd.array([[0.5], [5.0]])
+        func = BraninFunction(bkd)
+        sample = bkd.array([[0.5], [5.0]])
         jac = func.jacobian(sample)
-        self.assertEqual(jac.shape, (1, 2))
+        assert jac.shape == (1, 2)
 
-    def test_jacobian_at_minimizer_near_zero(self) -> None:
+    def test_jacobian_at_minimizer_near_zero(self, bkd) -> None:
         """Test Jacobian at minimizer is near zero."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         x1, x2 = BRANIN_MINIMIZERS[1]
-        sample = self._bkd.array([[x1], [x2]])
+        sample = bkd.array([[x1], [x2]])
         jac = func.jacobian(sample)
         # At minimum, gradient should be near zero
-        self._bkd.assert_allclose(jac, self._bkd.zeros((1, 2)), atol=1e-3)
+        bkd.assert_allclose(jac, bkd.zeros((1, 2)), atol=1e-3)
 
-    def test_jacobian_invalid_shape(self) -> None:
+    def test_jacobian_invalid_shape(self, bkd) -> None:
         """Test Jacobian raises for invalid input shape."""
-        func = BraninFunction(self._bkd)
-        sample = self._bkd.array([[0.5, 0.1], [5.0, 3.0]])
-        with self.assertRaises(ValueError):
+        func = BraninFunction(bkd)
+        sample = bkd.array([[0.5, 0.1], [5.0, 3.0]])
+        with pytest.raises(ValueError):
             func.jacobian(sample)
 
-    def test_hvp_shape(self) -> None:
+    def test_hvp_shape(self, bkd) -> None:
         """Test HVP has correct shape."""
-        func = BraninFunction(self._bkd)
-        sample = self._bkd.array([[0.5], [5.0]])
-        vec = self._bkd.array([[1.0], [0.0]])
+        func = BraninFunction(bkd)
+        sample = bkd.array([[0.5], [5.0]])
+        vec = bkd.array([[1.0], [0.0]])
         hvp = func.hvp(sample, vec)
-        self.assertEqual(hvp.shape, (2, 1))
+        assert hvp.shape == (2, 1)
 
-    def test_hvp_invalid_sample_shape(self) -> None:
+    def test_hvp_invalid_sample_shape(self, bkd) -> None:
         """Test HVP raises for invalid sample shape."""
-        func = BraninFunction(self._bkd)
-        sample = self._bkd.array([[0.5, 0.1], [5.0, 3.0]])
-        vec = self._bkd.array([[1.0], [0.0]])
-        with self.assertRaises(ValueError):
+        func = BraninFunction(bkd)
+        sample = bkd.array([[0.5, 0.1], [5.0, 3.0]])
+        vec = bkd.array([[1.0], [0.0]])
+        with pytest.raises(ValueError):
             func.hvp(sample, vec)
 
-    def test_hvp_invalid_vec_shape(self) -> None:
+    def test_hvp_invalid_vec_shape(self, bkd) -> None:
         """Test HVP raises for invalid vec shape."""
-        func = BraninFunction(self._bkd)
-        sample = self._bkd.array([[0.5], [5.0]])
-        vec = self._bkd.array([[1.0, 0.0], [0.0, 1.0]])
-        with self.assertRaises(ValueError):
+        func = BraninFunction(bkd)
+        sample = bkd.array([[0.5], [5.0]])
+        vec = bkd.array([[1.0, 0.0], [0.0, 1.0]])
+        with pytest.raises(ValueError):
             func.hvp(sample, vec)
 
-    def test_derivative_checker_jacobian(self) -> None:
+    def test_derivative_checker_jacobian(self, bkd) -> None:
         """Test Jacobian passes derivative checker."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.5], [5.0]])
+        sample = bkd.array([[0.5], [5.0]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 5e-6)
+        assert error_ratio < 5e-6
 
-    def test_derivative_checker_hvp(self) -> None:
+    def test_derivative_checker_hvp(self, bkd) -> None:
         """Test HVP passes derivative checker."""
-        func = BraninFunction(self._bkd)
+        func = BraninFunction(bkd)
         checker = DerivativeChecker(func)
-        sample = self._bkd.array([[0.5], [5.0]])
+        sample = bkd.array([[0.5], [5.0]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 5e-6)
-
-
-class TestBraninFunctionNumpy(TestBraninFunction[NDArray[Any]]):
-    """NumPy backend tests for BraninFunction."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBraninFunctionTorch(TestBraninFunction[torch.Tensor]):
-    """PyTorch backend tests for BraninFunction."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert error_ratio < 5e-6

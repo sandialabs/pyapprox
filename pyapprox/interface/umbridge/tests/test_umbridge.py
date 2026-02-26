@@ -1,7 +1,8 @@
 """Tests for UMBridgeModel client."""
 
 import os
-import unittest
+
+import pytest
 
 from pyapprox.interface.umbridge.client import (
     UMBRIDGE_AVAILABLE,
@@ -10,8 +11,8 @@ from pyapprox.interface.umbridge.client import (
 from pyapprox.util.backends.numpy import NumpyBkd
 
 
-@unittest.skipUnless(UMBRIDGE_AVAILABLE, "umbridge package not installed")
-class TestUMBridgeModel(unittest.TestCase):
+@pytest.mark.skipif(not UMBRIDGE_AVAILABLE, reason="umbridge package not installed")
+class TestUMBridgeModel:
     """Tests for UMBridgeModel client.
 
     These tests spawn a real UMBridge server subprocess and test
@@ -19,7 +20,7 @@ class TestUMBridgeModel(unittest.TestCase):
     """
 
     @classmethod
-    def setUpClass(cls) -> None:
+    def setup_class(cls) -> None:
         """Start the test server."""
         cls.bkd = NumpyBkd()
         cls.url = "http://localhost:4242"
@@ -35,7 +36,7 @@ class TestUMBridgeModel(unittest.TestCase):
         )
 
     @classmethod
-    def tearDownClass(cls) -> None:
+    def teardown_class(cls) -> None:
         """Kill the test server."""
         UMBridgeModel.kill_server(cls.process, cls.out)
 
@@ -48,7 +49,7 @@ class TestUMBridgeModel(unittest.TestCase):
         samples = self.bkd.asarray([[1.0], [2.0]])
         values = model(samples)
 
-        self.assertEqual(values.shape, (1, 1))
+        assert values.shape == (1, 1)
         self.bkd.assert_allclose(values, self.bkd.asarray([[5.0]]))
 
     def test_batch_evaluation(self) -> None:
@@ -60,7 +61,7 @@ class TestUMBridgeModel(unittest.TestCase):
         samples = self.bkd.asarray([[1.0, 2.0], [2.0, 3.0]])
         values = model(samples)
 
-        self.assertEqual(values.shape, (1, 2))
+        assert values.shape == (1, 2)
         self.bkd.assert_allclose(values, self.bkd.asarray([[5.0, 13.0]]))
 
     def test_nvars_nqoi(self) -> None:
@@ -68,21 +69,21 @@ class TestUMBridgeModel(unittest.TestCase):
         config = {"nvars": 3}
         model = UMBridgeModel(self.url, "quadratic", self.bkd, config=config)
 
-        self.assertEqual(model.nvars(), 3)
-        self.assertEqual(model.nqoi(), 1)
+        assert model.nvars() == 3
+        assert model.nqoi() == 1
 
     def test_jacobian(self) -> None:
         """Test jacobian computation."""
         config = {"nvars": 2}
         model = UMBridgeModel(self.url, "quadratic", self.bkd, config=config)
 
-        self.assertTrue(model.has_jacobian())
+        assert model.has_jacobian()
 
         # Jacobian of sum(x_i^2) at [1, 2] is [2*1, 2*2] = [2, 4]
         sample = self.bkd.asarray([[1.0], [2.0]])
         jacobian = model.jacobian(sample)
 
-        self.assertEqual(jacobian.shape, (1, 2))
+        assert jacobian.shape == (1, 2)
         self.bkd.assert_allclose(jacobian, self.bkd.asarray([[2.0, 4.0]]))
 
     def test_linear_model_no_gradient(self) -> None:
@@ -91,9 +92,9 @@ class TestUMBridgeModel(unittest.TestCase):
         model = UMBridgeModel(self.url, "linear", self.bkd, config=config)
 
         # Linear model doesn't support gradient
-        self.assertFalse(model.has_jacobian())
+        assert not model.has_jacobian()
 
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             sample = self.bkd.asarray([[1.0], [2.0]])
             model.jacobian(sample)
 
@@ -106,7 +107,7 @@ class TestUMBridgeModel(unittest.TestCase):
         samples = self.bkd.asarray([[1.0], [2.0]])
         values = model(samples)
 
-        self.assertEqual(values.shape, (1, 1))
+        assert values.shape == (1, 1)
         self.bkd.assert_allclose(values, self.bkd.asarray([[3.0]]))
 
     def test_config_update(self) -> None:
@@ -114,11 +115,11 @@ class TestUMBridgeModel(unittest.TestCase):
         config = {"nvars": 2}
         model = UMBridgeModel(self.url, "quadratic", self.bkd, config=config)
 
-        self.assertEqual(model.nvars(), 2)
+        assert model.nvars() == 2
 
         # Update config
         model.set_config({"nvars": 3})
-        self.assertEqual(model.nvars(), 3)
+        assert model.nvars() == 3
 
     def test_repr(self) -> None:
         """Test string representation."""
@@ -126,21 +127,17 @@ class TestUMBridgeModel(unittest.TestCase):
         model = UMBridgeModel(self.url, "quadratic", self.bkd, config=config)
 
         repr_str = repr(model)
-        self.assertIn("UMBridgeModel", repr_str)
-        self.assertIn("quadratic", repr_str)
+        assert "UMBridgeModel" in repr_str
+        assert "quadratic" in repr_str
 
 
-@unittest.skipIf(UMBRIDGE_AVAILABLE, "Testing import error when not installed")
-class TestUMBridgeNotInstalled(unittest.TestCase):
+@pytest.mark.skipif(UMBRIDGE_AVAILABLE, reason="Testing import error when not installed")
+class TestUMBridgeNotInstalled:
     """Test behavior when umbridge is not installed."""
 
     def test_import_error(self) -> None:
         """Test that appropriate error is raised when umbridge not installed."""
         # This test only runs when umbridge is NOT installed
         bkd = NumpyBkd()
-        with self.assertRaises(ImportError):
+        with pytest.raises(ImportError):
             UMBridgeModel("http://localhost:4242", "test", bkd)
-
-
-if __name__ == "__main__":
-    unittest.main()

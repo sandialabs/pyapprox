@@ -3,12 +3,8 @@ Tests for ConditionalDenseCholGaussian and ConditionalLowRankCholGaussian.
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.probability.conditional.multivariate_gaussian import (
     ConditionalDenseCholGaussian,
@@ -21,9 +17,6 @@ from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_expansion(bkd, nvars_in, degree, nqoi, coeff=0.0):
@@ -93,50 +86,37 @@ def _make_low_rank(bkd, nvars_in, d, rank, degree, mean=0.0, log_diag=0.0):
     )
 
 
-class TestDenseCholBase(Generic[Array], unittest.TestCase):
+class TestDenseCholBase:
     """Tests for ConditionalDenseCholGaussian."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_basic_properties(self) -> None:
-        bkd = self._bkd
+    def test_basic_properties(self, bkd) -> None:
         cond = _make_dense_chol(bkd, nvars_in=2, d=3, degree=1)
-        self.assertEqual(cond.nvars(), 2)
-        self.assertEqual(cond.nqoi(), 3)
-        self.assertTrue(hasattr(cond, "hyp_list"))
+        assert cond.nvars() == 2
+        assert cond.nqoi() == 3
+        assert hasattr(cond, "hyp_list")
 
-    def test_logpdf_shape(self) -> None:
-        bkd = self._bkd
+    def test_logpdf_shape(self, bkd) -> None:
         cond = _make_dense_chol(bkd, nvars_in=1, d=2, degree=0)
         x = bkd.zeros((1, 5))
         y = bkd.zeros((2, 5))
         result = cond.logpdf(x, y)
-        self.assertEqual(result.shape, (1, 5))
+        assert result.shape == (1, 5)
 
-    def test_rvs_shape(self) -> None:
-        bkd = self._bkd
+    def test_rvs_shape(self, bkd) -> None:
         cond = _make_dense_chol(bkd, nvars_in=1, d=2, degree=0)
         x = bkd.zeros((1, 10))
         np.random.seed(42)
         y = cond.rvs(x)
-        self.assertEqual(y.shape, (2, 10))
+        assert y.shape == (2, 10)
 
-    def test_reparameterize_shape(self) -> None:
-        bkd = self._bkd
+    def test_reparameterize_shape(self, bkd) -> None:
         cond = _make_dense_chol(bkd, nvars_in=1, d=2, degree=0)
         x = bkd.zeros((1, 5))
         base = bkd.zeros((2, 5))
         z = cond.reparameterize(x, base)
-        self.assertEqual(z.shape, (2, 5))
+        assert z.shape == (2, 5)
 
-    def test_kl_divergence_shape(self) -> None:
-        bkd = self._bkd
+    def test_kl_divergence_shape(self, bkd) -> None:
         d = 2
         cond = _make_dense_chol(bkd, nvars_in=1, d=d, degree=0)
         prior = DenseCholeskyMultivariateGaussian(
@@ -146,11 +126,10 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         )
         x = bkd.zeros((1, 5))
         kl = cond.kl_divergence(x, prior)
-        self.assertEqual(kl.shape, (1, 5))
+        assert kl.shape == (1, 5)
 
-    def test_d1_logpdf_matches_univariate(self) -> None:
+    def test_d1_logpdf_matches_univariate(self, bkd) -> None:
         """d=1 with constant params matches 1D Gaussian logpdf."""
-        bkd = self._bkd
         mean_val = 1.5
         log_stdev_val = 0.3
         stdev = math.exp(log_stdev_val)
@@ -176,11 +155,10 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
                 rtol=1e-10,
             )
 
-    def test_d2_logpdf_constant_params(self) -> None:
+    def test_d2_logpdf_constant_params(self, bkd) -> None:
         """d=2 with constant params matches multivariate_normal logpdf."""
         from scipy.stats import multivariate_normal
 
-        bkd = self._bkd
         mean = np.array([1.0, -0.5])
         L = np.array([[1.5, 0.0], [0.3, 0.8]])
         cov = L @ L.T
@@ -207,10 +185,9 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
                 rtol=1e-10,
             )
 
-    def test_kl_matches_fixed_gaussian(self) -> None:
+    def test_kl_matches_fixed_gaussian(self, bkd) -> None:
         """KL with constant params matches
         DenseCholeskyMultivariateGaussian.kl_divergence."""
-        bkd = self._bkd
         d = 2
         mean_q = np.array([0.5, -0.3])
         L_q = np.array([[1.2, 0.0], [0.4, 0.9]])
@@ -250,9 +227,8 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
                 rtol=1e-10,
             )
 
-    def test_kl_self_is_zero(self) -> None:
+    def test_kl_self_is_zero(self, bkd) -> None:
         """KL(q || q) = 0 when variational matches prior."""
-        bkd = self._bkd
         d = 2
         # Prior = N(0, I)
         prior = DenseCholeskyMultivariateGaussian(
@@ -267,9 +243,8 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(kl, bkd.zeros((1, 3)), atol=1e-12)
 
-    def test_reparameterize_matches_manual(self) -> None:
+    def test_reparameterize_matches_manual(self, bkd) -> None:
         """z = mu + L @ eps for constant params."""
-        bkd = self._bkd
         d = 2
         mean = np.array([1.0, -0.5])
         L = np.array([[1.5, 0.0], [0.3, 0.8]])
@@ -288,45 +263,23 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         expected = bkd.asarray(mean.reshape(2, 1)) + bkd.asarray(L) @ eps
         bkd.assert_allclose(z, expected, rtol=1e-10)
 
-    def test_base_distribution(self) -> None:
-        bkd = self._bkd
+    def test_base_distribution(self, bkd) -> None:
         cond = _make_dense_chol(bkd, nvars_in=1, d=2, degree=0)
         base = cond.base_distribution()
-        self.assertEqual(base.nvars(), 2)
+        assert base.nvars() == 2
 
 
-class TestDenseCholNumpy(TestDenseCholBase[NDArray[Any]], unittest.TestCase):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDenseCholTorch(TestDenseCholBase[torch.Tensor], unittest.TestCase):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestLowRankBase(Generic[Array], unittest.TestCase):
+class TestLowRankBase:
     """Tests for ConditionalLowRankCholGaussian."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_basic_properties(self) -> None:
-        bkd = self._bkd
+    def test_basic_properties(self, bkd) -> None:
         cond = _make_low_rank(bkd, nvars_in=2, d=3, rank=1, degree=1)
-        self.assertEqual(cond.nvars(), 2)
-        self.assertEqual(cond.nqoi(), 3)
-        self.assertEqual(cond.rank(), 1)
-        self.assertTrue(hasattr(cond, "hyp_list"))
+        assert cond.nvars() == 2
+        assert cond.nqoi() == 3
+        assert cond.rank() == 1
+        assert hasattr(cond, "hyp_list")
 
-    def test_shapes(self) -> None:
-        bkd = self._bkd
+    def test_shapes(self, bkd) -> None:
         d = 2
         r = 1
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=r, degree=0)
@@ -339,16 +292,15 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         y = bkd.zeros((d, 5))
         base = bkd.zeros((d, 5))
 
-        self.assertEqual(cond.logpdf(x, y).shape, (1, 5))
-        self.assertEqual(cond.reparameterize(x, base).shape, (d, 5))
-        self.assertEqual(cond.kl_divergence(x, prior).shape, (1, 5))
+        assert cond.logpdf(x, y).shape == (1, 5)
+        assert cond.reparameterize(x, base).shape == (d, 5)
+        assert cond.kl_divergence(x, prior).shape == (1, 5)
 
         np.random.seed(42)
-        self.assertEqual(cond.rvs(x).shape, (d, 5))
+        assert cond.rvs(x).shape == (d, 5)
 
-    def test_rank0_is_diagonal(self) -> None:
+    def test_rank0_is_diagonal(self, bkd) -> None:
         """rank=0 gives diagonal covariance: logpdf matches independent Gaussians."""
-        bkd = self._bkd
         d = 2
         mean = np.array([1.0, -0.5])
         log_diag = np.array([0.3, -0.2])
@@ -374,9 +326,8 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
                 rtol=1e-10,
             )
 
-    def test_rank0_kl_self_zero(self) -> None:
+    def test_rank0_kl_self_zero(self, bkd) -> None:
         """rank=0, q = prior -> KL = 0."""
-        bkd = self._bkd
         d = 2
         prior = DenseCholeskyMultivariateGaussian(
             bkd.zeros((d, 1)),
@@ -388,13 +339,12 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         kl = cond.kl_divergence(x, prior)
         bkd.assert_allclose(kl, bkd.zeros((1, 3)), atol=1e-12)
 
-    def test_rankd_recovers_full_covariance_kl(self) -> None:
-        """rank=d can match any target covariance via D² + VV^T.
+    def test_rankd_recovers_full_covariance_kl(self, bkd) -> None:
+        """rank=d can match any target covariance via D^2 + VV^T.
 
-        Set up D and V so that D² + VV^T matches a known full covariance,
+        Set up D and V so that D^2 + VV^T matches a known full covariance,
         then verify KL matches the DenseChol version.
         """
-        bkd = self._bkd
         d = 2
         # Target covariance
         cov_target = np.array([[1.44, 0.36], [0.36, 0.97]])
@@ -410,7 +360,7 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         # Set D small and V = L_target
         D_diag = np.array([0.01, 0.01])  # small D
         V = L_target  # (d, d)
-        # cov ≈ 0.0001*I + L L^T ≈ cov_target
+        # cov = 0.0001*I + L L^T = cov_target
 
         mean_q = np.array([0.5, -0.3])
 
@@ -449,9 +399,8 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
             rtol=1e-8,
         )
 
-    def test_reparameterize_rank0(self) -> None:
+    def test_reparameterize_rank0(self, bkd) -> None:
         """rank=0: z = mu + D * eps."""
-        bkd = self._bkd
         d = 2
         mean = np.array([1.0, -0.5])
         log_diag = np.array([0.3, -0.2])
@@ -468,22 +417,7 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         expected = bkd.asarray(mean.reshape(2, 1)) + bkd.asarray(np.diag(stdevs)) @ eps
         bkd.assert_allclose(z, expected, rtol=1e-10)
 
-    def test_base_distribution(self) -> None:
-        bkd = self._bkd
+    def test_base_distribution(self, bkd) -> None:
         cond = _make_low_rank(bkd, nvars_in=1, d=2, rank=1, degree=0)
         base = cond.base_distribution()
-        self.assertEqual(base.nvars(), 2)  # d, not d + rank
-
-
-class TestLowRankNumpy(TestLowRankBase[NDArray[Any]], unittest.TestCase):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLowRankTorch(TestLowRankBase[torch.Tensor], unittest.TestCase):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+        assert base.nvars() == 2  # d, not d + rank

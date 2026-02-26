@@ -1,8 +1,7 @@
 """Tests for linear system solvers."""
 
-import unittest
-
 import numpy as np
+import pytest
 
 from pyapprox.optimization.linear import (
     BasisPursuitDenoisingSolver,
@@ -21,17 +20,14 @@ from pyapprox.util.backends.numpy import NumpyBkd
 class SolverTestBase:
     """Base class for solver tests."""
 
-    __test__ = False
-
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
         self.bkd = NumpyBkd()
 
 
-class TestLeastSquaresSolver(SolverTestBase, unittest.TestCase):
+class TestLeastSquaresSolver(SolverTestBase):
     """Tests for LeastSquaresSolver."""
-
-    __test__ = True
 
     def test_overdetermined_system(self):
         """Test solving overdetermined system."""
@@ -71,10 +67,8 @@ class TestLeastSquaresSolver(SolverTestBase, unittest.TestCase):
         self.bkd.assert_allclose(coef, coef_true, rtol=0.1)
 
 
-class TestRidgeRegressionSolver(SolverTestBase, unittest.TestCase):
+class TestRidgeRegressionSolver(SolverTestBase):
     """Tests for RidgeRegressionSolver."""
-
-    __test__ = True
 
     def test_reduces_to_lstsq_small_alpha(self):
         """Test that small alpha gives similar results to lstsq."""
@@ -106,13 +100,11 @@ class TestRidgeRegressionSolver(SolverTestBase, unittest.TestCase):
 
         norm_small = float(self.bkd.norm(coef_small))
         norm_large = float(self.bkd.norm(coef_large))
-        self.assertGreater(norm_small, norm_large)
+        assert norm_small > norm_large
 
 
-class TestLinearlyConstrainedLstSqSolver(SolverTestBase, unittest.TestCase):
+class TestLinearlyConstrainedLstSqSolver(SolverTestBase):
     """Tests for LinearlyConstrainedLstSqSolver."""
-
-    __test__ = True
 
     def test_single_constraint(self):
         """Test with a single linear constraint."""
@@ -130,7 +122,7 @@ class TestLinearlyConstrainedLstSqSolver(SolverTestBase, unittest.TestCase):
 
         # Check constraint is satisfied
         coef_sum = float(self.bkd.sum(coef))
-        self.assertAlmostEqual(coef_sum, 1.0, places=10)
+        assert coef_sum == pytest.approx(1.0, abs=1e-10)
 
     def test_multiple_constraints(self):
         """Test with multiple linear constraints."""
@@ -156,10 +148,8 @@ class TestLinearlyConstrainedLstSqSolver(SolverTestBase, unittest.TestCase):
         self.bkd.assert_allclose(residual, self.bkd.zeros_like(residual), atol=1e-10)
 
 
-class TestOMPSolver(SolverTestBase, unittest.TestCase):
+class TestOMPSolver(SolverTestBase):
     """Tests for OMPSolver."""
-
-    __test__ = True
 
     def test_recovers_sparse_signal(self):
         """Test recovery of sparse signal."""
@@ -178,7 +168,7 @@ class TestOMPSolver(SolverTestBase, unittest.TestCase):
 
         # Check sparse recovery
         self.bkd.assert_allclose(coef, coef_true, rtol=1e-5)
-        self.assertEqual(solver.termination_flag, OMPTerminationFlag.RESIDUAL_TOLERANCE)
+        assert solver.termination_flag == OMPTerminationFlag.RESIDUAL_TOLERANCE
 
     def test_respects_max_nonzeros(self):
         """Test that max_nonzeros is respected."""
@@ -192,13 +182,11 @@ class TestOMPSolver(SolverTestBase, unittest.TestCase):
 
         # Count non-zeros
         nonzero_count = np.sum(np.abs(self.bkd.to_numpy(coef)) > 1e-14)
-        self.assertLessEqual(nonzero_count, max_nonzeros)
+        assert nonzero_count <= max_nonzeros
 
 
-class TestBasisPursuitSolver(SolverTestBase, unittest.TestCase):
+class TestBasisPursuitSolver(SolverTestBase):
     """Tests for BasisPursuitSolver."""
-
-    __test__ = True
 
     def test_recovers_sparse_signal(self):
         """Test recovery of sparse signal."""
@@ -217,10 +205,8 @@ class TestBasisPursuitSolver(SolverTestBase, unittest.TestCase):
         self.bkd.assert_allclose(coef, coef_true, rtol=0.1, atol=0.1)
 
 
-class TestBasisPursuitDenoisingSolver(SolverTestBase, unittest.TestCase):
+class TestBasisPursuitDenoisingSolver(SolverTestBase):
     """Tests for BasisPursuitDenoisingSolver (LASSO)."""
-
-    __test__ = True
 
     def test_produces_sparse_solution(self):
         """Test that LASSO produces sparse solutions."""
@@ -235,13 +221,11 @@ class TestBasisPursuitDenoisingSolver(SolverTestBase, unittest.TestCase):
 
         # Count near-zero coefficients
         near_zero = np.sum(np.abs(self.bkd.to_numpy(coef)) < 0.1)
-        self.assertGreater(near_zero, 0)  # Some should be near zero
+        assert near_zero > 0  # Some should be near zero
 
 
-class TestQuantileRegressionSolver(SolverTestBase, unittest.TestCase):
+class TestQuantileRegressionSolver(SolverTestBase):
     """Tests for QuantileRegressionSolver."""
-
-    __test__ = True
 
     def test_median_regression(self):
         """Test median regression (quantile=0.5)."""
@@ -274,20 +258,18 @@ class TestQuantileRegressionSolver(SolverTestBase, unittest.TestCase):
 
         # Higher quantile should give higher prediction on average
         # This is a statistical test, may not always pass
-        self.assertLess(pred_low, pred_high + 1.0)
+        assert pred_low < pred_high + 1.0
 
     def test_invalid_quantile(self):
         """Test that invalid quantile raises error."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             QuantileRegressionSolver(self.bkd, quantile=1.5)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             QuantileRegressionSolver(self.bkd, quantile=-0.1)
 
 
-class TestExpectileRegressionSolver(SolverTestBase, unittest.TestCase):
+class TestExpectileRegressionSolver(SolverTestBase):
     """Tests for ExpectileRegressionSolver."""
-
-    __test__ = True
 
     def test_mean_regression(self):
         """Test mean regression (expectile=0.5 = OLS)."""
@@ -306,10 +288,8 @@ class TestExpectileRegressionSolver(SolverTestBase, unittest.TestCase):
         self.bkd.assert_allclose(coef, coef_lstsq, rtol=0.01)
 
 
-class TestWeightedSolving(SolverTestBase, unittest.TestCase):
+class TestWeightedSolving(SolverTestBase):
     """Tests for weighted solving."""
-
-    __test__ = True
 
     def test_weights_affect_solution(self):
         """Test that sample weights affect the solution."""
@@ -338,8 +318,4 @@ class TestWeightedSolving(SolverTestBase, unittest.TestCase):
 
         # Solutions should be different
         diff = float(self.bkd.norm(coef1 - coef2))
-        self.assertGreater(diff, 1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert diff > 1e-10

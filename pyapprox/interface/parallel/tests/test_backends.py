@@ -1,6 +1,6 @@
 """Tests for parallel execution backends."""
 
-import unittest
+import pytest
 
 # Check for optional dependencies
 try:
@@ -21,7 +21,7 @@ def _add(x: int, y: int) -> int:
     return x + y
 
 
-class TestJoblibBackend(unittest.TestCase):
+class TestJoblibBackend:
     """Tests for JoblibBackend."""
 
     def test_map_basic(self):
@@ -33,7 +33,7 @@ class TestJoblibBackend(unittest.TestCase):
         backend = JoblibBackend(n_jobs=2)
         items = [1, 2, 3, 4]
         result = backend.map(_square, items)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
         """Test map with empty input."""
@@ -43,7 +43,7 @@ class TestJoblibBackend(unittest.TestCase):
 
         backend = JoblibBackend(n_jobs=2)
         result = backend.map(_square, [])
-        self.assertEqual(list(result), [])
+        assert list(result) == []
 
     def test_starmap_basic(self):
         """Test basic starmap functionality."""
@@ -54,7 +54,7 @@ class TestJoblibBackend(unittest.TestCase):
         backend = JoblibBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
         result = backend.starmap(_add, items)
-        self.assertEqual(list(result), [3, 7, 11])
+        assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
         """Test backend name string."""
@@ -64,9 +64,9 @@ class TestJoblibBackend(unittest.TestCase):
 
         backend = JoblibBackend(n_jobs=4, prefer="threads")
         name = backend.backend_name()
-        self.assertIn("joblib", name)
-        self.assertIn("4", name)
-        self.assertIn("threads", name)
+        assert "joblib" in name
+        assert "4" in name
+        assert "threads" in name
 
     def test_override_n_jobs(self):
         """Test overriding n_jobs in method call."""
@@ -78,11 +78,11 @@ class TestJoblibBackend(unittest.TestCase):
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
         result = backend.map(_square, items, n_jobs=2)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
 
-@unittest.skipUnless(HAS_MPIRE, "mpire not installed")
-class TestMpireBackend(unittest.TestCase):
+@pytest.mark.skipif(not HAS_MPIRE, reason="mpire not installed")
+class TestMpireBackend:
     """Tests for MpireBackend."""
 
     def test_map_basic(self):
@@ -94,7 +94,7 @@ class TestMpireBackend(unittest.TestCase):
         backend = MpireBackend(n_jobs=2)
         items = [1, 2, 3, 4]
         result = backend.map(_square, items)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
         """Test map with empty input."""
@@ -104,7 +104,7 @@ class TestMpireBackend(unittest.TestCase):
 
         backend = MpireBackend(n_jobs=2)
         result = backend.map(_square, [])
-        self.assertEqual(list(result), [])
+        assert list(result) == []
 
     def test_starmap_basic(self):
         """Test basic starmap functionality."""
@@ -115,7 +115,7 @@ class TestMpireBackend(unittest.TestCase):
         backend = MpireBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
         result = backend.starmap(_add, items)
-        self.assertEqual(list(result), [3, 7, 11])
+        assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
         """Test backend name string."""
@@ -125,8 +125,8 @@ class TestMpireBackend(unittest.TestCase):
 
         backend = MpireBackend(n_jobs=4, progress_bar=True)
         name = backend.backend_name()
-        self.assertIn("mpire", name)
-        self.assertIn("4", name)
+        assert "mpire" in name
+        assert "4" in name
 
     def test_override_n_jobs(self):
         """Test overriding n_jobs in method call."""
@@ -138,10 +138,10 @@ class TestMpireBackend(unittest.TestCase):
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
         result = backend.map(_square, items, n_jobs=2)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
 
-class TestFuturesBackend(unittest.TestCase):
+class TestFuturesBackend:
     """Tests for FuturesBackend."""
 
     def test_map_basic(self):
@@ -153,7 +153,7 @@ class TestFuturesBackend(unittest.TestCase):
         backend = FuturesBackend(n_jobs=2)
         items = [1, 2, 3, 4]
         result = backend.map(_square, items)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
         """Test map with empty input."""
@@ -163,7 +163,7 @@ class TestFuturesBackend(unittest.TestCase):
 
         backend = FuturesBackend(n_jobs=2)
         result = backend.map(_square, [])
-        self.assertEqual(list(result), [])
+        assert list(result) == []
 
     def test_starmap_basic(self):
         """Test basic starmap functionality."""
@@ -174,7 +174,7 @@ class TestFuturesBackend(unittest.TestCase):
         backend = FuturesBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
         result = backend.starmap(_add, items)
-        self.assertEqual(list(result), [3, 7, 11])
+        assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
         """Test backend name string."""
@@ -184,8 +184,8 @@ class TestFuturesBackend(unittest.TestCase):
 
         backend = FuturesBackend(n_jobs=4)
         name = backend.backend_name()
-        self.assertIn("futures", name)
-        self.assertIn("4", name)
+        assert "futures" in name
+        assert "4" in name
 
     def test_override_n_jobs(self):
         """Test overriding n_jobs in method call."""
@@ -197,10 +197,10 @@ class TestFuturesBackend(unittest.TestCase):
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
         result = backend.map(_square, items, n_jobs=2)
-        self.assertEqual(list(result), [1, 4, 9, 16])
+        assert list(result) == [1, 4, 9, 16]
 
 
-class TestProtocolCompliance(unittest.TestCase):
+class TestProtocolCompliance:
     """Test that backends comply with ParallelBackendProtocol."""
 
     def test_joblib_protocol(self):
@@ -213,9 +213,9 @@ class TestProtocolCompliance(unittest.TestCase):
         )
 
         backend = JoblibBackend(n_jobs=2)
-        self.assertTrue(isinstance(backend, ParallelBackendProtocol))
+        assert isinstance(backend, ParallelBackendProtocol)
 
-    @unittest.skipUnless(HAS_MPIRE, "mpire not installed")
+    @pytest.mark.skipif(not HAS_MPIRE, reason="mpire not installed")
     def test_mpire_protocol(self):
         """Test MpireBackend implements protocol."""
         from pyapprox.interface.parallel.mpire_backend import (
@@ -226,7 +226,7 @@ class TestProtocolCompliance(unittest.TestCase):
         )
 
         backend = MpireBackend(n_jobs=2)
-        self.assertTrue(isinstance(backend, ParallelBackendProtocol))
+        assert isinstance(backend, ParallelBackendProtocol)
 
     def test_futures_protocol(self):
         """Test FuturesBackend implements protocol."""
@@ -238,8 +238,4 @@ class TestProtocolCompliance(unittest.TestCase):
         )
 
         backend = FuturesBackend(n_jobs=2)
-        self.assertTrue(isinstance(backend, ParallelBackendProtocol))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert isinstance(backend, ParallelBackendProtocol)

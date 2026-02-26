@@ -1,12 +1,10 @@
 """Tests for BivariateGaussianCopula."""
 
 import math
-import unittest
-from typing import Any, Generic
+
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from scipy import stats
 
 from pyapprox.probability.copula.bivariate.gaussian import (
@@ -19,10 +17,6 @@ from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
 from pyapprox.probability.copula.gaussian import GaussianCopula
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _scipy_bivariate_normal_cdf(
@@ -34,48 +28,46 @@ def _scipy_bivariate_normal_cdf(
     return stats.multivariate_normal.cdf(points, cov=cov)
 
 
-class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestBivariateGaussianCopula:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
+    def _make_copula(self, bkd, rho=0.6):
+        return BivariateGaussianCopula(rho, bkd)
 
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-        self._rho = 0.6
-        self._copula = BivariateGaussianCopula(self._rho, self._bkd)
+    def test_satisfies_protocol(self, bkd) -> None:
+        copula = self._make_copula(bkd)
+        assert isinstance(copula, BivariateCopulaProtocol)
 
-    def test_satisfies_protocol(self) -> None:
-        self.assertIsInstance(self._copula, BivariateCopulaProtocol)
+    def test_nparams(self, bkd) -> None:
+        copula = self._make_copula(bkd)
+        assert copula.nparams() == 1
 
-    def test_nparams(self) -> None:
-        self.assertEqual(self._copula.nparams(), 1)
-
-    def test_logpdf_shape(self) -> None:
+    def test_logpdf_shape(self, bkd) -> None:
+        copula = self._make_copula(bkd)
         np.random.seed(42)
-        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64))
-        result = self._copula.logpdf(u)
-        self.assertEqual(result.shape, (1, 20))
-
-    def test_logpdf_at_independence(self) -> None:
-        """With rho=0, the copula density is 1 (log c = 0)."""
-        copula = BivariateGaussianCopula(0.0, self._bkd)
-        np.random.seed(42)
-        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
+        u = bkd.asarray(np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64))
         result = copula.logpdf(u)
-        expected = self._bkd.zeros((1, 50))
-        self._bkd.assert_allclose(result, expected, atol=1e-10)
+        assert result.shape == (1, 20)
 
-    def test_logpdf_vs_numerical_cdf_derivative(self) -> None:
+    def test_logpdf_at_independence(self, bkd) -> None:
+        """With rho=0, the copula density is 1 (log c = 0)."""
+        copula = BivariateGaussianCopula(0.0, bkd)
+        np.random.seed(42)
+        u = bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
+        result = copula.logpdf(u)
+        expected = bkd.zeros((1, 50))
+        bkd.assert_allclose(result, expected, atol=1e-10)
+
+    def test_logpdf_vs_numerical_cdf_derivative(self, bkd) -> None:
         """Verify c(u1,u2) = d^2C/du1du2 via finite differences on scipy CDF."""
+        rho = 0.6
+        copula = self._make_copula(bkd, rho)
         np.random.seed(42)
         u_np = np.random.uniform(0.1, 0.9, (2, 15)).astype(np.float64)
         eps = 1e-5
-        rho = self._rho
 
-        u = self._bkd.asarray(u_np)
-        logpdf = self._copula.logpdf(u)
-        pdf_np = self._bkd.to_numpy(self._bkd.exp(logpdf))[0]
+        u = bkd.asarray(u_np)
+        logpdf = copula.logpdf(u)
+        pdf_np = bkd.to_numpy(bkd.exp(logpdf))[0]
 
         # d^2C/du1du2 via finite differences on scipy bivariate normal CDF
         stats.norm.ppf(u_np)
@@ -93,33 +85,35 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
 
         np.testing.assert_allclose(pdf_np, fd_pdf, rtol=1e-4)
 
-    def test_bivariate_matches_multivariate(self) -> None:
+    def test_bivariate_matches_multivariate(self, bkd) -> None:
         """BivariateGaussianCopula.logpdf matches GaussianCopula(d=2).logpdf."""
-        rho = self._rho
-        chol_lower = self._bkd.asarray([rho])
-        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
-        mv_copula = GaussianCopula(corr_param, self._bkd)
+        rho = 0.6
+        copula = self._make_copula(bkd, rho)
+        chol_lower = bkd.asarray([rho])
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, bkd)
+        mv_copula = GaussianCopula(corr_param, bkd)
 
         np.random.seed(42)
-        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
+        u = bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
 
-        bivar_logpdf = self._copula.logpdf(u)
+        bivar_logpdf = copula.logpdf(u)
         mv_logpdf = mv_copula.logpdf(u)
-        self._bkd.assert_allclose(bivar_logpdf, mv_logpdf, rtol=1e-10)
+        bkd.assert_allclose(bivar_logpdf, mv_logpdf, rtol=1e-10)
 
-    def test_h_function_is_conditional_cdf(self) -> None:
+    def test_h_function_is_conditional_cdf(self, bkd) -> None:
         """h(u1|u2) = dC(u1,u2)/du2 via finite differences on scipy CDF."""
+        rho = 0.6
+        copula = self._make_copula(bkd, rho)
         np.random.seed(42)
         u1_np = np.random.uniform(0.1, 0.9, (1, 15)).astype(np.float64)
         u2_np = np.random.uniform(0.1, 0.9, (1, 15)).astype(np.float64)
         eps = 1e-5
-        rho = self._rho
 
-        u1 = self._bkd.asarray(u1_np)
-        u2 = self._bkd.asarray(u2_np)
+        u1 = bkd.asarray(u1_np)
+        u2 = bkd.asarray(u2_np)
 
-        h_val = self._copula.h_function(u1, u2)
-        h_np = self._bkd.to_numpy(h_val)[0]
+        h_val = copula.h_function(u1, u2)
+        h_np = bkd.to_numpy(h_val)[0]
 
         # dC/du2 via central differences on scipy CDF
         z1 = stats.norm.ppf(u1_np[0])
@@ -132,80 +126,77 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
 
         np.testing.assert_allclose(h_np, fd_h, rtol=1e-4)
 
-    def test_h_inverse_roundtrip(self) -> None:
+    def test_h_inverse_roundtrip(self, bkd) -> None:
         """h_inverse(h(u1, u2), u2) = u1."""
+        copula = self._make_copula(bkd)
         np.random.seed(42)
-        u1 = self._bkd.asarray(
+        u1 = bkd.asarray(
             np.random.uniform(0.05, 0.95, (1, 30)).astype(np.float64)
         )
-        u2 = self._bkd.asarray(
+        u2 = bkd.asarray(
             np.random.uniform(0.05, 0.95, (1, 30)).astype(np.float64)
         )
 
-        v = self._copula.h_function(u1, u2)
-        u1_recovered = self._copula.h_inverse(v, u2)
-        self._bkd.assert_allclose(u1_recovered, u1, rtol=1e-10)
+        v = copula.h_function(u1, u2)
+        u1_recovered = copula.h_inverse(v, u2)
+        bkd.assert_allclose(u1_recovered, u1, rtol=1e-10)
 
-    def test_sample_shape_and_range(self) -> None:
+    def test_sample_shape_and_range(self, bkd) -> None:
+        copula = self._make_copula(bkd)
         np.random.seed(42)
-        samples = self._copula.sample(100)
-        self.assertEqual(samples.shape, (2, 100))
-        samples_np = self._bkd.to_numpy(samples)
-        self.assertTrue(np.all(samples_np > 0.0))
-        self.assertTrue(np.all(samples_np < 1.0))
+        samples = copula.sample(100)
+        assert samples.shape == (2, 100)
+        samples_np = bkd.to_numpy(samples)
+        assert np.all(samples_np > 0.0)
+        assert np.all(samples_np < 1.0)
 
-    def test_sample_kendall_tau(self) -> None:
+    def test_sample_kendall_tau(self, bkd) -> None:
         """Empirical Kendall's tau matches theoretical."""
+        rho = 0.6
+        copula = self._make_copula(bkd, rho)
         np.random.seed(42)
-        samples = self._copula.sample(10000)
-        samples_np = self._bkd.to_numpy(samples)
+        samples = copula.sample(10000)
+        samples_np = bkd.to_numpy(samples)
 
         tau_stat, _ = stats.kendalltau(samples_np[0], samples_np[1])
-        expected_tau = 2.0 / math.pi * math.asin(self._rho)
+        expected_tau = 2.0 / math.pi * math.asin(rho)
         np.testing.assert_allclose(tau_stat, expected_tau, atol=0.03)
 
-    def test_kendall_tau_value(self) -> None:
+    def test_kendall_tau_value(self, bkd) -> None:
         """Analytical Kendall's tau = 2/pi * arcsin(rho)."""
-        tau = self._copula.kendall_tau()
-        expected = 2.0 / math.pi * math.asin(self._rho)
-        self._bkd.assert_allclose(
-            self._bkd.atleast_1d(tau),
-            self._bkd.asarray([expected]),
+        rho = 0.6
+        copula = self._make_copula(bkd, rho)
+        tau = copula.kendall_tau()
+        expected = 2.0 / math.pi * math.asin(rho)
+        bkd.assert_allclose(
+            bkd.atleast_1d(tau),
+            bkd.asarray([expected]),
             rtol=1e-12,
         )
 
-    def test_input_validation_1d(self) -> None:
-        u_1d = self._bkd.asarray([0.5, 0.5])
-        with self.assertRaises(ValueError):
-            self._copula.logpdf(u_1d)
+    def test_input_validation_1d(self, bkd) -> None:
+        copula = self._make_copula(bkd)
+        u_1d = bkd.asarray([0.5, 0.5])
+        with pytest.raises(ValueError):
+            copula.logpdf(u_1d)
 
-    def test_input_validation_wrong_nvars(self) -> None:
-        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
-        with self.assertRaises(ValueError):
-            self._copula.logpdf(u)
+    def test_input_validation_wrong_nvars(self, bkd) -> None:
+        copula = self._make_copula(bkd)
+        u = bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
+        with pytest.raises(ValueError):
+            copula.logpdf(u)
 
-    def test_negative_rho(self) -> None:
+    def test_negative_rho(self, bkd) -> None:
         """Negative correlation should work correctly."""
-        copula = BivariateGaussianCopula(-0.5, self._bkd)
+        copula = BivariateGaussianCopula(-0.5, bkd)
         np.random.seed(42)
-        u = self._bkd.asarray(np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64))
+        u = bkd.asarray(np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64))
         result = copula.logpdf(u)
-        self.assertEqual(result.shape, (1, 20))
+        assert result.shape == (1, 20)
 
         # Cross-validate with multivariate
-        chol_lower = self._bkd.asarray([-0.5])
-        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
-        mv_copula = GaussianCopula(corr_param, self._bkd)
+        chol_lower = bkd.asarray([-0.5])
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, bkd)
+        mv_copula = GaussianCopula(corr_param, bkd)
         mv_logpdf = mv_copula.logpdf(u)
-        self._bkd.assert_allclose(result, mv_logpdf, rtol=1e-10)
-
-
-class TestBivariateGaussianCopulaNumpy(TestBivariateGaussianCopula[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBivariateGaussianCopulaTorch(TestBivariateGaussianCopula[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        bkd.assert_allclose(result, mv_logpdf, rtol=1e-10)

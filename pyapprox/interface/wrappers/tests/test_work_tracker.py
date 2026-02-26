@@ -1,10 +1,6 @@
 """Tests for WorkTracker and TrackedModel."""
 
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
@@ -16,227 +12,177 @@ from pyapprox.interface.wrappers.work_tracker import (
     TrackedModel,
     WorkTracker,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestWorkTracker(Generic[Array], unittest.TestCase):
+class TestWorkTracker:
     """Base tests for WorkTracker."""
 
-    __test__ = False
+    def _setup(self, bkd):
+        self.tracker = WorkTracker(bkd)
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-        self.tracker = WorkTracker(self._bkd)
-
-    def test_initial_state(self) -> None:
+    def test_initial_state(self, bkd) -> None:
         """Test that tracker starts empty."""
-        self.assertEqual(self.tracker.num_evaluations("values"), 0)
-        self.assertEqual(self.tracker.total_time("values"), 0.0)
-        self.assertEqual(self.tracker.mean_time("values"), 0.0)
+        self._setup(bkd)
+        assert self.tracker.num_evaluations("values") == 0
+        assert self.tracker.total_time("values") == 0.0
+        assert self.tracker.mean_time("values") == 0.0
 
-    def test_record_single(self) -> None:
+    def test_record_single(self, bkd) -> None:
         """Test recording a single evaluation."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
-        self.assertEqual(self.tracker.num_evaluations("values"), 1)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self.tracker.total_time("values")]),
-            self._bkd.asarray([0.5]),
+        assert self.tracker.num_evaluations("values") == 1
+        bkd.assert_allclose(
+            bkd.asarray([self.tracker.total_time("values")]),
+            bkd.asarray([0.5]),
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self.tracker.mean_time("values")]),
-            self._bkd.asarray([0.5]),
+        bkd.assert_allclose(
+            bkd.asarray([self.tracker.mean_time("values")]),
+            bkd.asarray([0.5]),
         )
 
-    def test_record_multiple(self) -> None:
+    def test_record_multiple(self, bkd) -> None:
         """Test recording multiple evaluations."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
         self.tracker.record("values", 0.3)
         self.tracker.record("values", 0.2)
-        self.assertEqual(self.tracker.num_evaluations("values"), 3)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self.tracker.total_time("values")]),
-            self._bkd.asarray([1.0]),
+        assert self.tracker.num_evaluations("values") == 3
+        bkd.assert_allclose(
+            bkd.asarray([self.tracker.total_time("values")]),
+            bkd.asarray([1.0]),
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self.tracker.mean_time("values")]),
-            self._bkd.asarray([1.0 / 3]),
+        bkd.assert_allclose(
+            bkd.asarray([self.tracker.mean_time("values")]),
+            bkd.asarray([1.0 / 3]),
         )
 
-    def test_record_different_types(self) -> None:
+    def test_record_different_types(self, bkd) -> None:
         """Test recording different evaluation types."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
         self.tracker.record("jacobian", 0.3)
         self.tracker.record("hessian", 0.2)
 
-        self.assertEqual(self.tracker.num_evaluations("values"), 1)
-        self.assertEqual(self.tracker.num_evaluations("jacobian"), 1)
-        self.assertEqual(self.tracker.num_evaluations("hessian"), 1)
-        self.assertEqual(self.tracker.num_evaluations("hvp"), 0)
+        assert self.tracker.num_evaluations("values") == 1
+        assert self.tracker.num_evaluations("jacobian") == 1
+        assert self.tracker.num_evaluations("hessian") == 1
+        assert self.tracker.num_evaluations("hvp") == 0
 
-    def test_record_invalid_type(self) -> None:
+    def test_record_invalid_type(self, bkd) -> None:
         """Test that invalid eval types raise error."""
-        with self.assertRaises(ValueError):
+        self._setup(bkd)
+        with pytest.raises(ValueError):
             self.tracker.record("invalid", 0.5)
 
-    def test_reset_single_type(self) -> None:
+    def test_reset_single_type(self, bkd) -> None:
         """Test resetting a single evaluation type."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
         self.tracker.record("jacobian", 0.3)
         self.tracker.reset("values")
 
-        self.assertEqual(self.tracker.num_evaluations("values"), 0)
-        self.assertEqual(self.tracker.num_evaluations("jacobian"), 1)
+        assert self.tracker.num_evaluations("values") == 0
+        assert self.tracker.num_evaluations("jacobian") == 1
 
-    def test_reset_all(self) -> None:
+    def test_reset_all(self, bkd) -> None:
         """Test resetting all evaluation types."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
         self.tracker.record("jacobian", 0.3)
         self.tracker.reset()
 
-        self.assertEqual(self.tracker.num_evaluations("values"), 0)
-        self.assertEqual(self.tracker.num_evaluations("jacobian"), 0)
+        assert self.tracker.num_evaluations("values") == 0
+        assert self.tracker.num_evaluations("jacobian") == 0
 
-    def test_wall_times_array(self) -> None:
+    def test_wall_times_array(self, bkd) -> None:
         """Test getting wall times as array."""
+        self._setup(bkd)
         self.tracker.record("values", 0.5)
         self.tracker.record("values", 0.3)
         wall_times = self.tracker.wall_times("values")
-        self._bkd.assert_allclose(wall_times, self._bkd.asarray([0.5, 0.3]))
+        bkd.assert_allclose(wall_times, bkd.asarray([0.5, 0.3]))
 
-    def test_repr(self) -> None:
+    def test_repr(self, bkd) -> None:
         """Test string representation."""
-        self.assertIn("empty", repr(self.tracker))
+        self._setup(bkd)
+        assert "empty" in repr(self.tracker)
         self.tracker.record("values", 0.5)
-        self.assertIn("values", repr(self.tracker))
+        assert "values" in repr(self.tracker)
 
 
-class TestTrackedModel(Generic[Array], unittest.TestCase):
+class TestTrackedModel:
     """Base tests for TrackedModel."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
+    def _setup(self, bkd):
         # Create a simple test function
-        def fun(samples: Array) -> Array:
+        def fun(samples):
             return samples[0:1, :] ** 2
 
-        def jac(sample: Array) -> Array:
+        def jac(sample):
             return 2 * sample.T
 
-        self.model = FunctionFromCallable(nqoi=1, nvars=2, fun=fun, bkd=self._bkd)
+        self.model = FunctionFromCallable(nqoi=1, nvars=2, fun=fun, bkd=bkd)
         self.model_with_jac = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=2, fun=fun, jacobian=jac, bkd=self._bkd
+            nqoi=1, nvars=2, fun=fun, jacobian=jac, bkd=bkd
         )
-        self.tracker = WorkTracker(self._bkd)
+        self.tracker = WorkTracker(bkd)
         self.tracked = TrackedModel(self.model, self.tracker)
         self.tracked_with_jac = TrackedModel(self.model_with_jac, self.tracker)
 
-    def test_passthrough_nvars_nqoi(self) -> None:
+    def test_passthrough_nvars_nqoi(self, bkd) -> None:
         """Test that nvars and nqoi pass through."""
-        self.assertEqual(self.tracked.nvars(), 2)
-        self.assertEqual(self.tracked.nqoi(), 1)
+        self._setup(bkd)
+        assert self.tracked.nvars() == 2
+        assert self.tracked.nqoi() == 1
 
-    def test_passthrough_bkd(self) -> None:
+    def test_passthrough_bkd(self, bkd) -> None:
         """Test that bkd passes through."""
-        self.assertIs(self.tracked.bkd(), self._bkd)
+        self._setup(bkd)
+        assert self.tracked.bkd() is bkd
 
-    def test_call_tracks_time(self) -> None:
+    def test_call_tracks_time(self, bkd) -> None:
         """Test that __call__ tracks time."""
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        self._setup(bkd)
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         values = self.tracked(samples)
 
         # Check values are correct
-        expected = self._bkd.asarray([[1.0, 4.0]])
-        self._bkd.assert_allclose(values, expected)
+        expected = bkd.asarray([[1.0, 4.0]])
+        bkd.assert_allclose(values, expected)
 
         # Check tracking
-        self.assertEqual(self.tracker.num_evaluations("values"), 1)
-        self.assertGreater(self.tracker.total_time("values"), 0.0)
+        assert self.tracker.num_evaluations("values") == 1
+        assert self.tracker.total_time("values") > 0.0
 
-    def test_jacobian_tracks_time(self) -> None:
+    def test_jacobian_tracks_time(self, bkd) -> None:
         """Test that jacobian tracks time."""
-        sample = self._bkd.asarray([[1.0], [2.0]])
+        self._setup(bkd)
+        sample = bkd.asarray([[1.0], [2.0]])
         jacobian = self.tracked_with_jac.jacobian(sample)
 
         # Check jacobian shape
-        self.assertEqual(jacobian.shape, (1, 2))
+        assert jacobian.shape == (1, 2)
 
         # Check tracking
-        self.assertEqual(self.tracker.num_evaluations("jacobian"), 1)
-        self.assertGreater(self.tracker.total_time("jacobian"), 0.0)
+        assert self.tracker.num_evaluations("jacobian") == 1
+        assert self.tracker.total_time("jacobian") > 0.0
 
-    def test_wrapped_model_access(self) -> None:
+    def test_wrapped_model_access(self, bkd) -> None:
         """Test access to wrapped model."""
-        self.assertIs(self.tracked.wrapped(), self.model)
+        self._setup(bkd)
+        assert self.tracked.wrapped() is self.model
 
-    def test_tracker_access(self) -> None:
+    def test_tracker_access(self, bkd) -> None:
         """Test access to tracker."""
-        self.assertIs(self.tracked.tracker(), self.tracker)
+        self._setup(bkd)
+        assert self.tracked.tracker() is self.tracker
 
-    def test_dynamic_method_binding(self) -> None:
+    def test_dynamic_method_binding(self, bkd) -> None:
         """Test that jacobian method only exists if model has it."""
+        self._setup(bkd)
         # Model without jacobian
-        self.assertFalse(hasattr(self.tracked, "jacobian"))
+        assert not hasattr(self.tracked, "jacobian")
 
         # Model with jacobian
-        self.assertTrue(hasattr(self.tracked_with_jac, "jacobian"))
-
-
-class TestWorkTrackerNumpy(TestWorkTracker[NDArray[Any]]):
-    """NumPy backend tests for WorkTracker."""
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestTrackedModelNumpy(TestTrackedModel[NDArray[Any]]):
-    """NumPy backend tests for TrackedModel."""
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestWorkTrackerTorch(TestWorkTracker[torch.Tensor]):
-    """PyTorch backend tests for WorkTracker."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-class TestTrackedModelTorch(TestTrackedModel[torch.Tensor]):
-    """PyTorch backend tests for TrackedModel."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert hasattr(self.tracked_with_jac, "jacobian")

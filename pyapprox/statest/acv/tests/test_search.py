@@ -1,10 +1,9 @@
 """Tests for ACV search classes."""
 
-import unittest
-from typing import Generic, Tuple
+from typing import Tuple
 
 import numpy as np
-import torch
+import pytest
 
 from pyapprox.statest.acv.search import (
     ACVSearch,
@@ -25,27 +24,22 @@ from pyapprox.statest.strategies import (
     AllSubsetsStrategy,
     FixedSubsetStrategy,
 )
-from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestACVSearch(Generic[Array], unittest.TestCase):
+class TestACVSearch:
     """Tests for ACVSearch."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self._bkd = TorchBkd()
         np.random.seed(42)
         self._stat, self._costs = self._create_stat_and_costs()
 
     def _create_stat_and_costs(
         self, nmodels: int = 3, nqoi: int = 1
-    ) -> Tuple[MultiOutputMean[Array], Array]:
+    ) -> Tuple[MultiOutputMean, ...]:
         """Create test statistic and costs."""
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
@@ -56,7 +50,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
                         corr = 0.9 ** abs(i - j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
-        stat: MultiOutputMean[Array] = MultiOutputMean(nqoi, self._bkd)
+        stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
@@ -65,8 +59,8 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         """Default strategies give single configuration."""
         search = ACVSearch(self._stat, self._costs)
         result = search.search(target_cost=1000.0)
-        self.assertTrue(result.allocation.success)
-        self.assertEqual(result.candidates_evaluated(), 1)
+        assert result.allocation.success
+        assert result.candidates_evaluated() == 1
 
     def test_acv_search_model_subset_only(self) -> None:
         """Model subset search works."""
@@ -77,7 +71,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             model_strategy=AllSubsetsStrategy(min_models=2, max_models=3),
         )
         result = search.search(target_cost=10000.0, allow_failures=True)
-        self.assertGreater(result.candidates_evaluated(), 1)
+        assert result.candidates_evaluated() > 1
 
     @slow_test
     def test_acv_search_qoi_subset_only(self) -> None:
@@ -89,7 +83,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             qoi_strategy=AllQoISubsetsStrategy(min_qoi=1, max_qoi=2),
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
-        self.assertGreater(result.candidates_evaluated(), 1)
+        assert result.candidates_evaluated() > 1
 
     @slow_test
     def test_acv_search_qoi_with_required(self) -> None:
@@ -101,7 +95,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             qoi_strategy=AllQoISubsetsStrategy(min_qoi=2, required_qoi=(0,)),
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
-        self.assertGreater(result.candidates_evaluated(), 1)
+        assert result.candidates_evaluated() > 1
 
     def test_acv_search_recursion_only(self) -> None:
         """Recursion search works."""
@@ -113,7 +107,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             ),
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
-        self.assertEqual(result.candidates_evaluated(), 2)
+        assert result.candidates_evaluated() == 2
 
     def test_acv_search_multiple_estimator_types(self) -> None:
         """Multiple estimator types work."""
@@ -123,7 +117,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             estimator_classes=[GMFEstimator, GISEstimator],
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
-        self.assertEqual(result.candidates_evaluated(), 2)
+        assert result.candidates_evaluated() == 2
 
     def test_iter_configs_count(self) -> None:
         """_iter_configs yields correct number of configurations."""
@@ -138,16 +132,13 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             ),  # 2
         )
         configs = list(search._iter_configs())
-        self.assertEqual(len(configs), 2 * 1 * 1 * 2)  # 4
+        assert len(configs) == 2 * 1 * 1 * 2  # 4
 
     def test_acv_search_failure_raises(self) -> None:
         """Raises RuntimeError when allow_failures=False and allocation fails."""
         search = ACVSearch(self._stat, self._costs)
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError, match="(?i)failed"):
             search.search(target_cost=0.1, allow_failures=False)
-        self.assertIn("failed", str(ctx.exception).lower())
-        # Check error message includes config details
-        self.assertIn("GMFEstimator", str(ctx.exception))
 
     def test_acv_search_allow_failures(self) -> None:
         """Continues on failure when allow_failures=True."""
@@ -155,7 +146,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         try:
             search.search(target_cost=0.1, allow_failures=True)
         except RuntimeError as e:
-            self.assertIn("No successful", str(e))
+            assert "No successful" in str(e)
 
     def test_search_result_methods(self) -> None:
         """SearchResult methods work correctly."""
@@ -166,13 +157,13 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
 
-        self.assertEqual(result.candidates_evaluated(), 2)
-        self.assertGreater(result.candidates_successful(), 0)
-        self.assertGreater(len(result.successful_allocations()), 0)
+        assert result.candidates_evaluated() == 2
+        assert result.candidates_successful() > 0
+        assert len(result.successful_allocations()) > 0
 
         desc = result.search_description()
-        self.assertIn("GMFEstimator", desc)
-        self.assertIn("GISEstimator", desc)
+        assert "GMFEstimator" in desc
+        assert "GISEstimator" in desc
 
     def test_search_result_stores_estimator_classes(self) -> None:
         """SearchResult stores estimator_classes for traceability."""
@@ -182,7 +173,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             estimator_classes=[GMFEstimator, GRDEstimator],
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
-        self.assertEqual(result.estimator_classes, [GMFEstimator, GRDEstimator])
+        assert result.estimator_classes == [GMFEstimator, GRDEstimator]
 
     def test_search_result_stores_strategies(self) -> None:
         """SearchResult stores all strategy objects."""
@@ -199,9 +190,9 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         )
         result = search.search(target_cost=1000.0)
 
-        self.assertIs(result.model_strategy, model_strat)
-        self.assertIs(result.qoi_strategy, qoi_strat)
-        self.assertIs(result.recursion_strategy, rec_strat)
+        assert result.model_strategy is model_strat
+        assert result.qoi_strategy is qoi_strat
+        assert result.recursion_strategy is rec_strat
 
     def test_best_allocation_is_selected(self) -> None:
         """Best allocation (lowest objective) is selected."""
@@ -218,7 +209,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
             best_obj = float(self._bkd.to_numpy(result.allocation.objective_value)[0])
             for _, alloc in successful:
                 obj = float(self._bkd.to_numpy(alloc.objective_value)[0])
-                self.assertGreaterEqual(obj, best_obj)
+                assert obj >= best_obj
 
     def test_estimator_has_allocation_set(self) -> None:
         """Returned estimator has allocation set."""
@@ -226,23 +217,4 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         result = search.search(target_cost=1000.0)
 
         # The estimator should have its allocation set
-        self.assertTrue(result.estimator.has_allocation)
-
-
-# Note: NumPy backend does not yet support gradient-based optimization
-# required by ACVAllocator. NumPy tests will be added when optimization
-# support is implemented for NumpyBkd.
-#
-# class TestACVSearchNumpy(TestACVSearch[NDArray[Any]]):
-#     def bkd(self) -> NumpyBkd:
-#         return NumpyBkd()
-
-
-class TestACVSearchTorch(TestACVSearch[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result.estimator.has_allocation

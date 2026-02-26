@@ -5,12 +5,8 @@ pyapprox/surrogates/gaussianprocess/tests/test_activelearning.py
 plus additional tests from the plan.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.gaussianprocess.adaptive.adaptive_gp_builder import (
     AdaptiveGPBuilder,
@@ -31,21 +27,17 @@ from pyapprox.surrogates.gaussianprocess.exact import (
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slow_test,
 )
 
 
-def _sin_function(samples: Any, bkd: Backend[Any]) -> Any:
+def _sin_function(samples, bkd):
     """1D sin function: (1, nsamples) -> (1, nsamples)."""
     return bkd.reshape(bkd.sin(3.0 * samples[0, :]), (1, -1))
 
 
-def _quadratic_function(samples: Any, bkd: Backend[Any]) -> Any:
+def _quadratic_function(samples, bkd):
     """1D quadratic: x^2. Replicates legacy fun(xx) = (xx**2).sum(axis=0).
 
     Input shape: (nvars, nsamples), output shape: (1, nsamples).
@@ -53,32 +45,23 @@ def _quadratic_function(samples: Any, bkd: Backend[Any]) -> Any:
     return bkd.reshape(bkd.sum(samples**2, 0), (1, -1))
 
 
-class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
+class TestAdaptiveGPBuilder:
     """Base tests for AdaptiveGPBuilder."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _make_kernel(self) -> SquaredExponentialKernel:
-        return SquaredExponentialKernel([0.5], (0.01, 10.0), 1, self._bkd)
+    def _make_kernel(self, bkd):
+        return SquaredExponentialKernel([0.5], (0.01, 10.0), 1, bkd)
 
-    def _make_sobol_builder(self) -> AdaptiveGPBuilder[Array]:
-        bkd = self._bkd
-        kernel = self._make_kernel()
+    def _make_sobol_builder(self, bkd):
+        kernel = self._make_kernel(bkd)
         sampler = SobolAdaptiveSampler(1, bkd)
         return AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
-    def _make_cholesky_builder(
-        self, ncandidates: int = 100
-    ) -> AdaptiveGPBuilder[Array]:
-        bkd = self._bkd
-        kernel = self._make_kernel()
+    def _make_cholesky_builder(self, bkd, ncandidates=100):
+        kernel = self._make_kernel(bkd)
         candidates = bkd.asarray(np.random.rand(1, ncandidates))
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_kernel(kernel)
@@ -86,47 +69,43 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
 
     # --- Standard tests ---
 
-    def test_builder_returns_gp(self) -> None:
+    def test_builder_returns_gp(self, bkd) -> None:
         """run() returns an ExactGaussianProcess."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
         schedule = ConstantSamplingSchedule(5, 15)
         gp = builder.run(lambda s: _sin_function(s, bkd), schedule)
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert isinstance(gp, ExactGaussianProcess)
 
-    def test_step_returns_samples_and_gp(self) -> None:
+    def test_step_returns_samples_and_gp(self, bkd) -> None:
         """step() returns (samples, gp) tuple."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
         samples, gp = builder.step(lambda s: _sin_function(s, bkd), 5)
-        self.assertEqual(samples.shape, (1, 5))
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert samples.shape == (1, 5)
+        assert isinstance(gp, ExactGaussianProcess)
 
-    def test_intermediate_gps_independent(self) -> None:
+    def test_intermediate_gps_independent(self, bkd) -> None:
         """Each step returns a new GP instance.
 
         Replicates the fact that the legacy AdaptiveGaussianProcess
         rebuilds the GP at each step. Here we verify each step()
         returns a distinct GP object.
         """
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
 
         def fun(s):
             return _sin_function(s, bkd)
 
         _, gp1 = builder.step(fun, 5)
         _, gp2 = builder.step(fun, 5)
-        self.assertIsNot(gp1, gp2)
+        assert gp1 is not gp2
 
     @slow_test
-    def test_sobol_prediction_improves(self) -> None:
+    def test_sobol_prediction_improves(self, bkd) -> None:
         """Prediction error decreases with more samples.
 
         Integration test: Sobol sampler on 1D sin function.
         """
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
 
         def fun(s):
             return _sin_function(s, bkd)
@@ -142,68 +121,63 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         pred2 = gp2(test_X)
         err2 = float(bkd.to_numpy(bkd.sum((pred2 - test_y) ** 2)))
 
-        self.assertLess(err2, err1)
+        assert err2 < err1
 
     @slow_test
-    def test_cholesky_integration(self) -> None:
+    def test_cholesky_integration(self, bkd) -> None:
         """Integration test: Cholesky sampler on 1D function."""
-        bkd = self._bkd
-        builder = self._make_cholesky_builder()
+        builder = self._make_cholesky_builder(bkd)
         schedule = ListSamplingSchedule([5, 5])
         gp = builder.run(lambda s: _sin_function(s, bkd), schedule)
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert isinstance(gp, ExactGaussianProcess)
         data = builder.training_data()
-        self.assertIsNotNone(data)
         assert data is not None
-        self.assertEqual(data[0].shape[1], 10)
+        assert data[0].shape[1] == 10
 
-    def test_manual_step_loop(self) -> None:
+    def test_manual_step_loop(self, bkd) -> None:
         """Manual step_samples/step_values loop works."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
 
         def fun(s):
             return _sin_function(s, bkd)
 
         samples = builder.step_samples(5)
-        self.assertEqual(samples.shape, (1, 5))
+        assert samples.shape == (1, 5)
         values = fun(samples)
         gp = builder.step_values(values, optimize=False)
-        self.assertIsInstance(gp, ExactGaussianProcess)
-        self.assertIs(builder.current_gp(), gp)
+        assert isinstance(gp, ExactGaussianProcess)
+        assert builder.current_gp() is gp
 
-    def test_run_with_schedule(self) -> None:
+    def test_run_with_schedule(self, bkd) -> None:
         """Automatic run() with schedule."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
         schedule = ConstantSamplingSchedule(5, 10)
         gp = builder.run(lambda s: _sin_function(s, bkd), schedule)
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert isinstance(gp, ExactGaussianProcess)
         data = builder.training_data()
         assert data is not None
-        self.assertEqual(data[0].shape[1], 10)
+        assert data[0].shape[1] == 10
 
     # --- Edge case tests ---
 
-    def test_cold_start(self) -> None:
+    def test_cold_start(self, bkd) -> None:
         """Builder starts with no training data."""
-        builder = self._make_sobol_builder()
-        self.assertIsNone(builder.current_gp())
-        self.assertIsNone(builder.training_data())
+        builder = self._make_sobol_builder(bkd)
+        assert builder.current_gp() is None
+        assert builder.training_data() is None
 
-    def test_single_sample_selection(self) -> None:
+    def test_single_sample_selection(self, bkd) -> None:
         """1 sample per step works."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
 
         def fun(s):
             return _sin_function(s, bkd)
 
         _, gp = builder.step(fun, 1)
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert isinstance(gp, ExactGaussianProcess)
 
     @slow_test
-    def test_kernel_change_mid_run(self) -> None:
+    def test_kernel_change_mid_run(self, bkd) -> None:
         """Factorization restarts after HP optimization.
 
         Replicates legacy test_cholesky_sampler_update_with_changed_kernel
@@ -211,8 +185,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         changes the kernel, the sampler's set_kernel is called and
         subsequent samples reflect the new kernel.
         """
-        bkd = self._bkd
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         np.random.seed(1)
         candidates = bkd.asarray(np.random.rand(1, 50))
         sampler = CholeskySampler(candidates, bkd)
@@ -230,10 +203,8 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         kernel_params_1 = bkd.to_numpy(gp1.hyp_list().get_values()).copy()
 
         # Verify HP optimization changed kernel from initial
-        self.assertFalse(
-            np.allclose(initial_params, kernel_params_1),
-            "Kernel params should change after first step",
-        )
+        assert not np.allclose(initial_params, kernel_params_1), \
+            "Kernel params should change after first step"
 
         # Step 2: HP optimization may change kernel again
         _, gp2 = builder.step(fun, 5)
@@ -241,20 +212,19 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
 
         # The kernel should have been updated on the sampler
         # (even if params happen to be similar, the GP was re-created)
-        self.assertIsNot(gp1, gp2)
+        assert gp1 is not gp2
         # Total training data should be 10
         data = builder.training_data()
         assert data is not None
-        self.assertEqual(data[0].shape[1], 10)
+        assert data[0].shape[1] == 10
 
-    def test_candidate_exhaustion(self) -> None:
+    def test_candidate_exhaustion(self, bkd) -> None:
         """Raises ValueError when candidates exhausted.
 
         Replicates the error path when CholeskySampler runs out of
         candidates (analogous to legacy behavior).
         """
-        bkd = self._bkd
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         candidates = bkd.asarray(np.random.rand(1, 5))
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_kernel(kernel)
@@ -264,21 +234,20 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
             return _sin_function(s, bkd)
 
         builder.step(fun, 5)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             builder.step(fun, 1)
 
-    def test_step_values_before_samples_raises(self) -> None:
+    def test_step_values_before_samples_raises(self, bkd) -> None:
         """step_values() without prior step_samples() raises."""
-        bkd = self._bkd
-        builder = self._make_sobol_builder()
+        builder = self._make_sobol_builder(bkd)
         values = bkd.asarray([[1.0, 2.0, 3.0]])
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             builder.step_values(values)
 
     # --- Legacy replication: test_adaptive_gaussian_process ---
 
     @slow_test
-    def test_adaptive_gp_cholesky_quadratic(self) -> None:
+    def test_adaptive_gp_cholesky_quadratic(self, bkd) -> None:
         """End-to-end adaptive GP with Cholesky sampler on x^2.
 
         Replicates legacy test_adaptive_gaussian_process which runs
@@ -296,7 +265,6 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         - 2000 candidates (mix of Halton and random like legacy)
         - Initial lengthscale 1.0
         """
-        bkd = self._bkd
         np.random.seed(1)
         # Match legacy: lengthscale bounds [0.1, 1.0], not [0.01, 10.0]
         # This prevents the lengthscale from growing too large after
@@ -319,7 +287,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         # Verify correct number of training samples (8 + 3 = 11)
         data = builder.training_data()
         assert data is not None
-        self.assertEqual(data[0].shape[1], 11)
+        assert data[0].shape[1] == 11
 
         # Verify GP predicts reasonably at test points
         test_X = bkd.asarray(np.linspace(-1.0, 1.0, 20).reshape(1, -1))
@@ -328,18 +296,17 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         max_err = float(
             bkd.to_numpy(bkd.reshape(bkd.max(bkd.abs(pred - test_y)), (1,)))
         )
-        self.assertLess(max_err, 0.1)
+        assert max_err < 0.1
 
     @slow_test
-    def test_cholesky_multistep_accumulates_data(self) -> None:
+    def test_cholesky_multistep_accumulates_data(self, bkd) -> None:
         """Multiple steps accumulate training data correctly.
 
         Replicates the legacy workflow where build() calls
         step_samples + step_values in a loop, accumulating data.
         """
-        bkd = self._bkd
         np.random.seed(1)
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         candidates = bkd.asarray(np.random.rand(1, 50))
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_kernel(kernel)
@@ -356,15 +323,14 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
 
         data = builder.training_data()
         assert data is not None
-        self.assertEqual(data[0].shape[1], 10)  # 5 + 3 + 2
-        self.assertIsInstance(gp, ExactGaussianProcess)
+        assert data[0].shape[1] == 10  # 5 + 3 + 2
+        assert isinstance(gp, ExactGaussianProcess)
 
     # --- Transform tests ---
 
     @slow_test
-    def test_transforms_in_returned_gp(self) -> None:
+    def test_transforms_in_returned_gp(self, bkd) -> None:
         """Returned GP has correct transforms set."""
-        bkd = self._bkd
         from pyapprox.surrogates.gaussianprocess.input_transform import (
             InputBoundsScaler,
         )
@@ -374,7 +340,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         ub = bkd.asarray([5.0])
         input_transform = InputBoundsScaler(lb, ub, bkd)
 
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         # Sobol sampler operates in [0, 1] scaled space
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(
@@ -392,21 +358,20 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         _, gp = builder.step(fun, 10)
 
         # GP should have input transform
-        self.assertIsNotNone(gp.input_transform())
+        assert gp.input_transform() is not None
 
         # Verify GP can predict in user space
         test_X = bkd.asarray([[2.5, 3.0, 4.0, 4.5]])
         pred = gp(test_X)
-        self.assertEqual(pred.shape, (1, 4))
+        assert pred.shape == (1, 4)
 
     @slow_test
-    def test_prediction_in_user_space_with_transforms(self) -> None:
+    def test_prediction_in_user_space_with_transforms(self, bkd) -> None:
         """GP predictions are in user space when transforms are provided.
 
         Verifies the chain of: user samples -> scaled -> GP fit ->
         user-space predictions.
         """
-        bkd = self._bkd
         from pyapprox.surrogates.gaussianprocess.input_transform import (
             InputBoundsScaler,
         )
@@ -416,7 +381,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         ub = bkd.asarray([5.0])
         input_transform = InputBoundsScaler(lb, ub, bkd)
 
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(
             kernel,
@@ -442,16 +407,15 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         max_err = float(
             bkd.to_numpy(bkd.reshape(bkd.max(bkd.abs(pred - test_y)), (1,)))
         )
-        self.assertLess(max_err, 0.5)
+        assert max_err < 0.5
 
     @slow_test
-    def test_statistics_with_returned_gp(self) -> None:
+    def test_statistics_with_returned_gp(self, bkd) -> None:
         """Statistics work directly with returned GP, mean matches MC.
 
         Verifies that GaussianProcessStatistics can be constructed from
         the returned GP and produces mean values consistent with Monte Carlo.
         """
-        bkd = self._bkd
         from pyapprox.probability.univariate.uniform import UniformMarginal
         from pyapprox.surrogates.gaussianprocess.statistics import (
             GaussianProcessStatistics,
@@ -462,7 +426,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         )
 
         # Build GP on sin function in [0, 1]
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
@@ -478,10 +442,8 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         bases = [f.create_basis() for f in basis_factories]
         for b in bases:
             b.set_nterms(30)
-        calc: SeparableKernelIntegralCalculator[Any] = (
-            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
-        )
-        stats: GaussianProcessStatistics[Any] = GaussianProcessStatistics(gp, calc)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+        stats = GaussianProcessStatistics(gp, calc)
 
         # Compute mean via statistics
         gp_mean = stats.mean_of_mean()
@@ -498,19 +460,18 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         )
 
     @slow_test
-    def test_jacobian_with_returned_gp(self) -> None:
+    def test_jacobian_with_returned_gp(self, bkd) -> None:
         """Jacobian works with returned GP via DerivativeChecker.
 
         Verifies that the returned GP's jacobian method produces
         derivatives consistent with finite difference approximation.
         """
-        bkd = self._bkd
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
         # Build GP on quadratic function
-        kernel = self._make_kernel()
+        kernel = self._make_kernel(bkd)
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
@@ -525,22 +486,4 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sample = bkd.asarray([[0.3]])
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        self.assertLessEqual(ratio, 1e-6)
-
-
-class TestAdaptiveGPBuilderNumpy(TestAdaptiveGPBuilder[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdaptiveGPBuilderTorch(TestAdaptiveGPBuilder[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert ratio <= 1e-6

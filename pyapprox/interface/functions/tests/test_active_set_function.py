@@ -9,39 +9,22 @@ Tests cover:
 - Integration with CantileverBeam2DAnalytical
 """
 
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
-
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestActiveSetFunction(Generic[Array], unittest.TestCase):
+class TestActiveSetFunction:
     """Base test class for ActiveSetFunction."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
+    def _setup(self, bkd):
         from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DAnalytical,
         )
 
-        self._bkd = self.bkd()
-        self._beam = CantileverBeam2DAnalytical(length=100.0, bkd=self._bkd)
+        self._beam = CantileverBeam2DAnalytical(length=100.0, bkd=bkd)
         # Nominal: X=500, Y=1000, E=2.9e7, R=40000, w=2.5, t=3.0
-        self._nominal = self._bkd.asarray([500.0, 1000.0, 2.9e7, 40000.0, 2.5, 3.0])
+        self._nominal = bkd.asarray([500.0, 1000.0, 2.9e7, 40000.0, 2.5, 3.0])
         # Keep only design variables w (idx=4) and t (idx=5)
         self._keep = [4, 5]
 
-    def _make_asf(self, function=None, nominal=None, keep=None):
+    def _make_asf(self, bkd, function=None, nominal=None, keep=None):
         from pyapprox.interface.functions.marginalize import (
             ActiveSetFunction,
         )
@@ -50,19 +33,20 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
             function or self._beam,
             nominal if nominal is not None else self._nominal,
             keep or self._keep,
-            self._bkd,
+            bkd,
         )
 
-    def test_nvars_nqoi(self):
+    def test_nvars_nqoi(self, bkd):
         """ActiveSetFunction exposes only kept variables."""
-        asf = self._make_asf()
-        self.assertEqual(asf.nvars(), 2)
-        self.assertEqual(asf.nqoi(), 2)
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
+        assert asf.nvars() == 2
+        assert asf.nqoi() == 2
 
-    def test_call_matches_full_model(self):
+    def test_call_matches_full_model(self, bkd):
         """Evaluation matches full model with nominal values filled in."""
-        bkd = self._bkd
-        asf = self._make_asf()
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
         # Evaluate at nominal w, t
         reduced_sample = bkd.asarray([[2.5], [3.0]])
         result = asf(reduced_sample)
@@ -82,14 +66,14 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_call_batch(self):
+    def test_call_batch(self, bkd):
         """Batch evaluation works correctly."""
-        bkd = self._bkd
-        asf = self._make_asf()
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
         # Two samples: (w, t) = (2.5, 3.0) and (3.0, 4.0)
         samples = bkd.asarray([[2.5, 3.0], [3.0, 4.0]])
         result = asf(samples)
-        self.assertEqual(result.shape, (2, 2))
+        assert result.shape == (2, 2)
 
         # Verify each sample
         for ii in range(2):
@@ -97,18 +81,18 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
             expected = asf(single)
             bkd.assert_allclose(result[:, ii : ii + 1], expected, rtol=1e-12)
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self, bkd):
         """Jacobian has shape (nqoi, n_keep)."""
-        bkd = self._bkd
-        asf = self._make_asf()
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
         sample = bkd.asarray([[2.5], [3.0]])
         jac = asf.jacobian(sample)
-        self.assertEqual(jac.shape, (2, 2))
+        assert jac.shape == (2, 2)
 
-    def test_jacobian_extracts_correct_columns(self):
+    def test_jacobian_extracts_correct_columns(self, bkd):
         """Jacobian matches columns 4,5 of the full Jacobian."""
-        bkd = self._bkd
-        asf = self._make_asf()
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
         sample = bkd.asarray([[2.5], [3.0]])
         jac_reduced = asf.jacobian(sample)
 
@@ -127,28 +111,30 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac_reduced, jac_full[:, [4, 5]], rtol=1e-12)
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Validate Jacobian via DerivativeChecker."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
 
-        bkd = self._bkd
-        asf = self._make_asf()
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
         sample = bkd.asarray([[2.5], [3.0]])
 
         checker = DerivativeChecker(asf)
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_dynamic_binding_with_jacobian(self):
+    def test_dynamic_binding_with_jacobian(self, bkd):
         """Function with jacobian gets jacobian bound."""
-        asf = self._make_asf()
-        self.assertTrue(hasattr(asf, "jacobian"))
+        self._setup(bkd)
+        asf = self._make_asf(bkd)
+        assert hasattr(asf, "jacobian")
 
-    def test_dynamic_binding_without_jacobian(self):
+    def test_dynamic_binding_without_jacobian(self, bkd):
         """Function without jacobian does not get jacobian bound."""
+        self._setup(bkd)
 
         class NoJacFunction:
             def nvars(self):
@@ -162,13 +148,14 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
 
         func = NoJacFunction()
         asf = self._make_asf(
+            bkd,
             function=func,
-            nominal=self._bkd.asarray([1.0, 2.0]),
+            nominal=bkd.asarray([1.0, 2.0]),
             keep=[0],
         )
-        self.assertFalse(hasattr(asf, "jacobian"))
+        assert not hasattr(asf, "jacobian")
 
-    def test_with_constraints_model(self):
+    def test_with_constraints_model(self, bkd):
         """Works with CantileverBeam2DConstraints."""
         from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DConstraints,
@@ -177,21 +164,21 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
             DerivativeChecker,
         )
 
-        bkd = self._bkd
+        self._setup(bkd)
         constraints = CantileverBeam2DConstraints(self._beam, 40000.0, 2.2535)
-        asf = self._make_asf(function=constraints)
+        asf = self._make_asf(bkd, function=constraints)
 
         sample = bkd.asarray([[2.5], [3.0]])
         result = asf(sample)
-        self.assertEqual(result.shape, (2, 1))
-        self.assertTrue(hasattr(asf, "jacobian"))
+        assert result.shape == (2, 1)
+        assert hasattr(asf, "jacobian")
 
         checker = DerivativeChecker(asf)
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_with_objective_model(self):
+    def test_with_objective_model(self, bkd):
         """Works with CantileverBeam2DObjective."""
         from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DObjective,
@@ -200,51 +187,28 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
             DerivativeChecker,
         )
 
-        bkd = self._bkd
+        self._setup(bkd)
         objective = CantileverBeam2DObjective(bkd)
-        asf = self._make_asf(function=objective)
+        asf = self._make_asf(bkd, function=objective)
 
         sample = bkd.asarray([[2.5], [3.0]])
         result = asf(sample)
-        self.assertEqual(result.shape, (1, 1))
+        assert result.shape == (1, 1)
         bkd.assert_allclose(result, bkd.asarray([[7.5]]), rtol=1e-12)
 
         checker = DerivativeChecker(asf)
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_single_keep_index(self):
+    def test_single_keep_index(self, bkd):
         """Works with a single kept variable."""
-        bkd = self._bkd
-        asf = self._make_asf(keep=[4])
-        self.assertEqual(asf.nvars(), 1)
+        self._setup(bkd)
+        asf = self._make_asf(bkd, keep=[4])
+        assert asf.nvars() == 1
         sample = bkd.asarray([[2.5]])
         result = asf(sample)
-        self.assertEqual(result.shape, (2, 1))
+        assert result.shape == (2, 1)
 
         jac = asf.jacobian(sample)
-        self.assertEqual(jac.shape, (2, 1))
-
-
-class TestActiveSetFunctionNumpy(TestActiveSetFunction[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestActiveSetFunctionTorch(TestActiveSetFunction[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert jac.shape == (2, 1)

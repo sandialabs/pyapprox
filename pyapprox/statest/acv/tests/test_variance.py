@@ -7,12 +7,10 @@ estimates for various estimator types, statistic types, and QoI configurations.
 Tests use typing array convention: (nqoi, nsamples) for outputs.
 """
 
-import unittest
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import torch
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
@@ -41,7 +39,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
     allocate_with_allocator,
-    load_tests,  # noqa: F401
     slow_test,
     slower_test,
 )
@@ -444,11 +441,11 @@ TEST_CASES = [
 ]
 
 
-class TestEstimatorVariances(ParametrizedTestCase):
+class TestEstimatorVariances:
     """Replicate legacy test_estimator_variances exactly using @parametrize."""
 
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         self._bkd = TorchBkd()
 
     def _check_estimator_variances(
@@ -565,12 +562,12 @@ class TestEstimatorVariances(ParametrizedTestCase):
             CF_mc = bkd.cov(delta.T, ddof=1)
             cf_mc = bkd.cov(bkd.vstack([Q.T, delta.T]), ddof=1)[:idx, idx:]
             CF, cf = est._get_discrepancy_covariances(est._rounded_npartition_samples)
-            self.assertTrue(bkd.allclose(CF, CF_mc, atol=atol, rtol=rtol))
-            self.assertTrue(bkd.allclose(cf, cf_mc, atol=atol, rtol=rtol))
+            assert bkd.allclose(CF, CF_mc, atol=atol, rtol=rtol)
+            assert bkd.allclose(cf, cf_mc, atol=atol, rtol=rtol)
 
-        self.assertTrue(bkd.allclose(covar_mc, covar, atol=atol, rtol=rtol))
+        assert bkd.allclose(covar_mc, covar, atol=atol, rtol=rtol)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "model_idx,qoi_idx,rec_idx,est_type,stat_type,tree,maxmod,cost,ntrials",
         [tc[:-1] for tc in TEST_CASES],
         ids=[tc[-1] for tc in TEST_CASES],
@@ -602,15 +599,15 @@ class TestEstimatorVariances(ParametrizedTestCase):
         )
 
 
-class TestDiscrepancyCovariances(ParametrizedTestCase):
+class TestDiscrepancyCovariances:
     """Test discrepancy covariance computation matches MC."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "est_type,recursion_index",
         [
             ("grd", [0, 1]),
@@ -691,7 +688,3 @@ class TestDiscrepancyCovariances(ParametrizedTestCase):
         )
         self._bkd.assert_allclose(CF, CF_mc, atol=atol, rtol=rtol)
         self._bkd.assert_allclose(cf, cf_mc, atol=atol, rtol=rtol)
-
-
-if __name__ == "__main__":
-    unittest.main()

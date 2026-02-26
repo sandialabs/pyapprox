@@ -1,11 +1,9 @@
 """Tests for PCEFunctionTrainCore."""
 
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -16,69 +14,37 @@ from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.pce_core import (
     PCEFunctionTrainCore,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
+class TestPCEFunctionTrainCore:
     """Base class for PCEFunctionTrainCore tests."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_univariate_pce(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[Array]:
+    def _create_univariate_pce(self, bkd, max_level, nqoi=1):
         """Create a univariate PCE expansion with Legendre basis."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_core_with_coefficients(
-        self,
-        r_left: int,
-        r_right: int,
-        max_level: int,
-        coefficients: List[List[Array]],
-    ) -> FunctionTrainCore[Array]:
-        """Create a FunctionTrain core with specified coefficients.
-
-        Parameters
-        ----------
-        r_left : int
-            Left rank.
-        r_right : int
-            Right rank.
-        max_level : int
-            Polynomial degree.
-        coefficients : List[List[Array]]
-            Coefficient arrays for each (i, j) position.
-            Each should have shape (nterms, 1).
-        """
-        basisexps: List[List[BasisExpansion[Array]]] = []
+    def _create_core_with_coefficients(self, bkd, r_left, r_right, max_level, coefficients):
+        """Create a FunctionTrain core with specified coefficients."""
+        basisexps = []
         for ii in range(r_left):
-            row: List[BasisExpansion[Array]] = []
+            row = []
             for jj in range(r_right):
-                pce = self._create_univariate_pce(max_level)
+                pce = self._create_univariate_pce(bkd, max_level)
                 pce = pce.with_params(coefficients[ii][jj])
                 row.append(pce)
             basisexps.append(row)
-        return FunctionTrainCore(basisexps, self._bkd)
+        return FunctionTrainCore(basisexps, bkd)
 
-    def test_construction_validates_coefficients(self) -> None:
+    def test_construction_validates_coefficients(self, bkd) -> None:
         """Test PCEFunctionTrainCore construction succeeds for valid core."""
-        bkd = self._bkd
         r_left, r_right = 2, 3
         max_level = 2
         nterms = max_level + 1
@@ -89,46 +55,42 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
             for _ in range(r_left)
         ]
         core = self._create_core_with_coefficients(
-            r_left, r_right, max_level, coefficients
+            bkd, r_left, r_right, max_level, coefficients
         )
 
         pce_core = PCEFunctionTrainCore(core)
 
-        self.assertEqual(pce_core.nterms(), nterms)
-        self.assertEqual(pce_core.ranks(), (r_left, r_right))
+        assert pce_core.nterms() == nterms
+        assert pce_core.ranks() == (r_left, r_right)
 
-    def test_construction_rejects_multi_qoi(self) -> None:
+    def test_construction_rejects_multi_qoi(self, bkd) -> None:
         """Test construction fails for nqoi > 1."""
-        bkd = self._bkd
         # Create core with nqoi=2
-        basisexps = [[self._create_univariate_pce(2, nqoi=2)]]
+        basisexps = [[self._create_univariate_pce(bkd, 2, nqoi=2)]]
         core = FunctionTrainCore(basisexps, bkd)
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             PCEFunctionTrainCore(core)
-        self.assertIn("nqoi=2", str(ctx.exception))
-        self.assertIn("only nqoi=1", str(ctx.exception))
+        assert "nqoi=2" in str(ctx.value)
+        assert "only nqoi=1" in str(ctx.value)
 
-    def test_construction_rejects_inconsistent_nterms(self) -> None:
+    def test_construction_rejects_inconsistent_nterms(self, bkd) -> None:
         """Test construction fails for inconsistent nterms."""
-        bkd = self._bkd
         # Create core with different nterms in each position
-        pce_deg2 = self._create_univariate_pce(2)  # nterms=3
-        pce_deg3 = self._create_univariate_pce(3)  # nterms=4
+        pce_deg2 = self._create_univariate_pce(bkd, 2)  # nterms=3
+        pce_deg3 = self._create_univariate_pce(bkd, 3)  # nterms=4
 
         basisexps = [[pce_deg2, pce_deg3]]
         core = FunctionTrainCore(basisexps, bkd)
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             PCEFunctionTrainCore(core)
-        self.assertIn("inconsistent nterms", str(ctx.exception))
+        assert "inconsistent nterms" in str(ctx.value)
 
-    def test_coefficient_matrix_extraction(self) -> None:
+    def test_coefficient_matrix_extraction(self, bkd) -> None:
         """Test coefficient_matrix extracts correct values."""
-        bkd = self._bkd
         r_left, r_right = 2, 2
         max_level = 2
-        max_level + 1
 
         # Create known coefficients
         coefficients = [
@@ -142,70 +104,65 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
             ],
         ]
         core = self._create_core_with_coefficients(
-            r_left, r_right, max_level, coefficients
+            bkd, r_left, r_right, max_level, coefficients
         )
         pce_core = PCEFunctionTrainCore(core)
 
-        # Check Θ^{(0)} (constant terms)
+        # Check Theta^{(0)} (constant terms)
         theta0 = pce_core.coefficient_matrix(0)
         expected0 = bkd.asarray([[1.0, 4.0], [7.0, 10.0]])
         bkd.assert_allclose(theta0, expected0, rtol=1e-12)
 
-        # Check Θ^{(1)} (linear terms)
+        # Check Theta^{(1)} (linear terms)
         theta1 = pce_core.coefficient_matrix(1)
         expected1 = bkd.asarray([[2.0, 5.0], [8.0, 11.0]])
         bkd.assert_allclose(theta1, expected1, rtol=1e-12)
 
-        # Check Θ^{(2)} (quadratic terms)
+        # Check Theta^{(2)} (quadratic terms)
         theta2 = pce_core.coefficient_matrix(2)
         expected2 = bkd.asarray([[3.0, 6.0], [9.0, 12.0]])
         bkd.assert_allclose(theta2, expected2, rtol=1e-12)
 
-    def test_coefficient_matrix_bounds_checking(self) -> None:
+    def test_coefficient_matrix_bounds_checking(self, bkd) -> None:
         """Test coefficient_matrix raises IndexError for invalid basis_idx."""
-        bkd = self._bkd
         max_level = 2
         nterms = max_level + 1
         coefficients = [[bkd.asarray(np.random.randn(nterms, 1))]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             pce_core.coefficient_matrix(-1)
 
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             pce_core.coefficient_matrix(nterms)
 
-    def test_coefficient_matrix_caching(self) -> None:
+    def test_coefficient_matrix_caching(self, bkd) -> None:
         """Test coefficient matrices are cached."""
-        bkd = self._bkd
         max_level = 2
         nterms = max_level + 1
         coefficients = [[bkd.asarray(np.random.randn(nterms, 1))]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
         theta0_first = pce_core.coefficient_matrix(0)
         theta0_second = pce_core.coefficient_matrix(0)
 
         # Same object (cached)
-        self.assertIs(theta0_first, theta0_second)
+        assert theta0_first is theta0_second
 
-    def test_expected_core(self) -> None:
-        """Test expected_core returns Θ^{(0)}."""
-        bkd = self._bkd
+    def test_expected_core(self, bkd) -> None:
+        """Test expected_core returns Theta^{(0)}."""
         max_level = 2
-        max_level + 1
         coefficients = [[bkd.asarray([[1.5], [0.0], [0.0]])]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
         expected = pce_core.expected_core()
         bkd.assert_allclose(expected, bkd.asarray([[1.5]]), rtol=1e-12)
 
-    def test_kronecker_product_dimensions(self) -> None:
+    def test_kronecker_product_dimensions(self, bkd) -> None:
         """Test Kronecker product matrices have correct dimensions."""
-        bkd = self._bkd
         r_left, r_right = 2, 3
         max_level = 2
         nterms = max_level + 1
@@ -214,25 +171,24 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
             for _ in range(r_left)
         ]
         core = self._create_core_with_coefficients(
-            r_left, r_right, max_level, coefficients
+            bkd, r_left, r_right, max_level, coefficients
         )
         pce_core = PCEFunctionTrainCore(core)
 
-        # Expected dimensions: (r_left², r_right²)
+        # Expected dimensions: (r_left^2, r_right^2)
         expected_shape = (r_left * r_left, r_right * r_right)
 
         M = pce_core.expected_kron_core()
-        self.assertEqual(M.shape, expected_shape)
+        assert M.shape == expected_shape
 
         delta_M = pce_core.delta_kron_core()
-        self.assertEqual(delta_M.shape, expected_shape)
+        assert delta_M.shape == expected_shape
 
         M0 = pce_core.mean_kron_core()
-        self.assertEqual(M0.shape, expected_shape)
+        assert M0.shape == expected_shape
 
-    def test_kron_decomposition_identity(self) -> None:
-        """Test M_k = M_k^{(0)} + ΔM_k."""
-        bkd = self._bkd
+    def test_kron_decomposition_identity(self, bkd) -> None:
+        """Test M_k = M_k^{(0)} + DeltaM_k."""
         r_left, r_right = 2, 2
         max_level = 3
         nterms = max_level + 1
@@ -241,7 +197,7 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
             for _ in range(r_left)
         ]
         core = self._create_core_with_coefficients(
-            r_left, r_right, max_level, coefficients
+            bkd, r_left, r_right, max_level, coefficients
         )
         pce_core = PCEFunctionTrainCore(core)
 
@@ -251,13 +207,12 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(M, M0 + delta_M, rtol=1e-12)
 
-    def test_kronecker_caching(self) -> None:
+    def test_kronecker_caching(self, bkd) -> None:
         """Test Kronecker products are cached."""
-        bkd = self._bkd
         max_level = 2
         nterms = max_level + 1
         coefficients = [[bkd.asarray(np.random.randn(nterms, 1))]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
         # First calls
@@ -271,64 +226,36 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
         M0_second = pce_core.mean_kron_core()
 
         # Same objects (cached)
-        self.assertIs(M_first, M_second)
-        self.assertIs(delta_first, delta_second)
-        self.assertIs(M0_first, M0_second)
+        assert M_first is M_second
+        assert delta_first is delta_second
+        assert M0_first is M0_second
 
-    def test_rank_1_core(self) -> None:
+    def test_rank_1_core(self, bkd) -> None:
         """Test with rank-1 core (simplest case)."""
-        bkd = self._bkd
         max_level = 2
         nterms = max_level + 1
         # Rank 1x1 core: single scalar function
         coefficients = [[bkd.asarray([[1.0], [2.0], [3.0]])]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
-        # Θ^{(ℓ)} are 1x1 matrices
+        # Theta^{(l)} are 1x1 matrices
         for ell in range(nterms):
             theta = pce_core.coefficient_matrix(ell)
-            self.assertEqual(theta.shape, (1, 1))
+            assert theta.shape == (1, 1)
 
         # M_k is 1x1: M_k = sum_ell theta_ell^2
         M = pce_core.expected_kron_core()
-        self.assertEqual(M.shape, (1, 1))
+        assert M.shape == (1, 1)
         expected_M = bkd.asarray([[1.0**2 + 2.0**2 + 3.0**2]])
         bkd.assert_allclose(M, expected_M, rtol=1e-12)
 
-    def test_core_accessor(self) -> None:
+    def test_core_accessor(self, bkd) -> None:
         """Test core() returns underlying FunctionTrainCore."""
-        bkd = self._bkd
         max_level = 2
         nterms = max_level + 1
         coefficients = [[bkd.asarray(np.random.randn(nterms, 1))]]
-        core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
+        core = self._create_core_with_coefficients(bkd, 1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)
 
-        self.assertIs(pce_core.core(), core)
-
-
-class TestPCEFunctionTrainCoreNumpy(TestPCEFunctionTrainCore[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPCEFunctionTrainCoreTorch(TestPCEFunctionTrainCore[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert pce_core.core() is core

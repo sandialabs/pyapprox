@@ -7,12 +7,9 @@ Tests cover:
 - FunctionTrain (full input Jacobian via forward-backward sweep)
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
+import pytest
 import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -31,27 +28,18 @@ from pyapprox.surrogates.functiontrain.additive import (
 )
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
+class TestConstantExpansionInputJacobian:
     """Tests for ConstantExpansion jacobian w.r.t. inputs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_jacobian_batch_shape_nqoi_1(self) -> None:
+    def test_jacobian_batch_shape_nqoi_1(self, bkd) -> None:
         """Test jacobian_batch shape for nqoi=1."""
-        bkd = self._bkd
         const = ConstantExpansion(1.0, bkd, nqoi=1)
 
         nsamples = 5
@@ -59,11 +47,10 @@ class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
         jac = const.jacobian_batch(samples)
 
         # Shape: (nsamples, nqoi, nvars=1)
-        self.assertEqual(jac.shape, (nsamples, 1, 1))
+        assert jac.shape == (nsamples, 1, 1)
 
-    def test_jacobian_batch_shape_nqoi_3(self) -> None:
+    def test_jacobian_batch_shape_nqoi_3(self, bkd) -> None:
         """Test jacobian_batch shape for nqoi=3."""
-        bkd = self._bkd
         const = ConstantExpansion(2.5, bkd, nqoi=3)
 
         nsamples = 7
@@ -71,11 +58,10 @@ class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
         jac = const.jacobian_batch(samples)
 
         # Shape: (nsamples, nqoi, nvars=1)
-        self.assertEqual(jac.shape, (nsamples, 3, 1))
+        assert jac.shape == (nsamples, 3, 1)
 
-    def test_jacobian_batch_is_zero(self) -> None:
+    def test_jacobian_batch_is_zero(self, bkd) -> None:
         """Test that jacobian_batch returns all zeros."""
-        bkd = self._bkd
         const = ConstantExpansion(5.0, bkd, nqoi=2)
 
         nsamples = 4
@@ -85,20 +71,18 @@ class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
         expected = bkd.zeros((nsamples, 2, 1))
         bkd.assert_allclose(jac, expected)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test single-sample jacobian shape."""
-        bkd = self._bkd
         const = ConstantExpansion(1.0, bkd, nqoi=2)
 
         sample = bkd.asarray(np.random.randn(1, 1))
         jac = const.jacobian(sample)
 
         # Shape: (nqoi, nvars=1)
-        self.assertEqual(jac.shape, (2, 1))
+        assert jac.shape == (2, 1)
 
-    def test_jacobian_is_zero(self) -> None:
+    def test_jacobian_is_zero(self, bkd) -> None:
         """Test that single-sample jacobian returns zeros."""
-        bkd = self._bkd
         const = ConstantExpansion(3.0, bkd, nqoi=1)
 
         sample = bkd.asarray(np.random.randn(1, 1))
@@ -108,43 +92,33 @@ class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jac, expected)
 
 
-class TestFunctionTrainCoreInputJacobian(Generic[Array], unittest.TestCase):
+class TestFunctionTrainCoreInputJacobian:
     """Tests for FunctionTrainCore.jacobian_wrt_input."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_univariate_expansion(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[Array]:
+    def _create_univariate_expansion(self, bkd, max_level, nqoi=1):
         """Create a univariate polynomial expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_supports_input_jacobian(self) -> None:
+    def test_supports_input_jacobian(self, bkd) -> None:
         """Test supports_input_jacobian method."""
-        bkd = self._bkd
         max_level = 2
-        exp = self._create_univariate_expansion(max_level, nqoi=1)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi=1)
         core = FunctionTrainCore([[exp]], bkd)
 
-        self.assertTrue(core.supports_input_jacobian())
+        assert core.supports_input_jacobian()
 
-    def test_supports_input_jacobian_with_constants(self) -> None:
+    def test_supports_input_jacobian_with_constants(self, bkd) -> None:
         """Test supports_input_jacobian with ConstantExpansion."""
-        bkd = self._bkd
         max_level = 1
-        exp = self._create_univariate_expansion(max_level, nqoi=1)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi=1)
         const_0 = ConstantExpansion(0.0, bkd, nqoi=1)
         const_1 = ConstantExpansion(1.0, bkd, nqoi=1)
 
@@ -154,13 +128,12 @@ class TestFunctionTrainCoreInputJacobian(Generic[Array], unittest.TestCase):
             bkd,
         )
 
-        self.assertTrue(core.supports_input_jacobian())
+        assert core.supports_input_jacobian()
 
-    def test_jacobian_wrt_input_shape(self) -> None:
+    def test_jacobian_wrt_input_shape(self, bkd) -> None:
         """Test jacobian_wrt_input output shape."""
-        bkd = self._bkd
         max_level = 2
-        exp = self._create_univariate_expansion(max_level, nqoi=1)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi=1)
         core = FunctionTrainCore([[exp]], bkd)
 
         nsamples = 5
@@ -169,13 +142,12 @@ class TestFunctionTrainCoreInputJacobian(Generic[Array], unittest.TestCase):
 
         # Shape: (r_left, r_right, nsamples, nqoi)
         r_left, r_right = core.ranks()
-        self.assertEqual(jac.shape, (r_left, r_right, nsamples, 1))
+        assert jac.shape == (r_left, r_right, nsamples, 1)
 
-    def test_jacobian_wrt_input_shape_2x2(self) -> None:
+    def test_jacobian_wrt_input_shape_2x2(self, bkd) -> None:
         """Test jacobian_wrt_input shape for 2x2 core."""
-        bkd = self._bkd
         max_level = 1
-        exp = self._create_univariate_expansion(max_level, nqoi=1)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi=1)
         const_0 = ConstantExpansion(0.0, bkd, nqoi=1)
         const_1 = ConstantExpansion(1.0, bkd, nqoi=1)
 
@@ -188,47 +160,35 @@ class TestFunctionTrainCoreInputJacobian(Generic[Array], unittest.TestCase):
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
         jac = core.jacobian_wrt_input(samples)
 
-        self.assertEqual(jac.shape, (2, 2, nsamples, 1))
+        assert jac.shape == (2, 2, nsamples, 1)
 
 
-class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
+class TestFunctionTrainInputJacobian:
     """Tests for FunctionTrain.jacobian and jacobian_batch."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_univariate_expansion(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[Array]:
+    def _create_univariate_expansion(self, bkd, max_level, nqoi=1):
         """Create a univariate polynomial expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_additive_ft(
-        self, nvars: int = 3, max_level: int = 2, nqoi: int = 1
-    ) -> FunctionTrain[Array]:
+    def _create_additive_ft(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create an additive FunctionTrain for testing."""
-        bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
-    def test_jacobian_batch_shape(self) -> None:
+    def test_jacobian_batch_shape(self, bkd) -> None:
         """Test jacobian_batch output shape."""
-        bkd = self._bkd
         nvars = 3
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=1)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=1)
 
         # Set random parameters
         nparams = ft.nparams()
@@ -240,14 +200,13 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         jac = ft.jacobian_batch(samples)
 
         # Shape: (nsamples, nqoi, nvars)
-        self.assertEqual(jac.shape, (nsamples, 1, nvars))
+        assert jac.shape == (nsamples, 1, nvars)
 
-    def test_jacobian_batch_shape_multi_qoi(self) -> None:
+    def test_jacobian_batch_shape_multi_qoi(self, bkd) -> None:
         """Test jacobian_batch shape with multiple QoIs."""
-        bkd = self._bkd
         nvars = 3
         nqoi = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=nqoi)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=nqoi)
 
         # Set random parameters
         nparams = ft.nparams()
@@ -259,14 +218,13 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         jac = ft.jacobian_batch(samples)
 
         # Shape: (nsamples, nqoi, nvars)
-        self.assertEqual(jac.shape, (nsamples, nqoi, nvars))
+        assert jac.shape == (nsamples, nqoi, nvars)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, bkd) -> None:
         """Test single-sample jacobian shape."""
-        bkd = self._bkd
         nvars = 3
         nqoi = 1
-        ft = self._create_additive_ft(nvars=nvars, max_level=2, nqoi=nqoi)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=2, nqoi=nqoi)
 
         # Set random parameters
         nparams = ft.nparams()
@@ -277,14 +235,13 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         jac = ft.jacobian(sample)
 
         # Shape: (nqoi, nvars)
-        self.assertEqual(jac.shape, (nqoi, nvars))
+        assert jac.shape == (nqoi, nvars)
 
-    def test_jacobian_single_var_ft(self) -> None:
+    def test_jacobian_single_var_ft(self, bkd) -> None:
         """Test jacobian for single variable FT (nvars=1 edge case)."""
-        bkd = self._bkd
         max_level = 2
         nqoi = 1
-        exp = self._create_univariate_expansion(max_level, nqoi)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi)
 
         # Create single-core FT (nvars=1)
         core = FunctionTrainCore([[exp]], bkd)
@@ -300,15 +257,14 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         jac = ft.jacobian_batch(samples)
 
         # Shape: (nsamples, nqoi, nvars=1)
-        self.assertEqual(jac.shape, (nsamples, nqoi, 1))
+        assert jac.shape == (nsamples, nqoi, 1)
 
-    def test_jacobian_derivative_checker(self) -> None:
+    def test_jacobian_derivative_checker(self, bkd) -> None:
         """Test FunctionTrain input jacobian using DerivativeChecker."""
-        bkd = self._bkd
         nvars = 3
         max_level = 2
         nqoi = 1
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=nqoi)
 
         # Set random parameters
         nparams = ft.nparams()
@@ -316,10 +272,10 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         ft = ft.with_params(params)
 
         # Create wrapper: x -> f(x)
-        def fun(x: Array) -> Array:
+        def fun(x):
             return ft(x)
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return ft.jacobian(x)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -335,15 +291,14 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_jacobian_derivative_checker_multi_qoi(self) -> None:
+    def test_jacobian_derivative_checker_multi_qoi(self, bkd) -> None:
         """Test jacobian with multiple QoIs using DerivativeChecker."""
-        bkd = self._bkd
         nvars = 2
         max_level = 2
         nqoi = 2
-        ft = self._create_additive_ft(nvars=nvars, max_level=max_level, nqoi=nqoi)
+        ft = self._create_additive_ft(bkd, nvars=nvars, max_level=max_level, nqoi=nqoi)
 
         # Set random parameters
         nparams = ft.nparams()
@@ -351,10 +306,10 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         ft = ft.with_params(params)
 
         # Create wrapper
-        def fun(x: Array) -> Array:
+        def fun(x):
             return ft(x)
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return ft.jacobian(x)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -372,14 +327,13 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, weights=weights, verbosity=0)
 
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(float(error_ratio), 1e-6)
+        assert float(error_ratio) < 1e-6
 
-    def test_jacobian_single_var_derivative_checker(self) -> None:
+    def test_jacobian_single_var_derivative_checker(self, bkd) -> None:
         """Test jacobian for nvars=1 using DerivativeChecker."""
-        bkd = self._bkd
         max_level = 2
         nqoi = 1
-        exp = self._create_univariate_expansion(max_level, nqoi)
+        exp = self._create_univariate_expansion(bkd, max_level, nqoi)
 
         # Set random coefficients
         nterms = exp.nterms()
@@ -389,10 +343,10 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         core = FunctionTrainCore([[exp]], bkd)
         ft = FunctionTrain([core], bkd, nqoi)
 
-        def fun(x: Array) -> Array:
+        def fun(x):
             return ft(x)
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return ft.jacobian(x)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -408,85 +362,20 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(float(error_ratio), 1e-6)
-
-
-# NumPy backend tests
-class TestConstantExpansionInputJacobianNumpy(
-    TestConstantExpansionInputJacobian[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFunctionTrainCoreInputJacobianNumpy(
-    TestFunctionTrainCoreInputJacobian[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFunctionTrainInputJacobianNumpy(TestFunctionTrainInputJacobian[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-class TestConstantExpansionInputJacobianTorch(
-    TestConstantExpansionInputJacobian[torch.Tensor]
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestFunctionTrainCoreInputJacobianTorch(
-    TestFunctionTrainCoreInputJacobian[torch.Tensor]
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestFunctionTrainInputJacobianTorch(TestFunctionTrainInputJacobian[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
+        assert float(error_ratio) < 1e-6
 
 
 # Torch-only test: verify autograd compatibility
-class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
+class TestFunctionTrainInputJacobianAutograd:
     """Test that FunctionTrain input jacobian matches torch.autograd."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         np.random.seed(42)
 
-    def _create_univariate_expansion(
-        self, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion[torch.Tensor]:
+    def _create_univariate_expansion(self, max_level, nqoi=1):
         bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -494,9 +383,7 @@ class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_additive_ft(
-        self, nvars: int = 3, max_level: int = 2, nqoi: int = 1
-    ) -> FunctionTrain[torch.Tensor]:
+    def _create_additive_ft(self, nvars=3, max_level=2, nqoi=1):
         bkd = self._bkd
         univariate_bases = [
             self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
@@ -566,7 +453,3 @@ class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
             autograd_jac = autograd_jac.squeeze(-1)
 
             bkd.assert_allclose(analytical_jac[ii], autograd_jac, rtol=1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()

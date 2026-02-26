@@ -1,9 +1,4 @@
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.optimization.implicitfunction.benchmarks.linear_state_equation import (
     LinearStateEquation,
@@ -20,29 +15,17 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestLinearLeastSquares:
 
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the specific
-        backend.
-        """
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def test_linear_least_squares(self) -> None:
+    def test_linear_least_squares(self, bkd) -> None:
         """
         Test the value and derivative computation for linear least squares problems.
         """
         # Problem setup
         np.random.seed(1)
         nstates, nparams = 3, 2
-        bkd = self.bkd()
         Amat = bkd.asarray(np.random.normal(0, 1, (nstates, nparams)))
         param = bkd.asarray(np.random.normal(0, 1, (nparams, 1)))
         obs = Amat @ param
@@ -67,14 +50,13 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         tols = derivative_checker.get_derivative_tolerances(2e-6)
         derivative_checker.check_derivatives(init_state, param, tols, verbosity=0)
 
-    def test_tikhonov_linear_least_squares(self) -> None:
+    def test_tikhonov_linear_least_squares(self, bkd) -> None:
         """
         Test Tikhonov regularization for linear least squares problems.
         """
         # Problem setup
         np.random.seed(1)
         nobs, nvars = 3, 2
-        bkd = self.bkd()
         Amat = bkd.asarray(np.random.randn(nobs, nvars))  # Random matrix
         param = bkd.asarray(np.random.randn(nvars, 1))  # Random parameters
         obs = Amat @ param  # Observations
@@ -93,47 +75,3 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         tols = derivative_checker.get_derivative_tolerances(5e-6)
         tols[[2, 3, 4]] = 5e-6
         derivative_checker.check_derivatives(init_state, param, tols, verbosity=0)
-
-
-# Derived test class for NumPy backend
-class TestLinearLeastSquaresNumpy(TestLinearLeastSquares[NDArray[Any]]):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Derived test class for PyTorch backend
-class TestLinearLeastSquaresTorch(TestLinearLeastSquares[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-# Custom test loader to exclude the base class
-def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class
-    ContinuousScipyRandomVariable1D.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestLinearLeastSquaresNumpy,
-        TestLinearLeastSquaresTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
-
-
-# Main block to explicitly run tests using the custom loader
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)

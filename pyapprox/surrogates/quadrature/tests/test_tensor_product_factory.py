@@ -1,47 +1,28 @@
 """Tests for TensorProductQuadratureFactory."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_affine_mapping_points_in_range(self) -> None:
+class TestTensorProductQuadratureFactory:
+    def test_affine_mapping_points_in_range(self, bkd) -> None:
         """Verify mapped points lie within [lb, ub]."""
-        bkd = self._bkd
         domain = bkd.asarray([[2.0, 5.0], [10.0, 20.0]])
         factory = TensorProductQuadratureFactory([5, 5], domain, bkd)
         quad = factory([0, 1])
         samples, weights = quad()
-        self.assertEqual(samples.shape[0], 2)
+        assert samples.shape[0] == 2
         s_np = bkd.to_numpy(samples)
-        self.assertTrue(np.all(s_np[0] >= 2.0 - 1e-14))
-        self.assertTrue(np.all(s_np[0] <= 5.0 + 1e-14))
-        self.assertTrue(np.all(s_np[1] >= 10.0 - 1e-14))
-        self.assertTrue(np.all(s_np[1] <= 20.0 + 1e-14))
+        assert np.all(s_np[0] >= 2.0 - 1e-14)
+        assert np.all(s_np[0] <= 5.0 + 1e-14)
+        assert np.all(s_np[1] >= 10.0 - 1e-14)
+        assert np.all(s_np[1] <= 20.0 + 1e-14)
 
-    def test_integrate_constant_gives_volume(self) -> None:
+    def test_integrate_constant_gives_volume(self, bkd) -> None:
         """Integral of 1 over [a,b] should give b-a."""
-        bkd = self._bkd
         domain = bkd.asarray([[2.0, 5.0]])
         factory = TensorProductQuadratureFactory([5], domain, bkd)
         quad = factory([0])
@@ -49,9 +30,8 @@ class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
         integral = bkd.sum(weights)
         bkd.assert_allclose(bkd.asarray([integral]), bkd.asarray([3.0]), rtol=1e-12)
 
-    def test_integrate_constant_2d(self) -> None:
+    def test_integrate_constant_2d(self, bkd) -> None:
         """Integral of 1 over [2,5] x [10,20] = 3 * 10 = 30."""
-        bkd = self._bkd
         domain = bkd.asarray([[2.0, 5.0], [10.0, 20.0]])
         factory = TensorProductQuadratureFactory([3, 3], domain, bkd)
         quad = factory([0, 1])
@@ -62,19 +42,18 @@ class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_subset_selection(self) -> None:
+    def test_subset_selection(self, bkd) -> None:
         """3-variable factory, call with [1] -> 1D rule for var 1."""
-        bkd = self._bkd
         domain = bkd.asarray([[0.0, 1.0], [2.0, 4.0], [5.0, 10.0]])
         factory = TensorProductQuadratureFactory([3, 5, 7], domain, bkd)
         quad = factory([1])
         samples, weights = quad()
-        self.assertEqual(samples.shape[0], 1)
-        self.assertEqual(samples.shape[1], 5)
+        assert samples.shape[0] == 1
+        assert samples.shape[1] == 5
         # Points should be in [2, 4]
         s_np = bkd.to_numpy(samples)
-        self.assertTrue(np.all(s_np >= 2.0 - 1e-14))
-        self.assertTrue(np.all(s_np <= 4.0 + 1e-14))
+        assert np.all(s_np >= 2.0 - 1e-14)
+        assert np.all(s_np <= 4.0 + 1e-14)
         # Integral of 1 = 4 - 2 = 2
         bkd.assert_allclose(
             bkd.asarray([bkd.sum(weights)]),
@@ -82,9 +61,8 @@ class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_polynomial_integration(self) -> None:
+    def test_polynomial_integration(self, bkd) -> None:
         """Integrate x^2 on [0, 3] exactly."""
-        bkd = self._bkd
         domain = bkd.asarray([[0.0, 3.0]])
         factory = TensorProductQuadratureFactory([5], domain, bkd)
         quad = factory([0])
@@ -94,9 +72,8 @@ class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
         integral = bkd.sum(weights * values)
         bkd.assert_allclose(bkd.asarray([integral]), bkd.asarray([9.0]), rtol=1e-12)
 
-    def test_integrate_method(self) -> None:
+    def test_integrate_method(self, bkd) -> None:
         """Test the integrate() method of _AffinelyMappedQuadratureRule."""
-        bkd = self._bkd
         domain = bkd.asarray([[0.0, 2.0], [0.0, 3.0]])
         factory = TensorProductQuadratureFactory([5, 5], domain, bkd)
         quad = factory([0, 1])
@@ -108,18 +85,3 @@ class TestTensorProductQuadratureFactory(Generic[Array], unittest.TestCase):
         result = quad.integrate(func)
         # int_0^2 int_0^3 x*y dy dx = (2^2/2) * (3^2/2) = 2 * 4.5 = 9
         bkd.assert_allclose(result, bkd.asarray([9.0]), rtol=1e-12)
-
-
-class TestTensorProductQuadratureFactoryNumpy(
-    TestTensorProductQuadratureFactory[NDArray[Any]]
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTensorProductQuadratureFactoryTorch(
-    TestTensorProductQuadratureFactory[torch.Tensor]
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

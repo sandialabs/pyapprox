@@ -1,11 +1,6 @@
 """Tests for VariationalGP fitters."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from scipy.stats import qmc
 
 from pyapprox.surrogates.gaussianprocess.fitters import (
@@ -21,10 +16,6 @@ from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _sobol_samples(nvars: int, nsamples: int, lb: float, ub: float):
@@ -35,46 +26,38 @@ def _sobol_samples(nvars: int, nsamples: int, lb: float, ub: float):
     return scaled.T
 
 
-class TestVariationalGPFitters(Generic[Array], unittest.TestCase):
+class TestVariationalGPFitters:
     """Base test class for variational GP fitters."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
+    def _setup_data(self, bkd):
         np.random.seed(42)
-        self._bkd = self.bkd()
         self.nvars = 1
         self.n_train = 20
         self.n_inducing = 10
 
         X_np = np.linspace(-1, 1, self.n_train).reshape(1, -1)
         y_np = (X_np[0, :] ** 2)[None, :]
-        self.X_train = self._bkd.array(X_np)
-        self.y_train = self._bkd.array(y_np)
+        self.X_train = bkd.array(X_np)
+        self.y_train = bkd.array(y_np)
 
         U_np = _sobol_samples(self.nvars, self.n_inducing, -1.0, 1.0)
-        self.U_init = self._bkd.array(U_np)
+        self.U_init = bkd.array(U_np)
 
         X_test_np = np.linspace(-0.9, 0.9, 5).reshape(1, -1)
-        self.X_test = self._bkd.array(X_test_np)
+        self.X_test = bkd.array(X_test_np)
 
-    def _make_gp(
-        self, kernel_fixed: bool = True, inducing_fixed: bool = True
-    ) -> VariationalGaussianProcess:
+    def _make_gp(self, bkd, kernel_fixed=True, inducing_fixed=True):
         kernel = Matern52Kernel(
             lenscale=[1.0],
             lenscale_bounds=(0.1, 10.0),
             nvars=self.nvars,
-            bkd=self._bkd,
+            bkd=bkd,
             fixed=kernel_fixed,
         )
         inducing = InducingSamples(
             nvars=self.nvars,
             ninducing_samples=self.n_inducing,
-            bkd=self._bkd,
+            bkd=bkd,
             inducing_samples=self.U_init,
             noise_std=0.1,
             noise_std_bounds=(1e-6, 1.0),
@@ -86,109 +69,100 @@ class TestVariationalGPFitters(Generic[Array], unittest.TestCase):
             kernel=kernel,
             nvars=self.nvars,
             inducing_samples=inducing,
-            bkd=self._bkd,
+            bkd=bkd,
         )
 
     # ---- Fixed hyperparameter fitter tests ----
 
-    def test_fixed_returns_gp_fit_result(self) -> None:
+    def test_fixed_returns_gp_fit_result(self, bkd) -> None:
         """Fixed fitter returns GPFitResult."""
-        gp = self._make_gp()
-        fitter = VariationalGPFixedHyperparameterFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd)
+        fitter = VariationalGPFixedHyperparameterFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
-        self.assertIsInstance(result, GPFitResult)
+        assert isinstance(result, GPFitResult)
 
-    def test_fixed_fitted_can_predict(self) -> None:
+    def test_fixed_fitted_can_predict(self, bkd) -> None:
         """Fixed fitter result can predict."""
-        gp = self._make_gp()
-        fitter = VariationalGPFixedHyperparameterFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd)
+        fitter = VariationalGPFixedHyperparameterFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
         fitted = result.surrogate()
-        self.assertTrue(fitted.is_fitted())
+        assert fitted.is_fitted()
 
         mean = fitted.predict(self.X_test)
-        self.assertEqual(mean.shape, (1, 5))
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(mean)))
+        assert mean.shape == (1, 5)
+        assert bkd.all_bool(bkd.isfinite(mean))
 
-    def test_fixed_original_not_modified(self) -> None:
+    def test_fixed_original_not_modified(self, bkd) -> None:
         """Original GP must NOT be modified."""
-        gp = self._make_gp()
-        fitter = VariationalGPFixedHyperparameterFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd)
+        fitter = VariationalGPFixedHyperparameterFitter(bkd)
         fitter.fit(gp, self.X_train, self.y_train)
-        self.assertFalse(gp.is_fitted())
+        assert not gp.is_fitted()
 
-    def test_fixed_neg_elbo_is_finite(self) -> None:
+    def test_fixed_neg_elbo_is_finite(self, bkd) -> None:
         """Negative ELBO should be finite."""
-        gp = self._make_gp()
-        fitter = VariationalGPFixedHyperparameterFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd)
+        fitter = VariationalGPFixedHyperparameterFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
         neg_elbo = result.neg_log_marginal_likelihood()
-        self.assertTrue(np.isfinite(float(self._bkd.to_numpy(neg_elbo))))
+        assert np.isfinite(float(bkd.to_numpy(neg_elbo)))
 
     # ---- Maximum likelihood fitter tests ----
 
-    def test_ml_returns_optimized_result(self) -> None:
+    def test_ml_returns_optimized_result(self, bkd) -> None:
         """ML fitter returns GPOptimizedFitResult."""
-        gp = self._make_gp(kernel_fixed=False)
-        fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd, kernel_fixed=False)
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
-        self.assertIsInstance(result, GPOptimizedFitResult)
+        assert isinstance(result, GPOptimizedFitResult)
 
-    def test_ml_fitted_can_predict(self) -> None:
+    def test_ml_fitted_can_predict(self, bkd) -> None:
         """ML fitter result can predict."""
-        gp = self._make_gp(kernel_fixed=False)
-        fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd, kernel_fixed=False)
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
         fitted = result.surrogate()
         mean = fitted.predict(self.X_test)
-        self.assertEqual(mean.shape, (1, 5))
+        assert mean.shape == (1, 5)
 
-    def test_ml_original_not_modified(self) -> None:
+    def test_ml_original_not_modified(self, bkd) -> None:
         """Original GP must NOT be modified by ML fitter."""
-        gp = self._make_gp(kernel_fixed=False)
-        hyps_before = self._bkd.to_numpy(gp.hyp_list().get_values()).copy()
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd, kernel_fixed=False)
+        hyps_before = bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
-        fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
         fitter.fit(gp, self.X_train, self.y_train)
 
-        self.assertFalse(gp.is_fitted())
-        hyps_after = self._bkd.to_numpy(gp.hyp_list().get_values())
+        assert not gp.is_fitted()
+        hyps_after = bkd.to_numpy(gp.hyp_list().get_values())
         np.testing.assert_array_equal(hyps_before, hyps_after)
 
-    def test_ml_no_active_params_skips_optimization(self) -> None:
+    def test_ml_no_active_params_skips_optimization(self, bkd) -> None:
         """When all params are fixed, optimization is skipped."""
-        gp = self._make_gp()
-        fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd)
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
-        self.assertIsNone(result.optimization_result())
+        assert result.optimization_result() is None
 
-    def test_ml_hyperparameters_change(self) -> None:
+    def test_ml_hyperparameters_change(self, bkd) -> None:
         """Optimized hyperparameters should differ from initial."""
-        gp = self._make_gp(kernel_fixed=False)
-        fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
+        self._setup_data(bkd)
+        gp = self._make_gp(bkd, kernel_fixed=False)
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
-        initial = self._bkd.to_numpy(result.initial_hyperparameters())
-        optimized = self._bkd.to_numpy(result.optimized_hyperparameters())
-        self.assertFalse(np.allclose(initial, optimized, atol=1e-10))
-
-
-class TestVariationalGPFittersNumpy(TestVariationalGPFitters[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestVariationalGPFittersTorch(TestVariationalGPFitters[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+        initial = bkd.to_numpy(result.initial_hyperparameters())
+        optimized = bkd.to_numpy(result.optimized_hyperparameters())
+        assert not np.allclose(initial, optimized, atol=1e-10)

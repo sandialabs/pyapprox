@@ -8,12 +8,8 @@ Tests cover:
 - Dual-backend support (NumPy and PyTorch)
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.expdesign.local.criteria import (
     AOptimalCriterion,
@@ -29,300 +25,221 @@ from pyapprox.expdesign.local.solver import (
     MinimaxLocalOEDSolver,
     ScipyLocalOEDSolver,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
+class TestScipyLocalOEDSolver:
     """Base test class for SciPy local OED solver."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         # Create design factors
         self._ndesign_pts = 7
         self._ndesign_vars = 3
-        self._design_factors = self._bkd.asarray(
+        self._design_factors = bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
 
-    def test_d_optimal_solver(self) -> None:
+    def test_d_optimal_solver(self, bkd):
         """Test solver with D-optimal criterion (no HVP)."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
+        self._setup_data(bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
         # D-optimal does not have HVP - optimizer should work without it
-        crit = DOptimalCriterion(dm, self._bkd)
-        solver = ScipyLocalOEDSolver(crit, self._bkd, verbosity=0)
+        crit = DOptimalCriterion(dm, bkd)
+        solver = ScipyLocalOEDSolver(crit, bkd, verbosity=0)
 
         optimal_weights = solver.construct()
 
         # Check shape
-        self.assertEqual(optimal_weights.shape, (self._ndesign_pts, 1))
+        assert optimal_weights.shape == (self._ndesign_pts, 1)
 
         # Check simplex constraints
-        weight_sum = self._bkd.sum(optimal_weights)
-        self.assertTrue(
-            self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
-        )
-        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
+        weight_sum = bkd.sum(optimal_weights)
+        assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
+        assert bkd.all_bool(optimal_weights >= -1e-8)
 
-    def test_a_optimal_solver(self) -> None:
+    def test_a_optimal_solver(self, bkd):
         """Test solver with A-optimal criterion (has HVP)."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
+        self._setup_data(bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
         # A-optimal creates adjoints internally using unit vectors
-        crit = AOptimalCriterion(dm, self._bkd)
-        solver = ScipyLocalOEDSolver(crit, self._bkd, verbosity=0)
+        crit = AOptimalCriterion(dm, bkd)
+        solver = ScipyLocalOEDSolver(crit, bkd, verbosity=0)
 
         optimal_weights = solver.construct()
 
         # Check shape
-        self.assertEqual(optimal_weights.shape, (self._ndesign_pts, 1))
+        assert optimal_weights.shape == (self._ndesign_pts, 1)
 
         # Check simplex constraints
-        weight_sum = self._bkd.sum(optimal_weights)
-        self.assertTrue(
-            self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
-        )
-        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
+        weight_sum = bkd.sum(optimal_weights)
+        assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
+        assert bkd.all_bool(optimal_weights >= -1e-8)
 
-    def test_raises_for_vector_criterion(self) -> None:
+    def test_raises_for_vector_criterion(self, bkd):
         """Test that solver raises error for vector criteria."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
+        self._setup_data(bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
 
         # Create G-optimal criterion (vector output)
         npred_pts = 3
-        pred_factors = self._bkd.asarray(np.random.randn(npred_pts, self._ndesign_vars))
+        pred_factors = bkd.asarray(np.random.randn(npred_pts, self._ndesign_vars))
 
-        crit = GOptimalCriterion(dm, pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, pred_factors, bkd)
 
         # Should raise ValueError because nqoi > 1
-        with self.assertRaises(ValueError):
-            ScipyLocalOEDSolver(crit, self._bkd)
+        with pytest.raises(ValueError):
+            ScipyLocalOEDSolver(crit, bkd)
 
-    def test_get_result(self) -> None:
+    def test_get_result(self, bkd):
         """Test that get_result returns optimization info."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
-        crit = AOptimalCriterion(dm, self._bkd)
-        solver = ScipyLocalOEDSolver(crit, self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
+        crit = AOptimalCriterion(dm, bkd)
+        solver = ScipyLocalOEDSolver(crit, bkd, verbosity=0)
 
         # Should raise before construct()
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             solver.get_result()
 
         solver.construct()
         result = solver.get_result()
 
         # Check result has expected methods
-        self.assertTrue(hasattr(result, "success"))
-        self.assertTrue(hasattr(result, "optima"))
+        assert hasattr(result, "success")
+        assert hasattr(result, "optima")
 
 
-class TestMinimaxLocalOEDSolver(Generic[Array], unittest.TestCase):
+class TestMinimaxLocalOEDSolver:
     """Base test class for Minimax local OED solver."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         self._ndesign_pts = 7
         self._ndesign_vars = 3
-        self._design_factors = self._bkd.asarray(
+        self._design_factors = bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
         self._npred_pts = 4
-        self._pred_factors = self._bkd.asarray(
+        self._pred_factors = bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
 
-    def _create_g_optimal_criterion(self):
+    def _create_g_optimal_criterion(self, bkd):
         """Helper to create G-optimal criterion."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
         # G-optimal takes pred_factors directly
-        return GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        return GOptimalCriterion(dm, self._pred_factors, bkd)
 
-    def test_g_optimal_solver(self) -> None:
+    def test_g_optimal_solver(self, bkd):
         """Test solver with G-optimal criterion."""
-        crit = self._create_g_optimal_criterion()
-        solver = MinimaxLocalOEDSolver(crit, self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        crit = self._create_g_optimal_criterion(bkd)
+        solver = MinimaxLocalOEDSolver(crit, bkd, verbosity=0)
 
         optimal_weights = solver.construct()
 
         # Check shape
-        self.assertEqual(optimal_weights.shape, (self._ndesign_pts, 1))
+        assert optimal_weights.shape == (self._ndesign_pts, 1)
 
         # Check simplex constraints
-        weight_sum = self._bkd.sum(optimal_weights)
-        self.assertTrue(
-            self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
-        )
-        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
+        weight_sum = bkd.sum(optimal_weights)
+        assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
+        assert bkd.all_bool(optimal_weights >= -1e-8)
 
-    def test_get_minimax_value(self) -> None:
+    def test_get_minimax_value(self, bkd):
         """Test that minimax value can be retrieved."""
-        crit = self._create_g_optimal_criterion()
-        solver = MinimaxLocalOEDSolver(crit, self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        crit = self._create_g_optimal_criterion(bkd)
+        solver = MinimaxLocalOEDSolver(crit, bkd, verbosity=0)
 
         # Should raise before construct()
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             solver.get_minimax_value()
 
         solver.construct()
         minimax_val = solver.get_minimax_value()
 
         # Check shape and positivity
-        self.assertEqual(minimax_val.shape, (1, 1))
-        self.assertTrue(minimax_val[0, 0] > 0)
+        assert minimax_val.shape == (1, 1)
+        assert minimax_val[0, 0] > 0
 
 
-class TestAVaRLocalOEDSolver(Generic[Array], unittest.TestCase):
+class TestAVaRLocalOEDSolver:
     """Base test class for AVaR local OED solver."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         self._ndesign_pts = 7
         self._ndesign_vars = 3
-        self._design_factors = self._bkd.asarray(
+        self._design_factors = bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
         self._npred_pts = 4
-        self._pred_factors = self._bkd.asarray(
+        self._pred_factors = bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
 
-    def _create_r_optimal_criterion(self):
+    def _create_r_optimal_criterion(self, bkd):
         """Helper to create R-optimal criterion."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
         # R-optimal inherits from G-optimal, takes pred_factors directly
-        return ROptimalCriterion(dm, self._pred_factors, self._bkd)
+        return ROptimalCriterion(dm, self._pred_factors, bkd)
 
-    def test_r_optimal_solver(self) -> None:
+    def test_r_optimal_solver(self, bkd):
         """Test solver with R-optimal criterion."""
-        crit = self._create_r_optimal_criterion()
-        solver = AVaRLocalOEDSolver(crit, alpha=0.5, bkd=self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        crit = self._create_r_optimal_criterion(bkd)
+        solver = AVaRLocalOEDSolver(crit, alpha=0.5, bkd=bkd, verbosity=0)
 
         optimal_weights = solver.construct()
 
         # Check shape
-        self.assertEqual(optimal_weights.shape, (self._ndesign_pts, 1))
+        assert optimal_weights.shape == (self._ndesign_pts, 1)
 
         # Check simplex constraints
-        weight_sum = self._bkd.sum(optimal_weights)
-        self.assertTrue(
-            self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
-        )
+        weight_sum = bkd.sum(optimal_weights)
+        assert bkd.allclose(weight_sum, bkd.asarray(1.0), atol=1e-6)
 
-    def test_alpha_validation(self) -> None:
+    def test_alpha_validation(self, bkd):
         """Test that invalid alpha raises error."""
-        crit = self._create_r_optimal_criterion()
+        self._setup_data(bkd)
+        crit = self._create_r_optimal_criterion(bkd)
 
-        with self.assertRaises(ValueError):
-            AVaRLocalOEDSolver(crit, alpha=-0.1, bkd=self._bkd)
+        with pytest.raises(ValueError):
+            AVaRLocalOEDSolver(crit, alpha=-0.1, bkd=bkd)
 
-        with self.assertRaises(ValueError):
-            AVaRLocalOEDSolver(crit, alpha=1.0, bkd=self._bkd)
+        with pytest.raises(ValueError):
+            AVaRLocalOEDSolver(crit, alpha=1.0, bkd=bkd)
 
-    def test_get_avar_value(self) -> None:
+    def test_get_avar_value(self, bkd):
         """Test that AVaR value can be retrieved."""
-        crit = self._create_r_optimal_criterion()
-        solver = AVaRLocalOEDSolver(crit, alpha=0.5, bkd=self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        crit = self._create_r_optimal_criterion(bkd)
+        solver = AVaRLocalOEDSolver(crit, alpha=0.5, bkd=bkd, verbosity=0)
 
         # Should raise before construct()
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             solver.get_avar_value()
 
         solver.construct()
         avar_val = solver.get_avar_value()
 
         # Check shape and positivity
-        self.assertEqual(avar_val.shape, (1, 1))
-        self.assertTrue(avar_val[0, 0] > 0)
+        assert avar_val.shape == (1, 1)
+        assert avar_val[0, 0] > 0
 
-    def test_alpha_zero_approaches_mean(self) -> None:
+    def test_alpha_zero_approaches_mean(self, bkd):
         """Test that alpha=0 gives mean-like behavior."""
-        crit = self._create_r_optimal_criterion()
-        solver = AVaRLocalOEDSolver(crit, alpha=0.0, bkd=self._bkd, verbosity=0)
+        self._setup_data(bkd)
+        crit = self._create_r_optimal_criterion(bkd)
+        solver = AVaRLocalOEDSolver(crit, alpha=0.0, bkd=bkd, verbosity=0)
 
         optimal_weights = solver.construct()
         avar_val = solver.get_avar_value()
 
         # Check that it's a valid design
-        self.assertEqual(optimal_weights.shape, (self._ndesign_pts, 1))
-        self.assertTrue(avar_val[0, 0] > 0)
-
-
-# NumPy backend tests
-class TestScipyLocalOEDSolverNumpy(TestScipyLocalOEDSolver[NDArray[Any]]):
-    """NumPy backend tests for SciPy solver."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMinimaxLocalOEDSolverNumpy(TestMinimaxLocalOEDSolver[NDArray[Any]]):
-    """NumPy backend tests for Minimax solver."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAVaRLocalOEDSolverNumpy(TestAVaRLocalOEDSolver[NDArray[Any]]):
-    """NumPy backend tests for AVaR solver."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-class TestScipyLocalOEDSolverTorch(TestScipyLocalOEDSolver[torch.Tensor]):
-    """PyTorch backend tests for SciPy solver."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestMinimaxLocalOEDSolverTorch(TestMinimaxLocalOEDSolver[torch.Tensor]):
-    """PyTorch backend tests for Minimax solver."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestAVaRLocalOEDSolverTorch(TestAVaRLocalOEDSolver[torch.Tensor]):
-    """PyTorch backend tests for AVaR solver."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert optimal_weights.shape == (self._ndesign_pts, 1)
+        assert avar_val[0, 0] > 0

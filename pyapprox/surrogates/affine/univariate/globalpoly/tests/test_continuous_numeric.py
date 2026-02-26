@@ -10,12 +10,10 @@ Supports both bounded and unbounded distributions:
 - Unbounded: Uses interval expansion with adaptive quadrature
 """
 
-import unittest
-from typing import Any, Callable, Generic, List, NamedTuple, Optional
+import pytest
+from typing import Any, Callable, List, NamedTuple, Optional
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from scipy import stats
 
 from pyapprox.probability.univariate import (
@@ -32,17 +30,14 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
     LaguerrePolynomial1D,
     LegendrePolynomial1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test, slower_test
 
 
 class MarginalTestCase(NamedTuple):
     """Configuration for a marginal distribution test case."""
 
     name: str
-    marginal_factory: Callable[[Backend], Any]
+    marginal_factory: Callable
     nterms: int = 5
     nquad_points: int = 100
     integrator_options: Optional[dict] = None
@@ -221,24 +216,14 @@ UNBOUNDED_MARGINAL_TEST_CASES: List[MarginalTestCase] = [
 ]
 
 
-class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.TestCase):
+class TestContinuousNumericOrthonormalPolynomial1D:
     """Base class for ContinuousNumericOrthonormalPolynomial1D tests."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
 
     # =========================================================================
     # Helper methods
     # =========================================================================
 
-    def _compute_mc_grammian(
-        self, poly: ContinuousNumericOrthonormalPolynomial1D, marginal, nsamples: int
-    ) -> Array:
+    def _compute_mc_grammian(self, bkd, poly, marginal, nsamples):
         """Compute Grammian matrix using Monte Carlo integration.
 
         G_ij = E[p_i(X) * p_j(X)] where X ~ marginal
@@ -261,7 +246,8 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
 
     def _check_mc_convergence_rate(
         self,
-        poly: ContinuousNumericOrthonormalPolynomial1D,
+        bkd,
+        poly,
         marginal,
         expected_rate: float = -1.0,
         rate_tolerance: float = 0.15,
@@ -272,21 +258,9 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         MSE = ||G_mc - I||_F^2 ~ O(N^{-1})
 
         where N is the number of samples.
-
-        Parameters
-        ----------
-        poly : ContinuousNumericOrthonormalPolynomial1D
-            The polynomial basis to test.
-        marginal : Any
-            The marginal distribution to sample from.
-        expected_rate : float
-            Expected convergence rate in log-log scale. Default: -1.0
-        rate_tolerance : float
-            Allowable deviation from expected rate. Default: 0.15
-            (rate must be in [expected - tolerance, expected + tolerance])
         """
         nterms = poly.nterms()
-        expected_grammian = self._bkd.eye(nterms)
+        expected_grammian = bkd.eye(nterms)
 
         # Use multiple sample sizes with many trials to estimate convergence rate
         sample_sizes = [500, 1000, 2000]
@@ -299,9 +273,9 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
             # Average MSE over multiple trials for stable estimate
             trial_mses = []
             for _ in range(ntrials):
-                grammian = self._compute_mc_grammian(poly, marginal, nsamples)
+                grammian = self._compute_mc_grammian(bkd, poly, marginal, nsamples)
                 diff = grammian - expected_grammian
-                mse = float(self._bkd.sum(diff * diff)) / (nterms * nterms)
+                mse = float(bkd.sum(diff * diff)) / (nterms * nterms)
                 trial_mses.append(mse)
             mse_values.append(np.mean(trial_mses))
 
@@ -311,23 +285,19 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
 
         # Skip if any NaN or Inf (numerical issues)
         if not np.all(np.isfinite(log_mse)):
-            self.skipTest("Numerical issues in MSE computation (NaN/Inf)")
+            pytest.skip("Numerical issues in MSE computation (NaN/Inf)")
 
         # Linear regression: log(MSE) = rate * log(N) + const
         slope, intercept = np.polyfit(log_n, log_mse, 1)
 
         # Check that slope is within tolerance of expected rate
-        self.assertGreater(
-            slope,
-            expected_rate - rate_tolerance,
+        assert slope > expected_rate - rate_tolerance, (
             f"Convergence rate {slope:.3f} is worse than expected "
-            f"(expected >= {expected_rate - rate_tolerance:.3f})",
+            f"(expected >= {expected_rate - rate_tolerance:.3f})"
         )
-        self.assertLess(
-            slope,
-            expected_rate + rate_tolerance,
+        assert slope < expected_rate + rate_tolerance, (
             f"Convergence rate {slope:.3f} is better than expected "
-            f"(expected <= {expected_rate + rate_tolerance:.3f})",
+            f"(expected <= {expected_rate + rate_tolerance:.3f})"
         )
 
     # =========================================================================
@@ -335,24 +305,23 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
     # =========================================================================
 
     @slow_test
-    def test_bounded_marginals_mc_convergence(self) -> None:
+    def test_bounded_marginals_mc_convergence(self, bkd) -> None:
         """Test MC orthonormality convergence for all bounded marginals."""
         for case in BOUNDED_MARGINAL_TEST_CASES:
-            with self.subTest(name=case.name):
-                marginal = case.marginal_factory(self._bkd)
-                poly = ContinuousNumericOrthonormalPolynomial1D(
-                    marginal, self._bkd, nquad_points=case.nquad_points
-                )
-                poly.set_nterms(case.nterms)
+            marginal = case.marginal_factory(bkd)
+            poly = ContinuousNumericOrthonormalPolynomial1D(
+                marginal, bkd, nquad_points=case.nquad_points
+            )
+            poly.set_nterms(case.nterms)
 
-                self._check_mc_convergence_rate(poly, marginal)
+            self._check_mc_convergence_rate(bkd, poly, marginal)
 
     # =========================================================================
     # Parametrized tests for unbounded marginals
     # =========================================================================
 
     @slower_test
-    def test_unbounded_marginals_quadrature_orthonormality(self) -> None:
+    def test_unbounded_marginals_quadrature_orthonormality(self, bkd) -> None:
         """Test orthonormality for unbounded marginals using Gauss quadrature.
 
         Note: MC convergence tests are NOT used for unbounded distributions
@@ -361,48 +330,47 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         orthonormality exactly (up to numerical precision).
         """
         for case in UNBOUNDED_MARGINAL_TEST_CASES:
-            with self.subTest(name=case.name):
-                marginal = case.marginal_factory(self._bkd)
-                poly = ContinuousNumericOrthonormalPolynomial1D(
-                    marginal,
-                    self._bkd,
-                    nquad_points=case.nquad_points,
-                    integrator_options=case.integrator_options,
-                )
-                nterms = case.nterms
-                poly.set_nterms(nterms)
+            marginal = case.marginal_factory(bkd)
+            poly = ContinuousNumericOrthonormalPolynomial1D(
+                marginal,
+                bkd,
+                nquad_points=case.nquad_points,
+                integrator_options=case.integrator_options,
+            )
+            nterms = case.nterms
+            poly.set_nterms(nterms)
 
-                # Use Gauss quadrature to verify orthonormality
-                # Need nterms + extra points for exactness
-                nquad = nterms + 2
-                poly.set_nterms(nquad)  # Need more terms for quadrature
-                x_quad, w_quad = poly.gauss_quadrature_rule(nquad)
-                poly.set_nterms(nterms)  # Reset to original
+            # Use Gauss quadrature to verify orthonormality
+            # Need nterms + extra points for exactness
+            nquad = nterms + 2
+            poly.set_nterms(nquad)  # Need more terms for quadrature
+            x_quad, w_quad = poly.gauss_quadrature_rule(nquad)
+            poly.set_nterms(nterms)  # Reset to original
 
-                vals = poly(x_quad)  # (nquad, nterms)
-                grammian = vals.T @ (w_quad * vals)
+            vals = poly(x_quad)  # (nquad, nterms)
+            grammian = vals.T @ (w_quad * vals)
 
-                expected = self._bkd.eye(nterms)
-                self._bkd.assert_allclose(grammian, expected, rtol=1e-8, atol=1e-10)
+            expected = bkd.eye(nterms)
+            bkd.assert_allclose(grammian, expected, rtol=1e-8, atol=1e-10)
 
     # =========================================================================
     # Comparison with analytic polynomials
     # =========================================================================
 
-    def test_matches_legendre_for_uniform(self) -> None:
+    def test_matches_legendre_for_uniform(self, bkd) -> None:
         """Numeric polynomials for Uniform[-1,1] should match Legendre."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
         numeric_poly = ContinuousNumericOrthonormalPolynomial1D(
-            marginal, self._bkd, nquad_points=100
+            marginal, bkd, nquad_points=100
         )
         numeric_poly.set_nterms(6)
 
-        legendre_poly = LegendrePolynomial1D(self._bkd)
+        legendre_poly = LegendrePolynomial1D(bkd)
         legendre_poly.set_nterms(6)
 
         # Evaluate at test points in canonical domain
-        samples = self._bkd.linspace(-0.9, 0.9, 20)
-        samples = self._bkd.reshape(samples, (1, -1))
+        samples = bkd.linspace(-0.9, 0.9, 20)
+        samples = bkd.reshape(samples, (1, -1))
 
         numeric_vals = numeric_poly(samples)
         legendre_vals = legendre_poly(samples)
@@ -411,35 +379,35 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         numeric_ab = numeric_poly._get_recursion_coefficients(6)
         legendre_ab = legendre_poly._get_recursion_coefficients(6)
 
-        self._bkd.assert_allclose(numeric_ab, legendre_ab, rtol=1e-8, atol=1e-10)
+        bkd.assert_allclose(numeric_ab, legendre_ab, rtol=1e-8, atol=1e-10)
 
         # Check polynomial values match
-        self._bkd.assert_allclose(numeric_vals, legendre_vals, rtol=1e-8, atol=1e-10)
+        bkd.assert_allclose(numeric_vals, legendre_vals, rtol=1e-8, atol=1e-10)
 
-    def test_matches_jacobi_for_beta(self) -> None:
+    def test_matches_jacobi_for_beta(self, bkd) -> None:
         """Numeric polynomials for Beta should match Jacobi on [-1, 1].
 
         Beta(alpha, beta) on [0, 1] corresponds to Jacobi(beta-1, alpha-1) on [-1, 1].
         The transformation is: x_beta = (x_jacobi + 1) / 2.
         """
         alpha, beta = 3.0, 2.0
-        marginal = BetaMarginal(alpha, beta, self._bkd)
+        marginal = BetaMarginal(alpha, beta, bkd)
         numeric_poly = ContinuousNumericOrthonormalPolynomial1D(
-            marginal, self._bkd, nquad_points=100
+            marginal, bkd, nquad_points=100
         )
         numeric_poly.set_nterms(6)
 
         # Jacobi parameters for Beta(alpha, beta): (beta-1, alpha-1)
-        jacobi_poly = JacobiPolynomial1D(beta - 1, alpha - 1, self._bkd)
+        jacobi_poly = JacobiPolynomial1D(beta - 1, alpha - 1, bkd)
         jacobi_poly.set_nterms(6)
 
         # Compare recursion coefficients
         numeric_ab = numeric_poly._get_recursion_coefficients(6)
         jacobi_ab = jacobi_poly._get_recursion_coefficients(6)
 
-        self._bkd.assert_allclose(numeric_ab, jacobi_ab, rtol=1e-6, atol=1e-8)
+        bkd.assert_allclose(numeric_ab, jacobi_ab, rtol=1e-6, atol=1e-8)
 
-    def test_matches_jacobi_for_shifted_beta(self) -> None:
+    def test_matches_jacobi_for_shifted_beta(self, bkd) -> None:
         """Numeric polynomials for Beta on shifted domain match Jacobi.
 
         Beta(alpha, beta) on [a, b] should have same recursion coefficients
@@ -448,17 +416,17 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         alpha, beta = 2.0, 4.0
 
         # Standard Beta on [0, 1]
-        marginal_std = BetaMarginal(alpha, beta, self._bkd)
+        marginal_std = BetaMarginal(alpha, beta, bkd)
         poly_std = ContinuousNumericOrthonormalPolynomial1D(
-            marginal_std, self._bkd, nquad_points=100
+            marginal_std, bkd, nquad_points=100
         )
         poly_std.set_nterms(5)
 
         # Shifted Beta on [2, 5]
         scipy_rv = stats.beta(alpha, beta, loc=2.0, scale=3.0)
-        marginal_shifted = ScipyContinuousMarginal(scipy_rv, self._bkd)
+        marginal_shifted = ScipyContinuousMarginal(scipy_rv, bkd)
         poly_shifted = ContinuousNumericOrthonormalPolynomial1D(
-            marginal_shifted, self._bkd, nquad_points=100
+            marginal_shifted, bkd, nquad_points=100
         )
         poly_shifted.set_nterms(5)
 
@@ -466,9 +434,9 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         ab_std = poly_std._get_recursion_coefficients(5)
         ab_shifted = poly_shifted._get_recursion_coefficients(5)
 
-        self._bkd.assert_allclose(ab_std, ab_shifted, rtol=1e-8, atol=1e-10)
+        bkd.assert_allclose(ab_std, ab_shifted, rtol=1e-8, atol=1e-10)
 
-    def test_matches_hermite_for_gaussian(self) -> None:
+    def test_matches_hermite_for_gaussian(self, bkd) -> None:
         """Numeric polynomials for standard Gaussian should match Hermite.
 
         Note: The predictor-corrector method accumulates errors, so we test
@@ -476,10 +444,10 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         'a' coefficients should be 0, but numerical errors make them small
         but non-zero.
         """
-        marginal = GaussianMarginal(0.0, 1.0, self._bkd)
+        marginal = GaussianMarginal(0.0, 1.0, bkd)
         numeric_poly = ContinuousNumericOrthonormalPolynomial1D(
             marginal,
-            self._bkd,
+            bkd,
             nquad_points=200,
             integrator_options={
                 "interval_size": 0.5,
@@ -491,7 +459,7 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         nterms = 4  # Use fewer terms to avoid error accumulation
         numeric_poly.set_nterms(nterms)
 
-        hermite_poly = HermitePolynomial1D(self._bkd, rho=0.0, prob_meas=True)
+        hermite_poly = HermitePolynomial1D(bkd, rho=0.0, prob_meas=True)
         hermite_poly.set_nterms(nterms)
 
         # Compare recursion coefficients
@@ -500,10 +468,10 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
 
         # For 'a' coefficients (column 0), use absolute tolerance since they're ~0
         # For 'b' coefficients (column 1), use relative tolerance
-        self._bkd.assert_allclose(numeric_ab[:, 0], hermite_ab[:, 0], rtol=0, atol=1e-5)
-        self._bkd.assert_allclose(numeric_ab[:, 1], hermite_ab[:, 1], rtol=1e-6, atol=0)
+        bkd.assert_allclose(numeric_ab[:, 0], hermite_ab[:, 0], rtol=0, atol=1e-5)
+        bkd.assert_allclose(numeric_ab[:, 1], hermite_ab[:, 1], rtol=1e-6, atol=0)
 
-    def test_matches_laguerre_for_gamma_unit_scale(self) -> None:
+    def test_matches_laguerre_for_gamma_unit_scale(self, bkd) -> None:
         """Numeric polynomials for Gamma(shape, 1) should match Laguerre.
 
         Gamma(shape, scale=1) corresponds to Laguerre with rho=shape-1.
@@ -511,10 +479,10 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         recursion coefficients (but still orthonormal w.r.t. the measure).
         """
         shape, scale = 2.0, 1.0
-        marginal = GammaMarginal(shape, scale, bkd=self._bkd)
+        marginal = GammaMarginal(shape, scale, bkd=bkd)
         numeric_poly = ContinuousNumericOrthonormalPolynomial1D(
             marginal,
-            self._bkd,
+            bkd,
             nquad_points=200,
             integrator_options={
                 "interval_size": 0.5,
@@ -526,106 +494,106 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         numeric_poly.set_nterms(6)
 
         # Laguerre rho = shape - 1 = 1
-        laguerre_poly = LaguerrePolynomial1D(self._bkd, rho=shape - 1)
+        laguerre_poly = LaguerrePolynomial1D(bkd, rho=shape - 1)
         laguerre_poly.set_nterms(6)
 
         # Compare recursion coefficients
         numeric_ab = numeric_poly._get_recursion_coefficients(6)
         laguerre_ab = laguerre_poly._get_recursion_coefficients(6)
 
-        self._bkd.assert_allclose(numeric_ab, laguerre_ab, rtol=1e-10, atol=1e-12)
+        bkd.assert_allclose(numeric_ab, laguerre_ab, rtol=1e-10, atol=1e-12)
 
     # =========================================================================
     # Basic functionality tests
     # =========================================================================
 
-    def test_nterms_and_evaluation_shape(self) -> None:
+    def test_nterms_and_evaluation_shape(self, bkd) -> None:
         """Test nterms setting and evaluation shape."""
-        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
 
-        self.assertEqual(poly.nterms(), 0)
+        assert poly.nterms() == 0
 
         poly.set_nterms(5)
-        self.assertEqual(poly.nterms(), 5)
+        assert poly.nterms() == 5
 
         # Evaluate at samples
-        samples = self._bkd.array([[-0.5, 0.0, 0.5]])
+        samples = bkd.array([[-0.5, 0.0, 0.5]])
         vals = poly(samples)
 
-        self.assertEqual(vals.shape, (3, 5))
+        assert vals.shape == (3, 5)
 
-    def test_canonical_domain_mapping(self) -> None:
+    def test_canonical_domain_mapping(self, bkd) -> None:
         """Test canonical to physical domain mapping."""
         # Beta on [0, 1] should use canonical domain [-1, 1]
-        marginal = BetaMarginal(2.0, 3.0, self._bkd)
-        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, self._bkd)
+        marginal = BetaMarginal(2.0, 3.0, bkd)
+        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
         poly.set_nterms(3)
 
         # Canonical [-1, 1] should map to physical [0, 1]
-        can_samples = self._bkd.array([[-1.0, 0.0, 1.0]])
+        can_samples = bkd.array([[-1.0, 0.0, 1.0]])
         phys_samples = poly._canonical_to_physical(can_samples)
 
-        expected_phys = self._bkd.array([[0.0, 0.5, 1.0]])
-        self._bkd.assert_allclose(phys_samples, expected_phys, rtol=1e-14)
+        expected_phys = bkd.array([[0.0, 0.5, 1.0]])
+        bkd.assert_allclose(phys_samples, expected_phys, rtol=1e-14)
 
         # And inverse
         recovered_can = poly._physical_to_canonical(phys_samples)
-        self._bkd.assert_allclose(recovered_can, can_samples, rtol=1e-14)
+        bkd.assert_allclose(recovered_can, can_samples, rtol=1e-14)
 
-    def test_canonical_domain_mapping_shifted(self) -> None:
+    def test_canonical_domain_mapping_shifted(self, bkd) -> None:
         """Test canonical domain mapping for shifted distributions."""
         # Beta on [2, 5] should use canonical domain [-1, 1]
         scipy_rv = stats.beta(2.0, 3.0, loc=2.0, scale=3.0)
-        marginal = ScipyContinuousMarginal(scipy_rv, self._bkd)
-        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, self._bkd)
+        marginal = ScipyContinuousMarginal(scipy_rv, bkd)
+        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
         poly.set_nterms(3)
 
         # Canonical [-1, 1] should map to physical [2, 5]
-        can_samples = self._bkd.array([[-1.0, 0.0, 1.0]])
+        can_samples = bkd.array([[-1.0, 0.0, 1.0]])
         phys_samples = poly._canonical_to_physical(can_samples)
 
-        expected_phys = self._bkd.array([[2.0, 3.5, 5.0]])
-        self._bkd.assert_allclose(phys_samples, expected_phys, rtol=1e-14)
+        expected_phys = bkd.array([[2.0, 3.5, 5.0]])
+        bkd.assert_allclose(phys_samples, expected_phys, rtol=1e-14)
 
-    def test_repr(self) -> None:
+    def test_repr(self, bkd) -> None:
         """Test string representation."""
-        marginal = BetaMarginal(2.0, 3.0, self._bkd)
-        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, self._bkd)
+        marginal = BetaMarginal(2.0, 3.0, bkd)
+        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
         poly.set_nterms(5)
 
         repr_str = repr(poly)
-        self.assertIn("ContinuousNumericOrthonormalPolynomial1D", repr_str)
-        self.assertIn("BetaMarginal", repr_str)
-        self.assertIn("5", repr_str)
+        assert "ContinuousNumericOrthonormalPolynomial1D" in repr_str
+        assert "BetaMarginal" in repr_str
+        assert "5" in repr_str
 
-    def test_first_polynomial_is_constant(self) -> None:
+    def test_first_polynomial_is_constant(self, bkd) -> None:
         """First orthonormal polynomial p_0(x) = 1 for any measure."""
-        marginal = BetaMarginal(2.0, 3.0, self._bkd)
-        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, self._bkd)
+        marginal = BetaMarginal(2.0, 3.0, bkd)
+        poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
         poly.set_nterms(3)
 
         # p_0(x) should be 1 everywhere
-        samples = self._bkd.array([[-0.8, -0.2, 0.0, 0.4, 0.9]])
+        samples = bkd.array([[-0.8, -0.2, 0.0, 0.4, 0.9]])
         vals = poly(samples)
 
-        expected_p0 = self._bkd.ones((5,))
-        self._bkd.assert_allclose(vals[:, 0], expected_p0, rtol=1e-12)
+        expected_p0 = bkd.ones((5,))
+        bkd.assert_allclose(vals[:, 0], expected_p0, rtol=1e-12)
 
-    def test_polynomials_are_normalized(self) -> None:
+    def test_polynomials_are_normalized(self, bkd) -> None:
         """Orthonormal polynomials should integrate to delta_ij.
 
         Using Gauss quadrature from the polynomial itself.
         """
-        marginal = BetaMarginal(3.0, 2.0, self._bkd)
+        marginal = BetaMarginal(3.0, 2.0, bkd)
         poly = ContinuousNumericOrthonormalPolynomial1D(
-            marginal, self._bkd, nquad_points=100
+            marginal, bkd, nquad_points=100
         )
         nterms = 6
         poly.set_nterms(nterms)
 
         # Get quadrature points from Jacobi polynomial with same parameters
-        jacobi_poly = JacobiPolynomial1D(1.0, 2.0, self._bkd)  # beta-1, alpha-1
+        jacobi_poly = JacobiPolynomial1D(1.0, 2.0, bkd)  # beta-1, alpha-1
         jacobi_poly.set_nterms(nterms + 2)
         x_quad, w_quad = jacobi_poly.gauss_quadrature_rule(nterms + 2)
 
@@ -635,15 +603,15 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         # Compute Gramian
         gramian = vals.T @ (w_quad * vals)
 
-        expected = self._bkd.eye(nterms)
-        self._bkd.assert_allclose(gramian, expected, rtol=1e-8, atol=1e-10)
+        expected = bkd.eye(nterms)
+        bkd.assert_allclose(gramian, expected, rtol=1e-8, atol=1e-10)
 
-    def test_unbounded_domain_uses_identity_transform(self) -> None:
+    def test_unbounded_domain_uses_identity_transform(self, bkd) -> None:
         """Unbounded marginals should use identity transform (no mapping)."""
-        marginal = GaussianMarginal(0.0, 1.0, self._bkd)
+        marginal = GaussianMarginal(0.0, 1.0, bkd)
         poly = ContinuousNumericOrthonormalPolynomial1D(
             marginal,
-            self._bkd,
+            bkd,
             integrator_options={
                 "interval_size": 1.0,
                 "atol": 1e-14,
@@ -653,40 +621,10 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
         poly.set_nterms(3)
 
         # For unbounded, canonical = physical (loc=0, scale=1)
-        self.assertEqual(poly._loc, 0.0)
-        self.assertEqual(poly._scale, 1.0)
+        assert poly._loc == 0.0
+        assert poly._scale == 1.0
 
         # Samples should pass through unchanged
-        samples = self._bkd.array([[-2.0, 0.0, 2.0]])
+        samples = bkd.array([[-2.0, 0.0, 2.0]])
         phys_samples = poly._canonical_to_physical(samples)
-        self._bkd.assert_allclose(phys_samples, samples, rtol=1e-14)
-
-
-class TestContinuousNumericOrthonormalPolynomial1DNumpy(
-    TestContinuousNumericOrthonormalPolynomial1D[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestContinuousNumericOrthonormalPolynomial1DTorch(
-    TestContinuousNumericOrthonormalPolynomial1D[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(phys_samples, samples, rtol=1e-14)

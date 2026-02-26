@@ -1,11 +1,6 @@
 """Tests for MFNet gradient fitter."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -28,18 +23,14 @@ from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     RootMFNetNode,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
     slowest_test,
 )
 
 
 def _create_expansion(
-    bkd: Backend[Array], nvars: int, nqoi: int, max_level: int = 2
-) -> BasisExpansion[Array]:
+    bkd, nvars: int, nqoi: int, max_level: int = 2
+) -> BasisExpansion:
     bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
     basis = MultiIndexBasis.__new__(MultiIndexBasis)
@@ -48,11 +39,11 @@ def _create_expansion(
 
 
 def _build_two_node_mfnet(
-    bkd: Backend[Array],
-    leaf_coef: Array,
-    scale_coef: Array,
-    delta_coef: Array,
-) -> MFNet[Array]:
+    bkd,
+    leaf_coef,
+    scale_coef,
+    delta_coef,
+) -> MFNet:
     """Build a 2-node MFNet: leaf(0) -> root(1) with discrepancy model.
 
     Leaf: BasisExpansion, nvars=1, nqoi=1
@@ -79,20 +70,10 @@ def _build_two_node_mfnet(
     return net
 
 
-class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestMFNetGradientFitter:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        self._bkd = self.bkd()
-
-    def _generate_truth_and_data(self) -> Any:
+    def _generate_truth_and_data(self, bkd):
         """Generate a true MFNet and training data from it."""
-        bkd = self._bkd
-
         # True coefficients
         np.random.seed(10)
         leaf_nterms = len(compute_hyperbolic_indices(1, 3, 1.0, bkd).T)
@@ -116,23 +97,21 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
 
         return true_net, [s_leaf, s_root], [v_leaf, v_root]
 
-    def test_loss_evaluation(self) -> None:
+    def test_loss_evaluation(self, bkd) -> None:
         """Test that loss is computable and positive."""
-        bkd = self._bkd
-        true_net, samples, values = self._generate_truth_and_data()
+        true_net, samples, values = self._generate_truth_and_data(bkd)
 
         loss = MFNetNegLogLikelihoodLoss(true_net, samples, values)
         params = true_net.hyp_list().get_active_values()
         val = loss(bkd.reshape(params, (-1, 1)))
 
-        self.assertEqual(val.shape[0], 1)
-        self.assertEqual(val.shape[1], 1)
+        assert val.shape[0] == 1
+        assert val.shape[1] == 1
 
     @slowest_test
-    def test_gradient_fitter_fits(self) -> None:
+    def test_gradient_fitter_fits(self, bkd) -> None:
         """Fit a 2-node MFNet and verify predictions recover truth."""
-        bkd = self._bkd
-        true_net, samples, values = self._generate_truth_and_data()
+        true_net, samples, values = self._generate_truth_and_data(bkd)
 
         # Build a fresh network with different initial coefficients
         np.random.seed(999)
@@ -156,21 +135,3 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
         fit_out = result.surrogate()(test_samples)
 
         bkd.assert_allclose(fit_out, true_out, atol=1e-4)
-
-
-# --- Concrete backend test classes ---
-
-
-class TestGradientFitterNumpy(TestMFNetGradientFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGradientFitterTorch(TestMFNetGradientFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)

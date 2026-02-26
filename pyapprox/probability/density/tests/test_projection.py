@@ -1,12 +1,9 @@
 """Tests for ProjectionDensityFitter."""
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability.density.kernel_density_basis import (
     KernelDensityBasis,
@@ -25,20 +22,9 @@ from pyapprox.surrogates.affine.expansions.pce_density import (
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+class TestProjectionDensityFitter:
 
     def _gaussian_pdf(self, y: np.ndarray, mu: float, sigma: float) -> np.ndarray:
         """Standard Gaussian PDF for reference."""
@@ -46,12 +32,11 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
             -0.5 * ((y - mu) / sigma) ** 2
         )
 
-    def _make_gaussian_quadrature(self, mu: float, sigma: float, nquad: int):
+    def _make_gaussian_quadrature(self, bkd, mu: float, sigma: float, nquad: int):
         """Generate Gauss-Hermite quadrature for N(mu, sigma^2).
 
         Returns (y_values, weights) where y_values has shape (1, nquad).
         """
-        bkd = self._bkd
         # Gauss-Hermite nodes/weights for standard normal
         xi_np, w_np = np.polynomial.hermite_e.hermegauss(nquad)
         # Transform: y = mu + sigma * xi
@@ -67,21 +52,19 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         weights = bkd.asarray(w_np)
         return y_values, weights
 
-    def test_fit_coefficients_shape_piecewise(self) -> None:
+    def test_fit_coefficients_shape_piecewise(self, bkd) -> None:
         """Fit returns correct shape with piecewise basis."""
-        bkd = self._bkd
         basis = PiecewiseDensityBasis(-3.0, 3.0, 21, degree=1, bkd=bkd)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 50)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 50)
         d = fitter.fit(y_values, weights)
         bkd.assert_allclose(
             bkd.asarray([d.shape[0]]),
             bkd.asarray([21]),
         )
 
-    def test_fit_coefficients_shape_kernel(self) -> None:
+    def test_fit_coefficients_shape_kernel(self, bkd) -> None:
         """Fit returns correct shape with kernel basis."""
-        bkd = self._bkd
         kernel = SquaredExponentialKernel(
             bkd.asarray([0.5]),
             (0.01, 100.0),
@@ -92,17 +75,16 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         kb = KernelBasis(kernel, centers)
         basis = KernelDensityBasis(kb)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 50)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 50)
         d = fitter.fit(y_values, weights)
         bkd.assert_allclose(
             bkd.asarray([d.shape[0]]),
             bkd.asarray([15]),
         )
 
-    def test_gaussian_density_piecewise_linear(self) -> None:
+    def test_gaussian_density_piecewise_linear(self, bkd) -> None:
         """Projected density approximates N(0,1) with piecewise linear basis."""
-        bkd = self._bkd
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 80)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 80)
         # Set basis domain from data range
         y_np = bkd.to_numpy(y_values[0])
         y_min, y_max = float(y_np.min()), float(y_np.max())
@@ -122,10 +104,9 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(f_approx, f_true, atol=0.01, rtol=0.05)
 
-    def test_gaussian_density_piecewise_quadratic(self) -> None:
+    def test_gaussian_density_piecewise_quadratic(self, bkd) -> None:
         """Quadratic basis should approximate N(0,1) more accurately."""
-        bkd = self._bkd
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 80)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 80)
         y_np = bkd.to_numpy(y_values[0])
         y_min, y_max = float(y_np.min()), float(y_np.max())
         basis = PiecewiseDensityBasis(y_min, y_max, 81, degree=2, bkd=bkd)
@@ -142,9 +123,8 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(f_approx, f_true, atol=0.04, rtol=0.1)
 
-    def test_gaussian_density_kernel(self) -> None:
+    def test_gaussian_density_kernel(self, bkd) -> None:
         """Kernel basis density approximates N(0,1)."""
-        bkd = self._bkd
         kernel = SquaredExponentialKernel(
             bkd.asarray([0.5]),
             (0.01, 100.0),
@@ -155,7 +135,7 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         kb = KernelBasis(kernel, centers)
         basis = KernelDensityBasis(kb)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 80)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 80)
         d = fitter.fit(y_values, weights)
 
         y_test = bkd.reshape(bkd.linspace(-3.0, 3.0, 50), (1, -1))
@@ -168,12 +148,11 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(f_approx, f_true, atol=0.01, rtol=0.05)
 
-    def test_normalization_piecewise(self) -> None:
+    def test_normalization_piecewise(self, bkd) -> None:
         """Projected density integrates to 1."""
-        bkd = self._bkd
         basis = PiecewiseDensityBasis(-5.0, 5.0, 31, degree=1, bkd=bkd)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 60)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 60)
         d = fitter.fit(y_values, weights)
 
         y_min, y_max = basis.domain()
@@ -193,18 +172,16 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
             atol=0.01,
         )
 
-    def test_ise_criterion_positive(self) -> None:
+    def test_ise_criterion_positive(self, bkd) -> None:
         """ISE criterion b^T M^{-1} b should be positive."""
-        bkd = self._bkd
         basis = PiecewiseDensityBasis(-5.0, 5.0, 21, degree=1, bkd=bkd)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 50)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 50)
         ise = fitter.ise_criterion(y_values, weights)
         assert float(bkd.to_numpy(ise)) > 0.0
 
-    def test_ise_criterion_kernel(self) -> None:
+    def test_ise_criterion_kernel(self, bkd) -> None:
         """ISE criterion should be positive for kernel basis."""
-        bkd = self._bkd
         kernel = SquaredExponentialKernel(
             bkd.asarray([0.5]),
             (0.01, 100.0),
@@ -215,16 +192,15 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         kb = KernelBasis(kernel, centers)
         basis = KernelDensityBasis(kb)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 50)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 50)
         ise = fitter.ise_criterion(y_values, weights)
         assert float(bkd.to_numpy(ise)) > 0.0
 
-    def test_ise_equals_dtMd(self) -> None:
+    def test_ise_equals_dtMd(self, bkd) -> None:
         """ISE criterion b^T M^{-1} b should equal d^T M d."""
-        bkd = self._bkd
         basis = PiecewiseDensityBasis(-5.0, 5.0, 21, degree=1, bkd=bkd)
         fitter = ProjectionDensityFitter(basis)
-        y_values, weights = self._make_gaussian_quadrature(0.0, 1.0, 50)
+        y_values, weights = self._make_gaussian_quadrature(bkd, 0.0, 1.0, 50)
 
         d = fitter.fit(y_values, weights)
         ise = fitter.ise_criterion(y_values, weights)
@@ -238,15 +214,13 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
             rtol=1e-8,
         )
 
-    def test_invalid_basis_type(self) -> None:
+    def test_invalid_basis_type(self, bkd) -> None:
         """Should reject non-DensityBasisProtocol objects."""
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             ProjectionDensityFitter("not a basis")  # type: ignore
 
-    def test_uniform_density_piecewise(self) -> None:
+    def test_uniform_density_piecewise(self, bkd) -> None:
         """Project uniform density on [-1, 1]."""
-        bkd = self._bkd
-
         # Uniform quadrature: use Gauss-Legendre on [-1, 1]
         nquad = 100
         xi_np, w_np = np.polynomial.legendre.leggauss(nquad)
@@ -271,29 +245,10 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(f_approx, f_true, atol=0.05)
 
 
-class TestProjectionDensityFitterNumpy(TestProjectionDensityFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
+class TestISEOptimizingFitter:
 
-
-class TestProjectionDensityFitterTorch(TestProjectionDensityFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _gaussian_quadrature(self, nquad: int = 80):
+    def _gaussian_quadrature(self, bkd, nquad: int = 80):
         """Gauss-Hermite quadrature for N(0,1)."""
-        bkd = self._bkd
         xi_np, w_np = np.polynomial.hermite_e.hermegauss(nquad)
         w_np = w_np / math.sqrt(2.0 * math.pi)
         y_values = bkd.reshape(bkd.asarray(xi_np), (1, -1))
@@ -302,12 +257,12 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
 
     def _make_kernel_basis(
         self,
+        bkd,
         lenscale: float = 0.1,
         ncenters: int = 20,
         y_min: float = -4.0,
         y_max: float = 4.0,
     ) -> KernelDensityBasis:
-        bkd = self._bkd
         # Upper bound: average spacing between centers
         domain_len = y_max - y_min
         max_lenscale = domain_len / ncenters
@@ -321,13 +276,12 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         kb = KernelBasis(kernel, centers)
         return KernelDensityBasis(kb)
 
-    def test_ise_optimization(self) -> None:
+    def test_ise_optimization(self, bkd) -> None:
         """Optimal ISE score should be higher than non-optimal starting point."""
-        bkd = self._bkd
-        y_values, weights = self._gaussian_quadrature()
+        y_values, weights = self._gaussian_quadrature(bkd)
 
         # Start from a clearly non-optimal length scale
-        basis = self._make_kernel_basis(lenscale=0.1)
+        basis = self._make_kernel_basis(bkd, lenscale=0.1)
         fitter_proj = ProjectionDensityFitter(basis)
         ise_before = float(bkd.to_numpy(fitter_proj.ise_criterion(y_values, weights)))
 
@@ -336,26 +290,23 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
 
         ise_after = float(bkd.to_numpy(fitter_proj.ise_criterion(y_values, weights)))
 
-        self.assertGreater(
-            ise_after,
-            ise_before,
-            f"ISE did not improve: {ise_after:.6f} <= {ise_before:.6f}",
+        assert ise_after > ise_before, (
+            f"ISE did not improve: {ise_after:.6f} <= {ise_before:.6f}"
         )
 
-    def test_ise_vs_fixed_kernel(self) -> None:
+    def test_ise_vs_fixed_kernel(self, bkd) -> None:
         """ISE-optimized density should be closer to N(0,1) than fixed bad kernel."""
-        bkd = self._bkd
-        y_values, weights = self._gaussian_quadrature()
+        y_values, weights = self._gaussian_quadrature(bkd)
 
         from scipy import stats
 
         # Fixed bad kernel
-        basis_fixed = self._make_kernel_basis(lenscale=0.1)
+        basis_fixed = self._make_kernel_basis(bkd, lenscale=0.1)
         fitter_fixed = ProjectionDensityFitter(basis_fixed)
         d_fixed = fitter_fixed.fit(y_values, weights)
 
         # Optimized kernel
-        basis_opt = self._make_kernel_basis(lenscale=0.1)
+        basis_opt = self._make_kernel_basis(bkd, lenscale=0.1)
         ise_fitter = ISEOptimizingFitter(basis_opt)
         d_opt = ise_fitter.fit(y_values, weights)
 
@@ -372,16 +323,13 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         f_opt_np = bkd.to_numpy(bkd.dot(bkd.reshape(d_opt, (1, -1)), Phi_opt)[0])
         l2_opt = float(np.sqrt(np.sum((f_opt_np - f_true_np) ** 2)))
 
-        self.assertLess(
-            l2_opt,
-            l2_fixed,
-            f"Optimized L2 ({l2_opt:.6f}) not less than fixed L2 ({l2_fixed:.6f})",
+        assert l2_opt < l2_fixed, (
+            f"Optimized L2 ({l2_opt:.6f}) not less than fixed L2 ({l2_fixed:.6f})"
         )
 
-    def test_ise_with_custom_optimizer(self) -> None:
+    def test_ise_with_custom_optimizer(self, bkd) -> None:
         """ISEOptimizingFitter should accept a custom optimizer."""
-        bkd = self._bkd
-        y_values, weights = self._gaussian_quadrature()
+        y_values, weights = self._gaussian_quadrature(bkd)
 
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
@@ -389,7 +337,7 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
 
         optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=100)
 
-        basis = self._make_kernel_basis(lenscale=0.1)
+        basis = self._make_kernel_basis(bkd, lenscale=0.1)
         ise_fitter = ISEOptimizingFitter(basis, optimizer=optimizer)
         d = ise_fitter.fit(y_values, weights)
 
@@ -398,20 +346,8 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
             bkd.asarray([20]),
         )
 
-    def test_ise_invalid_basis_type(self) -> None:
+    def test_ise_invalid_basis_type(self, bkd) -> None:
         """Should reject non-KernelDensityBasis objects."""
-        bkd = self._bkd
         basis = PiecewiseDensityBasis(-5.0, 5.0, 21, degree=1, bkd=bkd)
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             ISEOptimizingFitter(basis)  # type: ignore
-
-
-class TestISEOptimizingFitterNumpy(TestISEOptimizingFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestISEOptimizingFitterTorch(TestISEOptimizingFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

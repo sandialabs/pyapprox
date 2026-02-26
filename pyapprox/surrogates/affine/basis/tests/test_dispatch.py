@@ -12,21 +12,18 @@ Minor differences (~1e-14) from float64 arithmetic ordering are expected
 with Numba parallel mode. Tests use rtol=1e-12 to accommodate this.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
 import torch
-from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.optional_deps import package_available
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 if not package_available("numba"):
-    raise unittest.SkipTest("numba not installed")
+    pytest.skip("numba not installed", allow_module_level=True)
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -91,11 +88,8 @@ def _make_basis_data_numpy(nvars, max_level, nsamples):
 # ---------------------------------------------------------------------------
 
 
-class TestNumbaKernels(unittest.TestCase):
+class TestNumbaKernels:
     """Test Numba kernels match vectorized implementations."""
-
-    def setUp(self):
-        self._bkd = NumpyBkd()
 
     def test_eval_small(self):
         """Numba eval matches vectorized for 2D, level 3."""
@@ -290,13 +284,8 @@ class TestNumbaKernels(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestTorchKernels(unittest.TestCase):
+class TestTorchKernels:
     """Test torch-native kernels match vectorized implementations."""
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd_np = NumpyBkd()
-        self._bkd_torch = TorchBkd()
 
     def _to_torch(self, arrays):
         """Convert list of numpy arrays to torch tensors."""
@@ -313,7 +302,7 @@ class TestTorchKernels(unittest.TestCase):
         indices_torch = torch.from_numpy(np.asarray(indices))
         result_torch = basis_eval_torch(vals_torch, indices_torch)
 
-        self._bkd_np.assert_allclose(
+        bkd.assert_allclose(
             result_vec,
             result_torch.numpy(),
             rtol=1e-12,
@@ -341,7 +330,7 @@ class TestTorchKernels(unittest.TestCase):
             indices_torch,
         )
 
-        self._bkd_np.assert_allclose(
+        bkd.assert_allclose(
             result_vec,
             result_torch.numpy(),
             rtol=1e-12,
@@ -376,7 +365,7 @@ class TestTorchKernels(unittest.TestCase):
             indices_torch,
         )
 
-        self._bkd_np.assert_allclose(
+        bkd.assert_allclose(
             result_vec,
             result_torch.numpy(),
             rtol=1e-12,
@@ -390,6 +379,7 @@ class TestTorchKernels(unittest.TestCase):
             10,
         )
         nvars = 3
+        bkd_torch = TorchBkd()
 
         vals_torch = self._to_torch(vals_1d)
         derivs_torch = self._to_torch(derivs_1d)
@@ -404,7 +394,7 @@ class TestTorchKernels(unittest.TestCase):
 
         for dd in range(nvars):
             for kk in range(dd + 1, nvars):
-                self._bkd_torch.assert_allclose(
+                bkd_torch.assert_allclose(
                     result[:, :, dd, kk],
                     result[:, :, kk, dd],
                 )
@@ -415,44 +405,44 @@ class TestTorchKernels(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestDispatchSelection(unittest.TestCase):
+class TestDispatchSelection:
     """Test dispatch selects correct implementation per backend type."""
 
     def test_numpy_gets_numba_eval(self):
         """NumPy backend should get Numba closure for eval."""
         bkd = NumpyBkd()
         impl = get_basis_eval_impl(bkd)
-        self.assertIsNot(impl, basis_eval_vectorized)
+        assert impl is not basis_eval_vectorized
 
     def test_numpy_gets_numba_jacobian(self):
         """NumPy backend should get Numba closure for jacobian."""
         bkd = NumpyBkd()
         impl = get_basis_jacobian_impl(bkd)
-        self.assertIsNot(impl, basis_jacobian_vectorized)
+        assert impl is not basis_jacobian_vectorized
 
     def test_numpy_gets_numba_hessian(self):
         """NumPy backend should get Numba closure for hessian."""
         bkd = NumpyBkd()
         impl = get_basis_hessian_impl(bkd)
-        self.assertIsNot(impl, basis_hessian_vectorized)
+        assert impl is not basis_hessian_vectorized
 
     def test_torch_gets_compiled_eval(self):
         """Torch backend should get compiled closure for eval."""
         bkd = TorchBkd()
         impl = get_basis_eval_impl(bkd)
-        self.assertIsNot(impl, basis_eval_vectorized)
+        assert impl is not basis_eval_vectorized
 
     def test_torch_gets_compiled_jacobian(self):
         """Torch backend should get compiled closure for jacobian."""
         bkd = TorchBkd()
         impl = get_basis_jacobian_impl(bkd)
-        self.assertIsNot(impl, basis_jacobian_vectorized)
+        assert impl is not basis_jacobian_vectorized
 
     def test_torch_gets_compiled_hessian(self):
         """Torch backend should get compiled closure for hessian."""
         bkd = TorchBkd()
         impl = get_basis_hessian_impl(bkd)
-        self.assertIsNot(impl, basis_hessian_vectorized)
+        assert impl is not basis_hessian_vectorized
 
 
 # ---------------------------------------------------------------------------
@@ -460,77 +450,75 @@ class TestDispatchSelection(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
+class TestBasisDispatchIntegration:
     """Dual-backend integration tests for dispatch through MultiIndexBasis.
 
     Verifies that eval, jacobian_batch, and hessian_batch produce correct
     results when the dispatch layer is active.
     """
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-        np.random.seed(42)
-
-    def _create_basis(self, nvars, max_level):
-        bkd = self._bkd
+    def _create_basis(self, bkd, nvars, max_level):
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
-    def test_eval_shape(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_eval_shape(self, bkd):
         """Dispatched eval returns correct shape."""
-        basis = self._create_basis(3, 3)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 3, 3)
         nsamples = 20
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-1, 1, (3, nsamples)),
         )
         result = basis(samples)
-        self.assertEqual(result.shape, (nsamples, basis.nterms()))
+        assert result.shape == (nsamples, basis.nterms())
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self, bkd):
         """Dispatched jacobian returns correct shape."""
-        basis = self._create_basis(3, 2)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 3, 2)
         nsamples = 15
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-1, 1, (3, nsamples)),
         )
         jac = basis.jacobian_batch(samples)
-        self.assertEqual(jac.shape, (nsamples, basis.nterms(), 3))
+        assert jac.shape == (nsamples, basis.nterms(), 3)
 
-    def test_hessian_shape(self):
+    def test_hessian_shape(self, bkd):
         """Dispatched hessian returns correct shape."""
-        basis = self._create_basis(2, 3)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 2, 3)
         nsamples = 10
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-1, 1, (2, nsamples)),
         )
         hess = basis.hessian_batch(samples)
-        self.assertEqual(hess.shape, (nsamples, basis.nterms(), 2, 2))
+        assert hess.shape == (nsamples, basis.nterms(), 2, 2)
 
-    def test_eval_orthonormality(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_eval_orthonormality(self, bkd):
         """Dispatched eval preserves orthonormality via quadrature."""
-        basis = self._create_basis(2, 3)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 2, 3)
         npoints_1d = [8, 8]
         pts, wts = basis.tensor_product_quadrature(npoints_1d)
 
         values = basis(pts)
-        weighted_values = values * self._bkd.reshape(wts, (-1, 1))
-        gram = self._bkd.dot(values.T, weighted_values)
+        weighted_values = values * bkd.reshape(wts, (-1, 1))
+        gram = bkd.dot(values.T, weighted_values)
 
-        expected = self._bkd.eye(basis.nterms())
-        self._bkd.assert_allclose(gram, expected, atol=1e-10)
+        expected = bkd.eye(basis.nterms())
+        bkd.assert_allclose(gram, expected, atol=1e-10)
 
-    def test_jacobian_finite_difference(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_jacobian_finite_difference(self, bkd):
         """Dispatched jacobian matches finite differences."""
-        basis = self._create_basis(2, 3)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 2, 3)
         nsamples = 5
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-0.9, 0.9, (2, nsamples)),
         )
 
@@ -538,24 +526,26 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
 
         eps = 1e-7
         for dd in range(2):
-            samples_plus = self._bkd.copy(samples)
-            samples_minus = self._bkd.copy(samples)
+            samples_plus = bkd.copy(samples)
+            samples_minus = bkd.copy(samples)
             samples_plus[dd, :] += eps
             samples_minus[dd, :] -= eps
 
             fd_jac = (basis(samples_plus) - basis(samples_minus)) / (2 * eps)
-            self._bkd.assert_allclose(
+            bkd.assert_allclose(
                 jac[:, :, dd],
                 fd_jac,
                 rtol=1e-5,
                 atol=1e-7,
             )
 
-    def test_hessian_finite_difference(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_hessian_finite_difference(self, bkd):
         """Dispatched hessian matches finite differences on jacobian."""
-        basis = self._create_basis(2, 2)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 2, 2)
         nsamples = 3
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-0.9, 0.9, (2, nsamples)),
         )
 
@@ -563,8 +553,8 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
 
         eps = 1e-6
         for dd in range(2):
-            samples_plus = self._bkd.copy(samples)
-            samples_minus = self._bkd.copy(samples)
+            samples_plus = bkd.copy(samples)
+            samples_minus = bkd.copy(samples)
             samples_plus[dd, :] += eps
             samples_minus[dd, :] -= eps
 
@@ -572,18 +562,20 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
             jac_minus = basis.jacobian_batch(samples_minus)
 
             fd_hess_row = (jac_plus - jac_minus) / (2 * eps)
-            self._bkd.assert_allclose(
+            bkd.assert_allclose(
                 hess[:, :, dd, :],
                 fd_hess_row,
                 rtol=1e-4,
                 atol=1e-6,
             )
 
-    def test_hessian_symmetry(self):
+    @pytest.mark.slow_on("TorchBkd")
+    def test_hessian_symmetry(self, bkd):
         """Dispatched hessian is symmetric."""
-        basis = self._create_basis(3, 2)
+        np.random.seed(42)
+        basis = self._create_basis(bkd, 3, 2)
         nsamples = 5
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             np.random.uniform(-1, 1, (3, nsamples)),
         )
 
@@ -591,14 +583,14 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
 
         for dd in range(3):
             for kk in range(dd + 1, 3):
-                self._bkd.assert_allclose(
+                bkd.assert_allclose(
                     hess[:, :, dd, kk],
                     hess[:, :, kk, dd],
                 )
 
-    def test_mixed_bases(self):
+    def test_mixed_bases(self, bkd):
         """Dispatch works with mixed Legendre + Hermite bases."""
-        bkd = self._bkd
+        np.random.seed(42)
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
             GaussianMarginal(0.0, 1.0, bkd),
@@ -618,53 +610,7 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
         )
 
         values = basis(samples)
-        self.assertEqual(values.shape, (nsamples, basis.nterms()))
+        assert values.shape == (nsamples, basis.nterms())
 
         jac = basis.jacobian_batch(samples)
-        self.assertEqual(jac.shape, (nsamples, basis.nterms(), 2))
-
-
-class TestBasisDispatchIntegrationNumpy(
-    _TestBasisDispatchIntegration[NDArray[Any]],
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBasisDispatchIntegrationTorch(
-    _TestBasisDispatchIntegration[torch.Tensor],
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    @slow_test
-    def test_eval_shape(self):
-        super().test_eval_shape()
-
-    @slow_test
-    def test_jacobian_finite_difference(self):
-        super().test_jacobian_finite_difference()
-
-    @slow_test
-    def test_hessian_symmetry(self):
-        super().test_hessian_symmetry()
-
-    @slow_test
-    def test_hessian_finite_difference(self):
-        super().test_hessian_finite_difference()
-
-    @slow_test
-    def test_eval_orthonormality(self):
-        super().test_eval_orthonormality()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert jac.shape == (nsamples, basis.nterms(), 2)

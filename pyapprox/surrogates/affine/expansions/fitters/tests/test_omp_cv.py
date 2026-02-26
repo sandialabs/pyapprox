@@ -4,12 +4,8 @@ Tests verify that OMP path + LOO/LMO CV correctly identifies the
 optimal number of terms for sparse signals.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -24,37 +20,26 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestOMPCVFitter(Generic[Array], unittest.TestCase):
-    """Base test class - NOT run directly."""
+class TestOMPCVFitter:
+    """Base test class."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         """Create test expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_returns_cv_selection_result(self) -> None:
+    def test_returns_cv_selection_result(self, bkd) -> None:
         """Fit returns CVSelectionResult."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=5)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=5)
         ntrain = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -62,14 +47,13 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
         fitter = OMPCVFitter(bkd, max_nonzeros=5)
         result = fitter.fit(expansion, samples, values)
 
-        self.assertIsInstance(result, CVSelectionResult)
+        assert isinstance(result, CVSelectionResult)
 
-    def test_noiseless_sparse_selects_correct_count(self) -> None:
+    def test_noiseless_sparse_selects_correct_count(self, bkd) -> None:
         """For a noiseless sparse signal, selects the correct number of terms."""
-        bkd = self._bkd
         nvars = 1
         max_level = 5
-        expansion = self._create_expansion(nvars, max_level)
+        expansion = self._create_expansion(bkd, nvars, max_level)
         ntrain = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # x^2 has exactly 3 terms in Legendre basis (P0, P1, P2 contribute
@@ -88,10 +72,9 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
             atol=1e-10,
         )
 
-    def test_cv_scores_shape_matches_n_selected(self) -> None:
+    def test_cv_scores_shape_matches_n_selected(self, bkd) -> None:
         """CV scores array length matches number of OMP-selected terms."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=4)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=4)
         ntrain = 30
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -101,14 +84,13 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
 
         # cv_scores length should equal number of terms OMP selected
         n_candidates = result.cv_scores().shape[0]
-        self.assertGreater(n_candidates, 0)
-        self.assertLessEqual(n_candidates, 4)
+        assert n_candidates > 0
+        assert n_candidates <= 4
 
-    def test_best_nterms_less_than_max(self) -> None:
+    def test_best_nterms_less_than_max(self, bkd) -> None:
         """Selected truncation is less than max when signal is sparse."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars, max_level=8)
+        expansion = self._create_expansion(bkd, nvars, max_level=8)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # Linear function: only 2 basis terms needed
@@ -118,13 +100,12 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # Best label (number of terms) should be much less than 8
-        self.assertLess(result.best_label(), 8)
+        assert result.best_label() < 8
 
-    def test_noisy_data_cv_has_minimum(self) -> None:
+    def test_noisy_data_cv_has_minimum(self, bkd) -> None:
         """With noisy data, CV scores should first decrease then increase."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars, max_level=8)
+        expansion = self._create_expansion(bkd, nvars, max_level=8)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # Quadratic signal + noise
@@ -136,37 +117,31 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # Best truncation should be small (not max)
-        self.assertLess(result.best_label(), 8)
+        assert result.best_label() < 8
         # CV score at best should be smaller than at last
         cv_scores = result.cv_scores()
-        self.assertLess(
-            float(cv_scores[result.best_index()]),
-            float(cv_scores[-1]) + 1e-10,
-        )
+        assert float(cv_scores[result.best_index()]) < float(cv_scores[-1]) + 1e-10
 
-    def test_accessors(self) -> None:
+    def test_accessors(self, bkd) -> None:
         """Accessors return correct values."""
-        bkd = self._bkd
         fitter = OMPCVFitter(bkd, max_nonzeros=10, rtol=1e-3, alpha=1e-4)
-        self.assertEqual(fitter.max_nonzeros(), 10)
-        self.assertAlmostEqual(fitter.rtol(), 1e-3)
-        self.assertAlmostEqual(fitter.alpha(), 1e-4)
+        assert fitter.max_nonzeros() == 10
+        assert fitter.rtol() == pytest.approx(1e-3)
+        assert fitter.alpha() == pytest.approx(1e-4)
 
-    def test_multi_qoi_raises(self) -> None:
+    def test_multi_qoi_raises(self, bkd) -> None:
         """Multi-QoI input raises ValueError."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=3, nqoi=2)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=3, nqoi=2)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 20)))
         values = bkd.asarray(np.random.randn(2, 20))
 
         fitter = OMPCVFitter(bkd, max_nonzeros=3)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             fitter.fit(expansion, samples, values)
 
-    def test_with_lmo_nfolds(self) -> None:
+    def test_with_lmo_nfolds(self, bkd) -> None:
         """OMP CV works with LMO instead of LOO."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=5)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=5)
         ntrain = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -174,7 +149,7 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
         fitter = OMPCVFitter(bkd, max_nonzeros=5, nfolds=5)
         result = fitter.fit(expansion, samples, values)
 
-        self.assertIsInstance(result, CVSelectionResult)
+        assert isinstance(result, CVSelectionResult)
         # Should still find a good truncation
         best_idx = result.best_index()
         bkd.assert_allclose(
@@ -183,10 +158,9 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
             atol=1e-10,
         )
 
-    def test_fitted_surrogate_evaluates(self) -> None:
+    def test_fitted_surrogate_evaluates(self, bkd) -> None:
         """Fitted surrogate from result evaluates correctly."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=5)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=5)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -201,10 +175,9 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(predicted, expected, atol=1e-10)
 
-    def test_candidate_labels_are_integers(self) -> None:
+    def test_candidate_labels_are_integers(self, bkd) -> None:
         """Candidate labels are 1, 2, ..., n_selected."""
-        bkd = self._bkd
-        expansion = self._create_expansion(nvars=1, max_level=4)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=4)
         ntrain = 30
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -213,36 +186,9 @@ class TestOMPCVFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         labels = result.candidate_labels()
-        self.assertEqual(labels, list(range(1, len(labels) + 1)))
+        assert labels == list(range(1, len(labels) + 1))
 
-    def test_invalid_max_nonzeros_raises(self) -> None:
+    def test_invalid_max_nonzeros_raises(self, bkd) -> None:
         """max_nonzeros < 1 raises ValueError."""
-        bkd = self._bkd
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             OMPCVFitter(bkd, max_nonzeros=0)
-
-
-class TestOMPCVFitterNumpy(TestOMPCVFitter[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOMPCVFitterTorch(TestOMPCVFitter[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

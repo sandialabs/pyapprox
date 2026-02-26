@@ -9,12 +9,8 @@ sometimes takes MORE iterations than without HVP, which should never happen
 for correct Hessian-based optimization. See benchmark_hvp.py for details.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -25,9 +21,6 @@ from pyapprox.surrogates.gaussianprocess import (
     NegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.kernels import SquaredExponentialKernel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
 
 # HVP is currently disabled due to suspected bug - see loss.py
 HVP_DISABLED_REASON = (
@@ -37,95 +30,98 @@ HVP_DISABLED_REASON = (
 )
 
 
-@unittest.skip(HVP_DISABLED_REASON)
-class TestLossHVP(Generic[Array], unittest.TestCase):
+@pytest.mark.skip(reason=HVP_DISABLED_REASON)
+class TestLossHVP:
     """Test NLML loss HVP with respect to hyperparameters."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
+        """Set up test environment."""
         np.random.seed(42)
-
-        # Create a simple 2D GP with 2 length scale hyperparameters
-        self._nvars = 2
-        self._n_train = 15
+        nvars = 2
+        n_train = 15
 
         # Create kernel with two length scale hyperparameters
         # Use SquaredExponentialKernel (RBF) for simpler second derivatives
-        length_scale = self._bkd.array([1.0, 1.0])
-        self._kernel = SquaredExponentialKernel(
+        length_scale = bkd.array([1.0, 1.0])
+        kernel = SquaredExponentialKernel(
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
         )
 
         # Create GP
-        self._gp = ExactGaussianProcess(
-            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd, nugget=0.01
+        gp = ExactGaussianProcess(
+            kernel=kernel, nvars=nvars, bkd=bkd, nugget=0.01
         )
 
         # Generate training data
-        X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(np.random.randn(1, self._n_train))
+        X_train = bkd.array(np.random.randn(nvars, n_train))
+        y_train = bkd.array(np.random.randn(1, n_train))
 
         # Create loss function
-        self._loss = NegativeLogMarginalLikelihoodLoss(self._gp, X_train, y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
         # Get initial parameters
-        self._params = self._gp.hyp_list().get_active_values()
+        params = gp.hyp_list().get_active_values()
 
-    def test_hvp_shape(self):
+        return gp, kernel, loss, params, nvars, n_train
+
+    def test_hvp_shape(self, bkd):
         """Test that HVP returns correct shape."""
-        nactive = self._loss.nvars()
-        direction = self._bkd.array(np.random.randn(nactive))
+        _, _, loss, params, _, _ = self._setup(bkd)
 
-        hvp = self._loss.hvp(self._params, direction)
+        nactive = loss.nvars()
+        direction = bkd.array(np.random.randn(nactive))
+
+        hvp = loss.hvp(params, direction)
 
         # Should have shape (nactive, 1) following standard convention
-        self.assertEqual(hvp.shape, (nactive, 1))
+        assert hvp.shape == (nactive, 1)
 
-    def test_hvp_linearity(self):
-        """Test that HVP is linear in direction: H(θ)·(aV) = a·H(θ)·V."""
-        nactive = self._loss.nvars()
-        direction = self._bkd.array(np.random.randn(nactive))
+    def test_hvp_linearity(self, bkd):
+        """Test that HVP is linear in direction: H(theta)*(aV) = a*H(theta)*V."""
+        _, _, loss, params, _, _ = self._setup(bkd)
+
+        nactive = loss.nvars()
+        direction = bkd.array(np.random.randn(nactive))
         a = 2.5
 
-        hvp1 = self._loss.hvp(self._params, direction)
-        hvp2 = self._loss.hvp(self._params, direction * a)
+        hvp1 = loss.hvp(params, direction)
+        hvp2 = loss.hvp(params, direction * a)
 
         # hvp2 should be a * hvp1
-        self.assertTrue(self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8))
+        assert bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8)
 
-    def test_hvp_zero_direction(self):
+    def test_hvp_zero_direction(self, bkd):
         """Test HVP with zero direction vector."""
-        nactive = self._loss.nvars()
-        direction = self._bkd.zeros((nactive,))
+        _, _, loss, params, _, _ = self._setup(bkd)
 
-        hvp = self._loss.hvp(self._params, direction)
+        nactive = loss.nvars()
+        direction = bkd.zeros((nactive,))
+
+        hvp = loss.hvp(params, direction)
 
         # Should be zero
-        zero_hvp = self._bkd.zeros((nactive, 1))
-        self.assertTrue(self._bkd.allclose(hvp, zero_hvp, atol=1e-12))
+        zero_hvp = bkd.zeros((nactive, 1))
+        assert bkd.allclose(hvp, zero_hvp, atol=1e-12)
 
-    def test_hvp_with_derivative_checker(self):
+    def test_hvp_with_derivative_checker(self, bkd):
         """Test HVP using DerivativeChecker with finite differences."""
+        _, _, loss, params, _, _ = self._setup(bkd)
+
         # Create derivative checker
-        checker = DerivativeChecker(self._loss)
+        checker = DerivativeChecker(loss)
 
         # Test point (current hyperparameters)
-        params_2d = self._bkd.reshape(self._params, (len(self._params), 1))
+        params_2d = bkd.reshape(params, (len(params), 1))
 
         # Random direction for checking
-        direction = self._bkd.array(np.random.randn(len(self._params), 1))
-        direction = direction / self._bkd.norm(direction)
+        direction = bkd.array(np.random.randn(len(params), 1))
+        direction = direction / bkd.norm(direction)
 
         # Custom FD step sizes
-        fd_eps = self._bkd.flip(self._bkd.logspace(-14, 0, 15))
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
         # Check derivatives
         errors = checker.check_derivatives(
@@ -134,89 +130,85 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
+        assert bkd.all_bool(bkd.isfinite(jac_error))
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
+        assert jac_ratio < 1e-6, f"Jacobian error ratio: {jac_ratio}"
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
+        assert bkd.all_bool(bkd.isfinite(hvp_error))
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
+        assert hvp_ratio < 1e-6, f"HVP error ratio: {hvp_ratio}"
 
-    def test_hvp_coordinate_directions(self):
+    def test_hvp_coordinate_directions(self, bkd):
         """Test HVP in coordinate directions (unit vectors)."""
-        nactive = self._loss.nvars()
+        _, _, loss, params, _, _ = self._setup(bkd)
+
+        nactive = loss.nvars()
 
         for d in range(nactive):
             # Direction along axis d
-            direction = self._bkd.zeros((nactive,))
+            direction = bkd.zeros((nactive,))
             direction[d] = 1.0
 
-            hvp = self._loss.hvp(self._params, direction)
+            hvp = loss.hvp(params, direction)
 
             # HVP should have correct shape (nactive, 1)
-            self.assertEqual(hvp.shape, (nactive, 1))
+            assert hvp.shape == (nactive, 1)
 
             # HVP[d, 0] should match the d-th diagonal element of Hessian
             # (We're not testing the value, just that it computes without error)
-            self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp)))
+            assert bkd.all_bool(bkd.isfinite(hvp))
 
-    def test_hvp_shape_mismatch_error(self):
+    def test_hvp_shape_mismatch_error(self, bkd):
         """Test that HVP raises error when direction size doesn't match."""
-        wrong_direction = self._bkd.array([1.0, 2.0, 3.0])  # Wrong size
+        _, _, loss, params, _, _ = self._setup(bkd)
 
-        with self.assertRaises(ValueError):
-            self._loss.hvp(self._params, wrong_direction)
+        wrong_direction = bkd.array([1.0, 2.0, 3.0])  # Wrong size
 
-    def test_hvp_with_constant_mean(self):
+        with pytest.raises(ValueError):
+            loss.hvp(params, wrong_direction)
+
+    def test_hvp_with_constant_mean(self, bkd):
         """Test HVP with ConstantMean function (adds 1 hyperparameter)."""
+        np.random.seed(42)
+        nvars = 2
+        n_train = 15
+
+        kernel = SquaredExponentialKernel(
+            lenscale=bkd.array([1.0, 1.0]),
+            lenscale_bounds=(0.1, 10.0),
+            nvars=nvars,
+            bkd=bkd,
+        )
+
         # Create GP with constant mean
-        mean = ConstantMean(0.5, (-2.0, 2.0), self._bkd)
+        mean = ConstantMean(0.5, (-2.0, 2.0), bkd)
         gp = ExactGaussianProcess(
-            kernel=self._kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            kernel=kernel,
+            nvars=nvars,
+            bkd=bkd,
             mean_function=mean,
             nugget=0.01,
         )
 
-        X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(np.random.randn(self._n_train, 1))
+        X_train = bkd.array(np.random.randn(nvars, n_train))
+        y_train = bkd.array(np.random.randn(n_train, 1))
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
         # Should have 3 hyperparameters (2 length scales + 1 constant)
         nactive = loss.nvars()
-        self.assertEqual(nactive, 3)
+        assert nactive == 3
 
         # Test HVP
         params = gp.hyp_list().get_active_values()
-        direction = self._bkd.array(np.random.randn(nactive))
+        direction = bkd.array(np.random.randn(nactive))
 
         hvp = loss.hvp(params, direction)
 
         # Should have correct shape (nactive, 1)
-        self.assertEqual(hvp.shape, (nactive, 1))
+        assert hvp.shape == (nactive, 1)
 
         # Should be finite
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp)))
-
-
-class TestLossHVPNumpy(TestLossHVP[NDArray[Any]]):
-    """Test NLML loss HVP with NumPy backend."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLossHVPTorch(TestLossHVP[torch.Tensor]):
-    """Test NLML loss HVP with PyTorch backend."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert bkd.all_bool(bkd.isfinite(hvp))

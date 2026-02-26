@@ -8,12 +8,7 @@ Tests cover:
 - Dual-backend support (NumPy and PyTorch)
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.expdesign.local.criteria import (
     GOptimalCriterion,
@@ -22,112 +17,104 @@ from pyapprox.expdesign.local.criteria import (
 from pyapprox.expdesign.local.design_matrices import (
     LeastSquaresDesignMatrices,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestGOptimalCriterion(Generic[Array], unittest.TestCase):
+class TestGOptimalCriterion:
     """Base test class for G-optimal criterion."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         # Create design factors
         self._ndesign_pts = 10
         self._ndesign_vars = 4
         self._npred_pts = 6
-        self._design_factors = self._bkd.asarray(
+        self._design_factors = bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
-        self._pred_factors = self._bkd.asarray(
+        self._pred_factors = bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
+        self._noise_mult = bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         # Random weights on simplex
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
-        self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
+        self._weights = bkd.asarray(raw_weights / raw_weights.sum())
 
-    def test_value_shape(self):
+    def test_value_shape(self, bkd):
         """Test that G-optimal value has correct shape (npred_pts, 1)."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         val = crit(self._weights)
-        self.assertEqual(val.shape, (self._npred_pts, 1))
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(val)))
+        assert val.shape == (self._npred_pts, 1)
+        assert bkd.all_bool(bkd.isfinite(val))
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self, bkd):
         """Test that G-optimal Jacobian has correct shape (npred_pts, nvars)."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         jac = crit.jacobian(self._weights)
-        self.assertEqual(jac.shape, (self._npred_pts, self._ndesign_pts))
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac)))
+        assert jac.shape == (self._npred_pts, self._ndesign_pts)
+        assert bkd.all_bool(bkd.isfinite(jac))
 
-    def test_nqoi(self):
+    def test_nqoi(self, bkd):
         """Test that nqoi returns number of prediction points."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
-        self.assertEqual(crit.nqoi(), self._npred_pts)
+        assert crit.nqoi() == self._npred_pts
 
-    def test_nvars(self):
+    def test_nvars(self, bkd):
         """Test that nvars returns number of design points."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
-        self.assertEqual(crit.nvars(), self._ndesign_pts)
+        assert crit.nvars() == self._ndesign_pts
 
-    def test_hvp_not_available(self):
+    def test_hvp_not_available(self, bkd):
         """Test that HVP is not available for G-optimal (optional methods
         convention)."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
-        self.assertFalse(hasattr(crit, "hvp"))
+        assert not hasattr(crit, "hvp")
 
-    def test_values_are_positive(self):
+    def test_values_are_positive(self, bkd):
         """Test that prediction variances are positive."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         val = crit(self._weights)
-        self.assertTrue(self._bkd.all_bool(val > 0))
+        assert bkd.all_bool(val > 0)
 
-
-class TestGOptimalCriterionNumpy(TestGOptimalCriterion[NDArray[Any]]):
-    """NumPy backend tests for G-optimal criterion."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-    def test_numerical_jacobian(self):
+    def test_numerical_jacobian(self, numpy_bkd):
         """Verify Jacobian using finite differences."""
+        bkd = numpy_bkd
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         analytical_jac = crit.jacobian(self._weights)
 
@@ -142,116 +129,82 @@ class TestGOptimalCriterionNumpy(TestGOptimalCriterion[NDArray[Any]]):
             val_minus = crit(weights_minus)[:, 0]
             numerical_jac[:, k] = (val_plus - val_minus) / (2 * eps)
 
-        numerical_jac = self._bkd.asarray(numerical_jac)
+        numerical_jac = bkd.asarray(numerical_jac)
         # Use both rtol and atol since some values can be very small
-        self._bkd.assert_allclose(analytical_jac, numerical_jac, rtol=1e-5, atol=1e-8)
+        bkd.assert_allclose(analytical_jac, numerical_jac, rtol=1e-5, atol=1e-8)
 
-    def test_homoscedastic_case(self):
+    def test_homoscedastic_case(self, numpy_bkd):
         """Test G-optimal for homoscedastic noise."""
-        dm = LeastSquaresDesignMatrices(self._design_factors, self._bkd)
-        crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        bkd = numpy_bkd
+        self._setup_data(bkd)
+        dm = LeastSquaresDesignMatrices(self._design_factors, bkd)
+        crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         val = crit(self._weights)
-        self.assertEqual(val.shape, (self._npred_pts, 1))
-        self.assertTrue(self._bkd.all_bool(val > 0))
+        assert val.shape == (self._npred_pts, 1)
+        assert bkd.all_bool(val > 0)
 
 
-class TestGOptimalCriterionTorch(TestGOptimalCriterion[torch.Tensor]):
-    """PyTorch backend tests for G-optimal criterion."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestROptimalCriterion(Generic[Array], unittest.TestCase):
+class TestROptimalCriterion:
     """Base test class for R-optimal criterion."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         self._ndesign_pts = 10
         self._ndesign_vars = 4
         self._npred_pts = 6
-        self._design_factors = self._bkd.asarray(
+        self._design_factors = bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
-        self._pred_factors = self._bkd.asarray(
+        self._pred_factors = bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
+        self._noise_mult = bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
-        self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
+        self._weights = bkd.asarray(raw_weights / raw_weights.sum())
 
-    def test_value_shape(self):
+    def test_value_shape(self, bkd):
         """Test that R-optimal value has correct shape."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = ROptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = ROptimalCriterion(dm, self._pred_factors, bkd)
 
         val = crit(self._weights)
-        self.assertEqual(val.shape, (self._npred_pts, 1))
+        assert val.shape == (self._npred_pts, 1)
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self, bkd):
         """Test that R-optimal Jacobian has correct shape."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        crit = ROptimalCriterion(dm, self._pred_factors, self._bkd)
+        crit = ROptimalCriterion(dm, self._pred_factors, bkd)
 
         jac = crit.jacobian(self._weights)
-        self.assertEqual(jac.shape, (self._npred_pts, self._ndesign_pts))
+        assert jac.shape == (self._npred_pts, self._ndesign_pts)
 
-    def test_identical_to_g_optimal(self):
+    def test_identical_to_g_optimal(self, bkd):
         """Test that R-optimal produces same values as G-optimal."""
+        self._setup_data(bkd)
         dm = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        g_crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
+        g_crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         # Need separate design matrices instance for R-optimal
         dm2 = LeastSquaresDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
+            self._design_factors, bkd, self._noise_mult
         )
-        r_crit = ROptimalCriterion(dm2, self._pred_factors, self._bkd)
+        r_crit = ROptimalCriterion(dm2, self._pred_factors, bkd)
 
         g_val = g_crit(self._weights)
         r_val = r_crit(self._weights)
-        self._bkd.assert_allclose(g_val, r_val, rtol=1e-12)
+        bkd.assert_allclose(g_val, r_val, rtol=1e-12)
 
         g_jac = g_crit.jacobian(self._weights)
         r_jac = r_crit.jacobian(self._weights)
-        self._bkd.assert_allclose(g_jac, r_jac, rtol=1e-12)
-
-
-class TestROptimalCriterionNumpy(TestROptimalCriterion[NDArray[Any]]):
-    """NumPy backend tests for R-optimal criterion."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestROptimalCriterionTorch(TestROptimalCriterion[torch.Tensor]):
-    """PyTorch backend tests for R-optimal criterion."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        bkd.assert_allclose(g_jac, r_jac, rtol=1e-12)

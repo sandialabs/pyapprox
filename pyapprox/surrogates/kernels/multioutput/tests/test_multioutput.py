@@ -1,9 +1,5 @@
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
@@ -18,23 +14,15 @@ from pyapprox.surrogates.kernels.multioutput.linear_coregionalization import (
     LinearCoregionalizationKernel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
+class TestIndependentMultiOutputKernel:
     """
     Base test class for IndependentMultiOutputKernel.
-
-    Derived classes must implement the bkd() method to provide the backend.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """
-        Set up test environment for IndependentMultiOutputKernel.
-        """
+    def _setup_data(self, bkd):
         np.random.seed(42)
         self.nvars = 2
         self.noutputs = 3
@@ -44,7 +32,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         self.kernels = []
         for i in range(self.noutputs):
             kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
             )
             self.kernels.append(kernel)
 
@@ -52,43 +40,40 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         # Create sample data for each output
         self.X_list = [
-            self.bkd().array(np.random.randn(self.nvars, self.nsamples[i]))
+            bkd.array(np.random.randn(self.nvars, self.nsamples[i]))
             for i in range(self.noutputs)
         ]
         self.X2_list = [
-            self.bkd().array(np.random.randn(self.nvars, self.nsamples[i]))
+            bkd.array(np.random.randn(self.nvars, self.nsamples[i]))
             for i in range(self.noutputs)
         ]
 
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the backend.
-        """
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def test_initialization(self) -> None:
+    def test_initialization(self, bkd) -> None:
         """
         Test IndependentMultiOutputKernel initialization.
         """
+        self._setup_data(bkd)
         mo_kernel = IndependentMultiOutputKernel(self.kernels)
-        self.assertEqual(mo_kernel.noutputs(), self.noutputs)
-        self.assertEqual(mo_kernel.nvars(), self.nvars)
-        self.assertIsNotNone(mo_kernel.bkd())
+        assert mo_kernel.noutputs() == self.noutputs
+        assert mo_kernel.nvars() == self.nvars
+        assert mo_kernel.bkd() is not None
 
-    def test_empty_kernels_error(self) -> None:
+    def test_empty_kernels_error(self, bkd) -> None:
         """
         Test that empty kernels list raises ValueError.
         """
-        with self.assertRaises(ValueError) as context:
+        self._setup_data(bkd)
+        with pytest.raises(ValueError) as context:
             IndependentMultiOutputKernel([])
-        self.assertIn("cannot be empty", str(context.exception))
+        assert "cannot be empty" in str(context.value)
 
-    def test_backend_mismatch_error(self) -> None:
+    def test_backend_mismatch_error(self, bkd) -> None:
         """
         Test that mixed backends raise ValueError.
         """
+        self._setup_data(bkd)
         # Create kernel with different backend
-        if isinstance(self.bkd(), NumpyBkd):
+        if isinstance(bkd, NumpyBkd):
             other_bkd = TorchBkd()
         else:
             other_bkd = NumpyBkd()
@@ -97,55 +82,60 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
             [1.0] * self.nvars, (0.1, 10.0), self.nvars, other_bkd
         )
 
-        with self.assertRaises(ValueError) as context:
+        with pytest.raises(ValueError) as context:
             IndependentMultiOutputKernel([self.kernels[0], kernel_other])
-        self.assertIn("same backend type", str(context.exception))
+        assert "same backend type" in str(context.value)
 
-    def test_nvars_mismatch_error(self) -> None:
+    def test_nvars_mismatch_error(self, bkd) -> None:
         """
         Test that kernels with different nvars raise ValueError.
         """
+        self._setup_data(bkd)
         kernel_different = Matern52Kernel(
             [1.0, 1.0, 1.0],  # 3 dimensions instead of 2
             (0.1, 10.0),
             3,  # Different nvars
-            self.bkd(),
+            bkd,
         )
 
-        with self.assertRaises(ValueError) as context:
+        with pytest.raises(ValueError) as context:
             IndependentMultiOutputKernel([self.kernels[0], kernel_different])
-        self.assertIn("same number of input variables", str(context.exception))
+        assert "same number of input variables" in str(context.value)
 
-    def test_hyperparameter_list_combination(self) -> None:
+    def test_hyperparameter_list_combination(self, bkd) -> None:
         """
         Test that hyperparameter lists are combined correctly.
         """
+        self._setup_data(bkd)
         total_params = sum(k.hyp_list().nparams() for k in self.kernels)
-        self.assertEqual(self.mo_kernel.hyp_list().nparams(), total_params)
+        assert self.mo_kernel.hyp_list().nparams() == total_params
 
-    def test_stacked_kernel_matrix_shape(self) -> None:
+    def test_stacked_kernel_matrix_shape(self, bkd) -> None:
         """
         Test that stacked kernel matrix has correct shape.
         """
+        self._setup_data(bkd)
         K = self.mo_kernel(self.X_list, block_format=False)
 
         n_total = sum(self.nsamples)
-        self.assertEqual(K.shape, (n_total, n_total))
+        assert K.shape == (n_total, n_total)
 
-    def test_stacked_kernel_matrix_cross_shape(self) -> None:
+    def test_stacked_kernel_matrix_cross_shape(self, bkd) -> None:
         """
         Test that cross-covariance has correct shape.
         """
+        self._setup_data(bkd)
         K = self.mo_kernel(self.X_list, self.X2_list, block_format=False)
 
         n_total_1 = sum(self.nsamples)
         n_total_2 = sum(self.nsamples)
-        self.assertEqual(K.shape, (n_total_1, n_total_2))
+        assert K.shape == (n_total_1, n_total_2)
 
-    def test_stacked_kernel_is_block_diagonal(self) -> None:
+    def test_stacked_kernel_is_block_diagonal(self, bkd) -> None:
         """
         Test that stacked kernel matrix is block-diagonal.
         """
+        self._setup_data(bkd)
         K = self.mo_kernel(self.X_list, block_format=False)
 
         # Extract diagonal blocks and verify off-diagonal blocks are zero
@@ -158,7 +148,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
 
             # Compute expected diagonal block
             K_expected = self.kernels[i](self.X_list[i], self.X_list[i])
-            self.bkd().assert_allclose(K_ii, K_expected)
+            bkd.assert_allclose(K_ii, K_expected)
 
             # Check off-diagonal blocks are zero
             col_offset = 0
@@ -170,88 +160,95 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
                     ]
 
                     # Should be all zeros
-                    expected_zero = self.bkd().zeros((n_i, n_j))
-                    self.bkd().assert_allclose(K_ij, expected_zero)
+                    expected_zero = bkd.zeros((n_i, n_j))
+                    bkd.assert_allclose(K_ij, expected_zero)
 
                 col_offset += n_j
 
             row_offset += n_i
 
-    def test_block_format_structure(self) -> None:
+    def test_block_format_structure(self, bkd) -> None:
         """
         Test that block format returns correct structure.
         """
+        self._setup_data(bkd)
         K_blocks = self.mo_kernel(self.X_list, block_format=True)
 
         # Should be list of lists
-        self.assertIsInstance(K_blocks, list)
-        self.assertEqual(len(K_blocks), self.noutputs)
+        assert isinstance(K_blocks, list)
+        assert len(K_blocks) == self.noutputs
 
         for i in range(self.noutputs):
-            self.assertIsInstance(K_blocks[i], list)
-            self.assertEqual(len(K_blocks[i]), self.noutputs)
+            assert isinstance(K_blocks[i], list)
+            assert len(K_blocks[i]) == self.noutputs
 
-    def test_block_format_diagonal_blocks(self) -> None:
+    def test_block_format_diagonal_blocks(self, bkd) -> None:
         """
         Test that diagonal blocks in block format are correct.
         """
+        self._setup_data(bkd)
         K_blocks = self.mo_kernel(self.X_list, block_format=True)
 
         for i in range(self.noutputs):
             # Diagonal block should not be None
-            self.assertIsNotNone(K_blocks[i][i])
+            assert K_blocks[i][i] is not None
 
             # Should match kernel evaluation
             K_expected = self.kernels[i](self.X_list[i], self.X_list[i])
-            self.bkd().assert_allclose(K_blocks[i][i], K_expected)
+            bkd.assert_allclose(K_blocks[i][i], K_expected)
 
-    def test_block_format_off_diagonal_blocks(self) -> None:
+    def test_block_format_off_diagonal_blocks(self, bkd) -> None:
         """
         Test that off-diagonal blocks in block format are None.
         """
+        self._setup_data(bkd)
         K_blocks = self.mo_kernel(self.X_list, block_format=True)
 
         for i in range(self.noutputs):
             for j in range(self.noutputs):
                 if i != j:
                     # Off-diagonal blocks should be None
-                    self.assertIsNone(K_blocks[i][j])
+                    assert K_blocks[i][j] is None
 
-    def test_wrong_length_X_list_error(self) -> None:
+    def test_wrong_length_X_list_error(self, bkd) -> None:
         """
         Test that wrong length X_list raises ValueError.
         """
+        self._setup_data(bkd)
         wrong_list = self.X_list[:2]  # Too short
 
-        with self.assertRaises(ValueError) as context:
+        with pytest.raises(ValueError) as context:
             self.mo_kernel(wrong_list)
-        self.assertIn("must have", str(context.exception))
+        assert "must have" in str(context.value)
 
-    def test_wrong_length_X2_list_error(self) -> None:
+    def test_wrong_length_X2_list_error(self, bkd) -> None:
         """
         Test that wrong length X2_list raises ValueError.
         """
+        self._setup_data(bkd)
         wrong_list = self.X2_list[:2]  # Too short
 
-        with self.assertRaises(ValueError) as context:
+        with pytest.raises(ValueError) as context:
             self.mo_kernel(self.X_list, wrong_list)
-        self.assertIn("must have", str(context.exception))
+        assert "must have" in str(context.value)
 
-    def test_jacobian_wrt_params_shape(self) -> None:
+    def test_jacobian_wrt_params_shape(self, bkd) -> None:
         """
         Test that parameter Jacobian has correct shape.
         """
+        self._setup_data(bkd)
         jac = self.mo_kernel.jacobian_wrt_params(self.X_list)
 
         n_total = sum(self.nsamples)
         nparams_total = self.mo_kernel.hyp_list().nparams()
 
-        self.assertEqual(jac.shape, (n_total, n_total, nparams_total))
+        assert jac.shape == (n_total, n_total, nparams_total)
 
-    def test_jacobian_wrt_params_is_block_diagonal(self) -> None:
+    def test_jacobian_wrt_params_is_block_diagonal(self, bkd) -> None:
         """
         Test that parameter Jacobian has block-diagonal structure.
         """
+        self._setup_data(bkd)
         jac = self.mo_kernel.jacobian_wrt_params(self.X_list)
 
         # Verify diagonal blocks match individual kernel Jacobians
@@ -269,34 +266,28 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
                 param_offset : param_offset + nparams_i,
             ]
 
-            self.bkd().assert_allclose(jac_ii, jac_i_expected)
+            bkd.assert_allclose(jac_ii, jac_i_expected)
 
             row_offset += n_i
             param_offset += nparams_i
 
-    def test_repr(self) -> None:
+    def test_repr(self, bkd) -> None:
         """
         Test string representation.
         """
+        self._setup_data(bkd)
         repr_str = repr(self.mo_kernel)
-        self.assertIn("IndependentMultiOutputKernel", repr_str)
-        self.assertIn(f"noutputs={self.noutputs}", repr_str)
+        assert "IndependentMultiOutputKernel" in repr_str
+        assert f"noutputs={self.noutputs}" in repr_str
 
-    def test_with_different_kernel_types(self) -> None:
+    def test_with_different_kernel_types(self, bkd) -> None:
         """
         Test with different kernel types for different outputs.
         """
-        # Mix Matern and Constant kernels
-        # kernels = [
-        #     MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
-        #     ConstantKernel(2.0, (0.1, 10.0), self.bkd()),  # Not yet implemented
-        # ]
-
-        # Note: ConstantKernel has nvars=0, so this should raise an error
-        # Let's create a test with compatible kernels instead
+        self._setup_data(bkd)
         kernels_compat = [
-            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
-            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, bkd),
+            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, bkd),
         ]
 
         mo_kernel = IndependentMultiOutputKernel(kernels_compat)
@@ -305,21 +296,22 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         # Verify shape
         n_total = self.nsamples[0] + self.nsamples[1]
-        self.assertEqual(K.shape, (n_total, n_total))
+        assert K.shape == (n_total, n_total)
 
-    def test_single_output(self) -> None:
+    def test_single_output(self, bkd) -> None:
         """
         Test with single output (edge case).
         """
+        self._setup_data(bkd)
         mo_kernel = IndependentMultiOutputKernel([self.kernels[0]])
         X_list = [self.X_list[0]]
 
         K = mo_kernel(X_list)
         K_expected = self.kernels[0](self.X_list[0], self.X_list[0])
 
-        self.bkd().assert_allclose(K, K_expected)
+        bkd.assert_allclose(K, K_expected)
 
-    def test_jacobian_wrt_params_derivative_checker(self) -> None:
+    def test_jacobian_wrt_params_derivative_checker(self, bkd) -> None:
         """
         Test parameter Jacobian using finite differences (DerivativeChecker).
 
@@ -330,14 +322,16 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
             DerivativeChecker,
         )
 
+        self._setup_data(bkd)
+
         # Create wrapper class for DerivativeChecker
         class KernelWrapper:
             """Wrapper to make kernel compatible with DerivativeChecker."""
 
-            def __init__(self, kernel, X_list, bkd):
+            def __init__(self, kernel, X_list, bkd_):
                 self._kernel = kernel
                 self._X_list = X_list
-                self._bkd = bkd
+                self._bkd = bkd_
 
                 # Compute total size
                 self._n_total = sum(X.shape[1] for X in X_list)
@@ -353,19 +347,9 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
                 """Number of outputs - n_total^2 for flattened kernel matrix."""
                 return self._n_total * self._n_total
 
-            def __call__(self, params: Array) -> Array:
+            def __call__(self, params):
                 """
                 Evaluate kernel matrix with given hyperparameters.
-
-                Parameters
-                ----------
-                params : Array, shape (nparams,) or (nparams, 1)
-                    Hyperparameters.
-
-                Returns
-                -------
-                Array, shape (n_total*n_total, 1)
-                    Flattened kernel matrix.
                 """
                 # Flatten params if needed (DerivativeChecker may pass (nparams, 1))
                 params_flat = self._bkd.reshape(params, (-1,))
@@ -380,19 +364,9 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
                 K_flat = self._bkd.reshape(K, (self._n_total * self._n_total, 1))
                 return K_flat
 
-            def jacobian(self, params: Array) -> Array:
+            def jacobian(self, params):
                 """
                 Compute Jacobian of kernel matrix w.r.t. hyperparameters.
-
-                Parameters
-                ----------
-                params : Array, shape (nparams,) or (nparams, 1)
-                    Hyperparameters.
-
-                Returns
-                -------
-                Array, shape (n_total*n_total, nparams)
-                    Jacobian matrix.
                 """
                 # Flatten params if needed
                 params_flat = self._bkd.reshape(params, (-1,))
@@ -412,21 +386,9 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
 
                 return jac_reshaped
 
-            def jvp(self, params: Array, v: Array) -> Array:
+            def jvp(self, params, v):
                 """
                 Compute Jacobian-vector product.
-
-                Parameters
-                ----------
-                params : Array, shape (nparams,) or (nparams, 1)
-                    Hyperparameters.
-                v : Array, shape (nparams,) or (nparams, 1)
-                    Vector for JVP.
-
-                Returns
-                -------
-                Array, shape (n_total*n_total, 1)
-                    JVP result.
                 """
                 # Compute Jacobian
                 J = self.jacobian(params)  # (n_total*n_total, nparams)
@@ -438,7 +400,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
                 return J @ v_flat
 
         # Create wrapper
-        wrapper = KernelWrapper(self.mo_kernel, self.X_list, self.bkd())
+        wrapper = KernelWrapper(self.mo_kernel, self.X_list, bkd)
 
         # Create derivative checker
         checker = DerivativeChecker(wrapper)
@@ -447,7 +409,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         params = self.mo_kernel.hyp_list().get_active_values()
 
         # Use logarithmically-spaced step sizes
-        fd_eps = self.bkd().flip(self.bkd().logspace(-14, 0, 15))
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
         # Check gradient accuracy
         errors = checker.check_derivatives(
@@ -461,52 +423,18 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         grad_error = errors[0]
 
         # Minimum error should be small
-        min_error = float(self.bkd().min(grad_error))
-        self.assertLess(
-            min_error,
-            1e-6,
-            f"Minimum gradient relative error {min_error} exceeds threshold",
-        )
+        min_error = float(bkd.min(grad_error))
+        assert (
+            min_error < 1e-6
+        ), f"Minimum gradient relative error {min_error} exceeds threshold"
 
 
-# NumPy implementation
-class TestIndependentMultiOutputKernelNumpy(
-    TestIndependentMultiOutputKernel[NDArray[Any]]
-):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# PyTorch implementation
-class TestIndependentMultiOutputKernelTorch(
-    TestIndependentMultiOutputKernel[torch.Tensor]
-):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
+class TestLinearCoregionalizationKernel:
     """
     Base test class for LinearCoregionalizationKernel.
-
-    Derived classes must implement the bkd() method to provide the backend.
     """
 
-    __test__ = False
-
-    def setUp(self) -> None:
-        """
-        Set up test environment for LinearCoregionalizationKernel.
-        """
+    def _setup_data(self, bkd):
         np.random.seed(42)
         self.nvars = 2
         self.noutputs = 2
@@ -514,8 +442,8 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
 
         # Create base kernels (shared across outputs)
         self.kernels = [
-            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
-            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, bkd),
+            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, bkd),
         ]
 
         # Create coregionalization matrices
@@ -523,7 +451,7 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
         B1 = np.array([[1.0, 0.5], [0.5, 1.0]])
         # B2: Mixed correlation
         B2 = np.array([[0.5, -0.2], [-0.2, 0.5]])
-        self.coreg_matrices = [self.bkd().array(B1), self.bkd().array(B2)]
+        self.coreg_matrices = [bkd.array(B1), bkd.array(B2)]
 
         self.lmc_kernel = LinearCoregionalizationKernel(
             self.kernels, self.coreg_matrices, self.noutputs
@@ -531,111 +459,114 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
 
         # Create sample data
         # For LMC, all outputs use same input locations
-        X_base = self.bkd().array(np.random.randn(self.nvars, self.nsamples))
+        X_base = bkd.array(np.random.randn(self.nvars, self.nsamples))
         self.X_list = [X_base] * self.noutputs
 
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the backend.
-        """
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def test_initialization(self) -> None:
+    def test_initialization(self, bkd) -> None:
         """
         Test LinearCoregionalizationKernel initialization.
         """
+        self._setup_data(bkd)
         lmc = LinearCoregionalizationKernel(
             self.kernels, self.coreg_matrices, self.noutputs
         )
-        self.assertEqual(lmc.noutputs(), self.noutputs)
-        self.assertEqual(lmc.nvars(), self.nvars)
-        self.assertIsNotNone(lmc.bkd())
+        assert lmc.noutputs() == self.noutputs
+        assert lmc.nvars() == self.nvars
+        assert lmc.bkd() is not None
 
-    def test_empty_kernels_error(self) -> None:
+    def test_empty_kernels_error(self, bkd) -> None:
         """
         Test that empty kernels list raises ValueError.
         """
-        with self.assertRaises(ValueError) as context:
+        self._setup_data(bkd)
+        with pytest.raises(ValueError) as context:
             LinearCoregionalizationKernel([], self.coreg_matrices, self.noutputs)
-        self.assertIn("cannot be empty", str(context.exception))
+        assert "cannot be empty" in str(context.value)
 
-    def test_length_mismatch_error(self) -> None:
+    def test_length_mismatch_error(self, bkd) -> None:
         """
         Test that mismatched lengths raise ValueError.
         """
-        with self.assertRaises(ValueError) as context:
+        self._setup_data(bkd)
+        with pytest.raises(ValueError) as context:
             LinearCoregionalizationKernel(
                 self.kernels,
                 [self.coreg_matrices[0]],  # Too short
                 self.noutputs,
             )
-        self.assertIn("must equal", str(context.exception))
+        assert "must equal" in str(context.value)
 
-    def test_coreg_matrix_shape_error(self) -> None:
+    def test_coreg_matrix_shape_error(self, bkd) -> None:
         """
         Test that wrong-shaped coregionalization matrix raises ValueError.
         """
-        bad_matrix = self.bkd().array(np.random.randn(3, 3))  # Wrong shape
-        with self.assertRaises(ValueError) as context:
+        self._setup_data(bkd)
+        bad_matrix = bkd.array(np.random.randn(3, 3))  # Wrong shape
+        with pytest.raises(ValueError) as context:
             LinearCoregionalizationKernel(
                 self.kernels, [bad_matrix, self.coreg_matrices[1]], self.noutputs
             )
-        self.assertIn("expected", str(context.exception))
+        assert "expected" in str(context.value)
 
-    def test_hyperparameter_list_combination(self) -> None:
+    def test_hyperparameter_list_combination(self, bkd) -> None:
         """
         Test that hyperparameter lists are combined correctly.
         """
+        self._setup_data(bkd)
         total_params = sum(k.hyp_list().nparams() for k in self.kernels)
-        self.assertEqual(self.lmc_kernel.hyp_list().nparams(), total_params)
+        assert self.lmc_kernel.hyp_list().nparams() == total_params
 
-    def test_stacked_kernel_matrix_shape(self) -> None:
+    def test_stacked_kernel_matrix_shape(self, bkd) -> None:
         """
         Test that stacked kernel matrix has correct shape.
         """
+        self._setup_data(bkd)
         K = self.lmc_kernel(self.X_list, block_format=False)
 
         n_total = self.nsamples * self.noutputs
-        self.assertEqual(K.shape, (n_total, n_total))
+        assert K.shape == (n_total, n_total)
 
-    def test_block_format_structure(self) -> None:
+    def test_block_format_structure(self, bkd) -> None:
         """
         Test that block format returns correct structure.
         """
+        self._setup_data(bkd)
         K_blocks = self.lmc_kernel(self.X_list, block_format=True)
 
         # Should be list of lists
-        self.assertIsInstance(K_blocks, list)
-        self.assertEqual(len(K_blocks), self.noutputs)
+        assert isinstance(K_blocks, list)
+        assert len(K_blocks) == self.noutputs
 
         for i in range(self.noutputs):
-            self.assertIsInstance(K_blocks[i], list)
-            self.assertEqual(len(K_blocks[i]), self.noutputs)
+            assert isinstance(K_blocks[i], list)
+            assert len(K_blocks[i]) == self.noutputs
 
             # All blocks should be non-None (unlike independent kernel)
             for j in range(self.noutputs):
-                self.assertIsNotNone(K_blocks[i][j])
+                assert K_blocks[i][j] is not None
 
-    def test_block_format_shapes(self) -> None:
+    def test_block_format_shapes(self, bkd) -> None:
         """
         Test that blocks in block format have correct shapes.
         """
+        self._setup_data(bkd)
         K_blocks = self.lmc_kernel(self.X_list, block_format=True)
 
         for i in range(self.noutputs):
             for j in range(self.noutputs):
-                self.assertEqual(K_blocks[i][j].shape, (self.nsamples, self.nsamples))
+                assert K_blocks[i][j].shape == (self.nsamples, self.nsamples)
 
-    def test_lmc_formula_correctness(self) -> None:
+    def test_lmc_formula_correctness(self, bkd) -> None:
         """
-        Test that LMC kernel correctly implements K = sum_q B_q ⊗ k_q.
+        Test that LMC kernel correctly implements K = sum_q B_q (x) k_q.
         """
+        self._setup_data(bkd)
         K_blocks = self.lmc_kernel(self.X_list, block_format=True)
 
         # Manually compute expected result
         expected_blocks = [
             [
-                self.bkd().zeros((self.nsamples, self.nsamples))
+                bkd.zeros((self.nsamples, self.nsamples))
                 for _ in range(self.noutputs)
             ]
             for _ in range(self.noutputs)
@@ -652,53 +583,30 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
         # Compare
         for i in range(self.noutputs):
             for j in range(self.noutputs):
-                self.bkd().assert_allclose(K_blocks[i][j], expected_blocks[i][j])
+                bkd.assert_allclose(K_blocks[i][j], expected_blocks[i][j])
 
-    def test_symmetry(self) -> None:
+    def test_symmetry(self, bkd) -> None:
         """
         Test that kernel matrix is symmetric for self-covariance.
         """
+        self._setup_data(bkd)
         K = self.lmc_kernel(self.X_list, block_format=False)
 
         # Check symmetry
-        K_T = self.bkd().moveaxis(K, 0, 1)  # Transpose
-        self.bkd().assert_allclose(K, K_T, atol=1e-10)
+        K_T = bkd.moveaxis(K, 0, 1)  # Transpose
+        bkd.assert_allclose(K, K_T, atol=1e-10)
 
-    def test_repr(self) -> None:
+    def test_repr(self, bkd) -> None:
         """
         Test string representation.
         """
+        self._setup_data(bkd)
         repr_str = repr(self.lmc_kernel)
-        self.assertIn("LinearCoregionalizationKernel", repr_str)
-        self.assertIn(f"noutputs={self.noutputs}", repr_str)
+        assert "LinearCoregionalizationKernel" in repr_str
+        assert f"noutputs={self.noutputs}" in repr_str
 
 
-# NumPy implementations
-class TestLinearCoregionalizationKernelNumpy(
-    TestLinearCoregionalizationKernel[NDArray[Any]]
-):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# PyTorch implementations
-class TestLinearCoregionalizationKernelTorch(
-    TestLinearCoregionalizationKernel[torch.Tensor]
-):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
+class TestIndependentKernelIntegration:
     """
     Integration tests for IndependentMultiOutputKernel with same input data.
 
@@ -706,14 +614,7 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
     which is a common pattern in multi-output GPs.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def setUp(self) -> None:
-        """Set up test environment."""
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         self.nvars = 2
@@ -722,20 +623,21 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
 
         # Create shared training data
         self.X_train_np = np.random.randn(self.nvars, self.n_train)
-        self.X_train = self.bkd().array(self.X_train_np)
+        self.X_train = bkd.array(self.X_train_np)
 
         # Create independent kernels for each output
         self.kernels = []
         for i in range(self.noutputs):
             kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
             )
             self.kernels.append(kernel)
 
         self.mo_kernel = IndependentMultiOutputKernel(self.kernels)
 
-    def test_same_input_locations_block_diagonal(self) -> None:
+    def test_same_input_locations_block_diagonal(self, bkd) -> None:
         """Test that kernel is block-diagonal when all outputs use same inputs."""
+        self._setup_data(bkd)
         # All outputs use same X
         X_list = [self.X_train] * self.noutputs
 
@@ -743,7 +645,7 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
 
         # Should be shape (n_train * noutputs, n_train * noutputs)
         expected_size = self.n_train * self.noutputs
-        self.assertEqual(K.shape, (expected_size, expected_size))
+        assert K.shape == (expected_size, expected_size)
 
         # Test block-diagonal structure
         for i in range(self.noutputs):
@@ -753,7 +655,7 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
             # Diagonal block should match single kernel
             K_ii = K[row_start:row_end, row_start:row_end]
             K_expected = self.kernels[i](self.X_train, self.X_train)
-            self.bkd().assert_allclose(K_ii, K_expected, rtol=1e-10)
+            bkd.assert_allclose(K_ii, K_expected, rtol=1e-10)
 
             # Off-diagonal blocks should be zero
             for j in range(self.noutputs):
@@ -762,59 +664,28 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
                     col_end = (j + 1) * self.n_train
                     K_ij = K[row_start:row_end, col_start:col_end]
 
-                    expected_zero = self.bkd().zeros((self.n_train, self.n_train))
-                    self.bkd().assert_allclose(K_ij, expected_zero, atol=1e-10)
+                    expected_zero = bkd.zeros((self.n_train, self.n_train))
+                    bkd.assert_allclose(K_ij, expected_zero, atol=1e-10)
 
-    def test_same_input_symmetric(self) -> None:
+    def test_same_input_symmetric(self, bkd) -> None:
         """Test symmetry when all outputs use same inputs."""
+        self._setup_data(bkd)
         X_list = [self.X_train] * self.noutputs
         K = self.mo_kernel(X_list, block_format=False)
 
         # Test symmetry
-        K_T = self.bkd().moveaxis(K, 0, 1)
-        self.bkd().assert_allclose(K, K_T, rtol=1e-10)
+        K_T = bkd.moveaxis(K, 0, 1)
+        bkd.assert_allclose(K, K_T, rtol=1e-10)
 
 
-class TestIndependentKernelIntegrationNumpy(
-    TestIndependentKernelIntegration[NDArray[Any]]
-):
-    """NumPy backend tests for independent kernel integration."""
-
-    def bkd(self) -> NumpyBkd:
-        if not hasattr(self, "_bkd"):
-            self._bkd = NumpyBkd()
-        return self._bkd
-
-
-class TestIndependentKernelIntegrationTorch(
-    TestIndependentKernelIntegration[torch.Tensor]
-):
-    """PyTorch backend tests for independent kernel integration."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
+class TestLMCKernelIntegration:
     """
     Integration tests for LinearCoregionalizationKernel.
 
     Tests LMC kernel properties with realistic coregionalization matrices.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Override in derived classes."""
-        raise NotImplementedError("Derived classes must implement this method.")
-
-    def setUp(self) -> None:
-        """Set up test environment."""
+    def _setup_data(self, bkd):
         np.random.seed(42)
 
         self.nvars = 2
@@ -824,13 +695,13 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        self.X_train = self.bkd().array(X_train_np)
+        self.X_train = bkd.array(X_train_np)
 
         # Create base kernels
         self.base_kernels = []
         for q in range(self.ncomponents):
             kernel = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd
             )
             self.base_kernels.append(kernel)
 
@@ -839,8 +710,8 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
         B2_np = np.array([[0.5, -0.2], [-0.2, 0.5]])
 
         self.coreg_matrices = [
-            self.bkd().array(B1_np),
-            self.bkd().array(B2_np),
+            bkd.array(B1_np),
+            bkd.array(B2_np),
         ]
 
         # Create LMC kernel
@@ -848,19 +719,21 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
             self.base_kernels, self.coreg_matrices, self.noutputs
         )
 
-    def test_lmc_symmetry_same_inputs(self) -> None:
+    def test_lmc_symmetry_same_inputs(self, bkd) -> None:
         """Test that LMC kernel is symmetric when using same inputs."""
+        self._setup_data(bkd)
         # For LMC, all outputs use same X
         X_list = [self.X_train] * self.noutputs
 
         K = self.lmc_kernel(X_list, block_format=False)
 
         # Should be symmetric
-        K_T = self.bkd().moveaxis(K, 0, 1)
-        self.bkd().assert_allclose(K, K_T, rtol=1e-10)
+        K_T = bkd.moveaxis(K, 0, 1)
+        bkd.assert_allclose(K, K_T, rtol=1e-10)
 
-    def test_lmc_output_correlation(self) -> None:
+    def test_lmc_output_correlation(self, bkd) -> None:
         """Test that LMC captures correlations between outputs."""
+        self._setup_data(bkd)
         X_list = [self.X_train] * self.noutputs
 
         K_blocks = self.lmc_kernel(X_list, block_format=True)
@@ -870,41 +743,11 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
         K_10 = K_blocks[1][0]
 
         # Should be symmetric
-        K_01_T = self.bkd().moveaxis(K_01, 0, 1)
-        self.bkd().assert_allclose(K_01, K_01_T, rtol=1e-10)
-        self.bkd().assert_allclose(K_01, K_10, rtol=1e-10)
+        K_01_T = bkd.moveaxis(K_01, 0, 1)
+        bkd.assert_allclose(K_01, K_01_T, rtol=1e-10)
+        bkd.assert_allclose(K_01, K_10, rtol=1e-10)
 
         # Some elements should be non-zero
-        K_01_abs = self.bkd().abs(K_01)
-        K_01_max_value = self.bkd().max(K_01_abs).item()
-        self.assertGreater(K_01_max_value, 0.0)
-
-
-class TestLMCKernelIntegrationNumpy(TestLMCKernelIntegration[NDArray[Any]]):
-    """NumPy backend tests for LMC kernel integration."""
-
-    def bkd(self) -> NumpyBkd:
-        if not hasattr(self, "_bkd"):
-            self._bkd = NumpyBkd()
-        return self._bkd
-
-
-class TestLMCKernelIntegrationTorch(TestLMCKernelIntegration[torch.Tensor]):
-    """PyTorch backend tests for LMC kernel integration."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+        K_01_abs = bkd.abs(K_01)
+        K_01_max_value = bkd.max(K_01_abs).item()
+        assert K_01_max_value > 0.0

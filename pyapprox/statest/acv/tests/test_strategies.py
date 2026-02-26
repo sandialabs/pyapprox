@@ -1,10 +1,6 @@
 """Tests for ACV search strategies."""
 
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.statest.acv.strategies import (
     DefaultRecursionStrategy,
@@ -19,109 +15,97 @@ from pyapprox.statest.strategies import (
     FixedSubsetStrategy,
     ListSubsetStrategy,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestRecursionIndexStrategy(Generic[Array], unittest.TestCase):
+class TestRecursionIndexStrategy:
     """Tests for recursion index strategies."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_default_recursion_strategy(self):
+    def test_default_recursion_strategy(self, bkd):
         """Returns single default index."""
         strategy = DefaultRecursionStrategy()
-        indices = strategy.indices(nmodels=4, bkd=self._bkd)
-        self.assertEqual(len(indices), 1)
-        self._bkd.assert_allclose(indices[0], self._bkd.array([0, 1, 2], dtype=int))
+        indices = strategy.indices(nmodels=4, bkd=bkd)
+        assert len(indices) == 1
+        bkd.assert_allclose(indices[0], bkd.array([0, 1, 2], dtype=int))
 
-    def test_default_recursion_strategy_description(self):
+    def test_default_recursion_strategy_description(self, bkd):
         """Has valid description."""
         strategy = DefaultRecursionStrategy()
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("default", desc.lower())
+        assert isinstance(desc, str)
+        assert "default" in desc.lower()
 
-    def test_fixed_recursion_strategy(self):
+    def test_fixed_recursion_strategy(self, bkd):
         """Returns specified index."""
         strategy = FixedRecursionStrategy(recursion_index=(0, 0, 1))
-        indices = strategy.indices(nmodels=4, bkd=self._bkd)
-        self.assertEqual(len(indices), 1)
-        self._bkd.assert_allclose(indices[0], self._bkd.array([0, 0, 1], dtype=int))
+        indices = strategy.indices(nmodels=4, bkd=bkd)
+        assert len(indices) == 1
+        bkd.assert_allclose(indices[0], bkd.array([0, 0, 1], dtype=int))
 
-    def test_fixed_recursion_strategy_description(self):
+    def test_fixed_recursion_strategy_description(self, bkd):
         """Has valid description."""
         strategy = FixedRecursionStrategy(recursion_index=(0, 0, 1))
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("fixed", desc.lower())
+        assert isinstance(desc, str)
+        assert "fixed" in desc.lower()
 
-    def test_list_recursion_strategy(self):
+    def test_list_recursion_strategy(self, bkd):
         """Returns custom list."""
         strategy = ListRecursionStrategy(recursion_indices=((0, 1, 2), (0, 0, 0)))
-        indices = strategy.indices(nmodels=4, bkd=self._bkd)
-        self.assertEqual(len(indices), 2)
-        self._bkd.assert_allclose(indices[0], self._bkd.array([0, 1, 2], dtype=int))
-        self._bkd.assert_allclose(indices[1], self._bkd.array([0, 0, 0], dtype=int))
+        indices = strategy.indices(nmodels=4, bkd=bkd)
+        assert len(indices) == 2
+        bkd.assert_allclose(indices[0], bkd.array([0, 1, 2], dtype=int))
+        bkd.assert_allclose(indices[1], bkd.array([0, 0, 0], dtype=int))
 
-    def test_list_recursion_strategy_description(self):
+    def test_list_recursion_strategy_description(self, bkd):
         """Has valid description."""
         strategy = ListRecursionStrategy(recursion_indices=((0, 1, 2), (0, 0, 0)))
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("2", desc)
+        assert isinstance(desc, str)
+        assert "2" in desc
 
-    def test_tree_depth_recursion_strategy(self):
+    def test_tree_depth_recursion_strategy(self, bkd):
         """Returns tree indices."""
         strategy = TreeDepthRecursionStrategy(max_depth=2)
-        indices = strategy.indices(nmodels=4, bkd=self._bkd)
-        self.assertGreater(len(indices), 1)
+        indices = strategy.indices(nmodels=4, bkd=bkd)
+        assert len(indices) > 1
         # All should have length nmodels-1
         for idx in indices:
-            self.assertEqual(len(idx), 3)
+            assert len(idx) == 3
 
-    def test_tree_depth_recursion_strategy_description(self):
+    def test_tree_depth_recursion_strategy_description(self, bkd):
         """Has valid description."""
         strategy = TreeDepthRecursionStrategy(max_depth=2)
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("2", desc)
+        assert isinstance(desc, str)
+        assert "2" in desc
 
-    def test_hierarchical_permutation_recursion_strategy(self):
+    def test_hierarchical_permutation_recursion_strategy(self, bkd):
         """Generates all permutations of hierarchical indices."""
         strategy = HierarchicalPermutationRecursionStrategy()
-        indices = strategy.indices(nmodels=4, bkd=self._bkd)
+        indices = strategy.indices(nmodels=4, bkd=bkd)
         # (nmodels-1)! = 3! = 6 permutations
-        self.assertEqual(len(indices), 6)
+        assert len(indices) == 6
         # Verify all are valid permutations of [0, 1, 2]
         for idx in indices:
-            self.assertEqual(len(idx), 3)
-            idx_set = set(int(x) for x in self._bkd.to_numpy(idx).tolist())
-            self.assertEqual(idx_set, {0, 1, 2})
+            assert len(idx) == 3
+            idx_set = set(int(x) for x in bkd.to_numpy(idx).tolist())
+            assert idx_set == {0, 1, 2}
 
-    def test_hierarchical_permutation_small(self):
+    def test_hierarchical_permutation_small(self, bkd):
         """Works for small nmodels."""
         strategy = HierarchicalPermutationRecursionStrategy()
-        indices = strategy.indices(nmodels=3, bkd=self._bkd)
+        indices = strategy.indices(nmodels=3, bkd=bkd)
         # (nmodels-1)! = 2! = 2 permutations
-        self.assertEqual(len(indices), 2)
+        assert len(indices) == 2
 
-    def test_hierarchical_permutation_description(self):
+    def test_hierarchical_permutation_description(self, bkd):
         """Has valid description."""
         strategy = HierarchicalPermutationRecursionStrategy()
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("permutation", desc.lower())
+        assert isinstance(desc, str)
+        assert "permutation" in desc.lower()
 
-    def test_all_strategies_have_description(self):
+    def test_all_strategies_have_description(self, bkd):
         """All strategies have non-empty description."""
         strategies = [
             DefaultRecursionStrategy(),
@@ -132,55 +116,43 @@ class TestRecursionIndexStrategy(Generic[Array], unittest.TestCase):
         ]
         for s in strategies:
             desc = s.description()
-            self.assertIsInstance(desc, str)
-            self.assertGreater(len(desc), 0)
+            assert isinstance(desc, str)
+            assert len(desc) > 0
 
 
-class TestRecursionIndexStrategyNumpy(TestRecursionIndexStrategy[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestRecursionIndexStrategyTorch(TestRecursionIndexStrategy[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestModelSubsetStrategy(unittest.TestCase):
+class TestModelSubsetStrategy:
     """Tests for model subset strategies."""
 
     def test_all_models_strategy(self):
         """Returns all models."""
         strategy = AllModelsStrategy()
         subsets = strategy.subsets(nmodels=4)
-        self.assertEqual(subsets, [[0, 1, 2, 3]])
+        assert subsets == [[0, 1, 2, 3]]
 
     def test_all_models_strategy_description(self):
         """Has valid description."""
         strategy = AllModelsStrategy()
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("all", desc.lower())
+        assert isinstance(desc, str)
+        assert "all" in desc.lower()
 
     def test_fixed_subset_strategy(self):
         """Returns specified subset."""
         strategy = FixedSubsetStrategy(model_indices=(0, 1, 3))
         subsets = strategy.subsets(nmodels=4)
-        self.assertEqual(subsets, [[0, 1, 3]])
+        assert subsets == [[0, 1, 3]]
 
     def test_fixed_subset_strategy_no_zero(self):
         """Raises ValueError if 0 not included."""
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError, match="0"):
             FixedSubsetStrategy(model_indices=(1, 2, 3))
-        self.assertIn("0", str(ctx.exception))
 
     def test_fixed_subset_strategy_description(self):
         """Has valid description."""
         strategy = FixedSubsetStrategy(model_indices=(0, 1, 3))
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("fixed", desc.lower())
+        assert isinstance(desc, str)
+        assert "fixed" in desc.lower()
 
     def test_all_subsets_strategy(self):
         """Generates correct subsets."""
@@ -190,46 +162,45 @@ class TestModelSubsetStrategy(unittest.TestCase):
         # 3-model: [0,1,2], [0,1,3], [0,2,3] = 3
         # 4-model: [0,1,2,3] = 1
         # Total = 7
-        self.assertEqual(len(subsets), 7)
+        assert len(subsets) == 7
         for subset in subsets:
-            self.assertIn(0, subset)
+            assert 0 in subset
 
     def test_all_subsets_strategy_max_models(self):
         """Respects max_models."""
         strategy = AllSubsetsStrategy(min_models=2, max_models=3)
         subsets = strategy.subsets(nmodels=5)
         for subset in subsets:
-            self.assertLessEqual(len(subset), 3)
-            self.assertIn(0, subset)
+            assert len(subset) <= 3
+            assert 0 in subset
 
     def test_all_subsets_strategy_description(self):
         """Has valid description."""
         strategy = AllSubsetsStrategy(min_models=2, max_models=3)
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("2", desc)
-        self.assertIn("3", desc)
+        assert isinstance(desc, str)
+        assert "2" in desc
+        assert "3" in desc
 
     def test_list_subset_strategy(self):
         """Returns custom list."""
         strategy = ListSubsetStrategy(model_subsets=((0, 1), (0, 2, 3)))
         subsets = strategy.subsets(nmodels=4)
-        self.assertEqual(len(subsets), 2)
-        self.assertEqual(subsets[0], [0, 1])
-        self.assertEqual(subsets[1], [0, 2, 3])
+        assert len(subsets) == 2
+        assert subsets[0] == [0, 1]
+        assert subsets[1] == [0, 2, 3]
 
     def test_list_subset_strategy_no_zero(self):
         """Raises ValueError if any subset missing 0."""
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError, match="0"):
             ListSubsetStrategy(model_subsets=((0, 1), (1, 2, 3)))
-        self.assertIn("0", str(ctx.exception))
 
     def test_list_subset_strategy_description(self):
         """Has valid description."""
         strategy = ListSubsetStrategy(model_subsets=((0, 1), (0, 2, 3)))
         desc = strategy.description()
-        self.assertIsInstance(desc, str)
-        self.assertIn("2", desc)
+        assert isinstance(desc, str)
+        assert "2" in desc
 
     def test_all_strategies_have_description(self):
         """All strategies have non-empty description."""
@@ -241,9 +212,5 @@ class TestModelSubsetStrategy(unittest.TestCase):
         ]
         for s in strategies:
             desc = s.description()
-            self.assertIsInstance(desc, str)
-            self.assertGreater(len(desc), 0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert isinstance(desc, str)
+            assert len(desc) > 0

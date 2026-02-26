@@ -4,12 +4,8 @@ Tests verify that cross-validation-based level selection correctly
 identifies the optimal index set level for various test functions.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -29,38 +25,27 @@ from pyapprox.surrogates.affine.indices.growth_rules import (
     LinearGrowthRule,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
-    """Base test class - NOT run directly."""
+class TestPCEDegreeSelectionFitter:
+    """Base test class."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         """Create test expansion with initial indices."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_selects_correct_degree_for_quadratic(self) -> None:
+    def test_selects_correct_degree_for_quadratic(self, bkd) -> None:
         """For x^2, selects level >= 2 and CV score at level 2 is near zero."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars, max_level=5)
+        expansion = self._create_expansion(bkd, nvars, max_level=5)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -75,15 +60,14 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         cv_scores = result.cv_scores()
         bkd.assert_allclose(cv_scores[1:2], bkd.zeros(1), atol=1e-12)
         # level 1 CV score should be much larger
-        self.assertGreater(float(cv_scores[0]), 1e-2)
+        assert float(cv_scores[0]) > 1e-2
         # selected level should be >= 2 (exact choice among >=2 is noise)
-        self.assertGreaterEqual(result.best_label(), 2)
+        assert result.best_label() >= 2
 
-    def test_selects_correct_degree_for_cubic(self) -> None:
+    def test_selects_correct_degree_for_cubic(self, bkd) -> None:
         """For x^3, selects level >= 3 and CV score at level 3 is near zero."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars, max_level=5)
+        expansion = self._create_expansion(bkd, nvars, max_level=5)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         values = bkd.reshape(samples[0, :] ** 3, (1, -1))
@@ -97,14 +81,13 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         # levels 1-2 should have large error, levels >= 3 near zero
         cv_scores = result.cv_scores()
         bkd.assert_allclose(cv_scores[2:3], bkd.zeros(1), atol=1e-12)
-        self.assertGreater(float(cv_scores[0]), 1e-2)
-        self.assertGreaterEqual(result.best_label(), 3)
+        assert float(cv_scores[0]) > 1e-2
+        assert result.best_label() >= 3
 
-    def test_multivariate_degree_selection(self) -> None:
+    def test_multivariate_degree_selection(self, bkd) -> None:
         """Selects correct level for 2D quadratic."""
-        bkd = self._bkd
         nvars = 2
-        expansion = self._create_expansion(nvars, max_level=4)
+        expansion = self._create_expansion(bkd, nvars, max_level=4)
         ntrain = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # f(x,y) = x^2 + y^2 -> degree 2 polynomial
@@ -116,13 +99,12 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         )
         result = fitter.fit(expansion, samples, values)
 
-        self.assertEqual(result.best_label(), 2)
+        assert result.best_label() == 2
 
-    def test_returns_cv_selection_result(self) -> None:
+    def test_returns_cv_selection_result(self, bkd) -> None:
         """Fit returns CVSelectionResult."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars=1, max_level=3)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=3)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 20)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
 
@@ -132,14 +114,13 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         )
         result = fitter.fit(expansion, samples, values)
 
-        self.assertIsInstance(result, CVSelectionResult)
+        assert isinstance(result, CVSelectionResult)
 
-    def test_cv_scores_shape(self) -> None:
+    def test_cv_scores_shape(self, bkd) -> None:
         """CV scores array matches number of candidates."""
-        bkd = self._bkd
         nvars = 1
         levels = [1, 2, 3, 4]
-        expansion = self._create_expansion(nvars=1, max_level=4)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=4)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 30)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
 
@@ -147,13 +128,12 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         fitter = PCEDegreeSelectionFitter(bkd, levels=levels, index_sequence=index_seq)
         result = fitter.fit(expansion, samples, values)
 
-        self.assertEqual(result.cv_scores().shape[0], len(levels))
+        assert result.cv_scores().shape[0] == len(levels)
 
-    def test_underdetermined_skipped(self) -> None:
+    def test_underdetermined_skipped(self, bkd) -> None:
         """Levels with too many terms for nsamples get inf score."""
-        bkd = self._bkd
         nvars = 2
-        expansion = self._create_expansion(nvars, max_level=10)
+        expansion = self._create_expansion(bkd, nvars, max_level=10)
         ntrain = 8  # Very few samples
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         values = bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
@@ -164,28 +144,26 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # Level 10 should be inf, so level 1 is selected
-        self.assertEqual(result.best_label(), 1)
+        assert result.best_label() == 1
         cv_scores = result.cv_scores()
-        self.assertEqual(float(cv_scores[1]), float("inf"))
+        assert float(cv_scores[1]) == float("inf")
 
-    def test_accessors(self) -> None:
+    def test_accessors(self, bkd) -> None:
         """Accessors return correct values."""
-        bkd = self._bkd
         nvars = 1
         levels = [1, 2, 3]
         index_seq = HyperbolicIndexSequence(nvars, 0.5, bkd)
         fitter = PCEDegreeSelectionFitter(
             bkd, levels=levels, index_sequence=index_seq, alpha=1e-3
         )
-        self.assertEqual(fitter.levels(), levels)
-        self.assertIs(fitter.index_sequence(), index_seq)
-        self.assertAlmostEqual(fitter.alpha(), 1e-3)
+        assert fitter.levels() == levels
+        assert fitter.index_sequence() is index_seq
+        assert fitter.alpha() == pytest.approx(1e-3)
 
-    def test_with_ridge_regularization(self) -> None:
+    def test_with_ridge_regularization(self, bkd) -> None:
         """Level selection works with ridge regularization."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars=1, max_level=5)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=5)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -197,13 +175,12 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # With small alpha, should still select level 2
-        self.assertEqual(result.best_label(), 2)
+        assert result.best_label() == 2
 
-    def test_with_lmo_nfolds(self) -> None:
+    def test_with_lmo_nfolds(self, bkd) -> None:
         """Level selection works with LMO CV."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars=1, max_level=5)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=5)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -215,17 +192,14 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # Level >= 2 should be selected (exact noiseless fit)
-        self.assertGreaterEqual(result.best_label(), 2)
+        assert result.best_label() >= 2
         # Level 1 should have significantly larger error
-        self.assertGreater(
-            float(result.cv_scores()[0]), float(result.cv_scores()[1]) + 1e-3
-        )
+        assert float(result.cv_scores()[0]) > float(result.cv_scores()[1]) + 1e-3
 
-    def test_fitted_surrogate_evaluates(self) -> None:
+    def test_fitted_surrogate_evaluates(self, bkd) -> None:
         """Fitted surrogate from result evaluates correctly."""
-        bkd = self._bkd
         nvars = 1
-        expansion = self._create_expansion(nvars=1, max_level=3)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=3)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -243,20 +217,18 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(predicted, expected, atol=1e-10)
 
-    def test_empty_levels_raises(self) -> None:
+    def test_empty_levels_raises(self, bkd) -> None:
         """Empty levels list raises ValueError."""
-        bkd = self._bkd
         nvars = 1
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PCEDegreeSelectionFitter(bkd, levels=[], index_sequence=index_seq)
 
-    def test_all_params_stored(self) -> None:
+    def test_all_params_stored(self, bkd) -> None:
         """All candidate params are stored in result."""
-        bkd = self._bkd
         nvars = 1
         levels = [1, 2, 3]
-        expansion = self._create_expansion(nvars=1, max_level=3)
+        expansion = self._create_expansion(bkd, nvars=1, max_level=3)
         ntrain = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, ntrain)))
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
@@ -265,13 +237,12 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         fitter = PCEDegreeSelectionFitter(bkd, levels=levels, index_sequence=index_seq)
         result = fitter.fit(expansion, samples, values)
 
-        self.assertEqual(len(result.all_params()), len(levels))
+        assert len(result.all_params()) == len(levels)
 
-    def test_with_sparse_grid_index_sequence(self) -> None:
+    def test_with_sparse_grid_index_sequence(self, bkd) -> None:
         """Level selection works with SparseGridIndexSequence."""
-        bkd = self._bkd
         nvars = 2
-        expansion = self._create_expansion(nvars, max_level=4)
+        expansion = self._create_expansion(bkd, nvars, max_level=4)
         ntrain = 80
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # f(x,y) = x^2 + y^2 -> degree 2 polynomial
@@ -286,30 +257,4 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         )
         result = fitter.fit(expansion, samples, values)
 
-        self.assertEqual(result.best_label(), 2)
-
-
-class TestPCEDegreeSelectionFitterNumpy(TestPCEDegreeSelectionFitter[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPCEDegreeSelectionFitterTorch(TestPCEDegreeSelectionFitter[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result.best_label() == 2

@@ -1,11 +1,7 @@
 """Tests for MFNet network class."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.affine.basis import MultiIndexBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -19,15 +15,11 @@ from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     RootMFNetNode,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_monomial_expansion(
-    bkd: Backend[Array], nvars: int = 1, nqoi: int = 1, max_level: int = 2
-) -> BasisExpansion[Array]:
+    bkd, nvars: int = 1, nqoi: int = 1, max_level: int = 2
+) -> BasisExpansion:
     """Create a BasisExpansion with monomial basis."""
     bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
@@ -37,24 +29,15 @@ def _create_monomial_expansion(
     return expansion
 
 
-class TestMFNet(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestMFNet:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        self._bkd = self.bkd()
-
-    def _build_two_node_network(self) -> Any:
+    def _build_two_node_network(self, bkd):
         """Build a simple 2-node network: leaf(0) -> root(1).
 
         Leaf model: f0(x) = polynomial(x), nvars=1, nqoi=1
         Root model: f1(x, q0) = polynomial(x, q0), nvars=2, nqoi=1
           where q0 is the leaf output.
         """
-        bkd = self._bkd
         # Leaf: 1D polynomial -> 1 output
         leaf_model = _create_monomial_expansion(bkd, nvars=1, nqoi=1)
         np.random.seed(10)
@@ -76,10 +59,9 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         net.validate()
         return net, leaf_model, root_model
 
-    def test_two_node_forward_eval(self) -> None:
+    def test_two_node_forward_eval(self, bkd) -> None:
         """Test that 2-node forward eval matches manual computation."""
-        bkd = self._bkd
-        net, leaf_model, root_model = self._build_two_node_network()
+        net, leaf_model, root_model = self._build_two_node_network(bkd)
 
         np.random.seed(99)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 10)))
@@ -95,10 +77,9 @@ class TestMFNet(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(net_out, root_out, rtol=1e-12)
 
-    def test_subgraph_values_leaf(self) -> None:
+    def test_subgraph_values_leaf(self, bkd) -> None:
         """Test subgraph_values for leaf node returns model output."""
-        bkd = self._bkd
-        net, leaf_model, _ = self._build_two_node_network()
+        net, leaf_model, _ = self._build_two_node_network(bkd)
 
         np.random.seed(99)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)))
@@ -107,47 +88,45 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         expected = leaf_model(samples)
         bkd.assert_allclose(leaf_vals, expected, rtol=1e-12)
 
-    def test_nqoi(self) -> None:
-        net, _, _ = self._build_two_node_network()
-        self.assertEqual(net.nqoi(), 1)
+    def test_nqoi(self, bkd) -> None:
+        net, _, _ = self._build_two_node_network(bkd)
+        assert net.nqoi() == 1
 
-    def test_topo_order(self) -> None:
-        net, _, _ = self._build_two_node_network()
+    def test_topo_order(self, bkd) -> None:
+        net, _, _ = self._build_two_node_network(bkd)
         topo = net.topo_order()
         # Leaf (0) must come before root (1)
-        self.assertEqual(topo.index(0) < topo.index(1), True)
+        assert topo.index(0) < topo.index(1) == True
 
-    def test_nodes_classification(self) -> None:
-        net, _, _ = self._build_two_node_network()
+    def test_nodes_classification(self, bkd) -> None:
+        net, _, _ = self._build_two_node_network(bkd)
         leaves = net.leaf_nodes()
         roots = net.root_nodes()
-        self.assertEqual(len(leaves), 1)
-        self.assertEqual(len(roots), 1)
-        self.assertEqual(leaves[0].node_id(), 0)
-        self.assertEqual(roots[0].node_id(), 1)
+        assert len(leaves) == 1
+        assert len(roots) == 1
+        assert leaves[0].node_id() == 0
+        assert roots[0].node_id() == 1
 
-    def test_hyp_list_aggregation(self) -> None:
-        net, _, _ = self._build_two_node_network()
+    def test_hyp_list_aggregation(self, bkd) -> None:
+        net, _, _ = self._build_two_node_network(bkd)
         hyps = net.hyp_list()
         # Each node: model params + noise_std param
         node0 = net.node(0)
         node1 = net.node(1)
         expected_nparams = node0.hyp_list().nparams() + node1.hyp_list().nparams()
-        self.assertEqual(hyps.nparams(), expected_nparams)
+        assert hyps.nparams() == expected_nparams
 
-    def test_not_validated_raises(self) -> None:
-        net = MFNet(nvars=1, bkd=self._bkd)
-        with self.assertRaises(RuntimeError):
+    def test_not_validated_raises(self, bkd) -> None:
+        net = MFNet(nvars=1, bkd=bkd)
+        with pytest.raises(RuntimeError):
             net.nqoi()
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             np.random.seed(1)
-            s = self._bkd.asarray(np.random.randn(1, 5))
+            s = bkd.asarray(np.random.randn(1, 5))
             net(s)
 
-    def test_three_node_chain(self) -> None:
+    def test_three_node_chain(self, bkd) -> None:
         """Build 3-node chain: leaf(0) -> mid(1) -> root(2)."""
-        bkd = self._bkd
-
         # Leaf: f0(x), nvars=1, nqoi=1
         leaf_model = _create_monomial_expansion(bkd, nvars=1, nqoi=1)
         np.random.seed(10)
@@ -190,9 +169,8 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         net_out = net(samples)
         bkd.assert_allclose(net_out, q2, rtol=1e-12)
 
-    def test_set_training_data(self) -> None:
-        bkd = self._bkd
-        net, _, _ = self._build_two_node_network()
+    def test_set_training_data(self, bkd) -> None:
+        net, _, _ = self._build_two_node_network(bkd)
 
         s0 = bkd.asarray(np.random.randn(1, 5))
         v0 = bkd.asarray(np.random.randn(1, 5))
@@ -200,13 +178,12 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         v1 = bkd.asarray(np.random.randn(1, 3))
 
         net.set_training_data([s0, s1], [v0, v1])
-        self.assertIsNotNone(net.train_samples())
-        self.assertEqual(len(net.train_samples()), 2)
+        assert net.train_samples() is not None
+        assert len(net.train_samples()) == 2
 
-    def test_memoization_avoids_recomputation(self) -> None:
+    def test_memoization_avoids_recomputation(self, bkd) -> None:
         """Verify cache is shared across root evaluations."""
-        bkd = self._bkd
-        net, leaf_model, _ = self._build_two_node_network()
+        net, leaf_model, _ = self._build_two_node_network(bkd)
 
         np.random.seed(99)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)))
@@ -214,23 +191,5 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         cache = {}
         net.subgraph_values(samples, node_id=1, cache=cache)
         # Cache should contain both node 0 and node 1
-        self.assertIn(0, cache)
-        self.assertIn(1, cache)
-
-
-# --- Concrete backend test classes ---
-
-
-class TestMFNetNumpy(TestMFNet[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMFNetTorch(TestMFNet[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+        assert 0 in cache
+        assert 1 in cache

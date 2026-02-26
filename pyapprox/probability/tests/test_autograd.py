@@ -5,8 +5,7 @@ These tests verify that logpdf and other methods work correctly with
 PyTorch's automatic differentiation.
 """
 
-import unittest
-
+import pytest
 import torch
 
 from pyapprox.probability.gaussian import (
@@ -17,10 +16,11 @@ from pyapprox.probability.univariate import GaussianMarginal
 from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestGaussianMarginalAutograd(unittest.TestCase):
+class TestGaussianMarginalAutograd:
     """Test autograd compatibility for GaussianMarginal."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         self.mean = 2.0
@@ -40,7 +40,7 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
         # Analytical gradient: d/dx log(pdf) = -(x - mu) / sigma^2
         expected_grad = -(samples.detach() - self.mean) / (self.stdev**2)
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
     def test_pdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of pdf w.r.t. sample values."""
@@ -55,7 +55,7 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
         pdf_vals = self.dist(samples.detach())
         expected_grad = pdf_vals * (-(samples.detach() - self.mean) / (self.stdev**2))
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
     def test_cdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of cdf w.r.t. sample values."""
@@ -69,7 +69,7 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
         # Analytical gradient: d/dx CDF = pdf
         expected_grad = self.dist(samples.detach())
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
     def test_invcdf_gradient_wrt_probs(self) -> None:
         """Test autograd gradient of invcdf w.r.t. probabilities."""
@@ -84,7 +84,7 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
         quantile_vals = self.dist.invcdf(probs.detach())
         expected_grad = 1.0 / self.dist(quantile_vals)
 
-        self.assertTrue(torch.allclose(probs.grad, expected_grad, rtol=1e-5))
+        assert torch.allclose(probs.grad, expected_grad, rtol=1e-5)
 
     def test_logpdf_second_derivative(self) -> None:
         """Test second derivative of logpdf is computable."""
@@ -101,13 +101,14 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
         # Analytical: d^2/dx^2 log(pdf) = -1/sigma^2
         expected = torch.full_like(samples, -1.0 / (self.stdev**2))
 
-        self.assertTrue(torch.allclose(grad2, expected, rtol=1e-6))
+        assert torch.allclose(grad2, expected, rtol=1e-6)
 
 
-class TestGaussianMarginalAutogradFiniteDiff(unittest.TestCase):
+class TestGaussianMarginalAutogradFiniteDiff:
     """Test autograd gradients match finite differences."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         self.mean = 1.0
@@ -136,13 +137,14 @@ class TestGaussianMarginalAutogradFiniteDiff(unittest.TestCase):
                 - self.dist.logpdf(samples_minus).sum()
             ) / (2 * eps)
 
-        self.assertTrue(torch.allclose(autograd_grad, fd_grad, rtol=1e-5))
+        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)
 
 
-class TestDenseCholeskyMultivariateGaussianAutograd(unittest.TestCase):
+class TestDenseCholeskyMultivariateGaussianAutograd:
     """Test autograd compatibility for DenseCholeskyMultivariateGaussian."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         self.nvars = 3
@@ -170,7 +172,7 @@ class TestDenseCholeskyMultivariateGaussianAutograd(unittest.TestCase):
         # Compare to analytical gradient
         expected_grad = self.dist.logpdf_gradient(samples.detach())
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
     def test_logpdf_gradient_finite_diff(self) -> None:
         """Compare autograd gradient to finite difference."""
@@ -196,7 +198,7 @@ class TestDenseCholeskyMultivariateGaussianAutograd(unittest.TestCase):
                 - self.dist.logpdf(samples_minus).sum()
             ) / (2 * eps)
 
-        self.assertTrue(torch.allclose(autograd_grad, fd_grad, rtol=1e-5))
+        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)
 
     def test_pdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of pdf w.r.t. sample values."""
@@ -214,13 +216,14 @@ class TestDenseCholeskyMultivariateGaussianAutograd(unittest.TestCase):
         logpdf_grad = self.dist.logpdf_gradient(samples.detach())
         expected_grad = pdf_val * logpdf_grad
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
 
-class TestDiagonalMultivariateGaussianAutograd(unittest.TestCase):
+class TestDiagonalMultivariateGaussianAutograd:
     """Test autograd compatibility for DiagonalMultivariateGaussian."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         self.nvars = 3
@@ -242,7 +245,7 @@ class TestDiagonalMultivariateGaussianAutograd(unittest.TestCase):
         # Compare to analytical gradient
         expected_grad = self.dist.logpdf_gradient(samples.detach())
 
-        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
+        assert torch.allclose(samples.grad, expected_grad, rtol=1e-6)
 
     def test_logpdf_gradient_finite_diff(self) -> None:
         """Compare autograd gradient to finite difference."""
@@ -268,8 +271,4 @@ class TestDiagonalMultivariateGaussianAutograd(unittest.TestCase):
                 - self.dist.logpdf(samples_minus).sum()
             ) / (2 * eps)
 
-        self.assertTrue(torch.allclose(autograd_grad, fd_grad, rtol=1e-5))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert torch.allclose(autograd_grad, fd_grad, rtol=1e-5)

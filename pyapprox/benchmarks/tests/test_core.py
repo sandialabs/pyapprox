@@ -1,10 +1,6 @@
 """Tests for benchmark core infrastructure."""
 
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.benchmarks.benchmark import (
     BoxDomain,
@@ -19,11 +15,9 @@ from pyapprox.benchmarks.protocols import (
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestGroundTruth(unittest.TestCase):
+class TestGroundTruth:
     """Tests for ground truth dataclasses."""
 
     def test_sensitivity_ground_truth_available(self) -> None:
@@ -33,9 +27,9 @@ class TestGroundTruth(unittest.TestCase):
             variance=2.0,
         )
         available = gt.available()
-        self.assertIn("mean", available)
-        self.assertIn("variance", available)
-        self.assertNotIn("main_effects", available)
+        assert "mean" in available
+        assert "variance" in available
+        assert "main_effects" not in available
 
     def test_sensitivity_ground_truth_get(self) -> None:
         """Test that get() returns correct values."""
@@ -43,15 +37,15 @@ class TestGroundTruth(unittest.TestCase):
             mean=1.5,
             variance=2.5,
         )
-        self.assertEqual(gt.get("mean"), 1.5)
-        self.assertEqual(gt.get("variance"), 2.5)
+        assert gt.get("mean") == 1.5
+        assert gt.get("variance") == 2.5
 
     def test_sensitivity_ground_truth_get_missing(self) -> None:
         """Test that get() raises for missing properties."""
         gt = SensitivityGroundTruth(mean=1.0)
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             gt.get("variance")
-        self.assertIn("not available", str(ctx.exception))
+        assert "not available" in str(ctx.value)
 
     def test_optimization_ground_truth(self) -> None:
         """Test optimization ground truth."""
@@ -61,8 +55,8 @@ class TestGroundTruth(unittest.TestCase):
             global_minimum=0.0,
             global_minimizers=np.array([[1.0], [1.0]]),
         )
-        self.assertEqual(gt.get("global_minimum"), 0.0)
-        self.assertIn("global_minimizers", gt.available())
+        assert gt.get("global_minimum") == 0.0
+        assert "global_minimizers" in gt.available()
 
     def test_quadrature_ground_truth(self) -> None:
         """Test quadrature ground truth."""
@@ -70,171 +64,149 @@ class TestGroundTruth(unittest.TestCase):
             integral=3.14159,
             integral_formula="pi",
         )
-        self.assertAlmostEqual(gt.get("integral"), 3.14159)
-        self.assertEqual(gt.get("integral_formula"), "pi")
+        assert gt.get("integral") == pytest.approx(3.14159)
+        assert gt.get("integral_formula") == "pi"
 
     def test_ground_truth_is_frozen(self) -> None:
         """Test that ground truth is immutable."""
         gt = SensitivityGroundTruth(mean=1.0)
-        with self.assertRaises(Exception):
+        with pytest.raises(Exception):
             gt.mean = 2.0  # type: ignore
 
 
-class TestBoxDomain(Generic[Array], unittest.TestCase):
+class TestBoxDomain:
     """Tests for BoxDomain."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_bounds_shape(self) -> None:
+    def test_bounds_shape(self, bkd) -> None:
         """Test that bounds have correct shape."""
-        bounds = self._bkd.array([[-1.0, 1.0], [-2.0, 2.0], [-3.0, 3.0]])
-        domain = BoxDomain(_bounds=bounds, _bkd=self._bkd)
-        self.assertEqual(domain.bounds().shape, (3, 2))
+        bounds = bkd.array([[-1.0, 1.0], [-2.0, 2.0], [-3.0, 3.0]])
+        domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+        assert domain.bounds().shape == (3, 2)
 
-    def test_nvars(self) -> None:
+    def test_nvars(self, bkd) -> None:
         """Test that nvars returns correct count."""
-        bounds = self._bkd.array([[-1.0, 1.0], [-2.0, 2.0]])
-        domain = BoxDomain(_bounds=bounds, _bkd=self._bkd)
-        self.assertEqual(domain.nvars(), 2)
+        bounds = bkd.array([[-1.0, 1.0], [-2.0, 2.0]])
+        domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+        assert domain.nvars() == 2
 
-    def test_bkd(self) -> None:
+    def test_bkd(self, bkd) -> None:
         """Test that bkd returns the backend."""
-        bounds = self._bkd.array([[-1.0, 1.0]])
-        domain = BoxDomain(_bounds=bounds, _bkd=self._bkd)
-        self.assertIs(domain.bkd(), self._bkd)
+        bounds = bkd.array([[-1.0, 1.0]])
+        domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+        assert domain.bkd() is bkd
 
-    def test_protocol_compliance(self) -> None:
+    def test_protocol_compliance(self, bkd) -> None:
         """Test that BoxDomain satisfies DomainProtocol."""
-        bounds = self._bkd.array([[-1.0, 1.0]])
-        domain = BoxDomain(_bounds=bounds, _bkd=self._bkd)
-        self.assertIsInstance(domain, DomainProtocol)
+        bounds = bkd.array([[-1.0, 1.0]])
+        domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+        assert isinstance(domain, DomainProtocol)
 
 
-class TestBoxDomainNumpy(TestBoxDomain[NDArray[Any]]):
-    """NumPy backend tests for BoxDomain."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBoxDomainTorch(TestBoxDomain[torch.Tensor]):
-    """PyTorch backend tests for BoxDomain."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestBenchmarkRegistry(unittest.TestCase):
+class TestBenchmarkRegistry:
     """Tests for BenchmarkRegistry."""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _save_restore_registry(self):
         # Save the current state
-        self._saved_benchmarks = dict(BenchmarkRegistry._benchmarks)
-        self._saved_categories = {
+        saved_benchmarks = dict(BenchmarkRegistry._benchmarks)
+        saved_categories = {
             k: list(v) for k, v in BenchmarkRegistry._categories.items()
         }
-        self._saved_descriptions = dict(BenchmarkRegistry._descriptions)
+        saved_descriptions = dict(BenchmarkRegistry._descriptions)
         # Clear for isolated testing
         BenchmarkRegistry.clear()
-
-    def tearDown(self) -> None:
+        yield
         # Restore the saved state
         BenchmarkRegistry.clear()
-        BenchmarkRegistry._benchmarks.update(self._saved_benchmarks)
-        for k, v in self._saved_categories.items():
+        BenchmarkRegistry._benchmarks.update(saved_benchmarks)
+        for k, v in saved_categories.items():
             BenchmarkRegistry._categories[k] = v
-        BenchmarkRegistry._descriptions.update(self._saved_descriptions)
+        BenchmarkRegistry._descriptions.update(saved_descriptions)
 
     def test_register_and_get(self) -> None:
         """Test registering and getting a benchmark."""
+        from typing import Any
 
         @BenchmarkRegistry.register("test_bench", category="test")
-        def _factory(bkd: Backend[Any]) -> str:
+        def _factory(bkd: Any) -> str:
             return "test_benchmark_instance"
 
         bkd = NumpyBkd()
         result = BenchmarkRegistry.get("test_bench", bkd)
-        self.assertEqual(result, "test_benchmark_instance")
+        assert result == "test_benchmark_instance"
 
     def test_list_all(self) -> None:
         """Test listing all benchmarks."""
+        from typing import Any
 
         @BenchmarkRegistry.register("bench1", category="cat1")
-        def _f1(bkd: Backend[Any]) -> str:
+        def _f1(bkd: Any) -> str:
             return "b1"
 
         @BenchmarkRegistry.register("bench2", category="cat2")
-        def _f2(bkd: Backend[Any]) -> str:
+        def _f2(bkd: Any) -> str:
             return "b2"
 
         all_benchmarks = BenchmarkRegistry.list_all()
-        self.assertIn("bench1", all_benchmarks)
-        self.assertIn("bench2", all_benchmarks)
+        assert "bench1" in all_benchmarks
+        assert "bench2" in all_benchmarks
 
     def test_list_category(self) -> None:
         """Test listing benchmarks by category."""
+        from typing import Any
 
         @BenchmarkRegistry.register("sens1", category="sensitivity")
-        def _f1(bkd: Backend[Any]) -> str:
+        def _f1(bkd: Any) -> str:
             return "s1"
 
         @BenchmarkRegistry.register("sens2", category="sensitivity")
-        def _f2(bkd: Backend[Any]) -> str:
+        def _f2(bkd: Any) -> str:
             return "s2"
 
         @BenchmarkRegistry.register("opt1", category="optimization")
-        def _f3(bkd: Backend[Any]) -> str:
+        def _f3(bkd: Any) -> str:
             return "o1"
 
         sens = BenchmarkRegistry.list_category("sensitivity")
-        self.assertEqual(len(sens), 2)
-        self.assertIn("sens1", sens)
-        self.assertIn("sens2", sens)
+        assert len(sens) == 2
+        assert "sens1" in sens
+        assert "sens2" in sens
 
         opt = BenchmarkRegistry.list_category("optimization")
-        self.assertEqual(len(opt), 1)
-        self.assertIn("opt1", opt)
+        assert len(opt) == 1
+        assert "opt1" in opt
 
     def test_categories(self) -> None:
         """Test listing all categories."""
+        from typing import Any
 
         @BenchmarkRegistry.register("b1", category="cat1")
-        def _f1(bkd: Backend[Any]) -> str:
+        def _f1(bkd: Any) -> str:
             return "b1"
 
         @BenchmarkRegistry.register("b2", category="cat2")
-        def _f2(bkd: Backend[Any]) -> str:
+        def _f2(bkd: Any) -> str:
             return "b2"
 
         cats = BenchmarkRegistry.categories()
-        self.assertIn("cat1", cats)
-        self.assertIn("cat2", cats)
+        assert "cat1" in cats
+        assert "cat2" in cats
 
     def test_get_unknown_raises(self) -> None:
         """Test that getting unknown benchmark raises KeyError."""
         bkd = NumpyBkd()
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             BenchmarkRegistry.get("nonexistent", bkd)
 
     def test_description(self) -> None:
         """Test benchmark description."""
+        from typing import Any
 
         @BenchmarkRegistry.register(
             "described", category="test", description="A test benchmark"
         )
-        def _f(bkd: Backend[Any]) -> str:
+        def _f(bkd: Any) -> str:
             return "d"
 
         desc = BenchmarkRegistry.description("described")
-        self.assertEqual(desc, "A test benchmark")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert desc == "A test benchmark"

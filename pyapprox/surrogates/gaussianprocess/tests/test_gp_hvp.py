@@ -2,12 +2,8 @@
 Tests for Gaussian Process Hessian-vector products with respect to inputs.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -23,114 +19,111 @@ from pyapprox.surrogates.kernels import (
 )
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestGPHVP(Generic[Array], unittest.TestCase):
+class TestGPHVP:
     """Test Gaussian Process HVP with respect to inputs."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_gp(self, bkd):
+        """Set up a simple 2D GP for testing."""
         np.random.seed(42)
-
-        # Create a simple 2D GP
-        self._nvars = 2
-        self._n_train = 10
+        nvars = 2
+        n_train = 10
 
         # Create kernel
-        length_scale = self._bkd.array([0.5, 0.5])
-        self._kernel = Matern52Kernel(
+        length_scale = bkd.array([0.5, 0.5])
+        kernel = Matern52Kernel(
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
         )
 
         # Create GP
-        self._gp = ExactGaussianProcess(
-            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd, nugget=0.01
+        gp = ExactGaussianProcess(
+            kernel=kernel, nvars=nvars, bkd=bkd, nugget=0.01
         )
 
         # Generate training data
-        X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(
-            np.random.randn(1, self._n_train)
+        X_train = bkd.array(np.random.randn(nvars, n_train))
+        y_train = bkd.array(
+            np.random.randn(1, n_train)
         )  # Shape: (1, n_train)
 
         # Fit GP
-        self._gp.fit(X_train, y_train)
+        gp.fit(X_train, y_train)
 
-    def test_hvp_shape(self):
+        return gp, kernel, nvars
+
+    def test_hvp_shape(self, bkd):
         """Test that HVP returns correct shape."""
-        # Single sample
-        x = self._bkd.array([[0.5], [0.5]])
-        v = self._bkd.array([[1.0], [0.0]])
+        gp, _, nvars = self._setup_gp(bkd)
 
-        hvp = self._gp.hvp(x, v)
+        # Single sample
+        x = bkd.array([[0.5], [0.5]])
+        v = bkd.array([[1.0], [0.0]])
+
+        hvp = gp.hvp(x, v)
 
         # Should have shape (nvars, 1)
-        self.assertEqual(hvp.shape, (self._nvars, 1))
+        assert hvp.shape == (nvars, 1)
 
-    def test_hvp_linearity(self):
+    def test_hvp_linearity(self, bkd):
         """Test that HVP is linear in direction: H(x)·(aV) = a·H(x)·V."""
-        x = self._bkd.array([[0.5], [0.5]])
-        v = self._bkd.array([[1.0], [0.5]])
+        gp, _, _ = self._setup_gp(bkd)
+
+        x = bkd.array([[0.5], [0.5]])
+        v = bkd.array([[1.0], [0.5]])
         a = 2.5
 
-        hvp1 = self._gp.hvp(x, v)
-        hvp2 = self._gp.hvp(x, v * a)
+        hvp1 = gp.hvp(x, v)
+        hvp2 = gp.hvp(x, v * a)
 
         # hvp2 should be a * hvp1
-        self.assertTrue(self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8))
+        assert bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8)
 
-    def test_hvp_with_derivative_checker(self):
+    def test_hvp_with_derivative_checker(self, bkd):
         """Test HVP using DerivativeChecker with finite differences."""
+        gp, _, nvars = self._setup_gp(bkd)
 
         # Create a function wrapper for the GP
         def value_function(x):
             # x shape: (nvars, 1)
             # Predict at x, return shape (1, 1)
-            pred = self._gp.predict(x)
-            return self._bkd.reshape(pred, (1, 1))
+            pred = gp.predict(x)
+            return bkd.reshape(pred, (1, 1))
 
         def jacobian_function(x):
             # x shape: (nvars, 1)
             # GP jacobian returns shape (nqoi, nvars) = (1, nvars)
             # Need to return shape (nqoi, nvars) = (1, nvars)
-            jac = self._gp.jacobian(x)
+            jac = gp.jacobian(x)
             return jac
 
         def hvp_function(x, v):
             # x, v shape: (nvars, 1)
             # HVP shape: (nvars, 1) -> flatten for function interface
-            hvp = self._gp.hvp(x, v)
+            hvp = gp.hvp(x, v)
             # Return shape (nvars, 1)
             return hvp
 
         # Wrap the function
         function = FunctionWithJacobianAndHVPFromCallable(
-            nvars=self._nvars,
+            nvars=nvars,
             fun=value_function,
             jacobian=jacobian_function,
             hvp=hvp_function,
-            bkd=self._bkd,
+            bkd=bkd,
         )
 
         # Create derivative checker
         checker = DerivativeChecker(function)
 
         # Test point
-        x0 = self._bkd.array([[0.5], [0.5]])
+        x0 = bkd.array([[0.5], [0.5]])
 
         # Custom FD step sizes
-        fd_eps = self._bkd.flip(self._bkd.logspace(-14, 0, 15))
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
         # Check derivatives
         errors = checker.check_derivatives(
@@ -139,101 +132,96 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
+        assert bkd.all_bool(bkd.isfinite(jac_error))
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
+        assert jac_ratio < 1e-6, f"Jacobian error ratio: {jac_ratio}"
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
+        assert bkd.all_bool(bkd.isfinite(hvp_error))
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
+        assert hvp_ratio < 1e-6, f"HVP error ratio: {hvp_ratio}"
 
-    def test_hvp_multiple_samples(self):
+    def test_hvp_multiple_samples(self, bkd):
         """Test HVP with multiple samples using hvp_batch."""
-        # Multiple samples
-        X = self._bkd.array(np.random.randn(self._nvars, 3))
-        V = self._bkd.array(np.random.randn(self._nvars, 3))
+        gp, _, nvars = self._setup_gp(bkd)
 
-        hvp = self._gp.hvp_batch(X, V)
+        # Multiple samples
+        X = bkd.array(np.random.randn(nvars, 3))
+        V = bkd.array(np.random.randn(nvars, 3))
+
+        hvp = gp.hvp_batch(X, V)
 
         # Should have shape (n_samples, nvars) = (3, nvars)
-        self.assertEqual(hvp.shape, (3, self._nvars))
+        assert hvp.shape == (3, nvars)
 
         # Each row should match single-sample computation
         for i in range(3):
             x_i = X[:, i : i + 1]
             v_i = V[:, i : i + 1]
-            hvp_i_single = self._gp.hvp(x_i, v_i)  # (nvars, 1)
+            hvp_i_single = gp.hvp(x_i, v_i)  # (nvars, 1)
 
-            self._bkd.assert_allclose(
+            bkd.assert_allclose(
                 hvp[i, :], hvp_i_single[:, 0], rtol=1e-10, atol=1e-12
             )
 
-    def test_hvp_zero_direction(self):
+    def test_hvp_zero_direction(self, bkd):
         """Test HVP with zero direction vector."""
-        x = self._bkd.array([[0.5], [0.5]])
-        v = self._bkd.zeros((self._nvars, 1))
+        gp, _, nvars = self._setup_gp(bkd)
 
-        hvp = self._gp.hvp(x, v)
+        x = bkd.array([[0.5], [0.5]])
+        v = bkd.zeros((nvars, 1))
+
+        hvp = gp.hvp(x, v)
 
         # Should be zero
-        zero_hvp = self._bkd.zeros((self._nvars, 1))
-        self.assertTrue(self._bkd.allclose(hvp, zero_hvp, atol=1e-12))
+        zero_hvp = bkd.zeros((nvars, 1))
+        assert bkd.allclose(hvp, zero_hvp, atol=1e-12)
 
-    def test_hvp_coordinate_directions(self):
+    def test_hvp_coordinate_directions(self, bkd):
         """Test HVP in coordinate directions."""
-        x = self._bkd.array([[0.5], [0.5]])
+        gp, _, nvars = self._setup_gp(bkd)
 
-        for d in range(self._nvars):
+        x = bkd.array([[0.5], [0.5]])
+
+        for d in range(nvars):
             # Direction along axis d
-            v = self._bkd.zeros((self._nvars, 1))
+            v = bkd.zeros((nvars, 1))
             v[d, 0] = 1.0
 
-            hvp = self._gp.hvp(x, v)
+            hvp = gp.hvp(x, v)
 
             # HVP should only have non-zero entry in dimension d
             # (approximately, due to cross-terms in Hessian)
-            self.assertEqual(hvp.shape, (self._nvars, 1))
+            assert hvp.shape == (nvars, 1)
 
-    def test_hvp_shape_mismatch_error(self):
+    def test_hvp_shape_mismatch_error(self, bkd):
         """Test that HVP raises error when shapes don't match."""
-        x = self._bkd.array([[0.5], [0.5]])
-        v_wrong = self._bkd.array([[1.0]])  # Only 1 variable
+        gp, _, _ = self._setup_gp(bkd)
 
-        with self.assertRaises(ValueError):
-            self._gp.hvp(x, v_wrong)
+        x = bkd.array([[0.5], [0.5]])
+        v_wrong = bkd.array([[1.0]])  # Only 1 variable
 
-    def test_hvp_not_fitted_error(self):
+        with pytest.raises(ValueError):
+            gp.hvp(x, v_wrong)
+
+    def test_hvp_not_fitted_error(self, bkd):
         """Test that HVP raises error when GP not fitted."""
+        gp, kernel, nvars = self._setup_gp(bkd)
+
         # Create unfitted GP
         gp_unfitted = ExactGaussianProcess(
-            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd
+            kernel=kernel, nvars=nvars, bkd=bkd
         )
 
-        x = self._bkd.array([[0.5], [0.5]])
-        v = self._bkd.array([[1.0], [0.0]])
+        x = bkd.array([[0.5], [0.5]])
+        v = bkd.array([[1.0], [0.0]])
 
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             gp_unfitted.hvp(x, v)
 
 
-class TestGPHVPNumpy(TestGPHVP[NDArray[Any]]):
-    """Test GP HVP with NumPy backend."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGPHVPTorch(TestGPHVP[torch.Tensor]):
-    """Test GP HVP with PyTorch backend."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
+class TestGPHVPCompositionKernels:
     """
     Test GP HVP with composition kernels using derivative checker.
 
@@ -241,41 +229,37 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
     used in a GP, verified against finite differences.
     """
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
+        """Set up test data."""
         np.random.seed(42)
-        self.nvars = 2
-        self.n_train = 20
+        nvars = 2
+        n_train = 20
 
-        # Create sample data
-        self.X_train = self._bkd.array(np.random.randn(self.nvars, self.n_train))
-        self.y_train = self._bkd.array(
-            np.random.randn(1, self.n_train)
+        X_train = bkd.array(np.random.randn(nvars, n_train))
+        y_train = bkd.array(
+            np.random.randn(1, n_train)
         )  # Shape: (1, n_train)
 
-    def _create_matern_kernel(self, nu: float):
+        return nvars, X_train, y_train
+
+    def _create_matern_kernel(self, nu, nvars, bkd):
         """Create Matern kernel for given nu value."""
         if nu == 1.5:
             return Matern32Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * nvars, (0.1, 10.0), nvars, bkd
             )
         elif nu == 2.5:
             return Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * nvars, (0.1, 10.0), nvars, bkd
             )
         elif nu == np.inf:
             return SquaredExponentialKernel(
-                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * nvars, (0.1, 10.0), nvars, bkd
             )
         else:
             raise ValueError(f"Unsupported nu value: {nu}")
 
-    def _test_composition_hvp_for_nu(self, nu: float) -> None:
+    def _test_composition_hvp_for_nu(self, nu, bkd) -> None:
         """
         Test HVP for composition kernel with specific Matern nu.
 
@@ -284,25 +268,27 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
         nu : float
             Matern smoothness parameter (1.5, 2.5, or np.inf)
         """
+        nvars, X_train, y_train = self._setup(bkd)
+
         # Create composition: scaling * matern + noise
-        scaling = PolynomialScaling([0.8], (0.1, 2.0), self._bkd, nvars=self.nvars)
-        matern = self._create_matern_kernel(nu)
-        noise = IIDGaussianNoise(0.01, (0.001, 0.1), self._bkd)
+        scaling = PolynomialScaling([0.8], (0.1, 2.0), bkd, nvars=nvars)
+        matern = self._create_matern_kernel(nu, nvars, bkd)
+        noise = IIDGaussianNoise(0.01, (0.001, 0.1), bkd)
         kernel = scaling * matern + noise
 
         # Create and fit GP (with fixed hyperparameters to skip optimization)
-        gp = ExactGaussianProcess(kernel=kernel, nvars=self.nvars, bkd=self._bkd)
+        gp = ExactGaussianProcess(kernel=kernel, nvars=nvars, bkd=bkd)
         gp.hyp_list().set_all_inactive()  # Skip optimization for HVP test
-        gp.fit(self.X_train, self.y_train)
+        gp.fit(X_train, y_train)
 
         # Test point and direction
-        x_test = self._bkd.array(np.random.randn(self.nvars, 1))
-        v_test = self._bkd.array(np.random.randn(self.nvars, 1))
-        v_test = v_test / self._bkd.norm(v_test)
+        x_test = bkd.array(np.random.randn(nvars, 1))
+        v_test = bkd.array(np.random.randn(nvars, 1))
+        v_test = v_test / bkd.norm(v_test)
 
         # Compute HVP
         hvp_result = gp.hvp(x_test, v_test)
-        self.assertEqual(hvp_result.shape, (self.nvars, 1))
+        assert hvp_result.shape == (nvars, 1)
 
         # Verify with derivative checker
         def mean_func(x_shaped):
@@ -312,11 +298,11 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
             return gp.jacobian(x_shaped)
 
         func_with_hvp = FunctionWithJacobianAndHVPFromCallable(
-            nvars=self.nvars,
+            nvars=nvars,
             fun=mean_func,
             jacobian=jac_func,
             hvp=lambda x, v: gp.hvp(x, v),
-            bkd=self._bkd,
+            bkd=bkd,
         )
 
         checker = DerivativeChecker(func_with_hvp)
@@ -324,43 +310,24 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
+        assert bkd.all_bool(bkd.isfinite(jac_error))
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(jac_ratio, 2e-6, f"Jacobian error ratio: {jac_ratio}")
+        assert jac_ratio < 2e-6, f"Jacobian error ratio: {jac_ratio}"
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
+        assert bkd.all_bool(bkd.isfinite(hvp_error))
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 2e-6, f"HVP error ratio: {hvp_ratio}")
+        assert hvp_ratio < 2e-6, f"HVP error ratio: {hvp_ratio}"
 
-    def test_composition_hvp_matern_1_5(self) -> None:
+    def test_composition_hvp_matern_1_5(self, bkd) -> None:
         """Test composition HVP with Matern nu=1.5."""
-        self._test_composition_hvp_for_nu(1.5)
+        self._test_composition_hvp_for_nu(1.5, bkd)
 
-    def test_composition_hvp_matern_2_5(self) -> None:
+    def test_composition_hvp_matern_2_5(self, bkd) -> None:
         """Test composition HVP with Matern nu=2.5."""
-        self._test_composition_hvp_for_nu(2.5)
+        self._test_composition_hvp_for_nu(2.5, bkd)
 
-    def test_composition_hvp_matern_inf(self) -> None:
+    def test_composition_hvp_matern_inf(self, bkd) -> None:
         """Test composition HVP with Matern nu=inf (RBF)."""
-        self._test_composition_hvp_for_nu(np.inf)
-
-
-class TestGPHVPCompositionKernelsNumpy(TestGPHVPCompositionKernels[NDArray[Any]]):
-    """Test GP HVP with composition kernels using NumPy backend."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGPHVPCompositionKernelsTorch(TestGPHVPCompositionKernels[torch.Tensor]):
-    """Test GP HVP with composition kernels using PyTorch backend."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._test_composition_hvp_for_nu(np.inf, bkd)

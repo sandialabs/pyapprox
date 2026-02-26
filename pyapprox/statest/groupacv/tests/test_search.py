@@ -1,10 +1,9 @@
 """Tests for GroupACV search classes."""
 
-import unittest
-from typing import Generic, Tuple
+from typing import Tuple
 
 import numpy as np
-import torch
+import pytest
 
 from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.groupacv.search import (
@@ -16,27 +15,22 @@ from pyapprox.statest.groupacv.variants import (
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.strategies import AllSubsetsStrategy
-from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestGroupACVSearch(Generic[Array], unittest.TestCase):
+class TestGroupACVSearch:
     """Tests for GroupACVSearch."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self._bkd = TorchBkd()
         np.random.seed(42)
         self._stat, self._costs = self._create_stat_and_costs()
 
     def _create_stat_and_costs(
         self, nmodels: int = 3, nqoi: int = 1
-    ) -> Tuple[MultiOutputMean[Array], Array]:
+    ) -> Tuple[MultiOutputMean, ...]:
         """Create test statistic and costs."""
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
@@ -47,7 +41,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
                         corr = 0.9 ** abs(i - j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
-        stat: MultiOutputMean[Array] = MultiOutputMean(nqoi, self._bkd)
+        stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
@@ -57,8 +51,8 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         search = GroupACVSearch(self._stat, self._costs)
         result = search.search(target_cost=1000.0, allow_failures=True)
 
-        self.assertIsInstance(result, GroupACVSearchResult)
-        self.assertEqual(result.candidates_evaluated(), 1)
+        assert isinstance(result, GroupACVSearchResult)
+        assert result.candidates_evaluated() == 1
 
     @slow_test
     def test_multiple_estimator_types(self) -> None:
@@ -70,7 +64,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         )
         result = search.search(target_cost=1000.0, allow_failures=True)
 
-        self.assertEqual(result.candidates_evaluated(), 2)
+        assert result.candidates_evaluated() == 2
 
     @slow_test
     def test_model_subset_search(self) -> None:
@@ -89,12 +83,12 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         # Size 2: C(3,1) = 3 subsets (choose 1 from models 1,2,3 to pair with 0)
         # Size 3: C(3,2) = 3 subsets
         # Total: 6 subsets * 1 estimator type = 6 candidates
-        self.assertGreater(result.candidates_evaluated(), 1)
+        assert result.candidates_evaluated() > 1
 
     def test_bkd_method(self) -> None:
         """bkd() returns backend."""
         search = GroupACVSearch(self._stat, self._costs)
-        self.assertIs(search.bkd(), self._bkd)
+        assert search.bkd() is self._bkd
 
     @slow_test
     def test_search_result_methods(self) -> None:
@@ -107,21 +101,21 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         result = search.search(target_cost=1000.0, allow_failures=True)
 
         # Test candidates_evaluated
-        self.assertEqual(result.candidates_evaluated(), 2)
+        assert result.candidates_evaluated() == 2
 
         # Test candidates_successful
         successful = result.candidates_successful()
-        self.assertGreaterEqual(successful, 0)
-        self.assertLessEqual(successful, 2)
+        assert successful >= 0
+        assert successful <= 2
 
         # Test successful_allocations
         successful_allocs = result.successful_allocations()
-        self.assertEqual(len(successful_allocs), successful)
+        assert len(successful_allocs) == successful
 
         # Test search_description
         desc = result.search_description()
-        self.assertIn("MLBLUEEstimator", desc)
-        self.assertIn("GroupACVEstimatorIS", desc)
+        assert "MLBLUEEstimator" in desc
+        assert "GroupACVEstimatorIS" in desc
 
     def test_search_raises_on_failure_when_not_allowed(self) -> None:
         """Test that search raises when allow_failures=False and allocation fails.
@@ -130,7 +124,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         RuntimeError is raised when optimization runs but fails.
         """
         search = GroupACVSearch(self._stat, self._costs)
-        with self.assertRaises((RuntimeError, ValueError)):
+        with pytest.raises((RuntimeError, ValueError)):
             search.search(target_cost=0.01, allow_failures=False)
 
     def test_search_result_has_best_estimator(self) -> None:
@@ -145,17 +139,3 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
                 nsamples,
                 result.allocation.npartition_samples,
             )
-
-
-# Note: NumPy backend does not yet support gradient-based optimization.
-# Uncomment TestGroupACVSearchNumpy when optimization support is implemented.
-
-
-class TestGroupACVSearchTorch(TestGroupACVSearch[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

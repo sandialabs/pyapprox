@@ -4,12 +4,8 @@ Replicates legacy tests from pyapprox/surrogates/affine/tests/test_crossvalidati
 with dual-backend support (NumPy + PyTorch).
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.affine.expansions.crossvalidation import (
     get_cross_validation_rsquared,
@@ -17,40 +13,29 @@ from pyapprox.surrogates.affine.expansions.crossvalidation import (
     leave_many_out_lsq_cross_validation,
     leave_one_out_lsq_cross_validation,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestCrossValidation(Generic[Array], unittest.TestCase):
-    """Base test class - NOT run directly."""
+class TestCrossValidation:
+    """Base test class."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(1)
 
-    def test_k_fold_sample_indices_cover_all_samples(self) -> None:
+    def test_k_fold_sample_indices_cover_all_samples(self, bkd) -> None:
         """Fold indices partition all sample indices exactly once."""
-        bkd = self._bkd
         nsamples = 17
         nfolds = 5
         fold_indices = get_random_k_fold_sample_indices(
             nsamples, nfolds, random=True, bkd=bkd
         )
-        self.assertEqual(len(fold_indices), nfolds)
+        assert len(fold_indices) == nfolds
         all_indices = bkd.hstack(fold_indices)
         unique_indices = bkd.unique(all_indices)
-        self.assertEqual(unique_indices.shape[0], nsamples)
+        assert unique_indices.shape[0] == nsamples
 
-    def test_k_fold_sample_indices_deterministic(self) -> None:
+    def test_k_fold_sample_indices_deterministic(self, bkd) -> None:
         """Non-random fold indices are deterministic."""
-        bkd = self._bkd
         nsamples = 12
         nfolds = 4
         fold_indices = get_random_k_fold_sample_indices(
@@ -60,9 +45,8 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         expected_first = bkd.asarray([0, 4, 8], dtype=int)
         bkd.assert_allclose(fold_indices[0], expected_first)
 
-    def test_leave_one_out_lsq_cross_validation(self) -> None:
+    def test_leave_one_out_lsq_cross_validation(self, bkd) -> None:
         """LOO fast formula matches brute-force leave-one-out."""
-        bkd = self._bkd
         degree = 2
         alpha = 1e-3
         nsamples = 2 * (degree + 1)
@@ -90,9 +74,8 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         expected_score = bkd.sqrt(bkd.sum(true_cv_errors**2, axis=0) / nsamples)
         bkd.assert_allclose(cv_score, expected_score)
 
-    def test_leave_many_out_lsq_cross_validation(self) -> None:
+    def test_leave_many_out_lsq_cross_validation(self, bkd) -> None:
         """LMO fast formula matches brute-force leave-many-out."""
-        bkd = self._bkd
         degree = 2
         nsamples = 2 * (degree + 1)
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
@@ -134,9 +117,8 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(true_cv_score, cv_score)
 
-    def test_rsquared_coefficient_of_variation(self) -> None:
+    def test_rsquared_coefficient_of_variation(self, bkd) -> None:
         """R-squared computed correctly from CV score."""
-        bkd = self._bkd
         train_vals = bkd.asarray([1.0, 2.0, 3.0, 4.0, 5.0])
         # Perfect fit: cv_score = 0 -> R^2 = 1
         cv_score_zero = bkd.asarray(0.0)
@@ -148,9 +130,8 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         rsq = get_cross_validation_rsquared(cv_score_std, train_vals, bkd=bkd)
         bkd.assert_allclose(rsq, bkd.asarray(0.0), atol=1e-14)
 
-    def test_loo_with_precomputed_coef(self) -> None:
+    def test_loo_with_precomputed_coef(self, bkd) -> None:
         """LOO with precomputed coefficients matches without."""
-        bkd = self._bkd
         degree = 2
         alpha = 1e-3
         nsamples = 2 * (degree + 1)
@@ -170,29 +151,3 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cv_errors1, cv_errors2)
         bkd.assert_allclose(cv_score1, cv_score2)
-
-
-class TestCrossValidationNumpy(TestCrossValidation[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCrossValidationTorch(TestCrossValidation[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -13,11 +13,8 @@ These tests help diagnose issues with sparse grid integration for non-uniform
 marginals (Beta, Gamma) where interpolation tests pass but integration fails.
 """
 
-import unittest
-from typing import Any, Dict, Generic, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
-import torch
-from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.probability import (
@@ -29,10 +26,6 @@ from pyapprox.probability import (
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # Type alias for marginal types
 MarginalType = Union[
@@ -71,9 +64,7 @@ MARGINAL_CONFIGS = [
 ]
 
 
-def create_marginal(
-    mtype: str, params: Dict[str, float], bkd: Backend[Array]
-) -> MarginalType:
+def create_marginal(mtype, params, bkd):
     """Create a marginal distribution from type and parameters."""
     if mtype == "uniform":
         return UniformMarginal(params["lower"], params["upper"], bkd)
@@ -156,24 +147,14 @@ def get_analytical_moments(mtype: str, params: Dict[str, float]) -> Tuple[float,
 # =============================================================================
 
 
-class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestGaussQuadrature1D(ParametrizedTestCase):
     """Parametrized tests for 1D Gauss quadrature rules.
 
     Tests verify that Gauss quadrature rules for various probability measures
     correctly integrate polynomials up to the expected degree of exactness.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _get_quadrature_rule(
-        self, mtype: str, params: Dict[str, float], npoints: int
-    ) -> Tuple[Array, Array]:
+    def _get_quadrature_rule(self, mtype, params, npoints, bkd):
         """Get quadrature points and weights for a marginal distribution.
 
         Uses GaussLagrangeFactory to get the quadrature rule that would be
@@ -186,28 +167,28 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         weights : Array
             Quadrature weights summing to 1, shape (npoints,)
         """
-        marginal = create_marginal(mtype, params, self._bkd)
-        factory = GaussLagrangeFactory(marginal, self._bkd)
+        marginal = create_marginal(mtype, params, bkd)
+        factory = GaussLagrangeFactory(marginal, bkd)
         basis = factory.create_basis()
         basis.set_nterms(npoints)
         points, weights = basis.quadrature_rule()
         # points and weights are 1D arrays
-        return self._bkd.flatten(points), self._bkd.flatten(weights)
+        return bkd.flatten(points), bkd.flatten(weights)
 
     @parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
     def test_weights_sum_to_one(
-        self, name: str, mtype: str, params: Dict[str, float]
+        self, name: str, mtype: str, params: Dict[str, float], bkd
     ) -> None:
         """Test that quadrature weights sum to 1 for all marginals."""
         for npoints in [1, 2, 3, 5, 10]:
-            points, weights = self._get_quadrature_rule(mtype, params, npoints)
-            weight_sum = self._bkd.sum(weights)
-            self._bkd.assert_allclose(
-                self._bkd.atleast_1d(weight_sum),
-                self._bkd.asarray([1.0]),
+            points, weights = self._get_quadrature_rule(mtype, params, npoints, bkd)
+            weight_sum = bkd.sum(weights)
+            bkd.assert_allclose(
+                bkd.atleast_1d(weight_sum),
+                bkd.asarray([1.0]),
                 rtol=1e-12,
                 atol=1e-14,
             )
@@ -216,7 +197,7 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
-    def test_mean_exact(self, name: str, mtype: str, params: Dict[str, float]) -> None:
+    def test_mean_exact(self, name: str, mtype: str, params: Dict[str, float], bkd) -> None:
         """Test mean is exact: sum(w_i * x_i) = E[X] with 1+ points.
 
         Gauss quadrature with n points is exact for polynomials up to
@@ -225,11 +206,11 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         expected_mean, _ = get_analytical_moments(mtype, params)
 
         for npoints in [1, 2, 3, 5]:
-            points, weights = self._get_quadrature_rule(mtype, params, npoints)
-            computed_mean = self._bkd.sum(weights * points)
-            self._bkd.assert_allclose(
-                self._bkd.atleast_1d(computed_mean),
-                self._bkd.asarray([expected_mean]),
+            points, weights = self._get_quadrature_rule(mtype, params, npoints, bkd)
+            computed_mean = bkd.sum(weights * points)
+            bkd.assert_allclose(
+                bkd.atleast_1d(computed_mean),
+                bkd.asarray([expected_mean]),
                 rtol=1e-10,
                 atol=1e-14,
             )
@@ -239,7 +220,7 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         MARGINAL_CONFIGS,
     )
     def test_second_moment_exact(
-        self, name: str, mtype: str, params: Dict[str, float]
+        self, name: str, mtype: str, params: Dict[str, float], bkd
     ) -> None:
         """Test second moment is exact: sum(w_i * x_i^2) = E[X^2] with 2+ points.
 
@@ -249,11 +230,11 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         _, expected_second = get_analytical_moments(mtype, params)
 
         for npoints in [2, 3, 5, 10]:
-            points, weights = self._get_quadrature_rule(mtype, params, npoints)
-            computed_second = self._bkd.sum(weights * points**2)
-            self._bkd.assert_allclose(
-                self._bkd.atleast_1d(computed_second),
-                self._bkd.asarray([expected_second]),
+            points, weights = self._get_quadrature_rule(mtype, params, npoints, bkd)
+            computed_second = bkd.sum(weights * points**2)
+            bkd.assert_allclose(
+                bkd.atleast_1d(computed_second),
+                bkd.asarray([expected_second]),
                 rtol=1e-10,
                 atol=1e-14,
             )
@@ -263,7 +244,7 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         MARGINAL_CONFIGS,
     )
     def test_degree_of_exactness(
-        self, name: str, mtype: str, params: Dict[str, float]
+        self, name: str, mtype: str, params: Dict[str, float], bkd
     ) -> None:
         """Test degree of exactness: n points exact for degree <= 2n-1.
 
@@ -273,13 +254,13 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         """
         for npoints in [1, 2, 3, 4, 5]:
             max_exact_degree = 2 * npoints - 1
-            points, weights = self._get_quadrature_rule(mtype, params, npoints)
+            points, weights = self._get_quadrature_rule(mtype, params, npoints, bkd)
 
             # Test constant function: integral = 1
-            const_integral = self._bkd.sum(weights)
-            self._bkd.assert_allclose(
-                self._bkd.atleast_1d(const_integral),
-                self._bkd.asarray([1.0]),
+            const_integral = bkd.sum(weights)
+            bkd.assert_allclose(
+                bkd.atleast_1d(const_integral),
+                bkd.asarray([1.0]),
                 rtol=1e-12,
                 atol=1e-14,
             )
@@ -289,7 +270,7 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
             # and just verify the polynomial is integrated reasonably well
             for degree in range(1, max_exact_degree + 1):
                 # Compute integral of x^degree with quadrature
-                computed = self._bkd.sum(weights * points**degree)
+                computed = bkd.sum(weights * points**degree)
 
                 # For checking, compute expected value using scipy or formula
                 # We'll use Monte Carlo reference (high sample count) or
@@ -300,9 +281,9 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
                     else:  # degree == 2
                         _, expected = get_analytical_moments(mtype, params)
 
-                    self._bkd.assert_allclose(
-                        self._bkd.atleast_1d(computed),
-                        self._bkd.asarray([expected]),
+                    bkd.assert_allclose(
+                        bkd.atleast_1d(computed),
+                        bkd.asarray([expected]),
                         rtol=1e-10,
                         atol=1e-12,
                     )
@@ -312,7 +293,7 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         MARGINAL_CONFIGS,
     )
     def test_variance_computation(
-        self, name: str, mtype: str, params: Dict[str, float]
+        self, name: str, mtype: str, params: Dict[str, float], bkd
     ) -> None:
         """Test variance can be computed: Var[X] = E[X^2] - E[X]^2.
 
@@ -322,14 +303,14 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         expected_variance = expected_second - expected_mean**2
 
         for npoints in [2, 3, 5]:
-            points, weights = self._get_quadrature_rule(mtype, params, npoints)
-            computed_mean = self._bkd.sum(weights * points)
-            computed_second = self._bkd.sum(weights * points**2)
+            points, weights = self._get_quadrature_rule(mtype, params, npoints, bkd)
+            computed_mean = bkd.sum(weights * points)
+            computed_second = bkd.sum(weights * points**2)
             computed_variance = computed_second - computed_mean**2
 
-            self._bkd.assert_allclose(
-                self._bkd.atleast_1d(computed_variance),
-                self._bkd.asarray([expected_variance]),
+            bkd.assert_allclose(
+                bkd.atleast_1d(computed_variance),
+                bkd.asarray([expected_variance]),
                 rtol=1e-10,
                 atol=1e-14,
             )
@@ -339,84 +320,43 @@ class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestC
         MARGINAL_CONFIGS,
     )
     def test_points_in_support(
-        self, name: str, mtype: str, params: Dict[str, float]
+        self, name: str, mtype: str, params: Dict[str, float], bkd
     ) -> None:
         """Test that quadrature points lie within the distribution support."""
         for npoints in [1, 2, 3, 5, 10]:
-            points, _ = self._get_quadrature_rule(mtype, params, npoints)
+            points, _ = self._get_quadrature_rule(mtype, params, npoints, bkd)
 
             if mtype == "uniform":
                 lb, ub = params["lower"], params["upper"]
-                lb_check = points >= self._bkd.asarray(lb - 1e-12)
-                ub_check = points <= self._bkd.asarray(ub + 1e-12)
+                lb_check = points >= bkd.asarray(lb - 1e-12)
+                ub_check = points <= bkd.asarray(ub + 1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
                 assert not isinstance(ub_check, bool)  # for mypy
-                self.assertTrue(
-                    self._bkd.all_bool(lb_check),
-                    f"Points below lower bound for {name} with {npoints} points",
+                assert bkd.all_bool(lb_check), (
+                    f"Points below lower bound for {name} with {npoints} points"
                 )
-                self.assertTrue(
-                    self._bkd.all_bool(ub_check),
-                    f"Points above upper bound for {name} with {npoints} points",
+                assert bkd.all_bool(ub_check), (
+                    f"Points above upper bound for {name} with {npoints} points"
                 )
 
             elif mtype == "beta":
                 lb, ub = params.get("lb", 0.0), params.get("ub", 1.0)
-                lb_check = points >= self._bkd.asarray(lb - 1e-12)
-                ub_check = points <= self._bkd.asarray(ub + 1e-12)
+                lb_check = points >= bkd.asarray(lb - 1e-12)
+                ub_check = points <= bkd.asarray(ub + 1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
                 assert not isinstance(ub_check, bool)  # for mypy
-                self.assertTrue(
-                    self._bkd.all_bool(lb_check),
-                    f"Points below lower bound for {name} with {npoints} points",
+                assert bkd.all_bool(lb_check), (
+                    f"Points below lower bound for {name} with {npoints} points"
                 )
-                self.assertTrue(
-                    self._bkd.all_bool(ub_check),
-                    f"Points above upper bound for {name} with {npoints} points",
+                assert bkd.all_bool(ub_check), (
+                    f"Points above upper bound for {name} with {npoints} points"
                 )
 
             elif mtype == "gamma":
-                lb_check = points >= self._bkd.asarray(-1e-12)
+                lb_check = points >= bkd.asarray(-1e-12)
                 assert not isinstance(lb_check, bool)  # for mypy
-                self.assertTrue(
-                    self._bkd.all_bool(lb_check),
-                    f"Points below 0 for {name} with {npoints} points",
+                assert bkd.all_bool(lb_check), (
+                    f"Points below 0 for {name} with {npoints} points"
                 )
 
             # Gaussian has infinite support, so no bounds to check
-
-
-# =============================================================================
-# NumPy backend tests
-# =============================================================================
-
-
-class TestGaussQuadrature1DNumpy(TestGaussQuadrature1D[NDArray[Any]]):
-    """NumPy backend tests for 1D Gauss quadrature."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# =============================================================================
-# PyTorch backend tests
-# =============================================================================
-
-
-class TestGaussQuadrature1DTorch(TestGaussQuadrature1D[torch.Tensor]):
-    """PyTorch backend tests for 1D Gauss quadrature."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

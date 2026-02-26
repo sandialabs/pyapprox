@@ -13,12 +13,7 @@ These tests verify:
 3. Quadrature weights sum to 1 (for probability measure)
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
@@ -27,10 +22,7 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_test_tensor_product_subspace,
     create_test_tensor_product_subspace_mixed,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test, slower_test  # noqa: F401
 
 # =============================================================================
 # Test Configurations
@@ -77,28 +69,20 @@ MIXED_TENSOR_PRODUCT_CONFIGS = [
 # =============================================================================
 
 
-class TestTensorProductGauss(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestTensorProductGauss(ParametrizedTestCase):
     """Test pure tensor product Gauss-Lagrange interpolation and quadrature."""
-
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
     @slower_test
-    def test_interpolation_exact(self, name, joint_config, npts_1d):
+    def test_interpolation_exact(self, name, joint_config, npts_1d, bkd):
         """Tensor product exactly interpolates tensor product PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "gauss"
+            joint, npts_1d, bkd, "gauss"
         )
 
         # Interpolate PCE values
@@ -109,18 +93,18 @@ class TestTensorProductGauss(Generic[Array], ParametrizedTestCase, unittest.Test
         # Test at random points
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
-    def test_integration_exact(self, name, joint_config, npts_1d):
+    def test_integration_exact(self, name, joint_config, npts_1d, bkd):
         """Tensor product quadrature computes exact mean."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "gauss"
+            joint, npts_1d, bkd, "gauss"
         )
 
         # Interpolate PCE values
@@ -131,45 +115,30 @@ class TestTensorProductGauss(Generic[Array], ParametrizedTestCase, unittest.Test
         # Expected mean is the constant term (index 0) of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
         computed_mean = subspace.integrate()
-        self._bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
+        bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
-    def test_weights_sum_to_one(self, name, joint_config, npts_1d):
+    def test_weights_sum_to_one(self, name, joint_config, npts_1d, bkd):
         """Tensor product quadrature weights sum to 1 for probability measure."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "gauss"
+            joint, npts_1d, bkd, "gauss"
         )
 
         # Integrate constant function f(x) = 1
         samples = subspace.get_samples()
-        values = self._bkd.ones((1, samples.shape[1]))
+        values = bkd.ones((1, samples.shape[1]))
         subspace.set_values(values)
 
         # Mean of constant 1 should be 1
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             subspace.integrate(),
-            self._bkd.asarray([1.0]),
+            bkd.asarray([1.0]),
             rtol=1e-12,
         )
-
-
-class TestTensorProductGaussNumpy(TestTensorProductGauss[NDArray[Any]]):
-    """NumPy backend tests for tensor product Gauss quadrature."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTensorProductGaussTorch(TestTensorProductGauss[torch.Tensor]):
-    """PyTorch backend tests for tensor product Gauss quadrature."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
 
 
 # =============================================================================
@@ -177,27 +146,19 @@ class TestTensorProductGaussTorch(TestTensorProductGauss[torch.Tensor]):
 # =============================================================================
 
 
-class TestTensorProductLeja(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestTensorProductLeja(ParametrizedTestCase):
     """Test pure tensor product Leja-Lagrange interpolation and quadrature."""
-
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
-    def test_interpolation_exact(self, name, joint_config, npts_1d):
+    def test_interpolation_exact(self, name, joint_config, npts_1d, bkd):
         """Tensor product exactly interpolates tensor product PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "leja"
+            joint, npts_1d, bkd, "leja"
         )
 
         # Interpolate PCE values
@@ -208,19 +169,19 @@ class TestTensorProductLeja(Generic[Array], ParametrizedTestCase, unittest.TestC
         # Test at random points
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
     @slow_test
-    def test_integration_exact(self, name, joint_config, npts_1d):
+    def test_integration_exact(self, name, joint_config, npts_1d, bkd):
         """Tensor product Leja quadrature computes exact mean."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "leja"
+            joint, npts_1d, bkd, "leja"
         )
 
         # Interpolate PCE values
@@ -231,44 +192,29 @@ class TestTensorProductLeja(Generic[Array], ParametrizedTestCase, unittest.TestC
         # Expected mean is the constant term of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
         computed_mean = subspace.integrate()
-        self._bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
+        bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
-    def test_weights_sum_to_one(self, name, joint_config, npts_1d):
+    def test_weights_sum_to_one(self, name, joint_config, npts_1d, bkd):
         """Tensor product Leja weights sum to 1 for probability measure."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "leja"
+            joint, npts_1d, bkd, "leja"
         )
 
         # Integrate constant function f(x) = 1
         samples = subspace.get_samples()
-        values = self._bkd.ones((1, samples.shape[1]))
+        values = bkd.ones((1, samples.shape[1]))
         subspace.set_values(values)
 
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             subspace.integrate(),
-            self._bkd.asarray([1.0]),
+            bkd.asarray([1.0]),
             rtol=1e-12,
         )
-
-
-class TestTensorProductLejaNumpy(TestTensorProductLeja[NDArray[Any]]):
-    """NumPy backend tests for tensor product Leja quadrature."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTensorProductLejaTorch(TestTensorProductLeja[torch.Tensor]):
-    """PyTorch backend tests for tensor product Leja quadrature."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
 
 
 # =============================================================================
@@ -276,35 +222,25 @@ class TestTensorProductLejaTorch(TestTensorProductLeja[torch.Tensor]):
 # =============================================================================
 
 
-class TestTensorProductPiecewise(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestTensorProductPiecewise(ParametrizedTestCase):
     """Test tensor product piecewise linear interpolation."""
-
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_PIECEWISE_LINEAR_CONFIGS,
     )
-    def test_interpolation_linear_exact(self, name, joint_config, npts_1d):
+    def test_interpolation_linear_exact(self, name, joint_config, npts_1d, bkd):
         """Tensor product piecewise linear exactly interpolates linear functions."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "piecewise_linear"
+            joint, npts_1d, bkd, "piecewise_linear"
         )
 
         # Create linear function: f(x) = 1 + sum_i (i+1)*x_i
         nvars = joint.nvars()
 
         def linear_func(samples):
-            result = self._bkd.ones((1, samples.shape[1]))
+            result = bkd.ones((1, samples.shape[1]))
             for i in range(nvars):
                 result = result + (i + 1) * samples[i : i + 1, :]
             return result
@@ -319,40 +255,22 @@ class TestTensorProductPiecewise(
         test_pts = joint.rvs(20)
         expected = linear_func(test_pts)
         computed = subspace(test_pts)
-        self._bkd.assert_allclose(computed, expected, rtol=1e-10)
+        bkd.assert_allclose(computed, expected, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_PIECEWISE_LINEAR_CONFIGS,
     )
-    def test_weights_positive(self, name, joint_config, npts_1d):
+    def test_weights_positive(self, name, joint_config, npts_1d, bkd):
         """Tensor product piecewise linear weights are non-negative."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         subspace = create_test_tensor_product_subspace(
-            joint, npts_1d, self._bkd, "piecewise_linear"
+            joint, npts_1d, bkd, "piecewise_linear"
         )
 
         weights = subspace.get_quadrature_weights()
         # All weights should be non-negative
-        self.assertTrue(
-            self._bkd.all_bool(weights >= 0),
-            f"Found negative weights: {weights}",
-        )
-
-
-class TestTensorProductPiecewiseNumpy(TestTensorProductPiecewise[NDArray[Any]]):
-    """NumPy backend tests for tensor product piecewise interpolation."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTensorProductPiecewiseTorch(TestTensorProductPiecewise[torch.Tensor]):
-    """PyTorch backend tests for tensor product piecewise interpolation."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert bkd.all_bool(weights >= 0), f"Found negative weights: {weights}"
 
 
 # =============================================================================
@@ -360,27 +278,19 @@ class TestTensorProductPiecewiseTorch(TestTensorProductPiecewise[torch.Tensor]):
 # =============================================================================
 
 
-class TestMixedTensorProduct(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+class TestMixedTensorProduct(ParametrizedTestCase):
     """Test tensor products with mixed basis types per dimension."""
-
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
 
     @parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )
-    def test_interpolation_exact(self, name, joint_config, basis_types, npts_1d):
+    def test_interpolation_exact(self, name, joint_config, basis_types, npts_1d, bkd):
         """Mixed basis tensor product exactly interpolates tensor product PCE."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace_mixed(
-            joint, basis_types, npts_1d, self._bkd
+            joint, basis_types, npts_1d, bkd
         )
 
         # Interpolate PCE values
@@ -391,18 +301,18 @@ class TestMixedTensorProduct(Generic[Array], ParametrizedTestCase, unittest.Test
         # Test at random points
         np.random.seed(123)
         test_pts = joint.rvs(20)
-        self._bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
+        bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
     @parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )
-    def test_integration_exact(self, name, joint_config, basis_types, npts_1d):
+    def test_integration_exact(self, name, joint_config, basis_types, npts_1d, bkd):
         """Mixed basis tensor product computes exact mean."""
-        joint = create_test_joint(joint_config, self._bkd)
-        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=self._bkd)
+        joint = create_test_joint(joint_config, bkd)
+        pce = create_tensor_product_pce(joint, npts_1d, nqoi=1, bkd=bkd)
         subspace = create_test_tensor_product_subspace_mixed(
-            joint, basis_types, npts_1d, self._bkd
+            joint, basis_types, npts_1d, bkd
         )
 
         # Interpolate PCE values
@@ -413,45 +323,26 @@ class TestMixedTensorProduct(Generic[Array], ParametrizedTestCase, unittest.Test
         # Expected mean is the constant term of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
         computed_mean = subspace.integrate()
-        self._bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
+        bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )
-    def test_weights_sum_to_one(self, name, joint_config, basis_types, npts_1d):
+    def test_weights_sum_to_one(self, name, joint_config, basis_types, npts_1d, bkd):
         """Mixed basis tensor product weights sum to 1."""
-        joint = create_test_joint(joint_config, self._bkd)
+        joint = create_test_joint(joint_config, bkd)
         subspace = create_test_tensor_product_subspace_mixed(
-            joint, basis_types, npts_1d, self._bkd
+            joint, basis_types, npts_1d, bkd
         )
 
         # Integrate constant function f(x) = 1
         samples = subspace.get_samples()
-        values = self._bkd.ones((1, samples.shape[1]))
+        values = bkd.ones((1, samples.shape[1]))
         subspace.set_values(values)
 
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             subspace.integrate(),
-            self._bkd.asarray([1.0]),
+            bkd.asarray([1.0]),
             rtol=1e-12,
         )
-
-
-class TestMixedTensorProductNumpy(TestMixedTensorProduct[NDArray[Any]]):
-    """NumPy backend tests for mixed tensor product."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMixedTensorProductTorch(TestMixedTensorProduct[torch.Tensor]):
-    """PyTorch backend tests for mixed tensor product."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

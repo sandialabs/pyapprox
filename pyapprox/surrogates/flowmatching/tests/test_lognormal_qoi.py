@@ -17,13 +17,8 @@ Known moments:
 Paired linear coupling: x0 = z, x1 = L_post @ z + mu_post(y).
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
@@ -47,9 +42,6 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -171,19 +163,10 @@ def _analytical_lognormal_moments(conjugate, test_y, a_np, bkd):
     return mean, variance
 
 
-class TestLogNormalQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    @parametrize("d,m", [(1, 1)])
-    def test_loss_decreases_with_degree(self, d: int, m: int) -> None:
+class TestLogNormalQoI:
+    @pytest.mark.parametrize("d,m", [(1, 1)])
+    def test_loss_decreases_with_degree(self, bkd, d: int, m: int) -> None:
         """Training loss decreases monotonically with polynomial degree."""
-        bkd = self._bkd
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
@@ -197,20 +180,17 @@ class TestLogNormalQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase):
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
-            self.assertGreater(
-                losses[i],
-                losses[i + 1],
+            assert losses[i] > losses[i + 1], (
                 f"Loss did not decrease from degree {degrees[i]} "
                 f"({losses[i]:.2e}) to {degrees[i + 1]} "
-                f"({losses[i + 1]:.2e})",
+                f"({losses[i + 1]:.2e})"
             )
-        self.assertLess(losses[-1], 1e-4)
+        assert losses[-1] < 1e-4
 
-    @parametrize("d,m", [(1, 1)])
+    @pytest.mark.parametrize("d,m", [(1, 1)])
     @slow_test
-    def test_lognormal_mean(self, d: int, m: int) -> None:
+    def test_lognormal_mean(self, bkd, d: int, m: int) -> None:
         """ODE-pushed QoI samples approximate LogNormal mean."""
-        bkd = self._bkd
         deg = 4
         vf, path, loss, qd, conjugate, test_y, a_np = _build_lognormal_setup(
             bkd, d, m, deg
@@ -252,18 +232,14 @@ class TestLogNormalQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase):
         g_np = np.exp(a_np.T @ x1_np)  # (1, nsamples)
         sample_mean = float(np.mean(g_np))
 
-        self.assertAlmostEqual(
-            sample_mean,
-            expected_mean,
-            delta=expected_mean * 0.15,
-            msg=f"Sample mean {sample_mean:.4f} vs analytical {expected_mean:.4f}",
+        assert abs(sample_mean - expected_mean) < expected_mean * 0.15, (
+            f"Sample mean {sample_mean:.4f} vs analytical {expected_mean:.4f}"
         )
 
-    @parametrize("d,m", [(1, 1)])
+    @pytest.mark.parametrize("d,m", [(1, 1)])
     @slow_test
-    def test_lognormal_variance(self, d: int, m: int) -> None:
+    def test_lognormal_variance(self, bkd, d: int, m: int) -> None:
         """ODE-pushed QoI samples approximate LogNormal variance."""
-        bkd = self._bkd
         deg = 4
         vf, path, loss, qd, conjugate, test_y, a_np = _build_lognormal_setup(
             bkd, d, m, deg
@@ -302,23 +278,6 @@ class TestLogNormalQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase):
         g_np = np.exp(a_np.T @ x1_np)
         sample_var = float(np.var(g_np))
 
-        self.assertAlmostEqual(
-            sample_var,
-            expected_var,
-            delta=expected_var * 0.3,
-            msg=f"Sample variance {sample_var:.4f} vs analytical {expected_var:.4f}",
+        assert abs(sample_var - expected_var) < expected_var * 0.3, (
+            f"Sample variance {sample_var:.4f} vs analytical {expected_var:.4f}"
         )
-
-
-class TestLogNormalQoINumpy(TestLogNormalQoI[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLogNormalQoITorch(TestLogNormalQoI[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

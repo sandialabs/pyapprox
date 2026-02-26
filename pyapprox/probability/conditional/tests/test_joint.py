@@ -8,12 +8,9 @@ Tests validate:
 5. Torch autograd compatibility
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -31,86 +28,73 @@ from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
+def _create_basis_expansion(
+    bkd, nvars: int, max_level: int, nqoi: int = 1
+) -> BasisExpansion:
+    """Helper to create a Legendre basis expansion."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return BasisExpansion(basis, bkd, nqoi=nqoi)
+
+
+def _create_conditional_gaussian(
+    bkd, nvars: int, max_level: int = 2, seed: int = 42
+) -> ConditionalGaussian:
+    """Helper to create a ConditionalGaussian."""
+    mean_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
+    log_stdev_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
+
+    np.random.seed(seed)
+    mean_func.set_coefficients(bkd.asarray(np.random.randn(mean_func.nterms(), 1)))
+    log_stdev_func.set_coefficients(
+        bkd.asarray(0.5 * np.random.randn(log_stdev_func.nterms(), 1))
+    )
+
+    return ConditionalGaussian(mean_func, log_stdev_func, bkd)
+
+
+def _create_joint(bkd, nvars: int = 2, nconditionals: int = 2):
+    """Helper to create a ConditionalIndependentJoint."""
+    conditionals = [
+        _create_conditional_gaussian(bkd, nvars, max_level=2, seed=42 + i)
+        for i in range(nconditionals)
+    ]
+    return ConditionalIndependentJoint(conditionals, bkd)
+
+
+class TestConditionalIndependentJoint:
     """Test ConditionalIndependentJoint distribution."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_basis_expansion(
-        self, nvars: int, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion:
-        """Helper to create a Legendre basis expansion."""
-        bkd = self._bkd
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        bases_1d = create_bases_1d(marginals, bkd)
-        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
-        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return BasisExpansion(basis, bkd, nqoi=nqoi)
-
-    def _create_conditional_gaussian(
-        self, nvars: int, max_level: int = 2, seed: int = 42
-    ) -> ConditionalGaussian:
-        """Helper to create a ConditionalGaussian."""
-        bkd = self._bkd
-        mean_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
-        log_stdev_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
-
-        np.random.seed(seed)
-        mean_func.set_coefficients(bkd.asarray(np.random.randn(mean_func.nterms(), 1)))
-        log_stdev_func.set_coefficients(
-            bkd.asarray(0.5 * np.random.randn(log_stdev_func.nterms(), 1))
-        )
-
-        return ConditionalGaussian(mean_func, log_stdev_func, bkd)
-
-    def _create_joint(self, nvars: int = 2, nconditionals: int = 2):
-        """Helper to create a ConditionalIndependentJoint."""
-        bkd = self._bkd
-        conditionals = [
-            self._create_conditional_gaussian(nvars, max_level=2, seed=42 + i)
-            for i in range(nconditionals)
-        ]
-        return ConditionalIndependentJoint(conditionals, bkd)
-
-    def test_basic_properties(self):
+    def test_basic_properties(self, bkd):
         """Test basic properties of ConditionalIndependentJoint."""
-        joint = self._create_joint(nvars=2, nconditionals=3)
+        joint = _create_joint(bkd, nvars=2, nconditionals=3)
 
-        self.assertEqual(joint.nvars(), 2)
-        self.assertEqual(joint.nqoi(), 3)  # 3 conditionals, each nqoi=1
-        self.assertTrue(hasattr(joint, "hyp_list"))
-        self.assertTrue(hasattr(joint, "logpdf_jacobian_wrt_x"))
-        self.assertTrue(hasattr(joint, "logpdf_jacobian_wrt_params"))
+        assert joint.nvars() == 2
+        assert joint.nqoi() == 3  # 3 conditionals, each nqoi=1
+        assert hasattr(joint, "hyp_list")
+        assert hasattr(joint, "logpdf_jacobian_wrt_x")
+        assert hasattr(joint, "logpdf_jacobian_wrt_params")
 
-    def test_logpdf_shape(self):
+    def test_logpdf_shape(self, bkd):
         """Test logpdf output shape."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=2)
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
         nsamples = 5
         x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
         y = bkd.asarray(np.random.randn(2, nsamples))  # nqoi=2
 
         log_probs = joint.logpdf(x, y)
-        self.assertEqual(log_probs.shape, (1, nsamples))
+        assert log_probs.shape == (1, nsamples)
 
-    def test_logpdf_is_sum_of_components(self):
+    def test_logpdf_is_sum_of_components(self, bkd):
         """Test logpdf is sum of component logpdfs."""
-        bkd = self._bkd
-
         # Create joint and get its conditionals
-        cond1 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=42)
-        cond2 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=43)
+        cond1 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=42)
+        cond2 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=43)
         joint = ConditionalIndependentJoint([cond1, cond2], bkd)
 
         # Sample x and y
@@ -131,31 +115,28 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(joint_logpdf, sum_logpdf, rtol=1e-10)
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self, bkd):
         """Test rvs output shape."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=3)
+        joint = _create_joint(bkd, nvars=2, nconditionals=3)
 
         nsamples = 10
         x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
 
         np.random.seed(42)
         samples = joint.rvs(x)
-        self.assertEqual(samples.shape, (3, nsamples))  # nqoi=3
+        assert samples.shape == (3, nsamples)  # nqoi=3
 
-    def test_reparameterize_stacks_components(self):
+    def test_reparameterize_stacks_components(self, bkd):
         """Test reparameterize returns stacked output from each conditional."""
-        bkd = self._bkd
-
         # Create constant-parameter conditionals for deterministic result
-        mean1_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_stdev1_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean1_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_stdev1_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         mean1_func.set_coefficients(bkd.asarray([[2.0]]))
         log_stdev1_func.set_coefficients(bkd.asarray([[np.log(0.5)]]))
         cond1 = ConditionalGaussian(mean1_func, log_stdev1_func, bkd)
 
-        mean2_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_stdev2_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean2_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_stdev2_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         mean2_func.set_coefficients(bkd.asarray([[5.0]]))
         log_stdev2_func.set_coefficients(bkd.asarray([[np.log(1.5)]]))
         cond2 = ConditionalGaussian(mean2_func, log_stdev2_func, bkd)
@@ -166,7 +147,7 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         base = bkd.asarray([[1.0, -1.0, 0.5], [0.0, 2.0, -0.5]])
 
         z = joint.reparameterize(x, base)
-        self.assertEqual(z.shape, (2, 3))
+        assert z.shape == (2, 3)
 
         # Compute expected values manually: mean + exp(log_s) * base
         z1_expected = bkd.asarray(
@@ -179,16 +160,15 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(z, expected, rtol=1e-12)
 
-    def test_hyp_list_combines_correctly(self):
+    def test_hyp_list_combines_correctly(self, bkd):
         """Test hyp_list combines all component hyp_lists."""
-        bkd = self._bkd
-        cond1 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=42)
-        cond2 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=43)
+        cond1 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=42)
+        cond2 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=43)
         joint = ConditionalIndependentJoint([cond1, cond2], bkd)
 
         # Total params should be sum of component params
         expected_nparams = cond1.nparams() + cond2.nparams()
-        self.assertEqual(joint.nparams(), expected_nparams)
+        assert joint.nparams() == expected_nparams
 
         # Values should be concatenation of component values
         joint_values = joint.hyp_list().get_values()
@@ -198,20 +178,19 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(joint_values, expected_values, rtol=1e-10)
 
-    def test_logpdf_jacobian_wrt_x_derivative_checker(self):
+    def test_logpdf_jacobian_wrt_x_derivative_checker(self, bkd):
         """Test logpdf_jacobian_wrt_x using DerivativeChecker."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=2)
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
         # Fix a y value
         np.random.seed(42)
         y = bkd.asarray(np.random.randn(2, 1))
 
         # Wrap as function of x
-        def fun(x: Array) -> Array:
+        def fun(x):
             return joint.logpdf(x, y).T  # (1, nqoi=1)
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return joint.logpdf_jacobian_wrt_x(x, y)  # (1, nvars)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -227,12 +206,11 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_logpdf_jacobian_wrt_params_derivative_checker(self):
+    def test_logpdf_jacobian_wrt_params_derivative_checker(self, bkd):
         """Test logpdf_jacobian_wrt_params using DerivativeChecker."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=2)
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
         # Fix x and y values
         np.random.seed(42)
@@ -242,7 +220,7 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         nactive = joint.nparams()
 
         # Wrap as function of params
-        def fun(params: Array) -> Array:
+        def fun(params):
             joint.hyp_list().set_active_values(params[:, 0])
             # Sync all nested funcs
             for cond in joint._conditionals:
@@ -250,7 +228,7 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
                 cond._log_stdev_func._sync_from_hyp_list()
             return joint.logpdf(x, y).T  # (1, 1)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             joint.hyp_list().set_active_values(params[:, 0])
             for cond in joint._conditionals:
                 cond._mean_func._sync_from_hyp_list()
@@ -272,13 +250,12 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_logpdf_jacobian_wrt_params_concatenates_correctly(self):
+    def test_logpdf_jacobian_wrt_params_concatenates_correctly(self, bkd):
         """Test jacobian_wrt_params concatenates component jacobians."""
-        bkd = self._bkd
-        cond1 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=42)
-        cond2 = self._create_conditional_gaussian(nvars=2, max_level=2, seed=43)
+        cond1 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=42)
+        cond2 = _create_conditional_gaussian(bkd, nvars=2, max_level=2, seed=43)
         joint = ConditionalIndependentJoint([cond1, cond2], bkd)
 
         np.random.seed(42)
@@ -297,10 +274,9 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(joint_jac, expected_jac, rtol=1e-10)
 
-    def test_reparameterize_shape(self):
+    def test_reparameterize_shape(self, bkd):
         """Test reparameterize output shape matches (total_nqoi, N)."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=3)
+        joint = _create_joint(bkd, nvars=2, nconditionals=3)
 
         nsamples = 5
         np.random.seed(42)
@@ -308,21 +284,19 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         base = bkd.asarray(np.random.randn(3, nsamples))
 
         z = joint.reparameterize(x, base)
-        self.assertEqual(z.shape, (3, nsamples))
+        assert z.shape == (3, nsamples)
 
-    def test_kl_divergence_is_sum_of_components(self):
+    def test_kl_divergence_is_sum_of_components(self, bkd):
         """Test KL divergence equals sum of component KL divergences."""
-        bkd = self._bkd
-
         # Create constant-param conditionals
-        mean1 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        ls1 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean1 = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        ls1 = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         mean1.set_coefficients(bkd.asarray([[1.5]]))
         ls1.set_coefficients(bkd.asarray([[np.log(0.8)]]))
         cond1 = ConditionalGaussian(mean1, ls1, bkd)
 
-        mean2 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        ls2 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean2 = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        ls2 = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         mean2.set_coefficients(bkd.asarray([[2.0]]))
         ls2.set_coefficients(bkd.asarray([[np.log(1.2)]]))
         cond2 = ConditionalGaussian(mean2, ls2, bkd)
@@ -342,93 +316,64 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(kl_joint, expected, rtol=1e-12)
 
-    def test_base_distribution_is_independent_joint(self):
+    def test_base_distribution_is_independent_joint(self, bkd):
         """Test base_distribution returns IndependentJoint."""
-        joint = self._create_joint(nvars=2, nconditionals=2)
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
         base = joint.base_distribution()
-        self.assertIsInstance(base, IndependentJoint)
+        assert isinstance(base, IndependentJoint)
         # Should have 2 marginals (one per conditional)
-        self.assertEqual(len(base.marginals()), 2)
+        assert len(base.marginals()) == 2
 
-    def test_validation_errors(self):
+    def test_validation_errors(self, bkd):
         """Test input validation raises appropriate errors."""
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=2)
+        joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
         # x wrong shape (1D)
         x_1d = bkd.asarray(np.random.randn(2))
         y = bkd.asarray(np.random.randn(2, 1))
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             joint.logpdf(x_1d, y)
 
         # y wrong shape (wrong nqoi)
         x = bkd.asarray(np.random.randn(2, 1))
         y_wrong = bkd.asarray(np.random.randn(3, 1))  # Should be 2
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             joint.logpdf(x, y_wrong)
 
         # Mismatched sample counts
         x = bkd.asarray(np.random.randn(2, 3))
         y = bkd.asarray(np.random.randn(2, 5))
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             joint.logpdf(x, y)
 
-
-class TestConditionalIndependentJointNumpy(
-    TestConditionalIndependentJoint[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestConditionalIndependentJointTorch(
-    TestConditionalIndependentJoint[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def test_logpdf_jacobian_wrt_params_autograd(self):
+    def test_logpdf_jacobian_wrt_params_autograd(self, bkd):
         """Verify logpdf_jacobian_wrt_params matches torch autograd."""
-        from torch.autograd.functional import jacobian as torch_jacobian
+        if not isinstance(bkd, NumpyBkd):
+            import torch
+            from torch.autograd.functional import jacobian as torch_jacobian
 
-        bkd = self._bkd
-        joint = self._create_joint(nvars=2, nconditionals=2)
+            joint = _create_joint(bkd, nvars=2, nconditionals=2)
 
-        # Fix x and y values
-        np.random.seed(42)
-        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
-        y = bkd.asarray(np.random.randn(2, 3))
+            # Fix x and y values
+            np.random.seed(42)
+            x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
+            y = bkd.asarray(np.random.randn(2, 3))
 
-        # Get analytical jacobian
-        analytical_jac = joint.logpdf_jacobian_wrt_params(x, y)  # (nsamples, nactive)
+            # Get analytical jacobian
+            analytical_jac = joint.logpdf_jacobian_wrt_params(x, y)
 
-        # Get autograd jacobian
-        def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
-            joint.hyp_list().set_active_values(params)
-            for cond in joint._conditionals:
-                cond._mean_func._sync_from_hyp_list()
-                cond._log_stdev_func._sync_from_hyp_list()
-            return joint.logpdf(x, y).flatten()  # (nsamples,)
+            # Get autograd jacobian
+            def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
+                joint.hyp_list().set_active_values(params)
+                for cond in joint._conditionals:
+                    cond._mean_func._sync_from_hyp_list()
+                    cond._log_stdev_func._sync_from_hyp_list()
+                return joint.logpdf(x, y).flatten()
 
-        params = joint.hyp_list().get_active_values()
-        autograd_jac = torch_jacobian(logpdf_from_params, params)
-        # autograd_jac shape: (nsamples, nactive)
+            params = joint.hyp_list().get_active_values()
+            autograd_jac = torch_jacobian(logpdf_from_params, params)
 
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+        else:
+            pytest.skip("Torch-only test")

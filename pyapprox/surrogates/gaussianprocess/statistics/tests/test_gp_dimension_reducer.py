@@ -1,12 +1,9 @@
 """Tests for GPMeanDimensionReducer."""
 
 import math
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.marginalize import (
     DimensionReducerProtocol,
@@ -30,15 +27,9 @@ from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _create_quadrature_bases(
-    marginals: List[Any], nquad_points: int, bkd: Backend[Array]
-) -> List[Any]:
+def _create_quadrature_bases(marginals, nquad_points, bkd):
     """Helper to create quadrature bases from marginals."""
     factories = create_basis_factories(marginals, bkd, "gauss")
     bases = [f.create_basis() for f in factories]
@@ -47,17 +38,10 @@ def _create_quadrature_bases(
     return bases
 
 
-class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestGPMeanDimensionReducer:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
         np.random.seed(42)
-
-        bkd = self._bkd
 
         # Create 3D GP with separable product kernel
         k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
@@ -95,9 +79,9 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
         # Build reducer
         self._reducer = GPMeanDimensionReducer(self._gp, self._calc, bkd)
 
-    def test_matches_marginalized_gp_directly(self) -> None:
+    def test_matches_marginalized_gp_directly(self, bkd) -> None:
         """Reducer output matches MarginalizedGP.predict_mean directly."""
-        bkd = self._bkd
+        self._setup(bkd)
         np.random.seed(99)
         test_pts = bkd.asarray(np.random.uniform(-1, 1, (1, 5)))
 
@@ -111,9 +95,9 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_matches_marginalized_gp_2d(self) -> None:
+    def test_matches_marginalized_gp_2d(self, bkd) -> None:
         """Reducer output matches MarginalizedGP for 2D keep."""
-        bkd = self._bkd
+        self._setup(bkd)
         np.random.seed(77)
         test_pts = bkd.asarray(np.random.uniform(-1, 1, (2, 5)))
 
@@ -126,13 +110,13 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_equivalence_with_quadrature(self) -> None:
+    def test_equivalence_with_quadrature(self, bkd) -> None:
         """Reducer matches quadrature-based marginalization."""
         from pyapprox.surrogates.quadrature.probability_measure_factory import (
             ProbabilityMeasureQuadratureFactory,
         )
 
-        bkd = self._bkd
+        self._setup(bkd)
         gp = self._gp
 
         # Build quadrature-based marginalizer using GP __call__
@@ -151,37 +135,28 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(analytical, numerical, rtol=1e-4)
 
-    def test_protocol_compliance(self) -> None:
+    def test_protocol_compliance(self, bkd) -> None:
         """GPMeanDimensionReducer satisfies DimensionReducerProtocol."""
-        self.assertIsInstance(self._reducer, DimensionReducerProtocol)
+        self._setup(bkd)
+        assert isinstance(self._reducer, DimensionReducerProtocol)
 
-    def test_output_shapes(self) -> None:
+    def test_output_shapes(self, bkd) -> None:
         """All reductions produce (1, nsamples) output."""
-        bkd = self._bkd
+        self._setup(bkd)
         np.random.seed(33)
 
         # 1D reduction
         pts_1d = bkd.asarray(np.random.uniform(-1, 1, (1, 4)))
         result_1d = self._reducer.reduce([0])(pts_1d)
-        self.assertEqual(result_1d.shape, (1, 4))
+        assert result_1d.shape == (1, 4)
 
         # 2D reduction
         pts_2d = bkd.asarray(np.random.uniform(-1, 1, (2, 4)))
         result_2d = self._reducer.reduce([0, 1])(pts_2d)
-        self.assertEqual(result_2d.shape, (1, 4))
+        assert result_2d.shape == (1, 4)
 
-    def test_nvars_nqoi(self) -> None:
+    def test_nvars_nqoi(self, bkd) -> None:
         """nvars and nqoi return correct values."""
-        self.assertEqual(self._reducer.nvars(), 3)
-        self.assertEqual(self._reducer.nqoi(), 1)
-
-
-class TestGPMeanDimensionReducerNumpy(TestGPMeanDimensionReducer[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGPMeanDimensionReducerTorch(TestGPMeanDimensionReducer[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        self._setup(bkd)
+        assert self._reducer.nvars() == 3
+        assert self._reducer.nqoi() == 1

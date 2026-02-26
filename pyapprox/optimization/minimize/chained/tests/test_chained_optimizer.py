@@ -1,9 +1,5 @@
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.optimization.minimize.benchmarks.evutushenko import (
     EvtushenkoNonLinearConstraint,
@@ -21,30 +17,17 @@ from pyapprox.optimization.minimize.scipy.diffevol import (
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestChainedOptimizer(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the specific
-        backend.
-        """
-        raise NotImplementedError("Derived classes must implement this method.")
+class TestChainedOptimizer:
 
     def test_chained_optimizer_with_evtushenko_objective_and_constraints(
-        self,
+        self, bkd,
     ) -> None:
         """
         Test the ChainedOptimizer class with the Evtushenko objective,
         nonlinear constraints, and a linear constraint.
         """
-        bkd = self.bkd()
-
         # Define the Evtushenko objective
         objective = EvtushenkoObjective(backend=bkd)
 
@@ -97,17 +80,17 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         result = chained_optimizer.minimize(init_guess)
 
         # Assert that the optimization was successful
-        self.assertTrue(result.success())
+        assert result.success()
 
         # Assert that the constraints are satisfied
         nonlinear_constraint_value = nonlinear_constraint(result.optima())
-        self.assertTrue(
+        assert (
             bkd.all_bool(nonlinear_constraint_value >= nonlinear_constraint.lb())
             and bkd.all_bool(nonlinear_constraint_value <= nonlinear_constraint.ub())
         )
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
-        self.assertAlmostEqual(linear_constraint_value[0, 0], 1.0, places=8)
+        assert linear_constraint_value[0, 0] == pytest.approx(1.0, abs=1e-8)
 
         # Assert that the result matches the expected optima
         expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
@@ -115,12 +98,10 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
-        self.bkd().assert_allclose(result.fun(), float(expected_fun[0, 0]), atol=1e-8)
+        bkd.assert_allclose(result.fun(), float(expected_fun[0, 0]), atol=1e-8)
 
-    def test_deferred_binding(self) -> None:
+    def test_deferred_binding(self, bkd) -> None:
         """Test ChainedOptimizer with deferred binding."""
-        bkd = self.bkd()
-
         # Define the Evtushenko objective
         objective = EvtushenkoObjective(backend=bkd)
 
@@ -160,11 +141,11 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         chained_optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
 
         # Should not be bound
-        self.assertFalse(chained_optimizer.is_bound())
+        assert not chained_optimizer.is_bound()
 
         # Should raise RuntimeError if minimizing without binding
         init_guess = bkd.asarray([[0.1], [0.7], [0.2]])
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             chained_optimizer.minimize(init_guess)
 
         # Bind global with truncated bounds and constraints
@@ -177,22 +158,20 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         )
 
         # Now should be bound
-        self.assertTrue(chained_optimizer.is_bound())
+        assert chained_optimizer.is_bound()
 
         # Perform optimization
         result = chained_optimizer.minimize(init_guess)
 
         # Assert that the optimization was successful
-        self.assertTrue(result.success())
+        assert result.success()
 
         # Assert that the result matches the expected optima
         expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
         bkd.assert_allclose(result.optima(), expected_optima, atol=1e-5)
 
-    def test_copy(self) -> None:
+    def test_copy(self, bkd) -> None:
         """Test copy() returns unbound ChainedOptimizer with same options."""
-        bkd = self.bkd()
-
         # Create objective
         objective = EvtushenkoObjective(backend=bkd)
         bounds = bkd.array([[0, 2.0], [0, 2.0], [0, 2.0]])
@@ -204,68 +183,24 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         chained_optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
         chained_optimizer.bind(objective, bounds)
 
-        self.assertTrue(chained_optimizer.is_bound())
+        assert chained_optimizer.is_bound()
 
         # Copy should be unbound with same options
         copy_opt = chained_optimizer.copy()
-        self.assertFalse(copy_opt.is_bound())
+        assert not copy_opt.is_bound()
 
         # Underlying optimizers should also be copied
-        self.assertFalse(copy_opt._global_optimizer.is_bound())
-        self.assertFalse(copy_opt._local_optimizer.is_bound())
+        assert not copy_opt._global_optimizer.is_bound()
+        assert not copy_opt._local_optimizer.is_bound()
 
-    def test_invalid_optimizer_raises_typeerror(self) -> None:
+    def test_invalid_optimizer_raises_typeerror(self, bkd) -> None:
         """Test that passing an invalid optimizer raises TypeError."""
-        self.bkd()
-
         global_optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=100)
 
         # Plain object is not a valid optimizer
         invalid_optimizer = "not an optimizer"
 
-        with self.assertRaises(TypeError) as context:
+        with pytest.raises(TypeError) as context:
             ChainedOptimizer(global_optimizer, invalid_optimizer)  # type: ignore
 
-        self.assertIn("BindableOptimizerProtocol", str(context.exception))
-
-
-class TestChainedOptimizerNumpy(TestChainedOptimizer[NDArray[Any]]):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestChainedOptimizerTorch(TestChainedOptimizer[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-# Custom test loader to exclude the base class
-def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class
-    ContinuousScipyRandomVariable1D.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestChainedOptimizerNumpy,
-        TestChainedOptimizerTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
-
-
-# Main block to explicitly run tests using the custom loader
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+        assert "BindableOptimizerProtocol" in str(context.value)

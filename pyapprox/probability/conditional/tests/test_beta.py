@@ -9,14 +9,10 @@ Tests validate:
 6. Bounds support with various [lb, ub] configurations
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from scipy import stats
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -32,8 +28,6 @@ from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 # Test configurations for bounds: (name, lb, ub)
 COND_BETA_BOUNDS_CONFIGS = [
@@ -45,77 +39,66 @@ COND_BETA_BOUNDS_CONFIGS = [
 ]
 
 
-class TestConditionalBeta(Generic[Array], unittest.TestCase):
+def _create_basis_expansion(
+    bkd, nvars: int, max_level: int, nqoi: int = 1
+) -> BasisExpansion:
+    """Helper to create a Legendre basis expansion."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return BasisExpansion(basis, bkd, nqoi=nqoi)
+
+
+def _create_conditional_beta(
+    bkd, nvars: int, max_level: int = 2
+) -> ConditionalBeta:
+    """Helper to create a ConditionalBeta with polynomial parameter functions."""
+    log_alpha_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
+    log_beta_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
+
+    # Set random coefficients, but ensure reasonable log values (e.g., -1 to 2)
+    # This gives alpha, beta in range (exp(-1), exp(2)) = (0.37, 7.4)
+    np.random.seed(42)
+    log_alpha_func.set_coefficients(
+        bkd.asarray(0.5 + 0.5 * np.random.randn(log_alpha_func.nterms(), 1))
+    )
+    log_beta_func.set_coefficients(
+        bkd.asarray(0.5 + 0.5 * np.random.randn(log_beta_func.nterms(), 1))
+    )
+
+    return ConditionalBeta(log_alpha_func, log_beta_func, bkd)
+
+
+class TestConditionalBeta:
     """Test ConditionalBeta distribution."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_basis_expansion(
-        self, nvars: int, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion:
-        """Helper to create a Legendre basis expansion."""
-        bkd = self._bkd
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        bases_1d = create_bases_1d(marginals, bkd)
-        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
-        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return BasisExpansion(basis, bkd, nqoi=nqoi)
-
-    def _create_conditional_beta(
-        self, nvars: int, max_level: int = 2
-    ) -> ConditionalBeta:
-        """Helper to create a ConditionalBeta with polynomial parameter functions."""
-        bkd = self._bkd
-        log_alpha_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
-
-        # Set random coefficients, but ensure reasonable log values (e.g., -1 to 2)
-        # This gives alpha, beta in range (exp(-1), exp(2)) = (0.37, 7.4)
-        np.random.seed(42)
-        log_alpha_func.set_coefficients(
-            bkd.asarray(0.5 + 0.5 * np.random.randn(log_alpha_func.nterms(), 1))
-        )
-        log_beta_func.set_coefficients(
-            bkd.asarray(0.5 + 0.5 * np.random.randn(log_beta_func.nterms(), 1))
-        )
-
-        return ConditionalBeta(log_alpha_func, log_beta_func, bkd)
-
-    def test_basic_properties(self):
+    def test_basic_properties(self, bkd):
         """Test basic properties of ConditionalBeta."""
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
-        self.assertEqual(cond.nvars(), 2)
-        self.assertEqual(cond.nqoi(), 1)
-        self.assertTrue(hasattr(cond, "hyp_list"))
-        self.assertTrue(hasattr(cond, "logpdf_jacobian_wrt_x"))
-        self.assertTrue(hasattr(cond, "logpdf_jacobian_wrt_params"))
+        assert cond.nvars() == 2
+        assert cond.nqoi() == 1
+        assert hasattr(cond, "hyp_list")
+        assert hasattr(cond, "logpdf_jacobian_wrt_x")
+        assert hasattr(cond, "logpdf_jacobian_wrt_params")
 
-    def test_logpdf_shape(self):
+    def test_logpdf_shape(self, bkd):
         """Test logpdf output shape."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
         nsamples = 5
         x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
         y = bkd.asarray(np.random.uniform(0.1, 0.9, (1, nsamples)))  # Must be in (0, 1)
 
         log_probs = cond.logpdf(x, y)
-        self.assertEqual(log_probs.shape, (1, nsamples))
+        assert log_probs.shape == (1, nsamples)
 
-    def test_logpdf_values_against_scipy(self):
+    def test_logpdf_values_against_scipy(self, bkd):
         """Test logpdf values match scipy for constant parameter functions."""
-        bkd = self._bkd
-
         # Create constant functions (degree-0 polynomial)
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
 
         # Set constant values: alpha=2.5, beta=3.0
         alpha_val = 2.5
@@ -140,29 +123,26 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10)
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self, bkd):
         """Test rvs output shape."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
         nsamples = 10
         x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
 
         np.random.seed(42)
         samples = cond.rvs(x)
-        self.assertEqual(samples.shape, (1, nsamples))
+        assert samples.shape == (1, nsamples)
         # All samples should be in (0, 1)
         samples_np = bkd.to_numpy(samples)
-        self.assertTrue(np.all(samples_np > 0))
-        self.assertTrue(np.all(samples_np < 1))
+        assert np.all(samples_np > 0)
+        assert np.all(samples_np < 1)
 
-    def test_rvs_statistics(self):
+    def test_rvs_statistics(self, bkd):
         """Test rvs generates samples with correct mean."""
-        bkd = self._bkd
-
         # Create constant functions
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
 
         alpha_val = 2.0
         beta_val = 5.0
@@ -184,20 +164,19 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
             atol=0.02,
         )
 
-    def test_logpdf_jacobian_wrt_x_derivative_checker(self):
+    def test_logpdf_jacobian_wrt_x_derivative_checker(self, bkd):
         """Test logpdf_jacobian_wrt_x using DerivativeChecker."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2, max_level=2)
+        cond = _create_conditional_beta(bkd, nvars=2, max_level=2)
 
         # Fix a y value
         np.random.seed(42)
         y = bkd.asarray([[0.4]])  # Must be in (0, 1)
 
         # Wrap as function of x
-        def fun(x: Array) -> Array:
+        def fun(x):
             return cond.logpdf(x, y).T  # (1, nqoi=1)
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return cond.logpdf_jacobian_wrt_x(x, y)  # (1, nvars)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -213,12 +192,11 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
+        assert float(jac_error) < 1e-6
 
-    def test_logpdf_jacobian_wrt_params_derivative_checker(self):
+    def test_logpdf_jacobian_wrt_params_derivative_checker(self, bkd):
         """Test logpdf_jacobian_wrt_params using DerivativeChecker."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2, max_level=2)
+        cond = _create_conditional_beta(bkd, nvars=2, max_level=2)
 
         # Fix x and y values
         np.random.seed(42)
@@ -228,14 +206,14 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         nactive = cond.nparams()
 
         # Wrap as function of params
-        def fun(params: Array) -> Array:
+        def fun(params):
             cond.hyp_list().set_active_values(params[:, 0])
             # Sync both funcs from hyp_list
             cond._log_alpha_func._sync_from_hyp_list()
             cond._log_beta_func._sync_from_hyp_list()
             return cond.logpdf(x, y).T  # (1, 1)
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             cond.hyp_list().set_active_values(params[:, 0])
             cond._log_alpha_func._sync_from_hyp_list()
             cond._log_beta_func._sync_from_hyp_list()
@@ -256,12 +234,11 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 5e-6)
+        assert float(jac_error) < 5e-6
 
-    def test_reparameterize_shape(self):
+    def test_reparameterize_shape(self, bkd):
         """Test reparameterize output shape."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
         nsamples = 5
         np.random.seed(42)
@@ -269,12 +246,11 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         base = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nsamples)))
 
         z = cond.reparameterize(x, base)
-        self.assertEqual(z.shape, (1, nsamples))
+        assert z.shape == (1, nsamples)
 
-    def test_reparameterize_in_bounds(self):
+    def test_reparameterize_in_bounds(self, bkd):
         """Test reparameterize produces samples in [lb, ub]."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
         nsamples = 100
         np.random.seed(42)
@@ -283,16 +259,14 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
 
         z = cond.reparameterize(x, base)
         z_np = bkd.to_numpy(z)
-        self.assertTrue(np.all(z_np >= cond.lower()))
-        self.assertTrue(np.all(z_np <= cond.upper()))
+        assert np.all(z_np >= cond.lower())
+        assert np.all(z_np <= cond.upper())
 
-    def test_kl_divergence_vs_analytical(self):
+    def test_kl_divergence_vs_analytical(self, bkd):
         """Test KL matches BetaMarginal.kl_divergence for constant params."""
-        bkd = self._bkd
-
         alpha_val, beta_val = 2.5, 3.0
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
         log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
         cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
@@ -300,7 +274,7 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         prior = BetaMarginal(1.0, 1.0, bkd)  # Uniform prior
         x = bkd.asarray([[0.0, 0.5, -0.5]])
         kl = cond.kl_divergence(x, prior)
-        self.assertEqual(kl.shape, (1, 3))
+        assert kl.shape == (1, 3)
 
         # Reference: BetaMarginal KL
         q = BetaMarginal(alpha_val, beta_val, bkd)
@@ -312,13 +286,11 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_kl_self_is_zero(self):
+    def test_kl_self_is_zero(self, bkd):
         """KL(q || q) = 0 when params match the prior."""
-        bkd = self._bkd
-
         alpha_val, beta_val = 2.0, 5.0
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
         log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
         log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
         cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
@@ -328,137 +300,101 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         kl = cond.kl_divergence(x, prior)
         bkd.assert_allclose(kl, bkd.zeros((1, 2)), atol=1e-12)
 
-    def test_base_distribution_is_uniform(self):
+    def test_base_distribution_is_uniform(self, bkd):
         """base_distribution returns U(0, 1)."""
-        cond = self._create_conditional_beta(nvars=1)
+        cond = _create_conditional_beta(bkd, nvars=1)
 
         base = cond.base_distribution()
-        self.assertIsInstance(base, UniformMarginal)
+        assert isinstance(base, UniformMarginal)
 
-    def test_validation_errors(self):
+    def test_validation_errors(self, bkd):
         """Test input validation raises appropriate errors."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2)
+        cond = _create_conditional_beta(bkd, nvars=2)
 
         # x wrong shape (1D)
         x_1d = bkd.asarray(np.random.randn(2))
         y = bkd.asarray([[0.5]])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             cond.logpdf(x_1d, y)
 
         # y wrong shape (1D)
         x = bkd.asarray(np.random.randn(2, 1))
         y_1d = bkd.asarray([0.5])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             cond.logpdf(x, y_1d)
 
         # Mismatched sample counts
         x = bkd.asarray(np.random.randn(2, 3))
         y = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 5)))
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             cond.logpdf(x, y)
 
-
-class TestConditionalBetaNumpy(TestConditionalBeta[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestConditionalBetaTorch(TestConditionalBeta[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def test_logpdf_jacobian_wrt_params_autograd(self):
+    def test_logpdf_jacobian_wrt_params_autograd(self, bkd):
         """Verify logpdf_jacobian_wrt_params matches torch autograd."""
-        from torch.autograd.functional import jacobian as torch_jacobian
+        if not isinstance(bkd, NumpyBkd):
+            import torch
+            from torch.autograd.functional import jacobian as torch_jacobian
 
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=2, max_level=2)
+            cond = _create_conditional_beta(bkd, nvars=2, max_level=2)
 
-        # Fix x and y values
-        np.random.seed(42)
-        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
-        y = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 3)))
+            # Fix x and y values
+            np.random.seed(42)
+            x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
+            y = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 3)))
 
-        # Get analytical jacobian
-        analytical_jac = cond.logpdf_jacobian_wrt_params(x, y)  # (nsamples, nactive)
+            # Get analytical jacobian
+            analytical_jac = cond.logpdf_jacobian_wrt_params(x, y)
 
-        # Get autograd jacobian
-        def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
-            cond.hyp_list().set_active_values(params)
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
-            return cond.logpdf(x, y).flatten()  # (nsamples,)
+            # Get autograd jacobian
+            def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
+                cond.hyp_list().set_active_values(params)
+                cond._log_alpha_func._sync_from_hyp_list()
+                cond._log_beta_func._sync_from_hyp_list()
+                return cond.logpdf(x, y).flatten()
 
-        params = cond.hyp_list().get_active_values()
-        autograd_jac = torch_jacobian(logpdf_from_params, params)
-        # autograd_jac shape: (nsamples, nactive)
+            params = cond.hyp_list().get_active_values()
+            autograd_jac = torch_jacobian(logpdf_from_params, params)
 
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+            bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+        else:
+            pytest.skip("Torch-only test")
 
-    def test_reparameterize_differentiable(self):
+    def test_reparameterize_differentiable(self, bkd):
         """Verify torch.autograd can compute gradients through reparameterize."""
-        bkd = self._bkd
-        cond = self._create_conditional_beta(nvars=1, max_level=0)
+        if not isinstance(bkd, NumpyBkd):
+            import torch
+            from torch.autograd.functional import jacobian as torch_jacobian
 
-        np.random.seed(42)
-        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, 5)))
-        base = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 5)))
+            cond = _create_conditional_beta(bkd, nvars=1, max_level=0)
 
-        def reparam_from_params(params: torch.Tensor) -> torch.Tensor:
-            cond.hyp_list().set_active_values(params)
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
-            return cond.reparameterize(x, base).flatten()
+            np.random.seed(42)
+            x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, 5)))
+            base = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 5)))
 
-        params = cond.hyp_list().get_active_values()
-        from torch.autograd.functional import jacobian as torch_jacobian
+            def reparam_from_params(params: torch.Tensor) -> torch.Tensor:
+                cond.hyp_list().set_active_values(params)
+                cond._log_alpha_func._sync_from_hyp_list()
+                cond._log_beta_func._sync_from_hyp_list()
+                return cond.reparameterize(x, base).flatten()
 
-        jac = torch_jacobian(reparam_from_params, params)
-        # Should have non-zero gradients
-        self.assertGreater(float(torch.abs(jac).max()), 1e-8)
+            params = cond.hyp_list().get_active_values()
+
+            jac = torch_jacobian(reparam_from_params, params)
+            # Should have non-zero gradients
+            assert float(torch.abs(jac).max()) > 1e-8
+        else:
+            pytest.skip("Torch-only test")
 
 
-class TestConditionalBetaBounded(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestConditionalBetaBounded:
     """Parametrized tests for ConditionalBeta with various bounds."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_basis_expansion(
-        self, nvars: int, max_level: int, nqoi: int = 1
-    ) -> BasisExpansion:
-        """Helper to create a Legendre basis expansion."""
-        bkd = self.bkd()
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        bases_1d = create_bases_1d(marginals, bkd)
-        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
-        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-        return BasisExpansion(basis, bkd, nqoi=nqoi)
-
     def _create_conditional_beta_with_bounds(
-        self, nvars: int, lb: float, ub: float, max_level: int = 2
+        self, bkd, nvars: int, lb: float, ub: float, max_level: int = 2
     ) -> ConditionalBeta:
         """Helper to create a ConditionalBeta with bounds."""
-        bkd = self.bkd()
-        log_alpha_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars, max_level, nqoi=1)
 
         np.random.seed(42)
         log_alpha_func.set_coefficients(
@@ -470,11 +406,10 @@ class TestConditionalBetaBounded(
 
         return ConditionalBeta(log_alpha_func, log_beta_func, bkd, lb=lb, ub=ub)
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
-    def test_bounds_accessors(self, name: str, lb: float, ub: float) -> None:
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_bounds_accessors(self, bkd, name: str, lb: float, ub: float) -> None:
         """Test bounds accessor methods."""
-        bkd = self.bkd()
-        cond = self._create_conditional_beta_with_bounds(nvars=1, lb=lb, ub=ub)
+        cond = self._create_conditional_beta_with_bounds(bkd, nvars=1, lb=lb, ub=ub)
         bkd.assert_allclose(bkd.asarray([cond.lower()]), bkd.asarray([lb]), atol=1e-10)
         bkd.assert_allclose(bkd.asarray([cond.upper()]), bkd.asarray([ub]), atol=1e-10)
         lower, upper = cond.bounds()
@@ -482,17 +417,16 @@ class TestConditionalBetaBounded(
             bkd.asarray([lower, upper]), bkd.asarray([lb, ub]), atol=1e-10
         )
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
     def test_logpdf_matches_scipy_bounded(
-        self, name: str, lb: float, ub: float
+        self, bkd, name: str, lb: float, ub: float
     ) -> None:
         """Test logpdf matches scipy with loc/scale for constant alpha/beta."""
-        bkd = self.bkd()
         scale = ub - lb
 
         # Create constant functions (degree-0 polynomial)
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
 
         alpha_val = 2.5
         beta_val = 3.0
@@ -517,11 +451,10 @@ class TestConditionalBetaBounded(
 
         bkd.assert_allclose(log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10)
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
-    def test_rvs_in_bounds(self, name: str, lb: float, ub: float) -> None:
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_rvs_in_bounds(self, bkd, name: str, lb: float, ub: float) -> None:
         """Test rvs produces samples in [lb, ub]."""
-        bkd = self.bkd()
-        cond = self._create_conditional_beta_with_bounds(nvars=1, lb=lb, ub=ub)
+        cond = self._create_conditional_beta_with_bounds(bkd, nvars=1, lb=lb, ub=ub)
 
         np.random.seed(42)
         nsamples = 1000
@@ -529,18 +462,17 @@ class TestConditionalBetaBounded(
         samples = cond.rvs(x)
 
         samples_np = bkd.to_numpy(samples)
-        self.assertTrue(np.all(samples_np >= lb))
-        self.assertTrue(np.all(samples_np <= ub))
+        assert np.all(samples_np >= lb)
+        assert np.all(samples_np <= ub)
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
-    def test_rvs_statistics_bounded(self, name: str, lb: float, ub: float) -> None:
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_rvs_statistics_bounded(self, bkd, name: str, lb: float, ub: float) -> None:
         """Test rvs generates samples with correct mean for bounded domain."""
-        bkd = self.bkd()
         scale = ub - lb
 
         # Create constant functions
-        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_alpha_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
+        log_beta_func = _create_basis_expansion(bkd, nvars=1, max_level=0, nqoi=1)
 
         alpha_val = 2.0
         beta_val = 5.0
@@ -562,14 +494,13 @@ class TestConditionalBetaBounded(
             atol=0.05 * scale,
         )
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
     def test_logpdf_jacobian_wrt_x_bounded(
-        self, name: str, lb: float, ub: float
+        self, bkd, name: str, lb: float, ub: float
     ) -> None:
         """Test logpdf_jacobian_wrt_x using DerivativeChecker for bounded domain."""
-        bkd = self.bkd()
         cond = self._create_conditional_beta_with_bounds(
-            nvars=2, lb=lb, ub=ub, max_level=2
+            bkd, nvars=2, lb=lb, ub=ub, max_level=2
         )
         scale = ub - lb
 
@@ -578,10 +509,10 @@ class TestConditionalBetaBounded(
         y_val = lb + 0.4 * scale
         y = bkd.asarray([[y_val]])
 
-        def fun(x: Array) -> Array:
+        def fun(x):
             return cond.logpdf(x, y).T
 
-        def jacobian_func(x: Array) -> Array:
+        def jacobian_func(x):
             return cond.logpdf_jacobian_wrt_x(x, y)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -591,16 +522,15 @@ class TestConditionalBetaBounded(
         checker = DerivativeChecker(function_obj)
         sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLess(float(checker.error_ratio(errors[0])), 1e-5)
+        assert float(checker.error_ratio(errors[0])) < 1e-5
 
-    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    @pytest.mark.parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
     def test_logpdf_jacobian_wrt_params_bounded(
-        self, name: str, lb: float, ub: float
+        self, bkd, name: str, lb: float, ub: float
     ) -> None:
         """Test logpdf_jacobian_wrt_params using DerivativeChecker for bounded."""
-        bkd = self.bkd()
         cond = self._create_conditional_beta_with_bounds(
-            nvars=2, lb=lb, ub=ub, max_level=2
+            bkd, nvars=2, lb=lb, ub=ub, max_level=2
         )
         scale = ub - lb
 
@@ -611,13 +541,13 @@ class TestConditionalBetaBounded(
 
         nactive = cond.nparams()
 
-        def fun(params: Array) -> Array:
+        def fun(params):
             cond.hyp_list().set_active_values(params[:, 0])
             cond._log_alpha_func._sync_from_hyp_list()
             cond._log_beta_func._sync_from_hyp_list()
             return cond.logpdf(x, y).T
 
-        def jacobian_func(params: Array) -> Array:
+        def jacobian_func(params):
             cond.hyp_list().set_active_values(params[:, 0])
             cond._log_alpha_func._sync_from_hyp_list()
             cond._log_beta_func._sync_from_hyp_list()
@@ -632,28 +562,13 @@ class TestConditionalBetaBounded(
         params = cond.hyp_list().get_active_values()
         sample_params = bkd.reshape(params, (nactive, 1))
         errors = checker.check_derivatives(sample_params, verbosity=0)
-        self.assertLess(float(checker.error_ratio(errors[0])), 1e-5)
+        assert float(checker.error_ratio(errors[0])) < 1e-5
 
 
-class TestConditionalBetaBoundedNumpy(TestConditionalBetaBounded[NDArray[Any]]):
-    """NumPy backend parametrized tests for ConditionalBeta with bounds."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestConditionalBetaBoundedTorch(TestConditionalBetaBounded[torch.Tensor]):
-    """PyTorch backend parametrized tests for ConditionalBeta with bounds."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestConditionalBetaBoundsValidation(unittest.TestCase):
+class TestConditionalBetaBoundsValidation:
     """Tests for bounds validation in ConditionalBeta."""
 
-    def _create_simple_expansion(self, bkd: Backend) -> BasisExpansion:
+    def _create_simple_expansion(self, bkd) -> BasisExpansion:
         """Create a simple constant basis expansion."""
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases_1d = create_bases_1d(marginals, bkd)
@@ -663,22 +578,18 @@ class TestConditionalBetaBoundsValidation(unittest.TestCase):
         exp.set_coefficients(bkd.asarray([[0.5]]))
         return exp
 
-    def test_invalid_bounds_lb_equals_ub(self) -> None:
+    def test_invalid_bounds_lb_equals_ub(self, numpy_bkd) -> None:
         """Test that lb == ub raises ValueError."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         log_alpha = self._create_simple_expansion(bkd)
         log_beta = self._create_simple_expansion(bkd)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ConditionalBeta(log_alpha, log_beta, bkd, lb=1.0, ub=1.0)
 
-    def test_invalid_bounds_lb_greater_ub(self) -> None:
+    def test_invalid_bounds_lb_greater_ub(self, numpy_bkd) -> None:
         """Test that lb > ub raises ValueError."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         log_alpha = self._create_simple_expansion(bkd)
         log_beta = self._create_simple_expansion(bkd)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ConditionalBeta(log_alpha, log_beta, bkd, lb=2.0, ub=1.0)
-
-
-if __name__ == "__main__":
-    unittest.main()

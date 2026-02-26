@@ -8,13 +8,8 @@ Verifies that symmetric design configurations produce equal utility values
 and that the optimal design is found correctly.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.objective import (
@@ -24,27 +19,23 @@ from pyapprox.expdesign.objective import (
 from pyapprox.expdesign.solver import BruteForceKLOEDSolver
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # =============================================================================
 # Test Utilities
 # =============================================================================
 
 
-class LinearForwardModel(Generic[Array]):
+class LinearForwardModel:
     """Test utility: Wrap a design matrix as a FunctionProtocol.
 
     Forward model: y = A @ theta
     """
 
-    def __init__(self, design_matrix: Array, bkd: Backend[Array]):
+    def __init__(self, design_matrix, bkd):
         self._design_matrix = design_matrix
         self._bkd = bkd
 
-    def bkd(self) -> Backend[Array]:
+    def bkd(self):
         return self._bkd
 
     def nvars(self) -> int:
@@ -53,20 +44,20 @@ class LinearForwardModel(Generic[Array]):
     def nqoi(self) -> int:
         return self._design_matrix.shape[0]
 
-    def __call__(self, samples: Array) -> Array:
+    def __call__(self, samples):
         return self._bkd.dot(self._design_matrix, samples)
 
 
 def create_kl_oed_objective_from_benchmark(
-    benchmark: LinearGaussianOEDBenchmark[Array],
-    bkd: Backend[Array],
-    outer_sampler_type: str = "gauss",
-    inner_sampler_type: str = "gauss",
-    nouter_approx: int = 100000,
-    ninner_approx: int = 1000,
-    outer_seed: int = None,
-    inner_seed: int = None,
-) -> KLOEDObjective[Array]:
+    benchmark,
+    bkd,
+    outer_sampler_type="gauss",
+    inner_sampler_type="gauss",
+    nouter_approx=100000,
+    ninner_approx=1000,
+    outer_seed=None,
+    inner_seed=None,
+):
     """Test utility: Create KLOEDObjective from a LinearGaussianOEDBenchmark."""
     nobs = benchmark.nobs()
     nparams = benchmark.nparams()
@@ -101,9 +92,7 @@ def create_kl_oed_objective_from_benchmark(
 # =============================================================================
 
 
-class TestBruteForceSymmetryStandalone(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestBruteForceSymmetryStandalone:
     """Standalone tests for brute-force OED utility symmetry.
 
     Replicates legacy test_brute_force_d_optimal_oed:
@@ -111,15 +100,7 @@ class TestBruteForceSymmetryStandalone(
     - Verify optimal k-subset design matches expected
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,min_degree,degree,noise_std,prior_std,k,expected_optimal",
         [
             # Original legacy test case: nobs=5, degree=2, k=3
@@ -130,13 +111,14 @@ class TestBruteForceSymmetryStandalone(
     )
     def test_brute_force_utility_symmetry(
         self,
-        nobs: int,
-        min_degree: int,
-        degree: int,
-        noise_std: float,
-        prior_std: float,
-        k: int,
-        expected_optimal: list,
+        bkd,
+        nobs,
+        min_degree,
+        degree,
+        noise_std,
+        prior_std,
+        k,
+        expected_optimal,
     ):
         """Verify symmetric design pairs have equal utility values.
 
@@ -147,7 +129,7 @@ class TestBruteForceSymmetryStandalone(
         """
         # Create benchmark
         benchmark = LinearGaussianOEDBenchmark(
-            nobs, degree, noise_std, prior_std, self._bkd, min_degree=min_degree
+            nobs, degree, noise_std, prior_std, bkd, min_degree=min_degree
         )
 
         # Gauss quadrature: symmetry is a structural property that holds
@@ -157,7 +139,7 @@ class TestBruteForceSymmetryStandalone(
 
         objective = create_kl_oed_objective_from_benchmark(
             benchmark,
-            self._bkd,
+            bkd,
             outer_sampler_type="gauss",
             inner_sampler_type="gauss",
             nouter_approx=nouter,
@@ -193,13 +175,13 @@ class TestBruteForceSymmetryStandalone(
             eig2 = all_eigs[pos2]
 
             # Use relative tolerance for comparison
-            self._bkd.assert_allclose(
-                self._bkd.asarray([eig1]),
-                self._bkd.asarray([eig2]),
+            bkd.assert_allclose(
+                bkd.asarray([eig1]),
+                bkd.asarray([eig2]),
                 rtol=1e-6,
             )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "nobs,min_degree,degree,noise_std,prior_std,k,expected_optimal",
         [
             (5, 0, 2, 0.5, 0.5, 3, [0, 2, 4]),
@@ -207,13 +189,14 @@ class TestBruteForceSymmetryStandalone(
     )
     def test_brute_force_optimal_design(
         self,
-        nobs: int,
-        min_degree: int,
-        degree: int,
-        noise_std: float,
-        prior_std: float,
-        k: int,
-        expected_optimal: list,
+        bkd,
+        nobs,
+        min_degree,
+        degree,
+        noise_std,
+        prior_std,
+        k,
+        expected_optimal,
     ):
         """Verify optimal k-subset design matches expected.
 
@@ -225,7 +208,7 @@ class TestBruteForceSymmetryStandalone(
         """
         # Create benchmark
         benchmark = LinearGaussianOEDBenchmark(
-            nobs, degree, noise_std, prior_std, self._bkd, min_degree=min_degree
+            nobs, degree, noise_std, prior_std, bkd, min_degree=min_degree
         )
 
         # Gauss quadrature: optimal design is a structural property that holds
@@ -235,7 +218,7 @@ class TestBruteForceSymmetryStandalone(
 
         objective = create_kl_oed_objective_from_benchmark(
             benchmark,
-            self._bkd,
+            bkd,
             outer_sampler_type="gauss",
             inner_sampler_type="gauss",
             nouter_approx=nouter,
@@ -247,22 +230,22 @@ class TestBruteForceSymmetryStandalone(
         _, _, optimal_indices = solver.solve(k)
 
         # Verify optimal design
-        self._bkd.assert_allclose(
-            self._bkd.asarray(optimal_indices),
-            self._bkd.asarray(expected_optimal),
+        bkd.assert_allclose(
+            bkd.asarray(optimal_indices),
+            bkd.asarray(expected_optimal),
         )
 
-    def test_store_all_populates_lists(self):
+    def test_store_all_populates_lists(self, bkd):
         """Test that store_all=True populates all_indices and all_eigs."""
         # Simple setup with nobs=4, k=2
         nobs = 4
         benchmark = LinearGaussianOEDBenchmark(
-            nobs, 2, 0.5, 0.5, self._bkd, min_degree=0
+            nobs, 2, 0.5, 0.5, bkd, min_degree=0
         )
 
         objective = create_kl_oed_objective_from_benchmark(
             benchmark,
-            self._bkd,
+            bkd,
             outer_sampler_type="mc",
             inner_sampler_type="mc",
             nouter_approx=100,
@@ -274,13 +257,13 @@ class TestBruteForceSymmetryStandalone(
         solver = BruteForceKLOEDSolver(objective)
 
         # Before solve, lists should be empty
-        self.assertEqual(len(solver.all_indices()), 0)
-        self.assertEqual(len(solver.all_eigs()), 0)
+        assert len(solver.all_indices()) == 0
+        assert len(solver.all_eigs()) == 0
 
         # Solve with store_all=False (default)
         solver.solve(k=2, store_all=False)
-        self.assertEqual(len(solver.all_indices()), 0)
-        self.assertEqual(len(solver.all_eigs()), 0)
+        assert len(solver.all_indices()) == 0
+        assert len(solver.all_eigs()) == 0
 
         # Solve with store_all=True
         solver.solve(k=2, store_all=True)
@@ -289,36 +272,9 @@ class TestBruteForceSymmetryStandalone(
         from math import comb
 
         expected_count = comb(nobs, 2)
-        self.assertEqual(len(solver.all_indices()), expected_count)
-        self.assertEqual(len(solver.all_eigs()), expected_count)
+        assert len(solver.all_indices()) == expected_count
+        assert len(solver.all_eigs()) == expected_count
 
         # All EIGs should be finite
         for eig in solver.all_eigs():
-            self.assertTrue(np.isfinite(eig))
-
-
-class TestBruteForceSymmetryStandaloneNumpy(
-    TestBruteForceSymmetryStandalone[NDArray[Any]]
-):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestBruteForceSymmetryStandaloneTorch(
-    TestBruteForceSymmetryStandalone[torch.Tensor]
-):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert np.isfinite(eig)

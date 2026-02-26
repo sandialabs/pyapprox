@@ -19,12 +19,8 @@ Hessian-based optimization. See benchmark_hvp.py for details.
 Many tests in this file are skipped until the bug is fixed.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
@@ -38,9 +34,6 @@ from pyapprox.surrogates.kernels import (
     SquaredExponentialKernel,
 )
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
 
 # HVP is currently disabled due to suspected bug - see loss.py
@@ -68,258 +61,238 @@ class MockKernelNoHVP(Kernel):
     def hyp_list(self) -> HyperParameterList:
         return self._inner.hyp_list()
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1, X2=None):
         return self._inner(X1, X2)
 
-    def diag(self, X1: Array) -> Array:
+    def diag(self, X1):
         return self._inner.diag(X1)
 
-    def jacobian(self, X1: Array, X2: Array) -> Array:
+    def jacobian(self, X1, X2):
         return self._inner.jacobian(X1, X2)
 
-    def jacobian_wrt_params(self, samples: Array) -> Array:
+    def jacobian_wrt_params(self, samples):
         return self._inner.jacobian_wrt_params(samples)
 
     # Deliberately NOT implementing hvp_wrt_params to test dynamic binding
 
 
-
-
-class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
+class TestLossDynamicBinding:
     """Test NLML loss dynamic method binding based on kernel capabilities."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup(self, bkd):
+        """Set up test data."""
         np.random.seed(42)
-        self._nvars = 2
-        self._n_train = 10
+        nvars = 2
+        n_train = 10
 
-        # Generate training data
-        self._X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        self._y_train = self._bkd.array(np.random.randn(1, self._n_train))
+        X_train = bkd.array(np.random.randn(nvars, n_train))
+        y_train = bkd.array(np.random.randn(1, n_train))
 
-    def _create_rbf_kernel(self):
+        return nvars, X_train, y_train
+
+    def _create_rbf_kernel(self, bkd, nvars):
         """Create Squared Exponential kernel (nu=inf), which has hvp_wrt_params."""
         return SquaredExponentialKernel(
-            lenscale=self._bkd.array([1.0, 1.0]),
+            lenscale=bkd.array([1.0, 1.0]),
             lenscale_bounds=(0.1, 10.0),
-            nvars=self._nvars,
-            bkd=self._bkd
+            nvars=nvars,
+            bkd=bkd
         )
 
-    def _create_matern52_kernel(self):
+    def _create_matern52_kernel(self, bkd, nvars):
         """Create Matern 5/2 kernel, which now has hvp_wrt_params."""
         return Matern52Kernel(
-            lenscale=self._bkd.array([1.0, 1.0]),
+            lenscale=bkd.array([1.0, 1.0]),
             lenscale_bounds=(0.1, 10.0),
-            nvars=self._nvars,
-            bkd=self._bkd
+            nvars=nvars,
+            bkd=bkd
         )
 
-    def _create_matern32_kernel(self):
+    def _create_matern32_kernel(self, bkd, nvars):
         """Create Matern 3/2 kernel, which now has hvp_wrt_params."""
         return Matern32Kernel(
-            lenscale=self._bkd.array([1.0, 1.0]),
+            lenscale=bkd.array([1.0, 1.0]),
             lenscale_bounds=(0.1, 10.0),
-            nvars=self._nvars,
-            bkd=self._bkd
+            nvars=nvars,
+            bkd=bkd
         )
 
-    def _create_kernel_without_hvp(self):
+    def _create_kernel_without_hvp(self, bkd, nvars):
         """Create a kernel wrapper that explicitly lacks hvp_wrt_params."""
-        inner = self._create_rbf_kernel()
+        inner = self._create_rbf_kernel(bkd, nvars)
         return MockKernelNoHVP(inner)
 
-    def test_all_matern_kernels_have_hvp(self):
+    def test_all_matern_kernels_have_hvp(self, bkd):
         """Test that all Matern kernel variants now have hvp_wrt_params."""
-        rbf = self._create_rbf_kernel()
-        matern52 = self._create_matern52_kernel()
-        matern32 = self._create_matern32_kernel()
+        nvars, _, _ = self._setup(bkd)
 
-        self.assertTrue(
-            hasattr(rbf, 'hvp_wrt_params'),
+        rbf = self._create_rbf_kernel(bkd, nvars)
+        matern52 = self._create_matern52_kernel(bkd, nvars)
+        matern32 = self._create_matern32_kernel(bkd, nvars)
+
+        assert hasattr(rbf, 'hvp_wrt_params'), \
             "RBF kernel (nu=inf) should have hvp_wrt_params"
-        )
-        self.assertTrue(
-            hasattr(matern52, 'hvp_wrt_params'),
+        assert hasattr(matern52, 'hvp_wrt_params'), \
             "Matern 5/2 kernel should have hvp_wrt_params"
-        )
-        self.assertTrue(
-            hasattr(matern32, 'hvp_wrt_params'),
+        assert hasattr(matern32, 'hvp_wrt_params'), \
             "Matern 3/2 kernel should have hvp_wrt_params"
-        )
 
-    def test_mock_kernel_lacks_hvp(self):
+    def test_mock_kernel_lacks_hvp(self, bkd):
         """Test that MockKernelNoHVP does NOT have hvp_wrt_params."""
-        mock = self._create_kernel_without_hvp()
-        self.assertFalse(
-            hasattr(mock, 'hvp_wrt_params'),
+        nvars, _, _ = self._setup(bkd)
+
+        mock = self._create_kernel_without_hvp(bkd, nvars)
+        assert not hasattr(mock, 'hvp_wrt_params'), \
             "MockKernelNoHVP should NOT have hvp_wrt_params"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_loss_hvp_with_rbf_kernel(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_loss_hvp_with_rbf_kernel(self, bkd):
         """Test that loss has hvp when kernel has hvp_wrt_params (RBF)."""
-        kernel = self._create_rbf_kernel()
+        nvars, X_train, y_train = self._setup(bkd)
+
+        kernel = self._create_rbf_kernel(bkd, nvars)
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
-        self.assertTrue(
-            hasattr(loss, 'hvp'),
+        assert hasattr(loss, 'hvp'), \
             "Loss should have hvp when kernel has hvp_wrt_params"
-        )
-        self.assertTrue(
-            loss._supports_hvp,
+        assert loss._supports_hvp, \
             "Loss._supports_hvp should be True"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_loss_hvp_with_matern52_kernel(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_loss_hvp_with_matern52_kernel(self, bkd):
         """Test that loss has hvp when kernel has hvp_wrt_params (Matern 5/2)."""
-        kernel = self._create_matern52_kernel()
+        nvars, X_train, y_train = self._setup(bkd)
+
+        kernel = self._create_matern52_kernel(bkd, nvars)
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
-        self.assertTrue(
-            hasattr(loss, 'hvp'),
+        assert hasattr(loss, 'hvp'), \
             "Loss should have hvp when Matern 5/2 kernel is used"
-        )
-        self.assertTrue(
-            loss._supports_hvp,
+        assert loss._supports_hvp, \
             "Loss._supports_hvp should be True for Matern 5/2"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_loss_hvp_with_matern32_kernel(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_loss_hvp_with_matern32_kernel(self, bkd):
         """Test that loss has hvp when kernel has hvp_wrt_params (Matern 3/2)."""
-        kernel = self._create_matern32_kernel()
+        nvars, X_train, y_train = self._setup(bkd)
+
+        kernel = self._create_matern32_kernel(bkd, nvars)
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
-        self.assertTrue(
-            hasattr(loss, 'hvp'),
+        assert hasattr(loss, 'hvp'), \
             "Loss should have hvp when Matern 3/2 kernel is used"
-        )
-        self.assertTrue(
-            loss._supports_hvp,
+        assert loss._supports_hvp, \
             "Loss._supports_hvp should be True for Matern 3/2"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_composition_kernel_hvp_when_all_have_it(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_composition_kernel_hvp_when_all_have_it(self, bkd):
         """Test that composed kernel has hvp_wrt_params when all components do."""
+        nvars, X_train, y_train = self._setup(bkd)
+
         # Product of RBF and Matern 5/2 - both have hvp_wrt_params
-        k1 = self._create_rbf_kernel()
-        k2 = self._create_matern52_kernel()
+        k1 = self._create_rbf_kernel(bkd, nvars)
+        k2 = self._create_matern52_kernel(bkd, nvars)
         product_kernel = k1 * k2
 
         # Product should have hvp_wrt_params
-        self.assertTrue(
-            hasattr(product_kernel, 'hvp_wrt_params'),
+        assert hasattr(product_kernel, 'hvp_wrt_params'), \
             "Product of RBF and Matern52 kernels should have hvp_wrt_params"
-        )
 
         # Loss should have hvp
         gp = ExactGaussianProcess(
             kernel=product_kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
-        self.assertTrue(
-            hasattr(loss, 'hvp'),
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        assert hasattr(loss, 'hvp'), \
             "Loss with product of kernels with HVP should have hvp"
-        )
 
-    def test_composition_kernel_no_hvp_when_one_missing(self):
+    def test_composition_kernel_no_hvp_when_one_missing(self, bkd):
         """Test composed kernel lacks hvp_wrt_params
         when one component doesn't have it."""
+        nvars, X_train, y_train = self._setup(bkd)
+
         # Product of RBF (has hvp) and MockKernelNoHVP (no hvp)
-        k_with = self._create_rbf_kernel()
-        k_without = self._create_kernel_without_hvp()
+        k_with = self._create_rbf_kernel(bkd, nvars)
+        k_without = self._create_kernel_without_hvp(bkd, nvars)
         product_kernel = k_with * k_without
 
         # Product should NOT have hvp_wrt_params (AND logic)
-        self.assertFalse(
-            hasattr(product_kernel, 'hvp_wrt_params'),
+        assert not hasattr(product_kernel, 'hvp_wrt_params'), \
             "Product kernel should NOT have hvp_wrt_params when one component lacks it"
-        )
 
         # Loss should NOT have hvp
         gp = ExactGaussianProcess(
             kernel=product_kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
-        self.assertFalse(
-            hasattr(loss, 'hvp'),
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        assert not hasattr(loss, 'hvp'), \
             "Loss with mixed kernel capabilities should NOT have hvp"
-        )
 
-    def test_sum_kernel_hvp_when_all_have_it(self):
+    def test_sum_kernel_hvp_when_all_have_it(self, bkd):
         """Test that sum kernel has hvp_wrt_params when all components do."""
+        nvars, _, _ = self._setup(bkd)
+
         # RBF kernel + IIDGaussianNoise (both have hvp_wrt_params)
-        k1 = self._create_rbf_kernel()
+        k1 = self._create_rbf_kernel(bkd, nvars)
         noise = IIDGaussianNoise(
             noise_variance=0.1,
             variance_bounds=(1e-4, 1.0),
-            bkd=self._bkd
+            bkd=bkd
         )
 
         # Both IIDGaussianNoise and RBF have hvp_wrt_params
-        self.assertTrue(
-            hasattr(noise, 'hvp_wrt_params'),
+        assert hasattr(noise, 'hvp_wrt_params'), \
             "IIDGaussianNoise should have hvp_wrt_params"
-        )
 
         sum_kernel = k1 + noise
 
-        self.assertTrue(
-            hasattr(sum_kernel, 'hvp_wrt_params'),
+        assert hasattr(sum_kernel, 'hvp_wrt_params'), \
             "Sum of kernels with hvp_wrt_params should have hvp_wrt_params"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_optimizer_uses_hvp_with_rbf(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_optimizer_uses_hvp_with_rbf(self, bkd):
         """Test that optimizer uses HVP when loss has it (RBF kernel)."""
-        kernel = self._create_rbf_kernel()
+        nvars, X_train, y_train = self._setup(bkd)
+
+        kernel = self._create_rbf_kernel(bkd, nvars)
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
         # Confirm loss has hvp
-        self.assertTrue(hasattr(loss, 'hvp'))
+        assert hasattr(loss, 'hvp')
 
         # Create optimizer
         nparams = loss.nvars()
-        bounds = self._bkd.array([[-5.0, 5.0]] * nparams)
+        bounds = bkd.array([[-5.0, 5.0]] * nparams)
 
         optimizer = ScipyTrustConstrOptimizer(
             objective=loss,
@@ -331,7 +304,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
         )
 
         # Get initial params
-        init_params = self._bkd.reshape(
+        init_params = bkd.reshape(
             gp.hyp_list().get_active_values(),
             (nparams, 1)
         )
@@ -341,34 +314,32 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
 
         # Check that HVP was evaluated (nhev > 0)
         scipy_result = result.get_raw_result()
-        self.assertGreater(
-            scipy_result.nhev, 0,
+        assert scipy_result.nhev > 0, \
             f"Optimizer should use HVP when available, but nhev={scipy_result.nhev}"
-        )
         # Also check jacobian was evaluated
-        self.assertGreater(
-            scipy_result.njev, 0,
+        assert scipy_result.njev > 0, \
             f"Optimizer should use jacobian, but njev={scipy_result.njev}"
-        )
 
-    @unittest.skip(HVP_DISABLED_REASON)
-    def test_optimizer_uses_hvp_with_matern52(self):
+    @pytest.mark.skip(reason=HVP_DISABLED_REASON)
+    def test_optimizer_uses_hvp_with_matern52(self, bkd):
         """Test that optimizer uses HVP when loss has it (Matern 5/2 kernel)."""
-        kernel = self._create_matern52_kernel()
+        nvars, X_train, y_train = self._setup(bkd)
+
+        kernel = self._create_matern52_kernel(bkd, nvars)
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
         # Confirm loss has hvp
-        self.assertTrue(hasattr(loss, 'hvp'))
+        assert hasattr(loss, 'hvp')
 
         # Create optimizer
         nparams = loss.nvars()
-        bounds = self._bkd.array([[-5.0, 5.0]] * nparams)
+        bounds = bkd.array([[-5.0, 5.0]] * nparams)
 
         optimizer = ScipyTrustConstrOptimizer(
             objective=loss,
@@ -380,7 +351,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
         )
 
         # Get initial params
-        init_params = self._bkd.reshape(
+        init_params = bkd.reshape(
             gp.hyp_list().get_active_values(),
             (nparams, 1)
         )
@@ -390,32 +361,32 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
 
         # Check that HVP was evaluated (nhev > 0)
         scipy_result = result.get_raw_result()
-        self.assertGreater(
-            scipy_result.nhev, 0,
+        assert scipy_result.nhev > 0, \
             f"Optimizer should use HVP for Matern52, but nhev={scipy_result.nhev}"
-        )
 
-    def test_optimizer_skips_hvp_when_unavailable(self):
+    def test_optimizer_skips_hvp_when_unavailable(self, bkd):
         """Test that optimizer does not use HVP when loss lacks it."""
+        nvars, X_train, y_train = self._setup(bkd)
+
         # Use RBF * MockKernelNoHVP, which lacks HVP due to MockKernelNoHVP
-        k_with = self._create_rbf_kernel()
-        k_without = self._create_kernel_without_hvp()
+        k_with = self._create_rbf_kernel(bkd, nvars)
+        k_without = self._create_kernel_without_hvp(bkd, nvars)
         kernel = k_with * k_without
 
         gp = ExactGaussianProcess(
             kernel=kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
+            nvars=nvars,
+            bkd=bkd,
             nugget=0.1
         )
-        loss = NegativeLogMarginalLikelihoodLoss(gp, self._X_train, self._y_train)
+        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
 
         # Confirm loss does NOT have hvp
-        self.assertFalse(hasattr(loss, 'hvp'))
+        assert not hasattr(loss, 'hvp')
 
         # Create optimizer
         nparams = loss.nvars()
-        bounds = self._bkd.array([[-5.0, 5.0]] * nparams)
+        bounds = bkd.array([[-5.0, 5.0]] * nparams)
 
         optimizer = ScipyTrustConstrOptimizer(
             objective=loss,
@@ -427,7 +398,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
         )
 
         # Get initial params
-        init_params = self._bkd.reshape(
+        init_params = bkd.reshape(
             gp.hyp_list().get_active_values(),
             (nparams, 1)
         )
@@ -437,32 +408,9 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
 
         # Check that HVP was NOT evaluated (nhev == 0)
         scipy_result = result.get_raw_result()
-        self.assertEqual(
-            scipy_result.nhev, 0,
-            "Optimizer should NOT use HVP when "
+        assert scipy_result.nhev == 0, \
+            "Optimizer should NOT use HVP when " \
             f"unavailable, but nhev={scipy_result.nhev}"
-        )
         # Jacobian should still be evaluated
-        self.assertGreater(
-            scipy_result.njev, 0,
+        assert scipy_result.njev > 0, \
             f"Optimizer should still use jacobian, but njev={scipy_result.njev}"
-        )
-
-
-class TestLossDynamicBindingNumpy(TestLossDynamicBinding[NDArray[Any]]):
-    """Test NLML loss dynamic binding with NumPy backend."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLossDynamicBindingTorch(TestLossDynamicBinding[torch.Tensor]):
-    """Test NLML loss dynamic binding with PyTorch backend."""
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

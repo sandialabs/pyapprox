@@ -10,12 +10,10 @@ Tests cover:
   posterior variance at quadrature points
 """
 
-import unittest
-from typing import Any, Generic, List
+from typing import List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.surrogates.gaussianprocess.adaptive.multioutput_ivar_sampler import (
     MultiOutputIVARSampler,
@@ -30,13 +28,10 @@ from pyapprox.surrogates.kernels.multioutput.multilevel import (
     MultiLevelKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
-class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
+class TestMultiOutputIVARSampler:
     """Tests for MultiOutputIVARSampler.
 
     Ports the legacy test_multioutput_ivar_update test from
@@ -46,22 +41,16 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
     - MultiOutputGP replaces MOExactGaussianProcess
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(1)
 
-    def _make_kernel(self) -> MultiLevelKernel:
+    def _make_kernel(self, bkd) -> MultiLevelKernel:
         """Create a 3-level MultiLevelKernel with fixed hyperparameters.
 
         Structure: f_0 ~ GP(0, k_0), f_1 = 2.0*f_0 + d_1, f_2 = -3.0*f_1 + d_2
         where k_i are SE kernels with length scale 0.3.
         """
-        bkd = self._bkd
         nvars = 1
         nmodels = 3
 
@@ -79,15 +68,14 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         kernel.hyp_list().set_all_inactive()
         return kernel
 
-    def _make_candidates(self, ncandidates_per_model: int = 21) -> List[Array]:
+    def _make_candidates(self, bkd, ncandidates_per_model: int = 21) -> List:
         """Create uniform candidate sets for each output in [0, 1]."""
-        bkd = self._bkd
         nmodels = 3
         return [
             bkd.linspace(0, 1, ncandidates_per_model)[None, :] for _ in range(nmodels)
         ]
 
-    def test_multioutput_ivar_select_samples(self) -> None:
+    def test_multioutput_ivar_select_samples(self, bkd) -> None:
         """Selected samples have correct shapes and are from candidates.
 
         Creates a 3-output multi-fidelity IVAR sampler with costs [1, 2, 3],
@@ -98,11 +86,10 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         - Total selected count = 7
         - All selected samples are subsets of the corresponding candidates
         """
-        bkd = self._bkd
         nmodels = 3
         ncandidates_per_model = 21
-        kernel = self._make_kernel()
-        candidates_list = self._make_candidates(ncandidates_per_model)
+        kernel = self._make_kernel(bkd)
+        candidates_list = self._make_candidates(bkd, ncandidates_per_model)
         costs = bkd.asarray([0.05, 0.1, 1.0])
 
         sampler = MultiOutputIVARSampler(
@@ -117,14 +104,14 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         samples_list = sampler.select_samples(nsamples)
 
         # Check result is a list with correct length
-        self.assertEqual(len(samples_list), nmodels)
+        assert len(samples_list) == nmodels
 
         # Check each output has shape (nvars, n_i)
         total_selected = 0
         for ii, samples in enumerate(samples_list):
-            self.assertEqual(samples.shape[0], 1)  # nvars = 1
+            assert samples.shape[0] == 1  # nvars = 1
             total_selected += samples.shape[1]
-        self.assertEqual(total_selected, nsamples)
+        assert total_selected == nsamples
 
         # Check all samples are from candidates
         for ii, (samples, candidates) in enumerate(zip(samples_list, candidates_list)):
@@ -135,14 +122,12 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
                     np.allclose(samp_np[:, j], cand_np[:, k])
                     for k in range(cand_np.shape[1])
                 )
-                self.assertTrue(
-                    found,
-                    f"Output {ii}, sample {j} not found in candidates",
-                )
+                assert found, \
+                    f"Output {ii}, sample {j} not found in candidates"
 
     @slow_test
     def test_multioutput_ivar_objective_matches_integrated_variance(
-        self,
+        self, bkd,
     ) -> None:
         """IVAR objective matches integrated variance reduction.
 
@@ -157,11 +142,10 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         spread across outputs (not all going to HF). HF is the last
         output (model nmodels-1), which is the most expensive.
         """
-        bkd = self._bkd
         nmodels = 3
         ncandidates_per_model = 21
-        kernel = self._make_kernel()
-        candidates_list = self._make_candidates(ncandidates_per_model)
+        kernel = self._make_kernel(bkd)
+        candidates_list = self._make_candidates(bkd, ncandidates_per_model)
         # Strong cost profile: LF outputs are very cheap relative to HF
         costs = bkd.asarray([0.05, 0.1, 1.0])
 
@@ -231,21 +215,3 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
             bkd.asarray([float(bkd.to_numpy(bkd.reshape(expected_obj, (1,)))[0])]),
             rtol=5e-2,
         )
-
-
-class TestMultiOutputIVARSamplerNumpy(TestMultiOutputIVARSampler[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMultiOutputIVARSamplerTorch(TestMultiOutputIVARSampler[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,11 +1,7 @@
 """Tests for sample-based risk measures."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability.risk.gaussian import (
     GaussianAnalyticalRiskMeasures,
@@ -18,27 +14,17 @@ from pyapprox.probability.risk.measures import (
     UtilitySSD,
     ValueAtRisk,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestRiskMeasures(Generic[Array], unittest.TestCase):
+class TestRiskMeasures:
     """Tests for sample-based risk measures."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def test_safety_margin_mean_std(self) -> None:
+    def test_safety_margin_mean_std(self, bkd) -> None:
         """SafetyMarginRiskMeasure computes mean + strength * std."""
-        bkd = self._bkd
         # Create samples with known mean and std
         nsamples = 10000
         mu, sigma = 2.0, 0.5
@@ -57,14 +43,13 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
             rtol=0.05,  # Monte Carlo tolerance
         )
 
-    def test_safety_margin_strength_accessor(self) -> None:
+    def test_safety_margin_strength_accessor(self, bkd) -> None:
         """SafetyMarginRiskMeasure.strength() returns correct value."""
-        risk = SafetyMarginRiskMeasure(self._bkd, 2.5)
-        self.assertAlmostEqual(risk.strength(), 2.5)
+        risk = SafetyMarginRiskMeasure(bkd, 2.5)
+        assert risk.strength() == pytest.approx(2.5)
 
-    def test_value_at_risk_uniform(self) -> None:
+    def test_value_at_risk_uniform(self, bkd) -> None:
         """ValueAtRisk finds correct quantile for uniform samples."""
-        bkd = self._bkd
         # Uniform samples on [0, 1]
         nsamples = 1000
         samples = bkd.asarray(np.linspace(0, 1, nsamples)[None, :])
@@ -80,21 +65,20 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
             atol=0.01,
         )
 
-    def test_value_at_risk_beta_accessor(self) -> None:
+    def test_value_at_risk_beta_accessor(self, bkd) -> None:
         """ValueAtRisk.beta() returns correct value."""
-        risk = ValueAtRisk(self._bkd, beta=0.75)
-        self.assertAlmostEqual(risk.beta(), 0.75)
+        risk = ValueAtRisk(bkd, beta=0.75)
+        assert risk.beta() == pytest.approx(0.75)
 
-    def test_value_at_risk_invalid_beta(self) -> None:
+    def test_value_at_risk_invalid_beta(self, bkd) -> None:
         """ValueAtRisk raises for invalid beta."""
-        with self.assertRaises(ValueError):
-            ValueAtRisk(self._bkd, beta=1.0)
-        with self.assertRaises(ValueError):
-            ValueAtRisk(self._bkd, beta=-0.1)
+        with pytest.raises(ValueError):
+            ValueAtRisk(bkd, beta=1.0)
+        with pytest.raises(ValueError):
+            ValueAtRisk(bkd, beta=-0.1)
 
-    def test_average_value_at_risk_gaussian(self) -> None:
+    def test_average_value_at_risk_gaussian(self, bkd) -> None:
         """AverageValueAtRisk matches analytical formula for Gaussian."""
-        bkd = self._bkd
         mu, sigma = 1.0, 2.0
         nsamples = 50000
         samples = bkd.asarray(np.random.normal(mu, sigma, (1, nsamples)))
@@ -114,14 +98,13 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
             rtol=0.05,  # Monte Carlo tolerance
         )
 
-    def test_average_value_at_risk_beta_accessor(self) -> None:
+    def test_average_value_at_risk_beta_accessor(self, bkd) -> None:
         """AverageValueAtRisk.beta() returns correct value."""
-        risk = AverageValueAtRisk(self._bkd, beta=0.95)
-        self.assertAlmostEqual(risk.beta(), 0.95)
+        risk = AverageValueAtRisk(bkd, beta=0.95)
+        assert risk.beta() == pytest.approx(0.95)
 
-    def test_entropic_risk_gaussian(self) -> None:
+    def test_entropic_risk_gaussian(self, bkd) -> None:
         """EntropicRisk matches analytical formula for Gaussian."""
-        bkd = self._bkd
         mu, sigma = 0.5, 1.5
         nsamples = 50000
         samples = bkd.asarray(np.random.normal(mu, sigma, (1, nsamples)))
@@ -141,14 +124,13 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
             rtol=0.05,  # Monte Carlo tolerance
         )
 
-    def test_entropic_risk_beta_accessor(self) -> None:
+    def test_entropic_risk_beta_accessor(self, bkd) -> None:
         """EntropicRisk.beta() returns correct value."""
-        risk = EntropicRisk(self._bkd, beta=2.0)
-        self.assertAlmostEqual(risk.beta(), 2.0)
+        risk = EntropicRisk(bkd, beta=2.0)
+        assert risk.beta() == pytest.approx(2.0)
 
-    def test_utility_ssd_nonnegative(self) -> None:
+    def test_utility_ssd_nonnegative(self, bkd) -> None:
         """UtilitySSD is always non-negative."""
-        bkd = self._bkd
         nsamples = 100
         samples = bkd.asarray(np.random.randn(1, nsamples))
 
@@ -158,11 +140,10 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
         result = risk()
 
         # All values should be >= 0
-        self.assertTrue(float(bkd.min(result)) >= -1e-10)
+        assert float(bkd.min(result)) >= -1e-10
 
-    def test_disutility_ssd_nonnegative(self) -> None:
+    def test_disutility_ssd_nonnegative(self, bkd) -> None:
         """DisutilitySSD is always non-negative."""
-        bkd = self._bkd
         nsamples = 100
         samples = bkd.asarray(np.random.randn(1, nsamples))
 
@@ -172,44 +153,41 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
         result = risk()
 
         # All values should be >= 0
-        self.assertTrue(float(bkd.min(result)) >= -1e-10)
+        assert float(bkd.min(result)) >= -1e-10
 
-    def test_samples_shape_validation(self) -> None:
+    def test_samples_shape_validation(self, bkd) -> None:
         """Risk measures raise for invalid samples shape."""
-        bkd = self._bkd
         risk = SafetyMarginRiskMeasure(bkd, 1.0)
 
         # 1D array should fail
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             risk.set_samples(bkd.asarray(np.random.randn(10)))
 
         # Shape (2, n) should fail
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             risk.set_samples(bkd.asarray(np.random.randn(2, 10)))
 
-    def test_weights_shape_validation(self) -> None:
+    def test_weights_shape_validation(self, bkd) -> None:
         """Risk measures raise for invalid weights shape."""
-        bkd = self._bkd
         risk = SafetyMarginRiskMeasure(bkd, 1.0)
         samples = bkd.asarray(np.random.randn(1, 10))
 
         # 2D weights should fail
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             risk.set_samples(samples, bkd.asarray(np.ones((10, 1))))
 
         # Wrong length should fail
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             risk.set_samples(samples, bkd.asarray(np.ones(5)))
 
-    def test_call_before_set_samples_raises(self) -> None:
+    def test_call_before_set_samples_raises(self, bkd) -> None:
         """Calling risk measure before set_samples raises RuntimeError."""
-        risk = SafetyMarginRiskMeasure(self._bkd, 1.0)
-        with self.assertRaises(RuntimeError):
+        risk = SafetyMarginRiskMeasure(bkd, 1.0)
+        with pytest.raises(RuntimeError):
             risk()
 
-    def test_custom_weights(self) -> None:
+    def test_custom_weights(self, bkd) -> None:
         """Risk measures work with custom weights."""
-        bkd = self._bkd
         # Two samples with weights
         samples = bkd.asarray([[1.0, 3.0]])
         weights = bkd.asarray([0.25, 0.75])  # Weighted mean = 0.25*1 + 0.75*3 = 2.5
@@ -222,29 +200,3 @@ class TestRiskMeasures(Generic[Array], unittest.TestCase):
             bkd.asarray([float(result)]),
             bkd.asarray([2.5]),
         )
-
-
-class TestRiskMeasuresNumpy(TestRiskMeasures[NDArray[Any]]):
-    """NumPy backend tests for risk measures."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestRiskMeasuresTorch(TestRiskMeasures[torch.Tensor]):
-    """PyTorch backend tests for risk measures."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

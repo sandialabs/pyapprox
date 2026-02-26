@@ -8,12 +8,8 @@ Tests focus on:
 - Underdetermined system rejection
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -28,40 +24,29 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
-    """Base test class - NOT run directly."""
+class TestGradientEnhancedPCEFitter:
+    """Base test class for GradientEnhancedPCEFitter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    @pytest.fixture(autouse=True)
+    def _seed(self):
         np.random.seed(42)
 
-    def _create_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
         """Create test expansion."""
-        bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def test_fit_returns_direct_solver_result(self) -> None:
+    def test_fit_returns_direct_solver_result(self, bkd) -> None:
         """Fit returns DirectSolverResult."""
-        bkd = self._bkd
         nvars, max_level = 1, 3
 
         # Create target expansion
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -78,17 +63,16 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
-        self.assertIsInstance(result, DirectSolverResult)
+        assert isinstance(result, DirectSolverResult)
 
-    def test_result_params_shape(self) -> None:
+    def test_result_params_shape(self, bkd) -> None:
         """Result params have correct shape."""
-        bkd = self._bkd
         nvars, max_level = 1, 3
 
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -99,17 +83,16 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
-        self.assertEqual(result.params().shape, (nterms, 1))
+        assert result.params().shape == (nterms, 1)
 
-    def test_handles_1d_values(self) -> None:
+    def test_handles_1d_values(self, bkd) -> None:
         """Fitter handles 1D values array."""
-        bkd = self._bkd
         nvars, max_level = 1, 3
 
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -121,21 +104,20 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values_1d, gradients)
 
-        self.assertEqual(result.params().shape[1], 1)
+        assert result.params().shape[1] == 1
 
-    def test_constraint_satisfaction(self) -> None:
+    def test_constraint_satisfaction(self, bkd) -> None:
         """Fitted expansion interpolates function values exactly.
 
         Replicates legacy test: verify Phi @ coef = y (constraint satisfied).
         """
-        bkd = self._bkd
         nvars, max_level = 1, 4
 
         # Create target expansion
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -150,7 +132,7 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
         # Check constraint satisfaction: Phi @ coef = y
@@ -162,17 +144,16 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
             atol=1e-10,
         )
 
-    def test_coefficient_recovery(self) -> None:
+    def test_coefficient_recovery(self, bkd) -> None:
         """Recover exact coefficients when gradients are available.
 
         With sufficient samples and exact gradient information, should
         recover the true PCE coefficients exactly.
         """
-        bkd = self._bkd
         nvars, max_level = 2, 3
 
         # Create known target expansion
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -187,18 +168,17 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
         # Should recover coefficients
         bkd.assert_allclose(result.params(), true_coef, rtol=1e-8)
 
-    def test_fitted_surrogate_evaluates(self) -> None:
+    def test_fitted_surrogate_evaluates(self, bkd) -> None:
         """Fitted surrogate can evaluate at new points."""
-        bkd = self._bkd
         nvars, max_level = 1, 3
 
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -209,21 +189,20 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
         # Evaluate at new points
         test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, 10)))
         predictions = result(test_samples)
 
-        self.assertEqual(predictions.shape, (1, 10))
+        assert predictions.shape == (1, 10)
 
-    def test_multi_qoi_raises(self) -> None:
+    def test_multi_qoi_raises(self, bkd) -> None:
         """nqoi > 1 raises ValueError."""
-        bkd = self._bkd
         nvars, max_level = 1, 3
 
-        expansion = self._create_expansion(nvars=nvars, max_level=max_level, nqoi=2)
+        expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level, nqoi=2)
         nterms = expansion.nterms()
 
         nsamples = nterms + 5
@@ -232,16 +211,14 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         gradients = bkd.asarray(np.random.randn(nvars, nsamples))
 
         fitter = GradientEnhancedPCEFitter(bkd)
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError, match="nqoi=1"):
             fitter.fit(expansion, samples, values, gradients)
-        self.assertIn("nqoi=1", str(ctx.exception))
 
-    def test_underdetermined_raises(self) -> None:
+    def test_underdetermined_raises(self, bkd) -> None:
         """nsamples < nterms raises ValueError."""
-        bkd = self._bkd
         nvars, max_level = 1, 5
 
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -253,21 +230,19 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
-        with self.assertRaises(ValueError) as ctx:
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
+        with pytest.raises(ValueError, match="(?i)samples"):
             fitter.fit(fit_expansion, samples, values, gradients)
-        self.assertIn("samples", str(ctx.exception).lower())
 
-    def test_multivariate_gradient_recovery(self) -> None:
+    def test_multivariate_gradient_recovery(self, bkd) -> None:
         """Gradient-enhanced fitting works for multivariate polynomials.
 
         Tests that gradients in multiple dimensions are properly handled.
         """
-        bkd = self._bkd
         nvars, max_level = 3, 2
 
         # Create known target expansion
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -283,7 +258,7 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, gradients)
 
         # Verify at test points
@@ -294,17 +269,16 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(fitted_values, target_values, rtol=1e-8)
 
-    def test_gradient_matching(self) -> None:
+    def test_gradient_matching(self, bkd) -> None:
         """Fitted expansion matches gradients at training points.
 
         Since gradients are part of the objective, the fitted expansion
         should match gradients closely.
         """
-        bkd = self._bkd
         nvars, max_level = 2, 3
 
         # Create known target expansion
-        target_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
@@ -319,36 +293,10 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
-        fit_expansion = self._create_expansion(nvars=nvars, max_level=max_level)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         result = fitter.fit(fit_expansion, samples, values, target_gradients)
 
         # Check gradient matching at training points
         fitted_gradients = result.surrogate().jacobian_batch(samples)[:, 0, :].T
 
         bkd.assert_allclose(fitted_gradients, target_gradients, rtol=1e-8)
-
-
-class TestGradientEnhancedPCEFitterNumpy(TestGradientEnhancedPCEFitter[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGradientEnhancedPCEFitterTorch(TestGradientEnhancedPCEFitter[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()

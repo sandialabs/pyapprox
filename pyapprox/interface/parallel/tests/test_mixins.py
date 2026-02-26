@@ -1,14 +1,10 @@
 """Tests for parallel mixins."""
 
-import unittest
-from typing import Any, Generic
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
+import pytest
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class JacobianMixinFunction(Generic[Array]):
@@ -123,124 +119,90 @@ class HVPMixinFunction(Generic[Array]):
         return splitter.combine_hvps(hvps)
 
 
-class TestParallelMixins(Generic[Array], unittest.TestCase):
-    """Tests for parallel mixins - NOT run directly."""
+class TestParallelMixins:
+    """Tests for parallel mixins."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_jacobian_mixin_sequential(self):
+    def test_jacobian_mixin_sequential(self, bkd):
         """Test jacobian mixin without parallel config (sequential)."""
-        func = JacobianMixinFunction(self._bkd)
+        func = JacobianMixinFunction(bkd)
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = func.jacobian_batch(samples)
 
-        self.assertEqual(jacobians.shape, (3, 1, 2))
+        assert jacobians.shape == (3, 1, 2)
 
         # Verify each jacobian
         for i in range(3):
             sample = samples[:, i : i + 1]
             expected = func.jacobian(sample)
-            self.assertTrue(self._bkd.allclose(jacobians[i], expected, rtol=1e-10))
+            assert bkd.allclose(jacobians[i], expected, rtol=1e-10)
 
-    def test_jacobian_mixin_parallel(self):
+    def test_jacobian_mixin_parallel(self, bkd):
         """Test jacobian mixin with parallel config."""
         from pyapprox.interface.parallel.config import ParallelConfig
 
-        func = JacobianMixinFunction(self._bkd)
+        func = JacobianMixinFunction(bkd)
         func.set_parallel_config(ParallelConfig(backend="joblib_processes", n_jobs=2))
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = func.jacobian_batch(samples)
 
-        self.assertEqual(jacobians.shape, (3, 1, 2))
+        assert jacobians.shape == (3, 1, 2)
 
         # Verify results match sequential
-        func_seq = JacobianMixinFunction(self._bkd)
+        func_seq = JacobianMixinFunction(bkd)
         seq_jacobians = func_seq.jacobian_batch(samples)
 
-        self.assertTrue(self._bkd.allclose(jacobians, seq_jacobians))
+        assert bkd.allclose(jacobians, seq_jacobians)
 
-    def test_hvp_mixin_sequential(self):
+    def test_hvp_mixin_sequential(self, bkd):
         """Test HVP mixin without parallel config."""
-        func = HVPMixinFunction(self._bkd)
+        func = HVPMixinFunction(bkd)
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        vecs = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
         hvps = func.hvp_batch(samples, vecs)
 
-        self.assertEqual(hvps.shape, (2, 2))
+        assert hvps.shape == (2, 2)
 
         # HVP is 2*v
-        expected = self._bkd.asarray([[2.0, 0.0], [0.0, 2.0]])
-        self.assertTrue(self._bkd.allclose(hvps, expected))
+        expected = bkd.asarray([[2.0, 0.0], [0.0, 2.0]])
+        assert bkd.allclose(hvps, expected)
 
-    def test_hvp_mixin_parallel(self):
+    def test_hvp_mixin_parallel(self, bkd):
         """Test HVP mixin with parallel config."""
         from pyapprox.interface.parallel.config import ParallelConfig
 
-        func = HVPMixinFunction(self._bkd)
+        func = HVPMixinFunction(bkd)
         func.set_parallel_config(ParallelConfig(backend="joblib_processes", n_jobs=2))
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        vecs = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
         hvps = func.hvp_batch(samples, vecs)
 
         # Verify results match sequential
-        func_seq = HVPMixinFunction(self._bkd)
+        func_seq = HVPMixinFunction(bkd)
         seq_hvps = func_seq.hvp_batch(samples, vecs)
 
-        self.assertTrue(self._bkd.allclose(hvps, seq_hvps))
+        assert bkd.allclose(hvps, seq_hvps)
 
-    def test_jacobian_mixin_with_mpire(self):
+    def test_jacobian_mixin_with_mpire(self, bkd):
         """Test jacobian mixin with mpire backend."""
         try:
             import mpire  # noqa: F401
         except ImportError:
-            self.skipTest("mpire not installed")
+            pytest.skip("mpire not installed")
 
         from pyapprox.interface.parallel.config import ParallelConfig
 
-        func = JacobianMixinFunction(self._bkd)
+        func = JacobianMixinFunction(bkd)
         func.set_parallel_config(ParallelConfig(backend="mpire", n_jobs=2))
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = func.jacobian_batch(samples)
 
         # Verify results match sequential
-        func_seq = JacobianMixinFunction(self._bkd)
+        func_seq = JacobianMixinFunction(bkd)
         seq_jacobians = func_seq.jacobian_batch(samples)
 
-        self.assertTrue(self._bkd.allclose(jacobians, seq_jacobians))
-
-
-class TestParallelMixinsNumpy(TestParallelMixins[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestParallelMixinsTorch(TestParallelMixins[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert bkd.allclose(jacobians, seq_jacobians)

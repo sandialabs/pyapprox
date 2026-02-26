@@ -1,11 +1,7 @@
 """Tests for VariationalFitter and VIFitResult."""
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.inverse.variational.elbo import make_single_problem_elbo
 from pyapprox.inverse.variational.fitter import (
@@ -34,13 +30,10 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
-def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
+def _make_degree0_expansion(bkd, coeff: float = 0.0):
     """Create a degree-0 BasisExpansion (constant function)."""
     marginals = [UniformMarginal(-1.0, 1.0, bkd)]
     bases_1d = create_bases_1d(marginals, bkd)
@@ -51,7 +44,7 @@ def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
     return exp
 
 
-def _make_simple_elbo(bkd: Backend):
+def _make_simple_elbo(bkd):
     """Create a minimal ELBO for testing (1D Gaussian, single problem)."""
     mean_func = _make_degree0_expansion(bkd)
     log_stdev_func = _make_degree0_expansion(bkd)
@@ -82,31 +75,22 @@ def _make_simple_elbo(bkd: Backend):
     return elbo, var_dist
 
 
-class TestVariationalFitterBase(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestVariationalFitterBase:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_fit_returns_vi_result(self) -> None:
+    def test_fit_returns_vi_result(self, bkd) -> None:
         """fit() returns VIFitResult with correct types and shapes."""
-        bkd = self._bkd
         elbo, _ = _make_simple_elbo(bkd)
         fitter = VariationalFitter(bkd)
         result = fitter.fit(elbo)
 
-        self.assertIsInstance(result, VIFitResult)
-        self.assertIsInstance(result.neg_elbo(), float)
-        self.assertEqual(result.initial_params().shape, (elbo.nvars(), 1))
-        self.assertEqual(result.optimized_params().shape, (elbo.nvars(), 1))
-        self.assertIsNotNone(result.optimization_result())
+        assert isinstance(result, VIFitResult)
+        assert isinstance(result.neg_elbo(), float)
+        assert result.initial_params().shape == (elbo.nvars(), 1)
+        assert result.optimized_params().shape == (elbo.nvars(), 1)
+        assert result.optimization_result() is not None
 
-    def test_fit_default_init_guess_zeros(self) -> None:
+    def test_fit_default_init_guess_zeros(self, bkd) -> None:
         """When init_guess=None, zeros are used."""
-        bkd = self._bkd
         elbo, _ = _make_simple_elbo(bkd)
         fitter = VariationalFitter(bkd)
         result = fitter.fit(elbo)
@@ -114,9 +98,9 @@ class TestVariationalFitterBase(Generic[Array], unittest.TestCase):
         expected = bkd.zeros((elbo.nvars(), 1))
         bkd.assert_allclose(result.initial_params(), expected, rtol=1e-12)
 
-    def test_fit_custom_init_guess(self) -> None:
+    @pytest.mark.slow_on("TorchBkd")
+    def test_fit_custom_init_guess(self, bkd) -> None:
         """Explicit init_guess is recorded in result."""
-        bkd = self._bkd
         elbo, _ = _make_simple_elbo(bkd)
         fitter = VariationalFitter(bkd)
         init = bkd.full((elbo.nvars(), 1), 0.1)
@@ -124,30 +108,27 @@ class TestVariationalFitterBase(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(result.initial_params(), init, rtol=1e-12)
 
-    def test_fit_custom_optimizer(self) -> None:
+    def test_fit_custom_optimizer(self, bkd) -> None:
         """Pass a custom optimizer, verify fit() works."""
-        bkd = self._bkd
         elbo, _ = _make_simple_elbo(bkd)
         opt = ScipyTrustConstrOptimizer(maxiter=100, gtol=1e-6)
         fitter = VariationalFitter(bkd, optimizer=opt)
         result = fitter.fit(elbo)
 
-        self.assertIsInstance(result, VIFitResult)
+        assert isinstance(result, VIFitResult)
 
-    def test_bounds_method_on_elbo(self) -> None:
+    def test_bounds_method_on_elbo(self, bkd) -> None:
         """elbo.bounds() returns correct shape matching hyp_list bounds."""
-        bkd = self._bkd
         elbo, var_dist = _make_simple_elbo(bkd)
         bounds = elbo.bounds()
         expected = var_dist.hyp_list().get_active_bounds()
 
-        self.assertEqual(bounds.shape, (elbo.nvars(), 2))
+        assert bounds.shape == (elbo.nvars(), 2)
         bkd.assert_allclose(bounds, expected, rtol=1e-12)
 
     @slow_test
-    def test_fit_pushes_params(self) -> None:
+    def test_fit_pushes_params(self, bkd) -> None:
         """After fit, var_dist params match result.optimized_params()."""
-        bkd = self._bkd
         elbo, var_dist = _make_simple_elbo(bkd)
         fitter = VariationalFitter(bkd)
         result = fitter.fit(elbo)
@@ -157,9 +138,8 @@ class TestVariationalFitterBase(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(active_vals, optimized, rtol=1e-12)
 
     @slow_test
-    def test_fit_respects_bounds(self) -> None:
+    def test_fit_respects_bounds(self, bkd) -> None:
         """Optimized params stay within hyp_list bounds."""
-        bkd = self._bkd
         elbo, var_dist = _make_simple_elbo(bkd)
 
         # Set tight bounds on the first hyperparameter
@@ -178,38 +158,15 @@ class TestVariationalFitterBase(Generic[Array], unittest.TestCase):
             val = float(optimized[i])
             lo = float(bounds[i, 0])
             hi = float(bounds[i, 1])
-            self.assertGreaterEqual(val, lo - 1e-10)
-            self.assertLessEqual(val, hi + 1e-10)
+            assert val >= lo - 1e-10
+            assert val <= hi + 1e-10
 
-    def test_repr(self) -> None:
+    def test_repr(self, bkd) -> None:
         """VIFitResult.__repr__ produces a string."""
-        bkd = self._bkd
         elbo, _ = _make_simple_elbo(bkd)
         fitter = VariationalFitter(bkd)
         result = fitter.fit(elbo)
 
         r = repr(result)
-        self.assertIn("VIFitResult", r)
-        self.assertIn("neg_elbo=", r)
-
-
-class TestVariationalFitterNumpy(
-    TestVariationalFitterBase[NDArray[Any]], unittest.TestCase
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestVariationalFitterTorch(
-    TestVariationalFitterBase[torch.Tensor], unittest.TestCase
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    @slow_test
-    def test_fit_custom_init_guess(self) -> None:
-        super().test_fit_custom_init_guess()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+        assert "VIFitResult" in r
+        assert "neg_elbo=" in r

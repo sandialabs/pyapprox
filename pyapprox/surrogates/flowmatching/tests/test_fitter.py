@@ -1,11 +1,6 @@
 """Tests for LeastSquaresFitter and OptimizerFitter."""
 
 import copy
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -28,9 +23,6 @@ from pyapprox.surrogates.flowmatching.linear_path import LinearPath
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_vf(bkd, d, degree, m=0):
@@ -60,18 +52,9 @@ def _make_linear_quad_data(bkd, d, ns, m=0):
     return FlowMatchingQuadData(t, x0, x1, weights, bkd, c)
 
 
-class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_linear_vf_recovery(self) -> None:
+class TestLeastSquaresFitter:
+    def test_linear_vf_recovery(self, bkd) -> None:
         """For linear transport x1=x0+1, degree-1 VF should recover exactly."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -81,12 +64,11 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
         fitter = LeastSquaresFitter(bkd)
         result = fitter.fit(vf, path, loss, qd)
 
-        self.assertIsInstance(result, FlowMatchingFitResult)
-        self.assertLess(result.training_loss(), 1e-10)
+        assert isinstance(result, FlowMatchingFitResult)
+        assert result.training_loss() < 1e-10
 
-    def test_deep_clone_isolation(self) -> None:
+    def test_deep_clone_isolation(self, bkd) -> None:
         """Original VF should not be modified by fitting."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -106,11 +88,10 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
         fitted_vf = result.surrogate()
         fitted_coef = fitted_vf.get_coefficients()  # type: ignore[union-attr]
         norm = float(bkd.to_numpy(bkd.sum(fitted_coef * fitted_coef)))
-        self.assertGreater(norm, 1e-6)
+        assert norm > 1e-6
 
-    def test_surrogate_callable(self) -> None:
+    def test_surrogate_callable(self, bkd) -> None:
         """Result surrogate should be callable."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -123,12 +104,11 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
         # Should be callable
         test_input = bkd.array([[0.5], [0.0]])  # (2, 1) for (t, x)
         output = result(test_input)
-        self.assertEqual(output.shape[0], d)
-        self.assertEqual(output.shape[1], 1)
+        assert output.shape[0] == d
+        assert output.shape[1] == 1
 
-    def test_multidim(self) -> None:
+    def test_multidim(self, bkd) -> None:
         """Test with d=2."""
-        bkd = self._bkd
         d, ns = 2, 30
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -137,11 +117,10 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
 
         fitter = LeastSquaresFitter(bkd)
         result = fitter.fit(vf, path, loss, qd)
-        self.assertLess(result.training_loss(), 1e-10)
+        assert result.training_loss() < 1e-10
 
-    def test_with_conditioning(self) -> None:
+    def test_with_conditioning(self, bkd) -> None:
         """Test fitting with conditioning variables."""
-        bkd = self._bkd
         d, ns, m = 1, 20, 1
         vf = _make_vf(bkd, d, degree=1, m=m)
         path = LinearPath(bkd)
@@ -150,24 +129,15 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
 
         fitter = LeastSquaresFitter(bkd)
         result = fitter.fit(vf, path, loss, qd)
-        self.assertIsInstance(result, FlowMatchingFitResult)
+        assert isinstance(result, FlowMatchingFitResult)
         # Loss should be small (target field doesn't depend on c,
         # but the VF has enough capacity)
-        self.assertLess(result.training_loss(), 1e-8)
+        assert result.training_loss() < 1e-8
 
 
-class TestOptimizerFitter(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_linear_vf_recovery(self) -> None:
+class TestOptimizerFitter:
+    def test_linear_vf_recovery(self, bkd) -> None:
         """Optimizer should converge to near-zero loss for linear transport."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -177,12 +147,11 @@ class TestOptimizerFitter(Generic[Array], unittest.TestCase):
         fitter = OptimizerFitter(bkd)
         result = fitter.fit(vf, path, loss, qd)
 
-        self.assertIsInstance(result, FlowMatchingFitResult)
-        self.assertLess(result.training_loss(), 1e-6)
+        assert isinstance(result, FlowMatchingFitResult)
+        assert result.training_loss() < 1e-6
 
-    def test_deep_clone_isolation(self) -> None:
+    def test_deep_clone_isolation(self, bkd) -> None:
         """Original VF should not be modified."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -196,9 +165,8 @@ class TestOptimizerFitter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
 
-    def test_lstsq_optimizer_agreement(self) -> None:
+    def test_lstsq_optimizer_agreement(self, bkd) -> None:
         """Both fitters should produce similar loss for linear transport."""
-        bkd = self._bkd
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
@@ -209,30 +177,5 @@ class TestOptimizerFitter(Generic[Array], unittest.TestCase):
         opt_result = OptimizerFitter(bkd).fit(vf, path, loss, qd)
 
         # Both should achieve very low loss
-        self.assertLess(lstsq_result.training_loss(), 1e-10)
-        self.assertLess(opt_result.training_loss(), 1e-6)
-
-
-class TestLeastSquaresFitterNumpy(TestLeastSquaresFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLeastSquaresFitterTorch(TestLeastSquaresFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestOptimizerFitterNumpy(TestOptimizerFitter[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOptimizerFitterTorch(TestOptimizerFitter[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+        assert lstsq_result.training_loss() < 1e-10
+        assert opt_result.training_loss() < 1e-6

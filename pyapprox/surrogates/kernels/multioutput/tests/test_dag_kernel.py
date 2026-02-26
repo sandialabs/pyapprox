@@ -2,15 +2,10 @@
 Tests for DAGMultiOutputKernel.
 """
 
-import unittest
-from typing import Any, Generic
-
 import networkx as nx
 import numpy as np
-from numpy.typing import NDArray
 
 from pyapprox.surrogates.kernels import (
-    Matern32Kernel,
     Matern52Kernel,
     SquaredExponentialKernel,
 )
@@ -19,11 +14,12 @@ from pyapprox.surrogates.kernels.multioutput import (
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
     """Create a Matern kernel with the specified nu value."""
+    from pyapprox.surrogates.kernels import Matern32Kernel
+
     if nu == 1.5:
         return Matern32Kernel(lenscale, lenscale_bounds, nvars, bkd)
     elif nu == 2.5:
@@ -34,16 +30,11 @@ def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
         raise ValueError(f"Unsupported nu value: {nu}")
 
 
-class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
+class TestDAGMultiOutputKernel:
     """Base test class for DAGMultiOutputKernel."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
+        self._bkd = bkd
         self._nvars = 1
 
     def _create_constant_scaling(self, value: float) -> PolynomialScaling:
@@ -54,8 +45,9 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         """Helper to create linear scaling using PolynomialScaling with degree 1."""
         return PolynomialScaling([c0, c1], (0.1, 2.0), self._bkd)
 
-    def test_sequential_structure(self):
+    def test_sequential_structure(self, bkd):
         """Test sequential structure: 0 -> 1 -> 2."""
+        self._setup_data(bkd)
         # Create sequential DAG using networkx
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1, 2])
@@ -85,21 +77,22 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         K = dag_kernel(X_list)
 
         # Verify shape
-        self.assertEqual(K.shape, (6, 6))
+        assert K.shape == (6, 6)
 
         # Verify symmetry
         np.testing.assert_allclose(K, K.T, rtol=1e-10)
 
         # Verify positive definiteness (all eigenvalues positive)
         eigvals = np.linalg.eigvalsh(K)
-        self.assertTrue(np.all(eigvals > -1e-10))
+        assert np.all(eigvals > -1e-10)
 
-    def test_tree_structure_three_nodes(self):
+    def test_tree_structure_three_nodes(self, bkd):
         """Test tree structure with three nodes: 0 -> 1, 0 -> 2.
 
         This represents a structure where outputs 1 and 2 independently
         depend on output 0, with no direct connection between 1 and 2.
         """
+        self._setup_data(bkd)
         # Create tree DAG: root 0 with two independent children
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1, 2])
@@ -127,43 +120,44 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         # Compute kernel matrix
         K = dag_kernel(X_list)
 
-        # Verify shape: 3 outputs × 2 points each = 6×6
-        self.assertEqual(K.shape, (6, 6))
+        # Verify shape: 3 outputs x 2 points each = 6x6
+        assert K.shape == (6, 6)
 
         # Verify block structure
         # K_00: just k0
         K_00 = k0(X, X)
         np.testing.assert_allclose(K[:2, :2], K_00, rtol=1e-10)
 
-        # K_11: ρ_01² k0 + k1
+        # K_11: rho_01^2 k0 + k1
         K_11_expected = 0.9**2 * k0(X, X) + k1(X, X)
         np.testing.assert_allclose(K[2:4, 2:4], K_11_expected, rtol=1e-10)
 
-        # K_22: ρ_02² k0 + k2
+        # K_22: rho_02^2 k0 + k2
         K_22_expected = 0.85**2 * k0(X, X) + k2(X, X)
         np.testing.assert_allclose(K[4:6, 4:6], K_22_expected, rtol=1e-10)
 
-        # K_10: ρ_01 k0
+        # K_10: rho_01 k0
         K_10_expected = 0.9 * k0(X, X)
         np.testing.assert_allclose(K[2:4, :2], K_10_expected, rtol=1e-10)
 
-        # K_20: ρ_02 k0
+        # K_20: rho_02 k0
         K_20_expected = 0.85 * k0(X, X)
         np.testing.assert_allclose(K[4:6, :2], K_20_expected, rtol=1e-10)
 
-        # K_21: outputs 1 and 2 share only root 0, so K_21 = ρ_01 * ρ_02 * k0
+        # K_21: outputs 1 and 2 share only root 0, so K_21 = rho_01 * rho_02 * k0
         K_21_expected = 0.9 * 0.85 * k0(X, X)
         np.testing.assert_allclose(K[4:6, 2:4], K_21_expected, rtol=1e-10)
 
         # Verify symmetry
         np.testing.assert_allclose(K, K.T, rtol=1e-10)
 
-    def test_diamond_structure(self):
+    def test_diamond_structure(self, bkd):
         """Test diamond structure: 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3.
 
         Node 3 has multiple paths from node 0, so it benefits from
         information through both intermediate nodes.
         """
+        self._setup_data(bkd)
         # Create diamond DAG
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1, 2, 3])
@@ -196,11 +190,11 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         K = dag_kernel(X_list)
 
         # Verify shape
-        self.assertEqual(K.shape, (4, 4))
+        assert K.shape == (4, 4)
 
         # For node 3, there are two paths from node 0:
-        # Path 1: 0 -> 1 -> 3 with scaling ρ_01 * ρ_13 = 0.9 * 0.8 = 0.72
-        # Path 2: 0 -> 2 -> 3 with scaling ρ_02 * ρ_23 = 0.85 * 0.75 = 0.6375
+        # Path 1: 0 -> 1 -> 3 with scaling rho_01 * rho_13 = 0.9 * 0.8 = 0.72
+        # Path 2: 0 -> 2 -> 3 with scaling rho_02 * rho_23 = 0.85 * 0.75 = 0.6375
         #
         # K_33 includes all path-pair contributions:
         # For ancestor 0: all pairs of paths [0,1,3] and [0,2,3]
@@ -217,8 +211,8 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         rho_02_23 = 0.85 * 0.75  # = 0.6375
 
         # K_33 = sum over ancestors k, sum over all path pairs from k to 3:
-        # Ancestor 0: (w1 + w2)² where w1=0.72, w2=0.6375
-        # = w1²*k0 + 2*w1*w2*k0 + w2²*k0 = (w1+w2)² * k0
+        # Ancestor 0: (w1 + w2)^2 where w1=0.72, w2=0.6375
+        # = w1^2*k0 + 2*w1*w2*k0 + w2^2*k0 = (w1+w2)^2 * k0
         ancestor_0_contrib = (rho_01_13 + rho_02_23)**2 * k0_val
 
         # Ancestor 1: path [1,3] with scaling 0.8
@@ -239,8 +233,9 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         np.testing.assert_allclose(K[3, 3], K_33_expected, rtol=1e-10)
 
-    def test_spatially_varying_scaling(self):
+    def test_spatially_varying_scaling(self, bkd):
         """Test DAG kernel with spatially varying linear scaling."""
+        self._setup_data(bkd)
         # Simple 0 -> 1 structure
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1])
@@ -250,7 +245,7 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
         k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
 
-        # Linear scaling: ρ(x) = 0.9 + 0.1*x
+        # Linear scaling: rho(x) = 0.9 + 0.1*x
         edge_scalings = {
             (0, 1): self._create_linear_scaling(0.9, 0.1),
         }
@@ -265,11 +260,11 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         K = dag_kernel([X0, X1])
 
         # Verify K_10 block has spatially varying scaling
-        # At x=-1: ρ(-1) = 0.9 - 0.1 = 0.8
-        # At x=0: ρ(0) = 0.9
-        # At x=1: ρ(1) = 0.9 + 0.1 = 1.0
+        # At x=-1: rho(-1) = 0.9 - 0.1 = 0.8
+        # At x=0: rho(0) = 0.9
+        # At x=1: rho(1) = 0.9 + 0.1 = 1.0
 
-        # K_10[i,j] = ρ(X1[i]) * k0(X1[i], X0[j])
+        # K_10[i,j] = rho(X1[i]) * k0(X1[i], X0[j])
         # Note: only the scaling on the higher-fidelity side (output 1) applies
         rho_X1 = edge_scalings[(0, 1)].eval_scaling(X1)  # [[0.8], [1.0]]
 
@@ -277,8 +272,9 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         np.testing.assert_allclose(K[3:5, :3], K_10_expected, rtol=1e-10)
 
-    def test_block_format(self):
+    def test_block_format(self, bkd):
         """Test block_format output option."""
+        self._setup_data(bkd)
         # Simple 0 -> 1 structure
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1])
@@ -303,18 +299,19 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         blocks = dag_kernel([X0, X1], block_format=True)
 
         # Verify structure
-        self.assertEqual(len(blocks), 2)
-        self.assertEqual(len(blocks[0]), 2)
-        self.assertEqual(len(blocks[1]), 2)
+        assert len(blocks) == 2
+        assert len(blocks[0]) == 2
+        assert len(blocks[1]) == 2
 
         # Verify block shapes
-        self.assertEqual(blocks[0][0].shape, (2, 2))  # K_00
-        self.assertEqual(blocks[0][1].shape, (2, 1))  # K_01
-        self.assertEqual(blocks[1][0].shape, (1, 2))  # K_10
-        self.assertEqual(blocks[1][1].shape, (1, 1))  # K_11
+        assert blocks[0][0].shape == (2, 2)  # K_00
+        assert blocks[0][1].shape == (2, 1)  # K_01
+        assert blocks[1][0].shape == (1, 2)  # K_10
+        assert blocks[1][1].shape == (1, 1)  # K_11
 
-    def test_default_constant_scaling(self):
+    def test_default_constant_scaling(self, bkd):
         """Test that edges without explicit scaling default to constant 1.0."""
+        self._setup_data(bkd)
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1])
         dag.add_edge(0, 1)
@@ -330,11 +327,11 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         X = self._bkd.array([[0.0]])
         K = dag_kernel([X, X])
 
-        # With ρ = 1.0, K_11 = k0 + k1
+        # With rho = 1.0, K_11 = k0 + k1
         K_11_expected = kernels[0](X, X) + kernels[1](X, X)
         np.testing.assert_allclose(K[1:, 1:], K_11_expected, rtol=1e-10)
 
-    def test_precision_matrix_3model_fork(self) -> None:
+    def test_precision_matrix_3model_fork(self, bkd) -> None:
         """
         Test precision matrix for 3-model fork DAG: 0 -> 1, 0 -> 2.
 
@@ -343,6 +340,7 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         have zeros in the blocks corresponding to this conditional independence:
         K_inv[1, 2] = 0 and K_inv[2, 1] = 0.
         """
+        self._setup_data(bkd)
         # Create fork DAG: 0 -> 1, 0 -> 2
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1, 2])
@@ -399,14 +397,3 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
                 "(conditional independence)"
             ),
         )
-
-
-class TestDAGMultiOutputKernelNumpy(TestDAGMultiOutputKernel[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-
-
-if __name__ == "__main__":
-    unittest.main()

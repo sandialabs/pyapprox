@@ -1,14 +1,8 @@
 """Tests for parallel function factory."""
 
-import unittest
-from typing import Any, Generic
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
-
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class MockFunction(Generic[Array]):
@@ -85,119 +79,111 @@ class MockMultiOutputFunction(Generic[Array]):
         return result
 
 
-class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
-    """Tests for ParallelFunctionWrapper - NOT run directly."""
+class TestParallelFunctionWrapper:
+    """Tests for ParallelFunctionWrapper."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_basic_call(self):
+    def test_basic_call(self, bkd):
         """Test that wrapped function still evaluates correctly."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         result = parallel_func(samples)
 
         expected = func(samples)
-        self.assertTrue(self._bkd.allclose(result, expected))
+        assert bkd.allclose(result, expected)
 
-    def test_jacobian_batch(self):
+    def test_jacobian_batch(self, bkd):
         """Test parallel jacobian batch computation."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = parallel_func.jacobian_batch(samples)
 
         # Shape should be (nsamples, nqoi, nvars)
-        self.assertEqual(jacobians.shape, (3, 1, 2))
+        assert jacobians.shape == (3, 1, 2)
 
         # Verify each jacobian
         for i in range(3):
             sample = samples[:, i : i + 1]
             expected = func.jacobian(sample)
-            self.assertTrue(self._bkd.allclose(jacobians[i], expected, rtol=1e-10))
+            assert bkd.allclose(jacobians[i], expected, rtol=1e-10)
 
-    def test_hessian_batch(self):
+    def test_hessian_batch(self, bkd):
         """Test parallel hessian batch computation."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         hessians = parallel_func.hessian_batch(samples)
 
         # Shape should be (nsamples, nvars, nvars)
-        self.assertEqual(hessians.shape, (2, 2, 2))
+        assert hessians.shape == (2, 2, 2)
 
         # Each hessian should be 2*I
-        expected = 2 * self._bkd.eye(2)
+        expected = 2 * bkd.eye(2)
         for i in range(2):
-            self.assertTrue(self._bkd.allclose(hessians[i], expected))
+            assert bkd.allclose(hessians[i], expected)
 
-    def test_hvp_batch(self):
+    def test_hvp_batch(self, bkd):
         """Test parallel HVP batch computation."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        vecs = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
         hvps = parallel_func.hvp_batch(samples, vecs)
 
         # Shape should be (nsamples, nvars)
-        self.assertEqual(hvps.shape, (2, 2))
+        assert hvps.shape == (2, 2)
 
         # HVP is 2*v
-        expected = self._bkd.asarray([[2.0, 0.0], [0.0, 2.0]])
-        self.assertTrue(self._bkd.allclose(hvps, expected))
+        expected = bkd.asarray([[2.0, 0.0], [0.0, 2.0]])
+        assert bkd.allclose(hvps, expected)
 
-    def test_whvp_batch(self):
+    def test_whvp_batch(self, bkd):
         """Test parallel weighted HVP batch computation."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        vecs = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
-        weights = self._bkd.asarray([[0.5]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        weights = bkd.asarray([[0.5]])
 
         whvps = parallel_func.whvp_batch(samples, vecs, weights)
 
         # Shape should be (nsamples, nvars)
-        self.assertEqual(whvps.shape, (2, 2))
+        assert whvps.shape == (2, 2)
 
         # WHVP is weights * 2 * v = 0.5 * 2 * v = v
-        expected = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
-        self.assertTrue(self._bkd.allclose(whvps, expected))
+        expected = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        assert bkd.allclose(whvps, expected)
 
-    def test_multi_output_jacobian_batch(self):
+    def test_multi_output_jacobian_batch(self, bkd):
         """Test jacobian batch for multi-output function."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockMultiOutputFunction(self._bkd)
+        func = MockMultiOutputFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
+        samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         jacobians = parallel_func.jacobian_batch(samples)
 
         # Shape should be (nsamples, nqoi, nvars)
-        self.assertEqual(jacobians.shape, (2, 2, 2))
+        assert jacobians.shape == (2, 2, 2)
 
-    def test_hasattr_detection(self):
+    def test_hasattr_detection(self, bkd):
         """Test that only available methods are wrapped."""
         from pyapprox.interface.parallel.factory import make_parallel
 
@@ -221,71 +207,71 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
             def jacobian(self, sample):
                 return 2 * sample.T
 
-        func = FuncWithoutHVP(self._bkd)
+        func = FuncWithoutHVP(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        self.assertTrue(hasattr(parallel_func, "jacobian_batch"))
-        self.assertFalse(hasattr(parallel_func, "hvp_batch"))
-        self.assertFalse(hasattr(parallel_func, "whvp_batch"))
+        assert hasattr(parallel_func, "jacobian_batch")
+        assert not hasattr(parallel_func, "hvp_batch")
+        assert not hasattr(parallel_func, "whvp_batch")
 
-    def test_backend_info(self):
+    def test_backend_info(self, bkd):
         """Test backend information methods."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
 
         seq_func = make_parallel(func, backend="sequential")
-        self.assertEqual(seq_func.parallel_backend(), "sequential")
+        assert seq_func.parallel_backend() == "sequential"
 
         joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
-        self.assertIn("joblib", joblib_func.parallel_backend())
-        self.assertEqual(joblib_func.n_workers(), 4)
+        assert "joblib" in joblib_func.parallel_backend()
+        assert joblib_func.n_workers() == 4
 
-    def test_parallel_execution_joblib(self):
+    def test_parallel_execution_joblib(self, bkd):
         """Test actual parallel execution with joblib."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
         jacobians = parallel_func.jacobian_batch(samples)
 
         # Verify results match sequential
         seq_func = make_parallel(func, backend="sequential")
         seq_jacobians = seq_func.jacobian_batch(samples)
 
-        self.assertTrue(self._bkd.allclose(jacobians, seq_jacobians))
+        assert bkd.allclose(jacobians, seq_jacobians)
 
-    def test_parallel_execution_mpire(self):
+    def test_parallel_execution_mpire(self, bkd):
         """Test actual parallel execution with mpire."""
         try:
             import mpire  # noqa: F401
         except ImportError:
-            self.skipTest("mpire not installed")
+            pytest.skip("mpire not installed")
 
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="mpire", n_jobs=2)
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
         jacobians = parallel_func.jacobian_batch(samples)
 
         # Verify results match sequential
         seq_func = make_parallel(func, backend="sequential")
         seq_jacobians = seq_func.jacobian_batch(samples)
 
-        self.assertTrue(self._bkd.allclose(jacobians, seq_jacobians))
+        assert bkd.allclose(jacobians, seq_jacobians)
 
-    def test_parallel_call_matches_sequential(self):
+    def test_parallel_call_matches_sequential(self, bkd):
         """Test that parallel __call__ matches sequential __call__."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray(
+        samples = bkd.asarray(
             [
                 [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
                 [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
@@ -295,72 +281,46 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         par_result = parallel_func(samples)
         seq_result = func(samples)
 
-        self.assertEqual(par_result.shape, seq_result.shape)
-        self._bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
+        assert par_result.shape == seq_result.shape
+        bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
 
-    def test_parallel_call_single_sample(self):
+    def test_parallel_call_single_sample(self, bkd):
         """Test that single-sample call skips parallelism."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
 
-        sample = self._bkd.asarray([[1.0], [2.0]])
+        sample = bkd.asarray([[1.0], [2.0]])
         result = parallel_func(sample)
         expected = func(sample)
 
-        self._bkd.assert_allclose(result, expected)
+        bkd.assert_allclose(result, expected)
 
-    def test_parallel_call_sequential_backend(self):
+    def test_parallel_call_sequential_backend(self, bkd):
         """Test __call__ with sequential backend delegates directly."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockFunction(self._bkd)
+        func = MockFunction(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         result = parallel_func(samples)
         expected = func(samples)
 
-        self._bkd.assert_allclose(result, expected)
+        bkd.assert_allclose(result, expected)
 
-    def test_parallel_call_multi_output(self):
+    def test_parallel_call_multi_output(self, bkd):
         """Test parallel __call__ with multi-output function."""
         from pyapprox.interface.parallel.factory import make_parallel
 
-        func = MockMultiOutputFunction(self._bkd)
+        func = MockMultiOutputFunction(bkd)
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
+        samples = bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
 
         par_result = parallel_func(samples)
         seq_result = func(samples)
 
-        self.assertEqual(par_result.shape, (2, 4))
-        self._bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
-
-
-class TestParallelFunctionWrapperNumpy(TestParallelFunctionWrapper[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestParallelFunctionWrapperTorch(TestParallelFunctionWrapper[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert par_result.shape == (2, 4)
+        bkd.assert_allclose(par_result, seq_result, rtol=1e-12)

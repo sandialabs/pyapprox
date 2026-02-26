@@ -15,12 +15,9 @@ Tests verify:
 """
 
 import math
-import unittest
-from typing import Any, Generic, List
+from typing import Any, List
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
@@ -46,27 +43,18 @@ from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
-)
+from pyapprox.util.backends.protocols import Backend
 
 _NUGGET = 1e-10
 
 
-def _create_kernel(
-    bkd: Backend[Array],
-) -> SeparableProductKernel[Array]:
+def _create_kernel(bkd):
     k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
     k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
     return SeparableProductKernel([k1, k2], bkd)
 
 
-def _make_training_data(
-    bkd: Backend[Array], nvars: int = 2, n_train: int = 8
-) -> tuple[Any, Any]:
+def _make_training_data(bkd, nvars: int = 2, n_train: int = 8):
     np.random.seed(42)
     X_train = bkd.array(np.random.rand(nvars, n_train) * 2 - 1)
     y_train = bkd.reshape(
@@ -76,9 +64,7 @@ def _make_training_data(
     return X_train, y_train
 
 
-def _make_training_data_different_scales(
-    bkd: Backend[Array],
-) -> tuple[Any, Any]:
+def _make_training_data_different_scales(bkd):
     """Training data with very different input scales."""
     np.random.seed(42)
     # x1 in [0, 1000], x2 in [0, 0.01]
@@ -98,20 +84,11 @@ def _make_training_data_different_scales(
 # ===================================================================
 
 
-class TestInputTransformUnit(Generic[Array], unittest.TestCase):
+class TestInputTransformUnit:
     """Unit tests for input transform classes."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_identity_is_noop(self) -> None:
+    def test_identity_is_noop(self, bkd) -> None:
         """IdentityInputTransform does not change values."""
-        bkd = self._bkd
         identity = IdentityInputTransform(3, bkd)
 
         z = bkd.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
@@ -119,11 +96,10 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(identity.inverse_transform(z), z)
         bkd.assert_allclose(identity.jacobian_factor(), bkd.ones(3))
         bkd.assert_allclose(identity.hessian_factor(), bkd.ones((3, 3)))
-        self.assertEqual(identity.nvars(), 3)
+        assert identity.nvars() == 3
 
-    def test_standard_scaler_from_data(self) -> None:
+    def test_standard_scaler_from_data(self, bkd) -> None:
         """from_data computes correct mean and std."""
-        bkd = self._bkd
         z = bkd.array([[1.0, 3.0, 5.0, 7.0], [10.0, 20.0, 30.0, 40.0]])
         scaler = InputStandardScaler.from_data(z, bkd)
 
@@ -133,9 +109,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(scaler.shift(), expected_mean)
         bkd.assert_allclose(scaler.scale(), expected_std)
 
-    def test_standard_scaler_zero_variance(self) -> None:
+    def test_standard_scaler_zero_variance(self, bkd) -> None:
         """Constant dimension gets std=1.0."""
-        bkd = self._bkd
         z = bkd.array([[5.0, 5.0, 5.0], [1.0, 2.0, 3.0]])
         scaler = InputStandardScaler.from_data(z, bkd)
 
@@ -143,9 +118,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
             scaler.scale(), bkd.array([1.0, bkd.std(z[1:2, :], axis=1)[0]])
         )
 
-    def test_standard_scaler_roundtrip(self) -> None:
+    def test_standard_scaler_roundtrip(self, bkd) -> None:
         """transform then inverse_transform gives back original."""
-        bkd = self._bkd
         np.random.seed(42)
         z = bkd.array(
             np.random.randn(3, 20) * np.array([[1], [100], [0.01]])
@@ -157,9 +131,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         z_recovered = scaler.inverse_transform(z_scaled)
         bkd.assert_allclose(z_recovered, z, rtol=1e-12)
 
-    def test_standard_scaler_produces_unit_stats(self) -> None:
-        """Scaled data has mean≈0, std≈1."""
-        bkd = self._bkd
+    def test_standard_scaler_produces_unit_stats(self, bkd) -> None:
+        """Scaled data has mean~0, std~1."""
         np.random.seed(42)
         z = bkd.array(
             np.random.randn(2, 100) * np.array([[10], [0.1]]) + np.array([[50], [-3]])
@@ -170,9 +143,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(bkd.mean(z_scaled, axis=1), bkd.zeros(2), atol=1e-10)
         bkd.assert_allclose(bkd.std(z_scaled, axis=1), bkd.ones(2), atol=1e-10)
 
-    def test_bounds_scaler_maps_corners(self) -> None:
+    def test_bounds_scaler_maps_corners(self, bkd) -> None:
         """BoundsScaler maps [lb,ub] to [0,1]."""
-        bkd = self._bkd
         lb = bkd.array([0.0, -10.0])
         ub = bkd.array([100.0, 10.0])
         scaler = InputBoundsScaler(lb, ub, bkd, target_range=(0.0, 1.0))
@@ -182,9 +154,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(scaler.transform(lb_2d), bkd.zeros((2, 1)), atol=1e-12)
         bkd.assert_allclose(scaler.transform(ub_2d), bkd.ones((2, 1)), atol=1e-12)
 
-    def test_bounds_scaler_roundtrip(self) -> None:
+    def test_bounds_scaler_roundtrip(self, bkd) -> None:
         """transform then inverse_transform gives back original."""
-        bkd = self._bkd
         lb = bkd.array([-5.0, 0.0])
         ub = bkd.array([5.0, 100.0])
         scaler = InputBoundsScaler(lb, ub, bkd, target_range=(-1.0, 1.0))
@@ -194,18 +165,16 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         z_recovered = scaler.inverse_transform(scaler.transform(z))
         bkd.assert_allclose(z_recovered, z, rtol=1e-12)
 
-    def test_jacobian_factor(self) -> None:
+    def test_jacobian_factor(self, bkd) -> None:
         """jacobian_factor returns 1/scale."""
-        bkd = self._bkd
         mean = bkd.array([0.0, 0.0])
         std = bkd.array([2.0, 5.0])
         scaler = InputStandardScaler(mean, std, bkd)
 
         bkd.assert_allclose(scaler.jacobian_factor(), bkd.array([0.5, 0.2]))
 
-    def test_hessian_factor(self) -> None:
+    def test_hessian_factor(self, bkd) -> None:
         """hessian_factor returns outer product of 1/scale."""
-        bkd = self._bkd
         mean = bkd.array([0.0, 0.0])
         std = bkd.array([2.0, 5.0])
         scaler = InputStandardScaler(mean, std, bkd)
@@ -215,36 +184,16 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(scaler.hessian_factor(), expected)
 
 
-class TestInputTransformUnitNumpy(TestInputTransformUnit[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestInputTransformUnitTorch(TestInputTransformUnit[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
 # ===================================================================
 # GP integration tests
 # ===================================================================
 
 
-class TestGPInputTransform(Generic[Array], unittest.TestCase):
+class TestGPInputTransform:
     """Test GP predictions with input transform."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_gp_predict_matches_manual_scaling(self) -> None:
+    def test_gp_predict_matches_manual_scaling(self, bkd) -> None:
         """GP with input_transform matches manually scaling inputs."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -271,9 +220,8 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         pred_r = gp_r.predict(X_test_scaled)
         bkd.assert_allclose(pred_t, pred_r, rtol=1e-10)
 
-    def test_gp_predict_std_matches_manual(self) -> None:
+    def test_gp_predict_std_matches_manual(self, bkd) -> None:
         """GP predict_std with input_transform matches manual."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -297,9 +245,8 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         std_r = gp_r.predict_std(X_test_scaled)
         bkd.assert_allclose(std_t, std_r, rtol=1e-10)
 
-    def test_gp_predict_covariance_matches_manual(self) -> None:
+    def test_gp_predict_covariance_matches_manual(self, bkd) -> None:
         """GP predict_covariance with input_transform matches manual."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -323,9 +270,8 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         cov_r = gp_r.predict_covariance(X_test_scaled)
         bkd.assert_allclose(cov_t, cov_r, rtol=1e-10)
 
-    def test_gp_jacobian_matches_manual(self) -> None:
+    def test_gp_jacobian_matches_manual(self, bkd) -> None:
         """GP jacobian with input_transform applies chain rule correctly."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -348,15 +294,14 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         jac_t = gp_t.jacobian(sample)
         jac_r = gp_r.jacobian(sample_scaled)
 
-        # Chain rule: ∂f/∂z = (1/σ_z) * ∂f/∂z̃
+        # Chain rule: df/dz = (1/sigma_z) * df/dz_tilde
         jac_factor = scaler.jacobian_factor()  # (nvars,)
         jac_manual = jac_r * jac_factor[None, :]
 
         bkd.assert_allclose(jac_t, jac_manual, rtol=1e-10)
 
-    def test_gp_jacobian_batch_matches_manual(self) -> None:
+    def test_gp_jacobian_batch_matches_manual(self, bkd) -> None:
         """GP jacobian_batch with input_transform applies chain rule."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -384,9 +329,8 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac_t, jac_manual, rtol=1e-10)
 
-    def test_gp_hvp_matches_manual(self) -> None:
+    def test_gp_hvp_matches_manual(self, bkd) -> None:
         """GP HVP with input_transform applies chain rule correctly."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -404,7 +348,7 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         # Check hvp is available
         if not hasattr(gp_t, "hvp"):
-            self.skipTest("Kernel does not support HVP")
+            pytest.skip("Kernel does not support HVP")
 
         np.random.seed(99)
         sample = bkd.array(np.random.rand(2, 1) * 2 - 1)
@@ -412,7 +356,7 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         hvp_t = gp_t.hvp(sample, vec)
 
-        # Manual: (Hv)_j = (1/σ_j) Σ_k H̃_jk (v_k/σ_k)
+        # Manual: (Hv)_j = (1/sigma_j) sum_k H_tilde_jk (v_k/sigma_k)
         # = jac_factor * hvp_scaled(sample_scaled, jac_factor * vec)
         jac_factor = scaler.jacobian_factor()
         vec_scaled = jac_factor[:, None] * vec
@@ -422,9 +366,8 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(hvp_t, hvp_manual, rtol=1e-10)
 
-    def test_gp_no_transform_unchanged(self) -> None:
+    def test_gp_no_transform_unchanged(self, bkd) -> None:
         """GP without input transform behaves identically."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         gp = ExactGaussianProcess(_create_kernel(bkd), nvars=2, bkd=bkd, nugget=_NUGGET)
@@ -432,16 +375,15 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         gp.fit(X_train, y_train)
 
         # input_transform should be identity (never None)
-        self.assertIsInstance(gp.input_transform(), IdentityInputTransform)
+        assert isinstance(gp.input_transform(), IdentityInputTransform)
 
         np.random.seed(99)
         X_test = bkd.array(np.random.rand(2, 5) * 2 - 1)
         pred = gp.predict(X_test)
-        self.assertEqual(pred.shape, (1, 5))
+        assert pred.shape == (1, 5)
 
-    def test_gp_predict_at_training_points(self) -> None:
+    def test_gp_predict_at_training_points(self, bkd) -> None:
         """GP with input_transform recovers training y at training X."""
-        bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -454,24 +396,13 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(pred, y_train, rtol=1e-4, atol=1e-4)
 
 
-class TestGPInputTransformNumpy(TestGPInputTransform[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGPInputTransformTorch(TestGPInputTransform[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
 # ===================================================================
 # Statistics integration test: MC verification with both transforms
 # ===================================================================
 
 
 def _create_quadrature_bases(
-    marginals: List[Any], nquad_points: int, bkd: Backend[Array]
+    marginals: List[Any], nquad_points: int, bkd: Backend
 ) -> List[Any]:
     factories = create_basis_factories(marginals, bkd, "gauss")
     bases = [f.create_basis() for f in factories]
@@ -480,7 +411,7 @@ def _create_quadrature_bases(
     return bases
 
 
-class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
+class TestStatisticsWithBothTransformsVsMC:
     """Verify GP statistics with both input and output transforms vs MC.
 
     This is the strongest integration test: fits a GP with both
@@ -488,20 +419,13 @@ class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
     statistics against Monte Carlo estimates.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-        bkd = self._bkd
-
+    def _setup(self, bkd):
+        """Set up GP, stats, and MC samples."""
         # Training data with different input scales
         X_train, y_train = _make_training_data_different_scales(bkd)
-        self._nvars = 2
-        self._nquad = 30
-        self._n_mc = 10000
+        nvars = 2
+        nquad = 30
+        n_mc = 10000
 
         # Create scalers
         input_scaler = InputStandardScaler.from_data(X_train, bkd)
@@ -526,8 +450,6 @@ class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
             input_transform=input_scaler,
             output_transform=output_scaler,
         )
-        self._gp = gp
-        self._input_scaler = input_scaler
 
         # Marginals defined in original input space
         # The training data has x1 in [0, 1000], x2 in [0, 0.01]
@@ -536,23 +458,21 @@ class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
         x1_max = float(bkd.to_numpy(bkd.max(X_train[0:1, :])))
         x2_min = float(bkd.to_numpy(bkd.min(X_train[1:2, :])))
         x2_max = float(bkd.to_numpy(bkd.max(X_train[1:2, :])))
-        self._marginals: List[Any] = [
+        marginals: List[Any] = [
             UniformMarginal(x1_min, x1_max, bkd),
             UniformMarginal(x2_min, x2_max, bkd),
         ]
 
         # Create statistics
-        bases = _create_quadrature_bases(self._marginals, self._nquad, bkd)
-        calc: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(gp, bases, self._marginals, bkd=bkd)
-        )
-        self._stats = GaussianProcessStatistics(gp, calc)
+        bases = _create_quadrature_bases(marginals, nquad, bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+        stats = GaussianProcessStatistics(gp, calc)
 
         # MC samples in original space
         np.random.seed(123)
-        mc_x1 = np.random.uniform(x1_min, x1_max, self._n_mc)
-        mc_x2 = np.random.uniform(x2_min, x2_max, self._n_mc)
-        self._X_mc = bkd.array(np.vstack([mc_x1, mc_x2]))
+        mc_x1 = np.random.uniform(x1_min, x1_max, n_mc)
+        mc_x2 = np.random.uniform(x2_min, x2_max, n_mc)
+        X_mc = bkd.array(np.vstack([mc_x1, mc_x2]))
 
         # Build reference GP: manually scale X, no input_transform,
         # with scaled-space marginals. This is the ground truth.
@@ -584,74 +504,61 @@ class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
             UniformMarginal(s_x1_min, s_x1_max, bkd),
             UniformMarginal(s_x2_min, s_x2_max, bkd),
         ]
-        bases_ref = _create_quadrature_bases(marginals_ref, self._nquad, bkd)
-        calc_ref: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(gp_ref, bases_ref, marginals_ref, bkd=bkd)
-        )
-        self._stats_ref = GaussianProcessStatistics(gp_ref, calc_ref)
+        bases_ref = _create_quadrature_bases(marginals_ref, nquad, bkd)
+        calc_ref = SeparableKernelIntegralCalculator(gp_ref, bases_ref, marginals_ref, bkd=bkd)
+        stats_ref = GaussianProcessStatistics(gp_ref, calc_ref)
 
-    def test_mean_of_mean_vs_mc(self) -> None:
-        """E[μ(X)] ≈ (1/N) Σ μ(X_i) by Monte Carlo."""
-        mu_mc = self._gp.predict(self._X_mc)  # (nqoi, n_mc)
-        mc_estimate = self._bkd.mean(mu_mc)
-        formula_value = self._stats.mean_of_mean()
-        self._bkd.assert_allclose(
-            self._bkd.asarray([formula_value]),
-            self._bkd.asarray([mc_estimate]),
+        return gp, stats, stats_ref, X_mc, bkd
+
+    def test_mean_of_mean_vs_mc(self, bkd) -> None:
+        """E[mu(X)] ~ (1/N) sum mu(X_i) by Monte Carlo."""
+        gp, stats, _, X_mc, bkd = self._setup(bkd)
+
+        mu_mc = gp.predict(X_mc)  # (nqoi, n_mc)
+        mc_estimate = bkd.mean(mu_mc)
+        formula_value = stats.mean_of_mean()
+        bkd.assert_allclose(
+            bkd.asarray([formula_value]),
+            bkd.asarray([mc_estimate]),
             rtol=0.05,
         )
 
-    def test_mean_of_mean_matches_manual_scaling(self) -> None:
+    def test_mean_of_mean_matches_manual_scaling(self, bkd) -> None:
         """mean_of_mean with input_transform matches manually-scaled GP."""
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self._stats.mean_of_mean()]),
-            self._bkd.asarray([self._stats_ref.mean_of_mean()]),
+        _, stats, stats_ref, _, bkd = self._setup(bkd)
+
+        bkd.assert_allclose(
+            bkd.asarray([stats.mean_of_mean()]),
+            bkd.asarray([stats_ref.mean_of_mean()]),
             rtol=1e-8,
         )
 
-    def test_variance_of_mean_matches_manual_scaling(self) -> None:
+    def test_variance_of_mean_matches_manual_scaling(self, bkd) -> None:
         """variance_of_mean with input_transform matches manually-scaled GP."""
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self._stats.variance_of_mean()]),
-            self._bkd.asarray([self._stats_ref.variance_of_mean()]),
+        _, stats, stats_ref, _, bkd = self._setup(bkd)
+
+        bkd.assert_allclose(
+            bkd.asarray([stats.variance_of_mean()]),
+            bkd.asarray([stats_ref.variance_of_mean()]),
             rtol=1e-8,
         )
 
-    def test_mean_of_variance_matches_manual_scaling(self) -> None:
+    def test_mean_of_variance_matches_manual_scaling(self, bkd) -> None:
         """mean_of_variance with input_transform matches manually-scaled GP."""
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self._stats.mean_of_variance()]),
-            self._bkd.asarray([self._stats_ref.mean_of_variance()]),
+        _, stats, stats_ref, _, bkd = self._setup(bkd)
+
+        bkd.assert_allclose(
+            bkd.asarray([stats.mean_of_variance()]),
+            bkd.asarray([stats_ref.mean_of_variance()]),
             rtol=1e-8,
         )
 
-    def test_variance_of_variance_matches_manual_scaling(self) -> None:
+    def test_variance_of_variance_matches_manual_scaling(self, bkd) -> None:
         """variance_of_variance with input_transform matches manually-scaled GP."""
-        self._bkd.assert_allclose(
-            self._bkd.asarray([self._stats.variance_of_variance()]),
-            self._bkd.asarray([self._stats_ref.variance_of_variance()]),
+        _, stats, stats_ref, _, bkd = self._setup(bkd)
+
+        bkd.assert_allclose(
+            bkd.asarray([stats.variance_of_variance()]),
+            bkd.asarray([stats_ref.variance_of_variance()]),
             rtol=1e-8,
         )
-
-
-class TestStatisticsWithBothTransformsVsMCNumpy(
-    TestStatisticsWithBothTransformsVsMC[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestStatisticsWithBothTransformsVsMCTorch(
-    TestStatisticsWithBothTransformsVsMC[torch.Tensor]
-):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

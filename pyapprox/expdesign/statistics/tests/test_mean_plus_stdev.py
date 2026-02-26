@@ -7,55 +7,40 @@ Tests cover:
 - Dual-backend testing (NumPy and PyTorch)
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.expdesign.statistics import (
     SampleAverageMean,
     SampleAverageMeanPlusStdev,
     SampleAverageStdev,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
+class TestSampleAverageMeanPlusStdev:
     """Base test class for SampleAverageMeanPlusStdev."""
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def _setup_data(self, bkd):
         np.random.seed(42)
         self._nsamples = 20
         self._nqoi = 3
         self._nvars = 4
 
         # Create test data: (nqoi, nsamples)
-        self._values = self._bkd.asarray(np.random.randn(self._nqoi, self._nsamples))
+        self._values = bkd.asarray(np.random.randn(self._nqoi, self._nsamples))
         # Uniform weights summing to 1: (1, nsamples)
-        self._weights = self._bkd.asarray(
+        self._weights = bkd.asarray(
             np.full((1, self._nsamples), 1.0 / self._nsamples)
         )
         # Random jacobians: (nqoi, nsamples, nvars)
-        self._jac_values = self._bkd.asarray(
+        self._jac_values = bkd.asarray(
             np.random.randn(self._nqoi, self._nsamples, self._nvars)
         )
 
-    def _finite_diff_jacobian(self, stat, values, weights, jac_values, eps=1e-6):
+    def _finite_diff_jacobian(self, bkd, stat, values, weights, jac_values, eps=1e-6):
         """Compute Jacobian via finite differences."""
         nqoi = values.shape[0]
         nvars = jac_values.shape[2]
-        jac_fd = self._bkd.zeros((nqoi, nvars))
+        jac_fd = bkd.zeros((nqoi, nvars))
 
         for k in range(nvars):
             values_plus = values + eps * jac_values[:, :, k]
@@ -68,100 +53,79 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
 
         return jac_fd
 
-    def test_values_equals_mean_plus_factor_stdev(self):
+    def test_values_equals_mean_plus_factor_stdev(self, bkd):
         """Test that result equals mean + factor * stdev."""
+        self._setup_data(bkd)
         factor = 2.5
-        stat = SampleAverageMeanPlusStdev(factor, self._bkd)
-        mean_stat = SampleAverageMean(self._bkd)
-        stdev_stat = SampleAverageStdev(self._bkd)
+        stat = SampleAverageMeanPlusStdev(factor, bkd)
+        mean_stat = SampleAverageMean(bkd)
+        stdev_stat = SampleAverageStdev(bkd)
 
         result = stat(self._values, self._weights)
         expected = mean_stat(self._values, self._weights) + factor * stdev_stat(
             self._values, self._weights
         )
 
-        self.assertEqual(result.shape, (self._nqoi, 1))
-        self._bkd.assert_allclose(result, expected, rtol=1e-12)
+        assert result.shape == (self._nqoi, 1)
+        bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_factor_zero_equals_mean(self):
+    def test_factor_zero_equals_mean(self, bkd):
         """Test that factor=0 gives pure mean."""
-        stat = SampleAverageMeanPlusStdev(0.0, self._bkd)
-        mean_stat = SampleAverageMean(self._bkd)
+        self._setup_data(bkd)
+        stat = SampleAverageMeanPlusStdev(0.0, bkd)
+        mean_stat = SampleAverageMean(bkd)
 
         result = stat(self._values, self._weights)
         expected = mean_stat(self._values, self._weights)
 
-        self._bkd.assert_allclose(result, expected, rtol=1e-12)
+        bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_jacobian_finite_diff(self):
+    def test_jacobian_finite_diff(self, bkd):
         """Test Jacobian against finite differences."""
+        self._setup_data(bkd)
         factor = 2.5
-        stat = SampleAverageMeanPlusStdev(factor, self._bkd)
+        stat = SampleAverageMeanPlusStdev(factor, bkd)
 
         jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
         jac_fd = self._finite_diff_jacobian(
-            stat, self._values, self._weights, self._jac_values
+            bkd, stat, self._values, self._weights, self._jac_values
         )
 
-        self.assertEqual(jac_analytical.shape, (self._nqoi, self._nvars))
-        self._bkd.assert_allclose(jac_analytical, jac_fd, rtol=1e-5, atol=1e-7)
+        assert jac_analytical.shape == (self._nqoi, self._nvars)
+        bkd.assert_allclose(jac_analytical, jac_fd, rtol=1e-5, atol=1e-7)
 
-    def test_jacobian_equals_mean_plus_factor_stdev_jacobian(self):
+    def test_jacobian_equals_mean_plus_factor_stdev_jacobian(self, bkd):
         """Test that jacobian equals mean.jac + factor * stdev.jac."""
+        self._setup_data(bkd)
         factor = 3.0
-        stat = SampleAverageMeanPlusStdev(factor, self._bkd)
-        mean_stat = SampleAverageMean(self._bkd)
-        stdev_stat = SampleAverageStdev(self._bkd)
+        stat = SampleAverageMeanPlusStdev(factor, bkd)
+        mean_stat = SampleAverageMean(bkd)
+        stdev_stat = SampleAverageStdev(bkd)
 
         result = stat.jacobian(self._values, self._jac_values, self._weights)
         expected = mean_stat.jacobian(
             self._values, self._jac_values, self._weights
         ) + factor * stdev_stat.jacobian(self._values, self._jac_values, self._weights)
 
-        self._bkd.assert_allclose(result, expected, rtol=1e-12)
+        bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_jacobian_implemented(self):
+    def test_jacobian_implemented(self, bkd):
         """Test jacobian_implemented returns True."""
-        stat = SampleAverageMeanPlusStdev(1.0, self._bkd)
-        self.assertTrue(stat.jacobian_implemented())
+        stat = SampleAverageMeanPlusStdev(1.0, bkd)
+        assert stat.jacobian_implemented()
 
-    def test_repr(self):
+    def test_repr(self, bkd):
         """Test string representation."""
-        stat = SampleAverageMeanPlusStdev(2.5, self._bkd)
-        self.assertEqual(repr(stat), "SampleAverageMeanPlusStdev(factor=2.5)")
+        stat = SampleAverageMeanPlusStdev(2.5, bkd)
+        assert repr(stat) == "SampleAverageMeanPlusStdev(factor=2.5)"
 
-    def test_single_qoi(self):
+    def test_single_qoi(self, bkd):
         """Test with single QoI."""
+        self._setup_data(bkd)
         factor = 1.5
-        stat = SampleAverageMeanPlusStdev(factor, self._bkd)
+        stat = SampleAverageMeanPlusStdev(factor, bkd)
 
         values = self._values[0:1, :]  # (1, nsamples)
         result = stat(values, self._weights)
 
-        self.assertEqual(result.shape, (1, 1))
-
-
-class TestSampleAverageMeanPlusStdevNumpy(TestSampleAverageMeanPlusStdev[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSampleAverageMeanPlusStdevTorch(TestSampleAverageMeanPlusStdev[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result.shape == (1, 1)

@@ -1,10 +1,6 @@
 """Tests for CFMLoss, UniformWeight, and FlowMatchingObjective."""
 
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -26,13 +22,10 @@ from pyapprox.surrogates.flowmatching.protocols import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
-def _make_vf(bkd: Backend[Array], d: int, degree: int, m: int = 0):
+def _make_vf(bkd, d: int, degree: int, m: int = 0):
     """Create a BasisExpansion VF with input_dim = 1+d+m, nqoi = d."""
     marginals = [UniformMarginal(0.0, 1.0, bkd)]
     marginals += [GaussianMarginal(0.0, 1.0, bkd)] * d
@@ -54,48 +47,31 @@ def _make_quad_data(bkd, d, ns, m=0):
     return FlowMatchingQuadData(t, x0, x1, weights, bkd, c)
 
 
-class TestUniformWeight(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestUniformWeight:
+    def test_satisfies_protocol(self, bkd) -> None:
+        w = UniformWeight(bkd)
+        assert isinstance(w, TimeWeightProtocol)
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_satisfies_protocol(self) -> None:
-        w = UniformWeight(self._bkd)
-        self.assertIsInstance(w, TimeWeightProtocol)
-
-    def test_returns_ones(self) -> None:
-        w = UniformWeight(self._bkd)
-        t = self._bkd.array([[0.0, 0.25, 0.5, 0.75, 1.0]])
+    def test_returns_ones(self, bkd) -> None:
+        w = UniformWeight(bkd)
+        t = bkd.array([[0.0, 0.25, 0.5, 0.75, 1.0]])
         result = w(t)
-        self._bkd.assert_allclose(result, self._bkd.ones_like(t), rtol=1e-12)
+        bkd.assert_allclose(result, bkd.ones_like(t), rtol=1e-12)
 
-    def test_output_shape(self) -> None:
-        w = UniformWeight(self._bkd)
-        t = self._bkd.array([[0.1, 0.5, 0.9]])
+    def test_output_shape(self, bkd) -> None:
+        w = UniformWeight(bkd)
+        t = bkd.array([[0.1, 0.5, 0.9]])
         result = w(t)
-        self.assertEqual(result.shape, (1, 3))
+        assert result.shape == (1, 3)
 
 
-class TestCFMLoss(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestCFMLoss:
+    def test_satisfies_protocol(self, bkd) -> None:
+        loss = CFMLoss(bkd)
+        assert isinstance(loss, CFMLossProtocol)
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_satisfies_protocol(self) -> None:
-        loss = CFMLoss(self._bkd)
-        self.assertIsInstance(loss, CFMLossProtocol)
-
-    def test_zero_loss_when_vf_matches_target(self) -> None:
+    def test_zero_loss_when_vf_matches_target(self, bkd) -> None:
         """When VF exactly equals the target field, loss should be zero."""
-        bkd = self._bkd
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
 
@@ -112,14 +88,14 @@ class TestCFMLoss(Generic[Array], unittest.TestCase):
             return u_t
 
         result = loss(perfect_vf, path, t, x0, x1, weights)
-        self._bkd.assert_allclose(
+        bkd.assert_allclose(
             bkd.reshape(result, (1,)),
             bkd.array([0.0]),
             atol=1e-14,
         )
 
-    def test_integrand_shape(self) -> None:
-        bkd = self._bkd
+    @pytest.mark.slow_on("TorchBkd")
+    def test_integrand_shape(self, bkd) -> None:
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
         d, ns = 2, 4
@@ -130,10 +106,10 @@ class TestCFMLoss(Generic[Array], unittest.TestCase):
         x1 = bkd.ones_like(x0)
 
         result = loss.integrand(vf, path, t, x0, x1)
-        self.assertEqual(result.shape, (ns,))
+        assert result.shape == (ns,)
 
-    def test_integrand_shape_with_conditioning(self) -> None:
-        bkd = self._bkd
+    @pytest.mark.slow_on("TorchBkd")
+    def test_integrand_shape_with_conditioning(self, bkd) -> None:
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
         d, ns, m = 2, 4, 1
@@ -145,10 +121,9 @@ class TestCFMLoss(Generic[Array], unittest.TestCase):
         c = bkd.zeros((m, ns))
 
         result = loss.integrand(vf, path, t, x0, x1, c=c)
-        self.assertEqual(result.shape, (ns,))
+        assert result.shape == (ns,)
 
-    def test_loss_scalar_output(self) -> None:
-        bkd = self._bkd
+    def test_loss_scalar_output(self, bkd) -> None:
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
         d, ns = 1, 3
@@ -161,26 +136,16 @@ class TestCFMLoss(Generic[Array], unittest.TestCase):
 
         result = loss(vf, path, t, x0, x1, weights)
         # Should be a scalar (0-d or 1-element)
-        self.assertEqual(result.shape, ())
+        assert result.shape == ()
 
-    def test_weight_accessor(self) -> None:
-        bkd = self._bkd
+    def test_weight_accessor(self, bkd) -> None:
         loss = CFMLoss(bkd)
         w = loss.weight()
-        self.assertIsInstance(w, TimeWeightProtocol)
+        assert isinstance(w, TimeWeightProtocol)
 
 
-class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _make_objective(self, d=1, m=0, degree=1):
-        bkd = self._bkd
+class TestFlowMatchingObjective:
+    def _make_objective(self, bkd, d=1, m=0, degree=1):
         vf = _make_vf(bkd, d, degree, m)
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
@@ -188,32 +153,30 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
         qd = _make_quad_data(bkd, d, ns, m)
         return FlowMatchingObjective(vf, path, loss, qd, bkd), vf
 
-    def test_call_returns_1x1(self) -> None:
-        obj, vf = self._make_objective()
+    def test_call_returns_1x1(self, bkd) -> None:
+        obj, vf = self._make_objective(bkd)
         params = vf.hyp_list().get_active_values()
         result = obj(params)
-        self.assertEqual(result.shape, (1, 1))
+        assert result.shape == (1, 1)
 
-    def test_call_with_2d_params(self) -> None:
+    def test_call_with_2d_params(self, bkd) -> None:
         """Test that (nactive, 1) shaped params work too."""
-        bkd = self._bkd
-        obj, vf = self._make_objective()
+        obj, vf = self._make_objective(bkd)
         params = vf.hyp_list().get_active_values()
         params_2d = bkd.reshape(params, (-1, 1))
         result = obj(params_2d)
-        self.assertEqual(result.shape, (1, 1))
+        assert result.shape == (1, 1)
 
-    def test_jacobian_returns_1xnactive(self) -> None:
-        obj, vf = self._make_objective()
+    def test_jacobian_returns_1xnactive(self, bkd) -> None:
+        obj, vf = self._make_objective(bkd)
         params = vf.hyp_list().get_active_values()
         grad = obj.jacobian(params)
         nactive = vf.hyp_list().nactive_params()
-        self.assertEqual(grad.shape, (1, nactive))
+        assert grad.shape == (1, nactive)
 
-    def test_jacobian_vs_finite_differences(self) -> None:
+    def test_jacobian_vs_finite_differences(self, bkd) -> None:
         """Verify analytical gradient matches finite differences."""
-        bkd = self._bkd
-        obj, vf = self._make_objective(d=1, degree=2)
+        obj, vf = self._make_objective(bkd, d=1, degree=2)
 
         # Set some nonzero coefficients
         nparams = vf.hyp_list().nactive_params()
@@ -242,12 +205,12 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
+        bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
-    def test_jacobian_vs_fd_multidim(self) -> None:
+    @pytest.mark.slow_on("TorchBkd")
+    def test_jacobian_vs_fd_multidim(self, bkd) -> None:
         """Verify gradient for d=2 VF."""
-        bkd = self._bkd
-        obj, vf = self._make_objective(d=2, degree=1)
+        obj, vf = self._make_objective(bkd, d=2, degree=1)
 
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.05 * (i + 1) for i in range(nparams)])
@@ -274,11 +237,10 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
+        bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
-    def test_jacobian_with_partial_active_params(self) -> None:
+    def test_jacobian_with_partial_active_params(self, bkd) -> None:
         """Verify gradient with some params fixed (inactive)."""
-        bkd = self._bkd
         d, degree = 1, 2
         vf = _make_vf(bkd, d, degree)
         path = LinearPath(bkd)
@@ -293,11 +255,11 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
 
         obj = FlowMatchingObjective(vf, path, loss, qd, bkd)
         nactive = vf.hyp_list().nactive_params()
-        self.assertLess(nactive, nparams_total)
+        assert nactive < nparams_total
 
         params = bkd.array([0.1 * (i + 1) for i in range(nactive)])
         grad = obj.jacobian(params)
-        self.assertEqual(grad.shape, (1, nactive))
+        assert grad.shape == (1, nactive)
 
         # FD check
         eps = 1e-6
@@ -320,18 +282,17 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
+        bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
-    def test_jacobian_with_conditioning(self) -> None:
+    def test_jacobian_with_conditioning(self, bkd) -> None:
         """Verify gradient with conditioning variables."""
-        bkd = self._bkd
-        obj, vf = self._make_objective(d=1, m=1, degree=1)
+        obj, vf = self._make_objective(bkd, d=1, m=1, degree=1)
 
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.1 * (i + 1) for i in range(nparams)])
 
         grad = obj.jacobian(params)
-        self.assertEqual(grad.shape, (1, nparams))
+        assert grad.shape == (1, nparams)
 
         eps = 1e-6
         fd_grad = bkd.zeros((nparams,))
@@ -353,12 +314,12 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
+        bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
-    def test_nvars_and_nqoi(self) -> None:
-        obj, vf = self._make_objective()
-        self.assertEqual(obj.nvars(), vf.hyp_list().nactive_params())
-        self.assertEqual(obj.nqoi(), 1)
+    def test_nvars_and_nqoi(self, bkd) -> None:
+        obj, vf = self._make_objective(bkd)
+        assert obj.nvars() == vf.hyp_list().nactive_params()
+        assert obj.nqoi() == 1
 
 
 def _set_element(bkd, arr, idx, val):
@@ -366,51 +327,3 @@ def _set_element(bkd, arr, idx, val):
     arr_np = bkd.to_numpy(arr).copy()
     arr_np[idx] = float(bkd.to_numpy(bkd.reshape(val, (1,)))[0])
     return bkd.array(arr_np.tolist())
-
-
-class TestUniformWeightNumpy(TestUniformWeight[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestUniformWeightTorch(TestUniformWeight[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestCFMLossNumpy(TestCFMLoss[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCFMLossTorch(TestCFMLoss[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    @slow_test
-    def test_integrand_shape(self) -> None:
-        super().test_integrand_shape()
-
-    @slow_test
-    def test_integrand_shape_with_conditioning(self) -> None:
-        super().test_integrand_shape_with_conditioning()
-
-
-class TestFlowMatchingObjectiveNumpy(TestFlowMatchingObjective[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFlowMatchingObjectiveTorch(TestFlowMatchingObjective[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    @slow_test
-    def test_jacobian_vs_fd_multidim(self) -> None:
-        super().test_jacobian_vs_fd_multidim()
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
