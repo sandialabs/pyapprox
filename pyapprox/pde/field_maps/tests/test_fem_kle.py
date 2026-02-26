@@ -9,7 +9,6 @@ These tests live here (not in ``surrogates/kle/tests``) because the
 factory functions depend on skfem, which is a PDE-layer dependency.
 """
 
-import unittest
 
 import numpy as np
 from skfem import Basis, ElementLineP1, MeshLine, asm
@@ -25,9 +24,6 @@ from pyapprox.surrogates.kle.analytical import (
     AnalyticalExponentialKLE1D,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):
     """Create a small 1D skfem mesh and kernel for testing.
 
@@ -55,15 +51,15 @@ def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):
     return basis, kernel, analytical, bkd, nterms
 
 
-class TestFEMKLE(unittest.TestCase):
+class TestFEMKLE:
     """Tests for FEM KLE factory functions (numpy-only, requires skfem)."""
 
     def setUp(self) -> None:
-        self._bkd = NumpyBkd()
+        bkd = NumpyBkd()
 
     # --- Galerkin KLE tests ---
 
-    def test_galerkin_eigenvalues_vs_analytical(self) -> None:
+    def test_galerkin_eigenvalues_vs_analytical(self, bkd) -> None:
         """GalerkinKLE eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=30)
         kle = create_fem_galerkin_kle(
@@ -76,7 +72,7 @@ class TestFEMKLE(unittest.TestCase):
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
 
-    def test_galerkin_m_orthonormality(self) -> None:
+    def test_galerkin_m_orthonormality(self, bkd) -> None:
         """GalerkinKLE eigenvectors are M-orthonormal."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=25)
         kle = create_fem_galerkin_kle(
@@ -96,7 +92,7 @@ class TestFEMKLE(unittest.TestCase):
         identity = bkd.array(np.eye(nterms))
         bkd.assert_allclose(gram, identity, atol=1e-10)
 
-    def test_galerkin_shapes(self) -> None:
+    def test_galerkin_shapes(self, bkd) -> None:
         """GalerkinKLE has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_galerkin_kle(
@@ -107,20 +103,20 @@ class TestFEMKLE(unittest.TestCase):
             bkd=bkd,
         )
         ndofs = basis.N
-        self.assertEqual(kle.eigenvalues().shape, (nterms,))
-        self.assertEqual(kle.eigenvectors().shape, (ndofs, nterms))
-        self.assertEqual(kle.weighted_eigenvectors().shape, (ndofs, nterms))
-        self.assertEqual(kle.nterms(), nterms)
-        self.assertEqual(kle.nvars(), nterms)
+        assert kle.eigenvalues().shape == (nterms,)
+        assert kle.eigenvectors().shape == (ndofs, nterms)
+        assert kle.weighted_eigenvectors().shape == (ndofs, nterms)
+        assert kle.nterms() == nterms
+        assert kle.nvars() == nterms
 
         # Evaluate
         coef = bkd.array(np.random.randn(nterms, 4))
         result = kle(coef)
-        self.assertEqual(result.shape, (ndofs, 4))
+        assert result.shape == (ndofs, 4)
 
     # --- Nystrom nodes KLE tests ---
 
-    def test_nystrom_nodes_eigenvalues_vs_analytical(self) -> None:
+    def test_nystrom_nodes_eigenvalues_vs_analytical(self, bkd) -> None:
         """Nystrom-at-nodes eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=30)
         kle = create_fem_nystrom_nodes_kle(
@@ -133,7 +129,7 @@ class TestFEMKLE(unittest.TestCase):
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
 
-    def test_nystrom_nodes_weighted_orthonormality(self) -> None:
+    def test_nystrom_nodes_weighted_orthonormality(self, bkd) -> None:
         """Nystrom-at-nodes eigenvectors are orthonormal under lumped mass."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=25)
         kle = create_fem_nystrom_nodes_kle(
@@ -153,7 +149,7 @@ class TestFEMKLE(unittest.TestCase):
         identity = bkd.array(np.eye(nterms))
         bkd.assert_allclose(gram, identity, atol=1e-6)
 
-    def test_nystrom_nodes_shapes(self) -> None:
+    def test_nystrom_nodes_shapes(self, bkd) -> None:
         """Nystrom-at-nodes has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_nodes_kle(
@@ -164,13 +160,13 @@ class TestFEMKLE(unittest.TestCase):
             bkd=bkd,
         )
         nnodes = basis.mesh.p.shape[1]
-        self.assertEqual(kle.eigenvalues().shape, (nterms,))
-        self.assertEqual(kle.eigenvectors().shape, (nnodes, nterms))
-        self.assertEqual(kle.nterms(), nterms)
+        assert kle.eigenvalues().shape == (nterms,)
+        assert kle.eigenvectors().shape == (nnodes, nterms)
+        assert kle.nterms() == nterms
 
     # --- Nystrom quadrature KLE tests ---
 
-    def test_nystrom_quad_eigenvalues_vs_analytical(self) -> None:
+    def test_nystrom_quad_eigenvalues_vs_analytical(self, bkd) -> None:
         """Nystrom-at-quadrature eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
@@ -183,7 +179,7 @@ class TestFEMKLE(unittest.TestCase):
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
 
-    def test_nystrom_quad_weighted_orthonormality(self) -> None:
+    def test_nystrom_quad_weighted_orthonormality(self, bkd) -> None:
         """Nystrom-at-quadrature eigenvectors are orthonormal under dx weights."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
@@ -200,7 +196,7 @@ class TestFEMKLE(unittest.TestCase):
         identity = bkd.array(np.eye(nterms))
         bkd.assert_allclose(gram, identity, atol=1e-6)
 
-    def test_nystrom_quad_shapes(self) -> None:
+    def test_nystrom_quad_shapes(self, bkd) -> None:
         """Nystrom-at-quadrature has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
@@ -211,13 +207,13 @@ class TestFEMKLE(unittest.TestCase):
             bkd=bkd,
         )
         nquad_total = basis.dx.size
-        self.assertEqual(kle.eigenvalues().shape, (nterms,))
-        self.assertEqual(kle.eigenvectors().shape, (nquad_total, nterms))
-        self.assertEqual(kle.nterms(), nterms)
+        assert kle.eigenvalues().shape == (nterms,)
+        assert kle.eigenvectors().shape == (nquad_total, nterms)
+        assert kle.nterms() == nterms
 
     # --- Cross-method agreement tests ---
 
-    def test_all_methods_eigenvalues_agree(self) -> None:
+    def test_all_methods_eigenvalues_agree(self, bkd) -> None:
         """All three FEM KLE methods produce similar eigenvalues."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=30)
 
@@ -255,7 +251,7 @@ class TestFEMKLE(unittest.TestCase):
             rtol=5e-3,
         )
 
-    def test_eigenvalue_convergence_with_refinement(self) -> None:
+    def test_eigenvalue_convergence_with_refinement(self, bkd) -> None:
         """Eigenvalues improve with mesh refinement for Nystrom-at-nodes."""
         bkd = NumpyBkd()
         nterms = 3
@@ -287,10 +283,10 @@ class TestFEMKLE(unittest.TestCase):
             errors.append(err)
 
         # Error should decrease with refinement
-        self.assertLess(errors[1], errors[0])
-        self.assertLess(errors[2], errors[1])
+        assert errors[1] < errors[0]
+        assert errors[2] < errors[1]
 
-    def test_galerkin_eigenvalues_positive(self) -> None:
+    def test_galerkin_eigenvalues_positive(self, bkd) -> None:
         """GalerkinKLE eigenvalues are all positive."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_galerkin_kle(
@@ -300,8 +296,4 @@ class TestFEMKLE(unittest.TestCase):
             sigma=1.0,
             bkd=bkd,
         )
-        self.assertTrue(bkd.all_bool(kle.eigenvalues() > 0))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert bkd.all_bool(kle.eigenvalues() > 0)

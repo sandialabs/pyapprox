@@ -19,13 +19,12 @@ The HelmholtzPhysics computes residual for: -Δu + k²*u = f
 To make them compatible, we negate the wave number squared when passing to physics.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
+
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -46,12 +45,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import HelmholtzPhysics
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -97,17 +90,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedHelmholtz1D(Generic[Array], unittest.TestCase):
+class TestManufacturedHelmholtz1D:
     """Test 1D Helmholtz physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_helmholtz_residual(self):
+    def test_steady_helmholtz_residual(self, bkd):
         """Test steady Helmholtz residual with polynomial solution."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -153,9 +140,8 @@ class TestManufacturedHelmholtz1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
         )
 
-    def test_steady_helmholtz_jacobian(self):
+    def test_steady_helmholtz_jacobian(self, bkd):
         """Test Helmholtz Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -190,20 +176,14 @@ class TestManufacturedHelmholtz1D(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         # DerivativeChecker expects sample shape (nvars, 1)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
 
-class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
+class TestManufacturedHelmholtz2D:
     """Test 2D Helmholtz physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_helmholtz_residual_2d(self):
+    def test_steady_helmholtz_residual_2d(self, bkd):
         """Test 2D steady Helmholtz residual."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -255,13 +235,10 @@ class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
         )
 
 
-class TestHelmholtz1DParameterized(ParametrizedTestCase):
+class TestHelmholtz1DParameterized:
     """Parameterized 1D Helmholtz residual tests."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,k2,npts",
         [
             ("quadratic", "(1 - x**2)", 1.0, 10),
@@ -270,9 +247,8 @@ class TestHelmholtz1DParameterized(ParametrizedTestCase):
             ("high_k2", "(1 - x**2)", 5.0, 12),
         ],
     )
-    def test_helmholtz_1d_residual(self, name, sol_str, k2, npts):
+    def test_helmholtz_1d_residual(self, bkd, name, sol_str, k2, npts):
         """Test 1D Helmholtz residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -316,13 +292,10 @@ class TestHelmholtz1DParameterized(ParametrizedTestCase):
         )
 
 
-class TestHelmholtz2DParameterized(ParametrizedTestCase):
+class TestHelmholtz2DParameterized:
     """Parameterized 2D Helmholtz residual tests."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,k2,npts_x,npts_y",
         [
             ("quadratic_2d", "(1 - x**2)*(1 - y**2)", 1.0, 8, 8),
@@ -330,9 +303,8 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
             ("asymmetric", "(1 - x**2)*(1 - y**2)*x", 1.5, 10, 8),
         ],
     )
-    def test_helmholtz_2d_residual(self, name, sol_str, k2, npts_x, npts_y):
+    def test_helmholtz_2d_residual(self, bkd, name, sol_str, k2, npts_x, npts_y):
         """Test 2D Helmholtz residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -385,49 +357,3 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
 
 
 # Concrete backend implementations
-class TestManufacturedHelmholtz1DNumpy(TestManufacturedHelmholtz1D[NDArray[Any]]):
-    """NumPy backend tests for 1D Helmholtz."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedHelmholtz1DTorch(TestManufacturedHelmholtz1D[torch.Tensor]):
-    """PyTorch backend tests for 1D Helmholtz."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestManufacturedHelmholtz2DNumpy(TestManufacturedHelmholtz2D[NDArray[Any]]):
-    """NumPy backend tests for 2D Helmholtz."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedHelmholtz2DTorch(TestManufacturedHelmholtz2D[torch.Tensor]):
-    """PyTorch backend tests for 2D Helmholtz."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,11 +1,8 @@
 """Tests for the 1D hyperelastic bar zoo factory."""
 
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -23,12 +20,6 @@ from pyapprox.pde.field_maps.kle_factory import (
 from pyapprox.pde.zoo.hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
     """Helper: create lognormal KLE field map on mesh nodes."""
     physical_pts = mesh.points()  # shape (1, npts)
@@ -47,18 +38,9 @@ def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
     )
 
 
-class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_manufactured_solution(self):
+class TestHyperelasticBar1D:
+    def test_manufactured_solution(self, bkd):
         """Manufactured solution: solve and compare to exact."""
-        bkd = self._bkd
         npts = 25
         length = 1.0
         lamda_val = 2.0
@@ -141,9 +123,8 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(u_num, u_exact, atol=1e-9)
 
-    def test_residual_at_exact(self):
+    def test_residual_at_exact(self, bkd):
         """Residual is near zero at the exact manufactured solution."""
-        bkd = self._bkd
         npts = 20
         length = 1.0
         lamda_val = 3.0
@@ -222,9 +203,8 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
             atol=1e-10,
         )
 
-    def test_param_jacobian(self):
+    def test_param_jacobian(self, bkd):
         """DerivativeChecker on KLE-parameterized hyperelastic bar."""
-        bkd = self._bkd
         npts = 20
         length = 1.0
         num_kle_terms = 2
@@ -251,8 +231,8 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-        self.assertTrue(hasattr(fwd, "jacobian"))
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        assert hasattr(fwd, "jacobian")
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
@@ -266,16 +246,15 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.1, -0.1])[:, None]
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_small_strain_matches_linear(self):
+    def test_small_strain_matches_linear(self, bkd):
         """Small traction: hyperelastic solution ~ linear elastic solution.
 
         Uses nu=0 so the 1D Neo-Hookean linearized modulus (2*mu + lambda)
         equals E. With nu>0, the 3D Lame-based effective 1D modulus differs
         from the plane-stress E used by the linear bar.
         """
-        bkd = self._bkd
         npts = 25
         length = 1.0
         E_val = 3.0
@@ -327,9 +306,8 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
         # atol handles the Dirichlet node where both solutions are ~0
         bkd.assert_allclose(sol_hyper, sol_linear, rtol=1e-2, atol=1e-12)
 
-    def test_flux_neumann_bc(self):
+    def test_flux_neumann_bc(self, bkd):
         """After solve, PK1 stress at right boundary matches traction."""
-        bkd = self._bkd
         npts = 25
         length = 1.0
         E_mean = 3.0
@@ -388,9 +366,8 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
             rtol=1e-8,
         )
 
-    def test_set_mu_nonpositive_raises(self):
+    def test_set_mu_nonpositive_raises(self, bkd):
         """Setting non-positive mu raises ValueError."""
-        bkd = self._bkd
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
@@ -409,15 +386,14 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
         stress_model = NeoHookeanStress(lamda=1.0, mu=1.0)
         physics = HyperelasticityPhysics(basis, bkd, stress_model)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             physics.set_mu(bkd.array([-0.1]))
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             physics.set_lamda(bkd.array([-0.1]))
 
-    def test_factory_produces_valid_model(self):
+    def test_factory_produces_valid_model(self, bkd):
         """Zoo factory produces a working forward model."""
-        bkd = self._bkd
         npts = 20
         length = 1.0
         num_kle_terms = 2
@@ -444,21 +420,10 @@ class TestHyperelasticBar1D(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-        self.assertTrue(isinstance(fwd, FunctionProtocol))
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        assert isinstance(fwd, FunctionProtocol)
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
         samples = bkd.zeros((num_kle_terms, 1))
         result = fwd(samples)
-        self.assertEqual(result.shape[0], fwd.nqoi())
-        self.assertEqual(result.shape[1], 1)
-
-
-class TestHyperelasticBar1DNumpy(TestHyperelasticBar1D[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestHyperelasticBar1DTorch(TestHyperelasticBar1D[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
+        assert result.shape[0] == fwd.nqoi()
+        assert result.shape[1] == 1

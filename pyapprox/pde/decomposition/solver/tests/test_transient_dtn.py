@@ -17,7 +17,6 @@ The domain decomposition connects:
 This is conceptually stitching two domains together at a shared interface.
 """
 
-import unittest
 from typing import Tuple
 
 import numpy as np
@@ -60,7 +59,7 @@ from pyapprox.pde.decomposition.solver import (
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 class ManufacturedSolution1DWithForcingSymmetric:
@@ -314,13 +313,13 @@ class ManufacturedSolutionTwoSpecies1D:
         return (lam / 2.0 + one_plus_t) - (lam / 2.0) * x - one_plus_t * x**2
 
 
-class TestTransientDtN1DSimple(unittest.TestCase):
+class TestTransientDtN1DSimple:
     """Test transient DtN for 1D diffusion with manufactured solution.
 
     Uses symmetric domain decomposition where each subdomain is on [-1, 1].
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 16
         self.D = 1.0
@@ -406,7 +405,7 @@ class TestTransientDtN1DSimple(unittest.TestCase):
             "nodes": {0: nodes0, 1: nodes1},
         }
 
-    def test_steady_state_at_t0(self):
+    def test_steady_state_at_t0(self, bkd):
         """Test DtN solves correctly at t=0."""
         bkd = self.bkd
         problem = self._create_transient_problem(time=0.0)
@@ -424,20 +423,15 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         initial_guess = bkd.asarray([2.0])
         result = solver.solve(initial_guess)
 
-        self.assertTrue(result.converged, "Solver should converge at t=0")
+        assert result.converged, "Solver should converge at t=0"
 
         mms = problem["mms"]
         exact_interface = mms.interface_value(0.0)  # lambda = 4*(1+0) = 4
         computed_interface = float(result.interface_dofs[0])
 
-        self.assertAlmostEqual(
-            computed_interface,
-            exact_interface,
-            places=6,
-            msg=f"Interface: computed={computed_interface}, exact={exact_interface}",
-        )
+        assert abs(computed_interface - exact_interface) < 10**(-6)
 
-    def test_residual_zero_at_exact_solution(self):
+    def test_residual_zero_at_exact_solution(self, bkd):
         """Test residual is zero at the exact interface solution."""
         bkd = self.bkd
         problem = self._create_transient_problem(time=0.0)
@@ -456,13 +450,9 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-10,
-            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
-        )
+        assert res_norm < 1e-10
 
-    def test_solution_accuracy_at_collocation_points(self):
+    def test_solution_accuracy_at_collocation_points(self, bkd):
         """Verify full solution matches manufactured solution at t=0."""
         bkd = self.bkd
         t = 0.0  # Use t=0 since solver uses time=0 internally
@@ -478,7 +468,7 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         solver = DtNSolver(bkd, residual, max_iters=20, tol=1e-10)
         result = solver.solve(bkd.asarray([2.0]))
 
-        self.assertTrue(result.converged)
+        assert result.converged
 
         mms = problem["mms"]
 
@@ -493,12 +483,10 @@ class TestTransientDtN1DSimple(unittest.TestCase):
                 exact_sol = mms.solution_sub1(nodes, t)
 
             max_error = float(bkd.max(bkd.abs(computed_sol - exact_sol)))
-            self.assertLess(
-                max_error, 1e-8, f"Subdomain {sub_id}: max error = {max_error}"
-            )
+            assert max_error < 1e-8
 
 
-class TestDtN2DWithForcing(unittest.TestCase):
+class TestDtN2DWithForcing:
     """Test 2D DtN with forcing on reference domains.
 
     Uses ASYMMETRIC boundary conditions to ensure non-zero flux at interface:
@@ -513,13 +501,13 @@ class TestDtN2DWithForcing(unittest.TestCase):
     - u'(1) on sub 0 = 0.5 (non-zero flux!)
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 6  # points in each direction
         self.D = 1.0
         self.exact_lambda = 5.0  # Exact interface value
 
-    def _compute_boundary_indices_2d(self, npts_x, npts_y):
+    def _compute_boundary_indices_2d(self, bkd, npts_x, npts_y) :
         """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
         # Left: x-index=0 (x_ref=-1), all y
@@ -548,7 +536,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
         lam = self.exact_lambda
         return (lam + 4.0) / 2.0 + (2.0 - lam) / 2.0 * x - x**2
 
-    def test_2d_with_constant_forcing(self):
+    def test_2d_with_constant_forcing(self, bkd):
         """Test 2D DtN with constant forcing and asymmetric BCs.
 
         This uses asymmetric external BCs to ensure non-zero flux at interface:
@@ -587,7 +575,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
             basis0, bkd, diffusion=D, forcing=lambda t: forcing0
         )
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
         # External BC at x=-1: u = 0
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
@@ -615,7 +603,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
             basis1, bkd, diffusion=D, forcing=lambda t: forcing1
         )
 
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
         # External BC at x=1: u = 2 (asymmetric!)
         right_bc1_vals = bkd.full((npts,), 2.0)
@@ -654,16 +642,16 @@ class TestDtN2DWithForcing(unittest.TestCase):
         ndofs = interface.ndofs()
         result = solver.solve(bkd.full((ndofs,), 3.0))
 
-        self.assertTrue(result.converged, "2D solver should converge")
+        assert result.converged, "2D solver should converge"
 
         # Interface value should be constant = 5
         computed_vals = interface.evaluate(result.interface_dofs)
         exact_val = self.exact_lambda
 
         max_error = float(bkd.max(bkd.abs(computed_vals - exact_val)))
-        self.assertLess(max_error, 1e-6, f"2D interface error = {max_error}")
+        assert max_error < 1e-6
 
-    def test_2d_residual_zero_at_exact(self):
+    def test_2d_residual_zero_at_exact(self, bkd):
         """Test residual is zero at exact interface solution."""
         bkd = self.bkd
         npts = self.npts
@@ -693,7 +681,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
             basis0, bkd, diffusion=D, forcing=lambda t: forcing0
         )
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
 
         bottom_bc0 = DirichletBC(
@@ -723,7 +711,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
             basis1, bkd, diffusion=D, forcing=lambda t: forcing1
         )
 
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
         # Asymmetric external BC: u(1) = 2
         right_bc1_vals = bkd.full((npts,), 2.0)
@@ -768,21 +756,17 @@ class TestDtN2DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-10,
-            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
-        )
+        assert res_norm < 1e-10
 
 
-class TestTransientDtNTwoSpecies(unittest.TestCase):
+class TestTransientDtNTwoSpecies:
     """Test transient DtN for two-species diffusion (uncoupled).
 
     Verifies vector-valued problems with manufactured solutions.
     Uses same reference domain approach as 1D scalar tests.
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 16
         self.D0 = 1.0
@@ -905,7 +889,7 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             "nodes": {0: nodes0, 1: nodes1},
         }
 
-    def test_two_species_at_t0(self):
+    def test_two_species_at_t0(self, bkd):
         """Test two-species DtN at t=0."""
         bkd = self.bkd
         t = 0.0
@@ -927,25 +911,15 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
 
         result = solver.solve(initial_guess)
 
-        self.assertTrue(result.converged, "Two-species DtN should converge")
+        assert result.converged, "Two-species DtN should converge"
 
         computed_u0 = float(result.interface_dofs[0])
         computed_u1 = float(result.interface_dofs[1])
 
-        self.assertAlmostEqual(
-            computed_u0,
-            exact_u0,
-            places=6,
-            msg=f"u0 at interface: {computed_u0} vs {exact_u0}",
-        )
-        self.assertAlmostEqual(
-            computed_u1,
-            exact_u1,
-            places=6,
-            msg=f"u1 at interface: {computed_u1} vs {exact_u1}",
-        )
+        assert abs(computed_u0 - exact_u0) < 10**(-6)
+        assert abs(computed_u1 - exact_u1) < 10**(-6)
 
-    def test_residual_zero_at_exact_solution(self):
+    def test_residual_zero_at_exact_solution(self, bkd):
         """Test residual is zero at the exact interface solution."""
         bkd = self.bkd
         t = 0.0
@@ -965,13 +939,9 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-10,
-            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
-        )
+        assert res_norm < 1e-10
 
-    def test_two_species_solution_accuracy(self):
+    def test_two_species_solution_accuracy(self, bkd):
         """Verify full two-species solution matches manufactured solution at t=0."""
         bkd = self.bkd
         t = 0.0  # Use t=0 since solver uses time=0 internally
@@ -987,7 +957,7 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         solver = DtNSolver(bkd, residual, max_iters=30, tol=1e-10)
         result = solver.solve(bkd.asarray([3.0, 3.0]))
 
-        self.assertTrue(result.converged)
+        assert result.converged
 
         mms = problem["mms"]
         npts = self.npts
@@ -1011,15 +981,11 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             max_error_u0 = float(bkd.max(bkd.abs(u0_computed - u0_exact)))
             max_error_u1 = float(bkd.max(bkd.abs(u1_computed - u1_exact)))
 
-            self.assertLess(
-                max_error_u0, 1e-8, f"Subdomain {sub_id} u0 error = {max_error_u0}"
-            )
-            self.assertLess(
-                max_error_u1, 1e-8, f"Subdomain {sub_id} u1 error = {max_error_u1}"
-            )
+            assert max_error_u0 < 1e-8
+            assert max_error_u1 < 1e-8
 
 
-class TestDtN2DVariableDiffusion(unittest.TestCase):
+class TestDtN2DVariableDiffusion:
     """Test 2D DtN with variable diffusion coefficient.
 
     Uses a spatially varying diffusion coefficient D(x) = D0*(1 + alpha*x)
@@ -1053,7 +1019,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
     For alpha=0.3 and g=2: lambda = 0.7
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 8
         self.D0 = 1.0
@@ -1061,7 +1027,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         self.g = 2.0  # External BC on subdomain 1
         self.exact_lambda = (1.0 - self.alpha) * self.g / 2.0  # = 0.7
 
-    def _compute_boundary_indices_2d(self, npts_x, npts_y):
+    def _compute_boundary_indices_2d(self, bkd, npts_x, npts_y) :
         """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
         # Left: x-index=0 (x_ref=-1), all y
@@ -1074,7 +1040,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         top = bkd.asarray([(npts_y - 1) * npts_x + i for i in range(npts_x)])
         return {"left": left, "right": right, "bottom": bottom, "top": top}
 
-    def _build_variable_diffusion(self, nodes_x, npts_x, npts_y):
+    def _build_variable_diffusion(self, bkd, nodes_x, npts_x, npts_y) :
         """Build variable diffusion array D(x) = D0*(1 + alpha*x)."""
         bkd = self.bkd
         D0, alpha = self.D0, self.alpha
@@ -1099,7 +1065,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         f_val = -B_0 * self.D0 * self.alpha  # Negative sign!
         return bkd.full((npts_x * npts_y,), f_val)
 
-    def _build_forcing_sub1(self, nodes_x, npts_x, npts_y):
+    def _build_forcing_sub1(self, bkd, nodes_x, npts_x, npts_y) :
         """Build constant forcing for sub 1: f = -B_1*D0*alpha."""
         bkd = self.bkd
         B_1 = (self.g - self.exact_lambda) / 2.0
@@ -1117,7 +1083,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         g = self.g
         return (lam + g) / 2.0 + ((g - lam) / 2.0) * x
 
-    def test_variable_diffusion_residual_at_exact(self):
+    def test_variable_diffusion_residual_at_exact(self, bkd):
         """Test residual is zero at exact interface solution with variable D."""
         bkd = self.bkd
         npts = self.npts
@@ -1142,13 +1108,13 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         basis0.npts()
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
-        D0_arr = self._build_variable_diffusion(nodes_x0, npts, npts)
-        D1_arr = self._build_variable_diffusion(nodes_x0, npts, npts)
+        D0_arr = self._build_variable_diffusion(bkd, nodes_x0, npts, npts)
+        D1_arr = self._build_variable_diffusion(bkd, nodes_x0, npts, npts)
         f0 = self._build_forcing_sub0(nodes_x0, npts, npts)
-        f1 = self._build_forcing_sub1(nodes_x0, npts, npts)
+        f1 = self._build_forcing_sub1(bkd, nodes_x0, npts, npts)
 
         physics0 = AdvectionDiffusionReaction(
             basis0, bkd, diffusion=D0_arr, forcing=lambda t: f0
@@ -1213,13 +1179,9 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-9,
-            f"Residual norm {res_norm} should be < 1e-9 at exact solution",
-        )
+        assert res_norm < 1e-9
 
-    def test_variable_diffusion_solver_converges(self):
+    def test_variable_diffusion_solver_converges(self, bkd):
         """Test DtN solver converges with variable diffusion."""
         bkd = self.bkd
         npts = self.npts
@@ -1243,13 +1205,13 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
-        D0_arr = self._build_variable_diffusion(nodes_x0, npts, npts)
-        D1_arr = self._build_variable_diffusion(nodes_x0, npts, npts)
+        D0_arr = self._build_variable_diffusion(bkd, nodes_x0, npts, npts)
+        D1_arr = self._build_variable_diffusion(bkd, nodes_x0, npts, npts)
         f0 = self._build_forcing_sub0(nodes_x0, npts, npts)
-        f1 = self._build_forcing_sub1(nodes_x0, npts, npts)
+        f1 = self._build_forcing_sub1(bkd, nodes_x0, npts, npts)
 
         physics0 = AdvectionDiffusionReaction(
             basis0, bkd, diffusion=D0_arr, forcing=lambda t: f0
@@ -1309,18 +1271,16 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         ndofs = interface.ndofs()
         result = solver.solve(bkd.full((ndofs,), 0.5))
 
-        self.assertTrue(result.converged, "Variable diffusion DtN should converge")
+        assert result.converged, "Variable diffusion DtN should converge"
 
         computed_vals = interface.evaluate(result.interface_dofs)
         exact_val = self.exact_lambda  # 0.7
 
         max_error = float(bkd.max(bkd.abs(computed_vals - exact_val)))
-        self.assertLess(
-            max_error, 1e-8, f"Variable diffusion interface error = {max_error}"
-        )
+        assert max_error < 1e-8
 
 
-class TestDtN3DScalar(unittest.TestCase):
+class TestDtN3DScalar:
     """Test 3D DtN with scalar diffusion and manufactured solutions.
 
     Problem: -Laplacian(u) = f on [-1, 1]^3
@@ -1343,14 +1303,14 @@ class TestDtN3DScalar(unittest.TestCase):
     For g=2: lambda=1
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 5
         self.D = 1.0
         self.g = 2.0
         self.exact_lambda = self.g / 2.0  # = 1.0
 
-    def _compute_boundary_indices_3d(self, npts_x, npts_y, npts_z):
+    def _compute_boundary_indices_3d(self, bkd, npts_x, npts_y, npts_z) :
         """Compute 3D boundary indices (x varies fastest, then y, then z)."""
         bkd = self.bkd
         npts_xy = npts_x * npts_y
@@ -1417,7 +1377,7 @@ class TestDtN3DScalar(unittest.TestCase):
         g = self.g
         return (lam + g) / 2.0 + ((g - lam) / 2.0) * x
 
-    def test_3d_scalar_residual_at_exact(self):
+    def test_3d_scalar_residual_at_exact(self, bkd):
         """Test residual is zero at exact interface solution for 3D scalar."""
         bkd = self.bkd
         npts = self.npts
@@ -1446,8 +1406,8 @@ class TestDtN3DScalar(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
 
-        bounds0 = self._compute_boundary_indices_3d(npts, npts, npts)
-        bounds1 = self._compute_boundary_indices_3d(npts, npts, npts)
+        bounds0 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
+        bounds1 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
 
         # Laplace equation: -Laplacian(u) = 0, so forcing = 0
         f0 = bkd.zeros((basis0.npts(),))
@@ -1542,9 +1502,9 @@ class TestDtN3DScalar(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-9, f"3D residual norm {res_norm} should be < 1e-9")
+        assert res_norm < 1e-9
 
-    def test_3d_scalar_solver_converges(self):
+    def test_3d_scalar_solver_converges(self, bkd):
         """Test DtN solver converges for 3D scalar problem."""
         bkd = self.bkd
         npts = self.npts
@@ -1572,8 +1532,8 @@ class TestDtN3DScalar(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
 
-        bounds0 = self._compute_boundary_indices_3d(npts, npts, npts)
-        bounds1 = self._compute_boundary_indices_3d(npts, npts, npts)
+        bounds0 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
+        bounds1 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
 
         f0 = bkd.zeros((basis0.npts(),))
         f1 = bkd.zeros((basis1.npts(),))
@@ -1659,14 +1619,14 @@ class TestDtN3DScalar(unittest.TestCase):
         ndofs = interface.ndofs()
         result = solver.solve(bkd.full((ndofs,), 0.5))
 
-        self.assertTrue(result.converged, "3D scalar DtN should converge")
+        assert result.converged, "3D scalar DtN should converge"
 
         computed_vals = interface.evaluate(result.interface_dofs)
         max_error = float(bkd.max(bkd.abs(computed_vals - self.exact_lambda)))
-        self.assertLess(max_error, 1e-8, f"3D interface error = {max_error}")
+        assert max_error < 1e-8
 
 
-class TestDtN2DVector(unittest.TestCase):
+class TestDtN2DVector:
     """Test 2D DtN with vector-valued linear elasticity.
 
     Problem: 2D linear elasticity equilibrium
@@ -1690,14 +1650,14 @@ class TestDtN2DVector(unittest.TestCase):
     t = σ·n = ((λ + 2μ)*a, 0)
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 6
         self.lamda = 1.0  # Lamé first parameter
         self.mu = 1.0  # Shear modulus
         self.g = 2.0  # External BC on sub 1
 
-    def _compute_boundary_indices_2d(self, npts_x, npts_y):
+    def _compute_boundary_indices_2d(self, bkd, npts_x, npts_y) :
         """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
         # Left: x-index=0 (x_ref=-1), all y
@@ -1723,7 +1683,7 @@ class TestDtN2DVector(unittest.TestCase):
         # u_x(-1) = lambda, u_x(1) = g
         return lam + ((g - lam) / 2.0) * (x + 1.0)
 
-    def test_2d_vector_residual_at_exact(self):
+    def test_2d_vector_residual_at_exact(self, bkd):
         """Test residual at exact interface for 2D vector elasticity."""
         bkd = self.bkd
         npts = self.npts
@@ -1750,8 +1710,8 @@ class TestDtN2DVector(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
         # Zero forcing (equilibrium solution satisfies homogeneous eq)
         physics0 = LinearElasticityPhysics(
@@ -1846,11 +1806,9 @@ class TestDtN2DVector(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm, 1e-8, f"2D vector residual {res_norm} should be < 1e-8"
-        )
+        assert res_norm < 1e-8
 
-    def test_2d_vector_solver_converges(self):
+    def test_2d_vector_solver_converges(self, bkd):
         """Test DtN solver converges for 2D vector elasticity."""
         bkd = self.bkd
         npts = self.npts
@@ -1876,8 +1834,8 @@ class TestDtN2DVector(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
 
-        bounds0 = self._compute_boundary_indices_2d(npts, npts)
-        bounds1 = self._compute_boundary_indices_2d(npts, npts)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts, npts)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts, npts)
 
         physics0 = LinearElasticityPhysics(
             basis0, bkd, lamda=self.lamda, mu=self.mu, forcing=None
@@ -1957,7 +1915,7 @@ class TestDtN2DVector(unittest.TestCase):
 
         result = solver.solve(bkd.zeros((total_ndofs,)))
 
-        self.assertTrue(result.converged, "2D vector DtN should converge")
+        assert result.converged, "2D vector DtN should converge"
 
         # Check u_x values
         ndofs_per_comp = interface.ndofs()
@@ -1968,11 +1926,11 @@ class TestDtN2DVector(unittest.TestCase):
         max_error_ux = float(bkd.max(bkd.abs(computed_ux - exact_ux)))
         max_error_uy = float(bkd.max(bkd.abs(computed_uy)))
 
-        self.assertLess(max_error_ux, 1e-8, f"u_x error = {max_error_ux}")
-        self.assertLess(max_error_uy, 1e-8, f"u_y error = {max_error_uy}")
+        assert max_error_ux < 1e-8
+        assert max_error_uy < 1e-8
 
 
-class TestDtN3DWithForcing(unittest.TestCase):
+class TestDtN3DWithForcing:
     """Test 3D DtN with non-zero forcing and asymmetric BCs.
 
     Similar to TestDtN2DWithForcing but in 3D.
@@ -1995,14 +1953,14 @@ class TestDtN3DWithForcing(unittest.TestCase):
     For g = 0: lambda = 4
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 6
         self.D = 1.0
         self.g = 2.0  # Asymmetric external BC (same as 2D test)
         self.exact_lambda = (self.g + 8.0) / 2.0  # = 5.0
 
-    def _compute_boundary_indices_3d(self, npts_x, npts_y, npts_z):
+    def _compute_boundary_indices_3d(self, bkd, npts_x, npts_y, npts_z) :
         """Compute 3D boundary indices (x varies fastest, then y, then z)."""
         bkd = self.bkd
         npts_xy = npts_x * npts_y
@@ -2089,7 +2047,7 @@ class TestDtN3DWithForcing(unittest.TestCase):
         B = (g - lam) / 2.0
         return A + B * x - x**2
 
-    def test_3d_forcing_residual_at_exact(self):
+    def test_3d_forcing_residual_at_exact(self, bkd):
         """Test 3D residual with forcing at exact solution."""
         bkd = self.bkd
         npts = self.npts
@@ -2117,8 +2075,8 @@ class TestDtN3DWithForcing(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
 
-        bounds0 = self._compute_boundary_indices_3d(npts, npts, npts)
-        bounds1 = self._compute_boundary_indices_3d(npts, npts, npts)
+        bounds0 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
+        bounds1 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
 
         # Forcing: div(D*grad(u)) + f = 0, so f = -div(D*grad(u)) = -D*laplacian(u)
         # For u = ... - x², laplacian(u) = -2, so f = -D*(-2) = 2*D = 2
@@ -2213,12 +2171,10 @@ class TestDtN3DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm, 1e-9, f"3D forcing residual {res_norm} should be < 1e-9"
-        )
+        assert res_norm < 1e-9
 
     @slow_test
-    def test_3d_forcing_solver_converges(self):
+    def test_3d_forcing_solver_converges(self, bkd):
         """Test DtN solver converges for 3D problem with forcing."""
         bkd = self.bkd
         npts = self.npts
@@ -2246,8 +2202,8 @@ class TestDtN3DWithForcing(unittest.TestCase):
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
 
-        bounds0 = self._compute_boundary_indices_3d(npts, npts, npts)
-        bounds1 = self._compute_boundary_indices_3d(npts, npts, npts)
+        bounds0 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
+        bounds1 = self._compute_boundary_indices_3d(bkd, npts, npts, npts)
 
         f_val = 2.0 * self.D
         f0 = bkd.full((basis0.npts(),), f_val)
@@ -2336,14 +2292,14 @@ class TestDtN3DWithForcing(unittest.TestCase):
         ndofs = interface.ndofs()
         result = solver.solve(bkd.full((ndofs,), 2.0))
 
-        self.assertTrue(result.converged, "3D with forcing should converge")
+        assert result.converged, "3D with forcing should converge"
 
         computed_vals = interface.evaluate(result.interface_dofs)
         max_error = float(bkd.max(bkd.abs(computed_vals - self.exact_lambda)))
-        self.assertLess(max_error, 1e-8, f"3D forcing interface error = {max_error}")
+        assert max_error < 1e-8
 
 
-class TestTimeSteppingDtN1D(unittest.TestCase):
+class TestTimeSteppingDtN1D:
     """Test DtN with proper time stepping using backward Euler.
 
     This test demonstrates how DtN domain decomposition integrates with
@@ -2361,7 +2317,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
     - Flux conservation holds at each time step
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 12
         self.D = 1.0
@@ -2369,7 +2325,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         self.final_time = 1.0
         self.deltat = 0.25
 
-    def _create_transient_problem(self):
+    def _create_transient_problem(self, bkd) :
         """Create transient 1D diffusion problem."""
         bkd = self.bkd
         npts = self.npts
@@ -2443,10 +2399,10 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
             "nodes": {0: nodes0, 1: nodes1},
         }
 
-    def test_time_stepping_multiple_steps(self):
+    def test_time_stepping_multiple_steps(self, bkd):
         """Test DtN solver over multiple time steps."""
         bkd = self.bkd
-        problem = self._create_transient_problem()
+        problem = self._create_transient_problem(bkd)
         mms = problem["mms"]
 
         times = []
@@ -2474,7 +2430,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
 
             result = solver.solve(initial_guess)
 
-            self.assertTrue(result.converged, f"DtN should converge at t={time}")
+            assert result.converged, f"DtN should converge at t={time}"
 
             computed_interface = float(result.interface_dofs[0])
             error = abs(computed_interface - exact_interface)
@@ -2487,14 +2443,12 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
 
         # All errors should be small
         max_error = max(errors)
-        self.assertLess(
-            max_error, 1e-8, f"Max interface error across time = {max_error}"
-        )
+        assert max_error < 1e-8
 
-    def test_flux_conservation_over_time(self):
+    def test_flux_conservation_over_time(self, bkd):
         """Verify flux conservation holds at multiple time steps."""
         bkd = self.bkd
-        problem = self._create_transient_problem()
+        problem = self._create_transient_problem(bkd)
         mms = problem["mms"]
 
         for t in [0.0, 0.5, 1.0]:
@@ -2515,14 +2469,12 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
             res = residual(exact_dofs)
             res_norm = float(bkd.norm(res))
 
-            self.assertLess(
-                res_norm, 1e-9, f"Flux conservation residual at t={t}: {res_norm}"
-            )
+            assert res_norm < 1e-9
 
-    def test_solution_trajectory(self):
+    def test_solution_trajectory(self, bkd):
         """Test solution accuracy over a trajectory of time steps."""
         bkd = self.bkd
-        problem = self._create_transient_problem()
+        problem = self._create_transient_problem(bkd)
         mms = problem["mms"]
 
         ntimes = 5
@@ -2544,7 +2496,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
             solver = DtNSolver(bkd, residual, max_iters=20, tol=1e-10)
             result = solver.solve(bkd.asarray([2.0]))
 
-            self.assertTrue(result.converged, f"Failed at t={t}")
+            assert result.converged, f"Failed at t={t}"
 
             # Check solution on each subdomain
             for sub_id in [0, 1]:
@@ -2557,9 +2509,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
                     exact_sol = mms.solution_sub1(nodes, t)
 
                 max_error = float(bkd.max(bkd.abs(computed_sol - exact_sol)))
-                self.assertLess(
-                    max_error, 1e-7, f"Sub {sub_id} at t={t}: error = {max_error}"
-                )
+                assert max_error < 1e-7
 
 
 # NOTE: Shallow wave DtN tests were removed because shallow water equations
@@ -2568,7 +2518,3 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
 # Shallow water equations don't have a meaningful steady state for Newton
 # iteration from zero initial guess. For shallow water domain decomposition,
 # use a time-stepping approach with explicit flux coupling instead of DtN.
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -7,11 +7,10 @@ time-dependent displacement fields.
 NumPy only — skfem assembly at each nonlinear step is numpy-based.
 """
 
-import unittest
 from typing import List, Tuple
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
@@ -34,7 +33,7 @@ from pyapprox.pde.time.implicit_steppers import (
     CrankNicolsonResidual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 # =========================================================================
 # Helpers
@@ -85,16 +84,16 @@ TRANSIENT_1D_CASES: List[Tuple[str, str]] = [
 ]
 
 
-class TestTransientHyperelasticity1D(ParametrizedTestCase):
+class TestTransientHyperelasticity1D:
     """Transient 1D hyperelasticity with manufactured solutions.
 
     Uses time-linear solution u(x,t) = u0(x)*(1+T) which is exactly
     reproduced by both backward Euler and Crank-Nicolson.
     """
 
-    @parametrize("name,method", TRANSIENT_1D_CASES)
-    def test_transient_1d(self, name: str, method: str) -> None:
-        bkd = NumpyBkd()
+    @pytest.mark.parametrize("name,method", TRANSIENT_1D_CASES)
+    def test_transient_1d(self, numpy_bkd, name: str, method: str) -> None:
+        bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = ["0.1*x**2*(1-x)**2*(1+T)"]
 
@@ -179,11 +178,7 @@ class TestTransientHyperelasticity1D(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-5,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-5",
-        )
+        assert rel_error < 1e-5
 
 
 # =========================================================================
@@ -197,17 +192,17 @@ TRANSIENT_2D_CASES: List[Tuple[str, str]] = [
 ]
 
 
-class TestTransientHyperelasticity2D(ParametrizedTestCase):
+class TestTransientHyperelasticity2D:
     """Transient 2D hyperelasticity with manufactured solutions.
 
     Uses time-linear solution u(x,y,t) = u0(x,y)*(1+T) which is exactly
     reproduced by both backward Euler and Crank-Nicolson.
     """
 
-    @parametrize("name,method", TRANSIENT_2D_CASES)
+    @pytest.mark.parametrize("name,method", TRANSIENT_2D_CASES)
     @slow_test
-    def test_transient_2d(self, name: str, method: str) -> None:
-        bkd = NumpyBkd()
+    def test_transient_2d(self, numpy_bkd, name: str, method: str) -> None:
+        bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = [
             "0.1*x**2*(1-x)**2*y**2*(1-y)**2*(1+T)",
@@ -301,12 +296,4 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            2e-4,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 2e-4",
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 2e-4

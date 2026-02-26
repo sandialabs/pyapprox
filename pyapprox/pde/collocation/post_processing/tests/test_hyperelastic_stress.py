@@ -1,9 +1,9 @@
 """Tests for 2D hyperelastic stress post-processing."""
 
 import math
-import unittest
-from typing import Any, Generic
+from typing import Any
 
+import pytest
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -31,8 +31,6 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 # ======================================================================
 # Helpers
 # ======================================================================
@@ -98,21 +96,9 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
 # ======================================================================
 
 
-class TestHyperelasticStressPostProcessor2D(
-    Generic[Array],
-    unittest.TestCase,
-):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_cauchy_from_pk1(self):
+class TestHyperelasticStressPostProcessor2D:
+    def test_cauchy_from_pk1(self, bkd):
         """Cauchy stress sigma = (1/J)*P*F^T matches direct computation."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         proc = setup["proc"]
         npts = setup["npts"]
@@ -142,9 +128,8 @@ class TestHyperelasticStressPostProcessor2D(
         bkd.assert_allclose(sxy, sxy_direct, rtol=1e-12)
         bkd.assert_allclose(syy, syy_direct, rtol=1e-12)
 
-    def test_strain_energy_density_direct(self):
+    def test_strain_energy_density_direct(self, bkd):
         """Strain energy matches Neo-Hookean formula directly."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         proc = setup["proc"]
         npts = setup["npts"]
@@ -166,9 +151,8 @@ class TestHyperelasticStressPostProcessor2D(
 
         bkd.assert_allclose(W, W_direct, rtol=1e-12)
 
-    def test_hoop_stress_small_disp(self):
+    def test_hoop_stress_small_disp(self, bkd):
         """Small displacement: hyperelastic hoop stress ≈ linear hoop stress."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         npts = setup["npts"]
 
@@ -181,9 +165,8 @@ class TestHyperelasticStressPostProcessor2D(
 
         bkd.assert_allclose(hoop_hyper, hoop_linear, atol=1e-6)
 
-    def test_cauchy_stress_jacobian_fd(self):
+    def test_cauchy_stress_jacobian_fd(self, bkd):
         """Cauchy stress Jacobian matches finite differences."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
         proc = setup["proc"]
         npts = setup["npts"]
@@ -192,7 +175,7 @@ class TestHyperelasticStressPostProcessor2D(
         state = bkd.array(np.random.randn(2 * npts) * 0.005)
 
         dsxx, dsxy, dsyy = proc.cartesian_stress_state_jacobian(state)
-        self.assertEqual(dsxx.shape, (npts, 2 * npts))
+        assert dsxx.shape == (npts, 2 * npts)
 
         eps = 1e-7
         for dof in [0, npts // 2, npts, npts + npts // 3]:
@@ -223,9 +206,8 @@ class TestHyperelasticStressPostProcessor2D(
                 atol=1e-8,
             )
 
-    def test_hoop_stress_jacobian_fd(self):
+    def test_hoop_stress_jacobian_fd(self, bkd):
         """Hoop stress Jacobian matches finite differences."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
         proc = setup["proc"]
         npts = setup["npts"]
@@ -234,7 +216,7 @@ class TestHyperelasticStressPostProcessor2D(
         state = bkd.array(np.random.randn(2 * npts) * 0.005)
 
         jac = proc.hoop_stress_state_jacobian(state)
-        self.assertEqual(jac.shape, (npts, 2 * npts))
+        assert jac.shape == (npts, 2 * npts)
 
         eps = 1e-7
         for dof in [0, npts // 2, npts, npts + npts // 3]:
@@ -247,9 +229,8 @@ class TestHyperelasticStressPostProcessor2D(
             fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
-    def test_strain_energy_density_jacobian_fd(self):
+    def test_strain_energy_density_jacobian_fd(self, bkd):
         """Strain energy density Jacobian matches finite differences."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd, npts_r=6, npts_theta=6)
         proc = setup["proc"]
         npts = setup["npts"]
@@ -258,7 +239,7 @@ class TestHyperelasticStressPostProcessor2D(
         state = bkd.array(np.random.randn(2 * npts) * 0.005)
 
         jac = proc.strain_energy_density_state_jacobian(state)
-        self.assertEqual(jac.shape, (npts, 2 * npts))
+        assert jac.shape == (npts, 2 * npts)
 
         eps = 1e-7
         for dof in [0, npts // 2, npts, npts + npts // 3]:
@@ -274,9 +255,8 @@ class TestHyperelasticStressPostProcessor2D(
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
-    def test_strain_energy_density_positive(self):
+    def test_strain_energy_density_positive(self, bkd):
         """Strain energy density is positive at an equilibrium state."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         npts = setup["npts"]
         mesh = setup["mesh"]
@@ -339,11 +319,10 @@ class TestHyperelasticStressPostProcessor2D(
         state = model.solve_steady(init_state, tol=1e-10, maxiter=50)
 
         W = setup["proc"].strain_energy_density(state)
-        self.assertGreater(float(bkd.min(W)), 0.0)
+        assert float(bkd.min(W)) > 0.0
 
-    def test_no_curvilinear_basis_raises(self):
+    def test_no_curvilinear_basis_raises(self, bkd):
         """hoop_stress raises when curvilinear_basis not provided."""
-        bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         proc_no_curv = HyperelasticStressPostProcessor2D(
             setup["Dx"],
@@ -353,20 +332,5 @@ class TestHyperelasticStressPostProcessor2D(
         )
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * setup["npts"]) * 0.005)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             proc_no_curv.hoop_stress(state)
-
-
-class TestHyperelasticStressPostProcessor2DNumpy(
-    TestHyperelasticStressPostProcessor2D[NDArray[Any]],
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestHyperelasticStressPostProcessor2DTorch(
-    TestHyperelasticStressPostProcessor2D[torch.Tensor],
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

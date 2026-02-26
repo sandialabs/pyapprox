@@ -9,13 +9,12 @@ Legacy test cases from test_finite_elements.py lines 1160-1240.
 The periodic case is skipped (known legacy bug).
 """
 
-import unittest
 from typing import Any, Generic, List, Tuple
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
@@ -37,102 +36,79 @@ from pyapprox.pde.time.implicit_steppers import (
     CrankNicolsonResidual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 
 # =========================================================================
 # Part A: Unit Tests
 # =========================================================================
 
 
-class TestBurgersBase(Generic[Array], unittest.TestCase):
+class TestBurgersBase:
     """Base test class for BurgersPhysics unit tests."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+    def _setup(self, bkd):
+        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         self.basis = LagrangeBasis(self.mesh, degree=2)
         self.physics = BurgersPhysics(
+
             basis=self.basis,
             viscosity=1.0,
-            bkd=self.bkd_inst,
+            bkd=bkd,
             forcing=lambda x: np.ones(x.shape[-1]),
         )
 
-    def test_nstates(self) -> None:
+    def test_nstates(self, numpy_bkd) -> None:
         """Test DOF count matches basis."""
-        self.assertEqual(self.physics.nstates(), self.basis.ndofs())
+        bkd = numpy_bkd
+        self._setup(bkd)
+        assert self.physics.nstates() == self.basis.ndofs()
 
-    def test_residual_shape(self) -> None:
+    def test_residual_shape(self, numpy_bkd) -> None:
         """Test residual has shape (nstates,)."""
-        state = self.bkd_inst.asarray(np.zeros(self.physics.nstates()))
+        bkd = numpy_bkd
+        self._setup(bkd)
+        state = bkd.asarray(np.zeros(self.physics.nstates()))
         res = self.physics.residual(state, 0.0)
-        self.assertEqual(res.shape, (self.physics.nstates(),))
+        assert res.shape == (self.physics.nstates(),)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, numpy_bkd) -> None:
         """Test Jacobian has shape (nstates, nstates)."""
-        state = self.bkd_inst.asarray(np.zeros(self.physics.nstates()))
+        bkd = numpy_bkd
+        self._setup(bkd)
+        state = bkd.asarray(np.zeros(self.physics.nstates()))
         jac = self.physics.jacobian(state, 0.0)
         n = self.physics.nstates()
-        self.assertEqual(jac.shape, (n, n))
+        assert jac.shape == (n, n)
 
-    def test_mass_matrix_shape(self) -> None:
+    def test_mass_matrix_shape(self, numpy_bkd) -> None:
         """Test mass matrix shape."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         M = self.physics.mass_matrix()
         n = self.physics.nstates()
-        self.assertEqual(M.shape, (n, n))
+        assert M.shape == (n, n)
 
-    def test_mass_matrix_symmetric(self) -> None:
+    def test_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         M_raw = self.physics.mass_matrix()
-        M = M_raw.toarray() if issparse(M_raw) else self.bkd_inst.to_numpy(M_raw)
+        M = M_raw.toarray() if issparse(M_raw) else bkd.to_numpy(M_raw)
         np.testing.assert_allclose(M, M.T, atol=1e-14)
 
-    def test_mass_matrix_positive_definite(self) -> None:
+    def test_mass_matrix_positive_definite(self, numpy_bkd) -> None:
         """Test mass matrix is positive definite."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         M_raw = self.physics.mass_matrix()
-        M = M_raw.toarray() if issparse(M_raw) else self.bkd_inst.to_numpy(M_raw)
+        M = M_raw.toarray() if issparse(M_raw) else bkd.to_numpy(M_raw)
         eigvals = np.linalg.eigvalsh(M)
-        self.assertTrue(np.all(eigvals > 0))
+        assert np.all(eigvals > 0)
 
-    def test_is_not_linear(self) -> None:
+    def test_is_not_linear(self, numpy_bkd) -> None:
         """Test is_linear() returns False."""
-        self.assertFalse(self.physics.is_linear())
-
-
-class TestBurgersNumpy(TestBurgersBase[NDArray[Any]]):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestBurgersTorch(TestBurgersBase[torch.Tensor]):
-        __test__ = True
-
-        def setUp(self) -> None:
-            torch.set_default_dtype(torch.float64)
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> TorchBkd:
-            return self._bkd
-
-except ImportError:
-    pass
+        bkd = numpy_bkd
+        self._setup(bkd)
+        assert not self.physics.is_linear()
 
 
 # =========================================================================
@@ -164,19 +140,20 @@ BURGERS_STEADY_CASES: List[Tuple[str, List[float], List[str], str, str]] = [
 ]
 
 
-class TestParametrizedBurgersSteady(ParametrizedTestCase):
+class TestParametrizedBurgersSteady:
     """Parametrized 1D Burgers steady-state tests with P2 elements.
 
     Replicates legacy test_finite_elements.py test_steady_burgers (2 cases).
     Uses manufactured solutions with Newton solver for the nonlinear problem.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,bndry_types,sol_str,visc_str",
         BURGERS_STEADY_CASES,
     )
     def test_steady_burgers(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -184,7 +161,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         visc_str: str,
     ) -> None:
         """Test steady-state Burgers with manufactured solution."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nx = 8 * 2**3  # 64 elements (nrefine=3 with base 8)
 
         # Create mesh and basis (P2 elements)
@@ -228,10 +205,9 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         solver = SteadyStateSolver(physics, tol=1e-12, max_iter=10, line_search=True)
         result = solver.solve(init_guess)
 
-        self.assertTrue(
-            result.converged,
+        assert result.converged, (
             f"Test {name}: Newton did not converge "
-            f"(residual_norm={result.residual_norm:.2e})",
+            f"(residual_norm={result.residual_norm:.2e})"
         )
 
         # Compute error
@@ -242,11 +218,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_vals)
 
-        self.assertLess(
-            rel_error,
-            1e-8,
-            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8",
-        )
+        assert rel_error < 1e-8
 
 
 # =========================================================================
@@ -275,7 +247,7 @@ BURGERS_TRANSIENT_CASES: List[Tuple[str, List[float], List[str], str, str, str]]
 ]
 
 
-class TestParametrizedBurgersTransient(ParametrizedTestCase):
+class TestParametrizedBurgersTransient:
     """Parametrized 1D Burgers transient tests with P2 + backward Euler.
 
     Replicates legacy test_finite_elements.py test_transient_burgers DD case.
@@ -283,12 +255,13 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
     with Newton iteration at each step.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,bndry_types,sol_str,visc_str,method",
         BURGERS_TRANSIENT_CASES,
     )
     def test_transient_burgers(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -297,7 +270,7 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         method: str,
     ) -> None:
         """Test transient Burgers with manufactured solution."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nx = 8 * 2**3  # 64 elements
 
         # Create mesh and basis (P2 elements)
@@ -385,14 +358,4 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
 
         # Transient tolerance is looser than steady-state due to
         # backward Euler temporal discretization error (dt=1.0)
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-6

@@ -1,7 +1,5 @@
 """Tests for differential operators."""
 
-import unittest
-from typing import Generic
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -19,22 +17,11 @@ from pyapprox.pde.collocation.operators import (
     input_field,
     laplacian,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestGradient(Generic[Array], unittest.TestCase):
+class TestGradient:
     """Base test class for Gradient operator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_gradient_1d_linear(self):
+    def test_gradient_1d_linear(self, bkd):
         """Test gradient of linear function f(x) = x."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -47,12 +34,11 @@ class TestGradient(Generic[Array], unittest.TestCase):
         grad_op = Gradient(basis, bkd)
         grad_f = grad_op(f)
 
-        self.assertEqual(len(grad_f), 1)
+        assert len(grad_f) == 1
         bkd.assert_allclose(grad_f[0].as_flat(), bkd.ones((npts,)), atol=1e-12)
 
-    def test_gradient_1d_quadratic(self):
+    def test_gradient_1d_quadratic(self, bkd):
         """Test gradient of quadratic function f(x) = x^2."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -66,9 +52,8 @@ class TestGradient(Generic[Array], unittest.TestCase):
         expected = 2.0 * nodes
         bkd.assert_allclose(grad_f[0].as_flat(), expected, atol=1e-11)
 
-    def test_gradient_2d_separable(self):
+    def test_gradient_2d_separable(self, bkd):
         """Test gradient of separable function f(x,y) = x^2 + y^2."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(6, 6, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -88,22 +73,16 @@ class TestGradient(Generic[Array], unittest.TestCase):
 
         grad_f = gradient(f, basis, bkd)
 
-        self.assertEqual(len(grad_f), 2)
+        assert len(grad_f) == 2
         bkd.assert_allclose(grad_f[0].as_flat(), 2.0 * xx, atol=1e-10)
         bkd.assert_allclose(grad_f[1].as_flat(), 2.0 * yy, atol=1e-10)
 
 
-class TestDivergence(Generic[Array], unittest.TestCase):
+class TestDivergence:
     """Base test class for Divergence operator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_divergence_2d_linear(self):
+    def test_divergence_2d_linear(self, bkd):
         """Test divergence of vector field v = (x, y)."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(6, 6, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -126,9 +105,8 @@ class TestDivergence(Generic[Array], unittest.TestCase):
         expected = bkd.ones((npts,)) * 2.0
         bkd.assert_allclose(div_v.as_flat(), expected, atol=1e-12)
 
-    def test_divergence_2d_nonlinear(self):
+    def test_divergence_2d_nonlinear(self, bkd):
         """Test divergence of vector field v = (x^2, y^2)."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(6, 6, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -151,17 +129,11 @@ class TestDivergence(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(div_v.as_flat(), expected, atol=1e-10)
 
 
-class TestLaplacian(Generic[Array], unittest.TestCase):
+class TestLaplacian:
     """Base test class for Laplacian operator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_laplacian_1d_quadratic(self):
+    def test_laplacian_1d_quadratic(self, bkd):
         """Test Laplacian of quadratic function f(x) = x^2."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -176,9 +148,8 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         expected = bkd.ones((npts,)) * 2.0
         bkd.assert_allclose(lap_f.as_flat(), expected, atol=1e-10)
 
-    def test_laplacian_1d_cubic(self):
+    def test_laplacian_1d_cubic(self, bkd):
         """Test Laplacian of cubic function f(x) = x^3."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -192,9 +163,8 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         expected = 6.0 * nodes
         bkd.assert_allclose(lap_f.as_flat(), expected, atol=1e-9)
 
-    def test_laplacian_2d_separable(self):
+    def test_laplacian_2d_separable(self, bkd):
         """Test Laplacian of separable function f(x,y) = x^2 + y^2."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(6, 6, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -217,9 +187,8 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         expected = bkd.ones((npts,)) * 4.0
         bkd.assert_allclose(lap_f.as_flat(), expected, atol=1e-10)
 
-    def test_laplacian_2d_mixed(self):
+    def test_laplacian_2d_mixed(self, bkd):
         """Test Laplacian of mixed function f(x,y) = x^2*y^2."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(8, 8, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -245,17 +214,11 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(lap_f.as_flat(), expected, atol=1e-9)
 
 
-class TestOperatorClasses(Generic[Array], unittest.TestCase):
+class TestOperatorClasses:
     """Test operator class vs function interface."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_gradient_class_vs_function(self):
+    def test_gradient_class_vs_function(self, bkd):
         """Test Gradient class gives same result as gradient function."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -273,9 +236,8 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
             result_class[0].as_flat(), result_func[0].as_flat(), atol=1e-14
         )
 
-    def test_laplacian_class_vs_function(self):
+    def test_laplacian_class_vs_function(self, bkd):
         """Test Laplacian class gives same result as laplacian function."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -295,38 +257,14 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
 class TestGradientNumpy(TestGradient):
     """NumPy backend tests for Gradient."""
 
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
 
 class TestDivergenceNumpy(TestDivergence):
     """NumPy backend tests for Divergence."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
 
 
 class TestLaplacianNumpy(TestLaplacian):
     """NumPy backend tests for Laplacian."""
 
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
 
 class TestOperatorClassesNumpy(TestOperatorClasses):
     """NumPy backend tests for operator classes."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

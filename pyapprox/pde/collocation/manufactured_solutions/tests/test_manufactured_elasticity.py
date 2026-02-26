@@ -10,9 +10,10 @@ represented by the tensor product Chebyshev basis. This gives machine
 precision residuals (< 1e-12).
 """
 
-import unittest
 from typing import Generic
 
+
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -27,11 +28,6 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -75,7 +71,7 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(state, self._time)
 
 
-class TestLinearElasticity(Generic[Array], unittest.TestCase):
+class TestLinearElasticity:
     """Test linear elasticity manufactured solutions.
 
     Uses polynomial solutions for machine precision:
@@ -85,17 +81,11 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
     These satisfy u=v=0 on all boundaries.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_residual_polynomial(self):
+    def test_residual_polynomial(self, bkd):
         """Test residual = 0 at exact polynomial solution.
 
         Uses polynomial solution with degree <= 4 for machine precision.
         """
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -171,9 +161,8 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian correctness via DerivativeChecker."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -195,11 +184,10 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
 
         # Should have small relative error at some epsilon
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_jacobian_with_different_lame_params(self):
+    def test_jacobian_with_different_lame_params(self, bkd):
         """Test Jacobian with different Lamé parameters."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -216,11 +204,10 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_numerical_solve(self):
+    def test_numerical_solve(self, bkd):
         """Test numerical solution matches manufactured solution."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -273,9 +260,8 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         # Should match exact solution
         bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-8)
 
-    def test_ncomponents(self):
+    def test_ncomponents(self, bkd):
         """Test that physics reports correct number of components."""
-        bkd = self.bkd()
         npts_x, npts_y = 5, 5
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -283,18 +269,9 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
 
         physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
 
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertEqual(physics.nstates(), 2 * basis.npts())
+        assert physics.ncomponents() == 2
+        assert physics.nstates() == 2 * basis.npts()
 
 
 class TestLinearElasticityNumpy(TestLinearElasticity):
     """Numpy implementation of linear elasticity tests."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

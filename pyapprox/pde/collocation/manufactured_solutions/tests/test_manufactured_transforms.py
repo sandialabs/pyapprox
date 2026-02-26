@@ -16,13 +16,15 @@ Configuration notes:
 - Tolerances: Looser than Cartesian due to curvilinear gradient factors
 """
 
+from typing import Generic
+
+import pytest
+
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -53,10 +55,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -98,7 +97,7 @@ class PhysicsDerivativeWrapper(Generic[Array]):
 # =============================================================================
 
 
-class TestPolarADR(Generic[Array], unittest.TestCase):
+class TestPolarADR:
     """Test ADR physics on polar coordinate domains.
 
     Domain: r ∈ [1, 2], θ ∈ [-π/2, π/2] (quarter annulus)
@@ -109,19 +108,13 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
     - More points needed for spectral accuracy on transformed gradients
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_polar_mesh_and_basis(self, npts_r: int = 30, npts_theta: int = 30):
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 30, npts_theta: int = 30):
         """Create polar mesh and basis.
 
         Note: Resolution 30x30 gives ~1e-10 residual for x^2*y^2 solution.
         The Cartesian polynomial x^2*y^2 = r^4*cos^2(θ)*sin^2(θ) involves
         trigonometric terms requiring sufficient resolution for spectral accuracy.
         """
-        bkd = self.bkd()
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -131,9 +124,8 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_manufactured_solution(self, diff: float = 4.0, vel=None, react=0.0):
+    def _create_manufactured_solution(self, bkd, diff: float = 4.0, vel=None, react=0.0):
         """Create manufactured solution for ADR on polar domain."""
-        bkd = self.bkd()
         vel_strs = ["0", "0"] if vel is None else [str(v) for v in vel]
         react_str = f"{react}*u" if react != 0.0 else "0"
 
@@ -148,9 +140,8 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         )
         return man_sol
 
-    def _apply_dirichlet_bcs(self, physics, mesh, man_sol, physical_pts):
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
         """Apply Dirichlet BCs using manufactured solution values."""
-        bkd = self.bkd()
         bcs = []
         for side in range(4):
             boundary_idx = mesh.boundary_indices(side)
@@ -160,21 +151,19 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, mesh, basis):
+    def _get_interior_indices(self, bkd, mesh, basis) :
         """Get indices of interior (non-boundary) points."""
-        bkd = self.bkd()
         boundary_set = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_set.add(int(bkd.to_numpy(idx)))
         return [i for i in range(basis.npts()) if i not in boundary_set]
 
-    def test_polar_adr_residual_diffusion_only(self):
+    def test_polar_adr_residual_diffusion_only(self, bkd):
         """Test residual at exact solution for diffusion-only on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=4.0)
+        man_sol = self._create_manufactured_solution(bkd, diff=4.0)
 
         # Get physical coordinates and evaluate manufactured solution
         physical_pts = mesh.points()  # Shape: (2, npts)
@@ -187,7 +176,7 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         )
 
         # Apply Dirichlet BCs
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         # Compute residual
         residual = physics.residual(u_exact, 0.0)
@@ -196,7 +185,7 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         )
 
         # Check interior residual
-        interior_idx = self._get_interior_indices(mesh, basis)
+        interior_idx = self._get_interior_indices(bkd, mesh, basis)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         # Tight tolerance - spectral accuracy with 25x25 points
@@ -204,12 +193,11 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_polar_adr_residual_with_advection(self):
+    def test_polar_adr_residual_with_advection(self, bkd):
         """Test residual with advection on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=0.1, vel=[1.0, 2.0])
+        man_sol = self._create_manufactured_solution(bkd, diff=0.1, vel=[1.0, 2.0])
 
         physical_pts = mesh.points()
         u_exact = man_sol.functions["solution"](physical_pts)
@@ -222,26 +210,25 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=0.1, velocity=velocity, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         residual = physics.residual(u_exact, 0.0)
         residual_with_bc, _ = physics.apply_boundary_conditions(
             residual, physics.jacobian(u_exact, 0.0), u_exact, 0.0
         )
 
-        interior_idx = self._get_interior_indices(mesh, basis)
+        interior_idx = self._get_interior_indices(bkd, mesh, basis)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_polar_adr_residual_with_reaction(self):
+    def test_polar_adr_residual_with_reaction(self, bkd):
         """Test residual with reaction on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=1.0, react=2.0)
+        man_sol = self._create_manufactured_solution(bkd, diff=1.0, react=2.0)
 
         physical_pts = mesh.points()
         u_exact = man_sol.functions["solution"](physical_pts)
@@ -250,26 +237,25 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, reaction=2.0, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         residual = physics.residual(u_exact, 0.0)
         residual_with_bc, _ = physics.apply_boundary_conditions(
             residual, physics.jacobian(u_exact, 0.0), u_exact, 0.0
         )
 
-        interior_idx = self._get_interior_indices(mesh, basis)
+        interior_idx = self._get_interior_indices(bkd, mesh, basis)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_polar_adr_jacobian(self):
+    def test_polar_adr_jacobian(self, bkd):
         """Test Jacobian correctness via finite differences on polar domain."""
-        bkd = self.bkd()
         # Use smaller grid for Jacobian test (faster, Jacobian check doesn't need high
         # resolution)
-        mesh, basis = self._create_polar_mesh_and_basis(npts_r=12, npts_theta=12)
+        mesh, basis = self._create_polar_mesh_and_basis(bkd, npts_r=12, npts_theta=12)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -280,14 +266,16 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
 
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_polar_adr_solve(self):
+
+    @pytest.mark.slow_on("TorchBkd")
+
+    def test_polar_adr_solve(self, bkd):
         """Test numerical solve matches manufactured solution on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=4.0)
+        man_sol = self._create_manufactured_solution(bkd, diff=4.0)
 
         physical_pts = mesh.points()
         u_exact = man_sol.functions["solution"](physical_pts)
@@ -296,7 +284,7 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=4.0, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         model = CollocationModel(physics, bkd)
         initial_guess = bkd.zeros((basis.npts(),))
@@ -306,37 +294,12 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
 
-class TestPolarADRNumpy(TestPolarADR[NDArray[Any]]):
-    """NumPy backend tests for polar ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPolarADRTorch(TestPolarADR[torch.Tensor]):
-    """PyTorch backend tests for polar ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-    @slow_test
-    def test_polar_adr_solve(self):
-        super().test_polar_adr_solve()
-
-
 # =============================================================================
 # Phase 2: Elliptical Transform + ADR Physics Tests
 # =============================================================================
 
 
-class TestEllipticalADR(Generic[Array], unittest.TestCase):
+class TestEllipticalADR:
     """Test ADR physics on elliptical coordinate domains.
 
     Domain: u ∈ [0.5, 2], v ∈ [0.1, π-0.1] (avoids singularities at v=0,π)
@@ -344,17 +307,11 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
     Manufactured solution: x**2*y**2
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_elliptical_mesh_and_basis(self, npts_u: int = 25, npts_v: int = 25):
+    def _create_elliptical_mesh_and_basis(self, bkd, npts_u: int = 25, npts_v: int = 25):
         """Create elliptical mesh and basis.
 
         Note: 25x25 gives ~1e-10 residual for x^2*y^2 solution on elliptical domain.
         """
-        bkd = self.bkd()
         transform = EllipticalTransform(
             u_bounds=(0.5, 2.0),
             v_bounds=(0.1, math.pi - 0.1),
@@ -365,9 +322,8 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_manufactured_solution(self, diff: float = 1.0, vel=None, react=0.0):
+    def _create_manufactured_solution(self, bkd, diff: float = 1.0, vel=None, react=0.0):
         """Create manufactured solution for ADR on elliptical domain."""
-        bkd = self.bkd()
         vel_strs = ["0", "0"] if vel is None else [str(v) for v in vel]
         react_str = f"{react}*u" if react != 0.0 else "0"
 
@@ -382,9 +338,8 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         )
         return man_sol
 
-    def _apply_dirichlet_bcs(self, physics, mesh, man_sol, physical_pts):
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
         """Apply Dirichlet BCs using manufactured solution values."""
-        bkd = self.bkd()
         bcs = []
         for side in range(4):
             boundary_idx = mesh.boundary_indices(side)
@@ -394,21 +349,19 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, mesh, basis):
+    def _get_interior_indices(self, bkd, mesh, basis) :
         """Get indices of interior (non-boundary) points."""
-        bkd = self.bkd()
         boundary_set = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_set.add(int(bkd.to_numpy(idx)))
         return [i for i in range(basis.npts()) if i not in boundary_set]
 
-    def test_elliptical_adr_residual(self):
+    def test_elliptical_adr_residual(self, bkd):
         """Test residual at exact solution on elliptical domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_elliptical_mesh_and_basis()
+        mesh, basis = self._create_elliptical_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=1.0)
+        man_sol = self._create_manufactured_solution(bkd, diff=1.0)
 
         physical_pts = mesh.points()
         u_exact = man_sol.functions["solution"](physical_pts)
@@ -417,24 +370,23 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         residual = physics.residual(u_exact, 0.0)
         residual_with_bc, _ = physics.apply_boundary_conditions(
             residual, physics.jacobian(u_exact, 0.0), u_exact, 0.0
         )
 
-        interior_idx = self._get_interior_indices(mesh, basis)
+        interior_idx = self._get_interior_indices(bkd, mesh, basis)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_elliptical_adr_jacobian(self):
+    def test_elliptical_adr_jacobian(self, bkd):
         """Test Jacobian correctness on elliptical domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_elliptical_mesh_and_basis(npts_u=12, npts_v=12)
+        mesh, basis = self._create_elliptical_mesh_and_basis(bkd, npts_u=12, npts_v=12)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -445,14 +397,13 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
 
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_elliptical_adr_solve(self):
+    def test_elliptical_adr_solve(self, bkd):
         """Test numerical solve on elliptical domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_elliptical_mesh_and_basis()
+        mesh, basis = self._create_elliptical_mesh_and_basis(bkd)
 
-        man_sol = self._create_manufactured_solution(diff=1.0)
+        man_sol = self._create_manufactured_solution(bkd, diff=1.0)
 
         physical_pts = mesh.points()
         u_exact = man_sol.functions["solution"](physical_pts)
@@ -461,7 +412,7 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         model = CollocationModel(physics, bkd)
         initial_guess = bkd.zeros((basis.npts(),))
@@ -470,47 +421,20 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
 
-class TestEllipticalADRNumpy(TestEllipticalADR[NDArray[Any]]):
-    """NumPy backend tests for elliptical ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestEllipticalADRTorch(TestEllipticalADR[torch.Tensor]):
-    """PyTorch backend tests for elliptical ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
 # =============================================================================
 # Phase 3: Time-Dependent Polar ADR Tests
 # =============================================================================
 
 
-class TestTransientPolarADR(Generic[Array], unittest.TestCase):
+class TestTransientPolarADR:
     """Test time-dependent ADR on polar domains.
 
     Manufactured solution: x**2*y**2*(1 + T) - linear in time
     For linear-in-time solutions, backward Euler and Crank-Nicolson are exact.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_polar_mesh_and_basis(self, npts_r: int = 25, npts_theta: int = 25):
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25) :
         """Create polar mesh and basis."""
-        bkd = self.bkd()
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -520,9 +444,8 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_transient_manufactured_solution(self, diff: float = 1.0):
+    def _create_transient_manufactured_solution(self, bkd, diff: float = 1.0) :
         """Create time-dependent manufactured solution linear in time."""
-        bkd = self.bkd()
         # Linear in time: backward Euler and Crank-Nicolson are exact
         man_sol = ManufacturedAdvectionDiffusionReaction(
             sol_str="x**2*y**2*(1 + T)",
@@ -535,9 +458,8 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         )
         return man_sol
 
-    def _apply_time_dependent_dirichlet_bcs(self, physics, mesh, man_sol, physical_pts):
+    def _apply_time_dependent_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
         """Apply time-dependent Dirichlet BCs."""
-        bkd = self.bkd()
         bcs = []
         for side in range(4):
             boundary_idx = mesh.boundary_indices(side)
@@ -552,15 +474,14 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         physics.set_boundary_conditions(bcs)
 
     @slow_test
-    def test_transient_polar_backward_euler(self):
+    def test_transient_polar_backward_euler(self, bkd):
         """Test transient polar ADR with backward Euler.
 
         Linear-in-time solution => backward Euler is exact with any time step.
         """
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_transient_manufactured_solution(diff=1.0)
+        man_sol = self._create_transient_manufactured_solution(bkd, diff=1.0)
 
         physical_pts = mesh.points()
 
@@ -571,7 +492,7 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=forcing_fn
         )
-        self._apply_time_dependent_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_time_dependent_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         model = CollocationModel(physics, bkd)
 
@@ -596,15 +517,17 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         # Tight tolerance - only spatial discretization error
         bkd.assert_allclose(u_final, u_exact_final, atol=1e-8)
 
-    def test_transient_polar_crank_nicolson(self):
+
+    @pytest.mark.slow_on("TorchBkd")
+
+    def test_transient_polar_crank_nicolson(self, bkd):
         """Test transient polar ADR with Crank-Nicolson.
 
         Linear-in-time solution => Crank-Nicolson is exact with any time step.
         """
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
-        man_sol = self._create_transient_manufactured_solution(diff=1.0)
+        man_sol = self._create_transient_manufactured_solution(bkd, diff=1.0)
 
         physical_pts = mesh.points()
 
@@ -614,7 +537,7 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=forcing_fn
         )
-        self._apply_time_dependent_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_time_dependent_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         model = CollocationModel(physics, bkd)
 
@@ -636,31 +559,6 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_final, u_exact_final, atol=1e-8)
 
 
-class TestTransientPolarADRNumpy(TestTransientPolarADR[NDArray[Any]]):
-    """NumPy backend tests for transient polar ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientPolarADRTorch(TestTransientPolarADR[torch.Tensor]):
-    """PyTorch backend tests for transient polar ADR."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-    @slow_test
-    def test_transient_polar_crank_nicolson(self):
-        super().test_transient_polar_crank_nicolson()
-
-
 # =============================================================================
 # Phase 4: Parameterized Tests
 # =============================================================================
@@ -670,18 +568,11 @@ class TestTransientPolarADRTorch(TestTransientPolarADR[torch.Tensor]):
 # For now, we add a few key configurations as explicit test methods.
 
 
-class TestTransformADRConfigurations(Generic[Array], unittest.TestCase):
+class TestTransformADRConfigurations:
     """Test various ADR configurations on curvilinear domains."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_elliptical_with_advection(self):
+    def test_elliptical_with_advection(self, bkd):
         """Test elliptical domain with advection."""
-        bkd = self.bkd()
-
         transform = EllipticalTransform(
             u_bounds=(0.5, 2.0),
             v_bounds=(0.1, math.pi - 0.1),
@@ -741,33 +632,12 @@ class TestTransformADRConfigurations(Generic[Array], unittest.TestCase):
         )
 
 
-class TestTransformADRConfigurationsNumpy(TestTransformADRConfigurations[NDArray[Any]]):
-    """NumPy backend tests for ADR configurations."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransformADRConfigurationsTorch(TestTransformADRConfigurations[torch.Tensor]):
-    """PyTorch backend tests for ADR configurations."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
 # =============================================================================
 # Phase 5: Helmholtz Physics on Polar Transform Tests
 # =============================================================================
 
 
-class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
+class TestPolarHelmholtz:
     """Test Helmholtz physics on polar coordinate domains.
 
     Domain: r in [1, 2], theta in [-pi/2, pi/2] (quarter annulus)
@@ -779,13 +649,7 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
     - So we negate k^2 when passing to HelmholtzPhysics.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_polar_mesh_and_basis(self, npts_r: int = 30, npts_theta: int = 30):
-        bkd = self.bkd()
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 30, npts_theta: int = 30) :
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -795,8 +659,7 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _apply_dirichlet_bcs(self, physics, mesh, man_sol, physical_pts):
-        bkd = self.bkd()
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
         bcs = []
         for side in range(4):
             boundary_idx = mesh.boundary_indices(side)
@@ -806,18 +669,16 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, mesh, basis):
-        bkd = self.bkd()
+    def _get_interior_indices(self, bkd, mesh, basis) :
         boundary_set = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_set.add(int(bkd.to_numpy(idx)))
         return [i for i in range(basis.npts()) if i not in boundary_set]
 
-    def test_polar_helmholtz_residual(self):
+    def test_polar_helmholtz_residual(self, bkd):
         """Test Helmholtz residual at exact solution on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
         k2 = 2.0
         man_sol = ManufacturedHelmholtz(
@@ -836,24 +697,23 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
         physics = HelmholtzPhysics(
             basis, bkd, wave_number_sq=-k2, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         residual = physics.residual(u_exact, 0.0)
         residual_with_bc, _ = physics.apply_boundary_conditions(
             residual, physics.jacobian(u_exact, 0.0), u_exact, 0.0
         )
 
-        interior_idx = self._get_interior_indices(mesh, basis)
+        interior_idx = self._get_interior_indices(bkd, mesh, basis)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_polar_helmholtz_jacobian(self):
+    def test_polar_helmholtz_jacobian(self, bkd):
         """Test Helmholtz Jacobian via finite differences on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis(npts_r=12, npts_theta=12)
+        mesh, basis = self._create_polar_mesh_and_basis(bkd, npts_r=12, npts_theta=12)
 
         k2 = 2.0
         physics = HelmholtzPhysics(basis, bkd, wave_number_sq=-k2)
@@ -865,12 +725,14 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
 
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_polar_helmholtz_solve(self):
+
+    @pytest.mark.slow_on("TorchBkd")
+
+    def test_polar_helmholtz_solve(self, bkd):
         """Test numerical solve for Helmholtz on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
         k2 = 2.0
         man_sol = ManufacturedHelmholtz(
@@ -888,7 +750,7 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
         physics = HelmholtzPhysics(
             basis, bkd, wave_number_sq=-k2, forcing=lambda t: forcing
         )
-        self._apply_dirichlet_bcs(physics, mesh, man_sol, physical_pts)
+        self._apply_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
 
         model = CollocationModel(physics, bkd)
         initial_guess = bkd.zeros((basis.npts(),))
@@ -897,33 +759,12 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
 
-class TestPolarHelmholtzNumpy(TestPolarHelmholtz[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPolarHelmholtzTorch(TestPolarHelmholtz[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-    @slow_test
-    def test_polar_helmholtz_solve(self):
-        super().test_polar_helmholtz_solve()
-
-
 # =============================================================================
 # Phase 6: Linear Elasticity on Polar Transform Tests
 # =============================================================================
 
 
-class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
+class TestPolarLinearElasticity:
     """Test linear elasticity physics on polar coordinate domains.
 
     Domain: r in [1, 2], theta in [-pi/2, pi/2] (quarter annulus)
@@ -934,13 +775,7 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
     Boundary conditions applied to both displacement components.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _create_polar_mesh_and_basis(self, npts_r: int = 25, npts_theta: int = 25):
-        bkd = self.bkd()
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25) :
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -950,9 +785,8 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _get_interior_indices(self, mesh, npts):
+    def _get_interior_indices(self, bkd, mesh, npts) :
         """Get interior indices for vector-valued problem (2*npts state)."""
-        bkd = self.bkd()
         boundary_set = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
@@ -961,10 +795,9 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
                 boundary_set.add(idx_int + npts)
         return [i for i in range(2 * npts) if i not in boundary_set]
 
-    def test_polar_elasticity_residual(self):
+    def test_polar_elasticity_residual(self, bkd):
         """Test linear elasticity residual at exact solution on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
         man_sol = ManufacturedLinearElasticityEquations(
             sol_strs=["x**2*y**2", "x**2*y**2*y"],
@@ -1008,17 +841,16 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
             residual, physics.jacobian(u_exact_flat, 0.0), u_exact_flat, 0.0
         )
 
-        interior_idx = self._get_interior_indices(mesh, npts)
+        interior_idx = self._get_interior_indices(bkd, mesh, npts)
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_idx])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-7
         )
 
-    def test_polar_elasticity_jacobian(self):
+    def test_polar_elasticity_jacobian(self, bkd):
         """Test linear elasticity Jacobian via finite differences on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis(npts_r=6, npts_theta=6)
+        mesh, basis = self._create_polar_mesh_and_basis(bkd, npts_r=6, npts_theta=6)
 
         physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
 
@@ -1029,12 +861,14 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
 
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_polar_elasticity_solve(self):
+
+    @pytest.mark.slow_on("TorchBkd")
+
+    def test_polar_elasticity_solve(self, bkd):
         """Test numerical solve for linear elasticity on polar domain."""
-        bkd = self.bkd()
-        mesh, basis = self._create_polar_mesh_and_basis()
+        mesh, basis = self._create_polar_mesh_and_basis(bkd)
 
         man_sol = ManufacturedLinearElasticityEquations(
             sol_strs=["x**2*y**2", "x**2*y**2*y"],
@@ -1075,32 +909,3 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
         u_numerical = model.solve_steady(initial_guess, tol=1e-8, maxiter=20)
 
         bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-7)
-
-
-class TestPolarLinearElasticityNumpy(TestPolarLinearElasticity[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPolarLinearElasticityTorch(TestPolarLinearElasticity[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-    @slow_test
-    def test_polar_elasticity_solve(self):
-        super().test_polar_elasticity_solve()
-
-    @slow_test
-    def test_polar_elasticity_residual(self):
-        super().test_polar_elasticity_residual()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -5,11 +5,7 @@ correctly handles physical sensitivities for coefficient-dependent BCs.
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -43,12 +39,6 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _create_flux_neumann_problem(bkd, npts=20):
     """Create 1D ADR with left Dirichlet + right flux Neumann, KLE-param D.
 
@@ -188,18 +178,9 @@ def _create_all_dirichlet_problem(bkd, npts=20):
     return physics, param, init_state
 
 
-class TestSteadyBCParamJacobian(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_flux_neumann_param_jacobian(self):
+class TestSteadyBCParamJacobian:
+    def test_flux_neumann_param_jacobian(self, bkd):
         """DerivativeChecker validates param_jacobian with flux Neumann BC."""
-        bkd = self._bkd
         physics, param, init_state = _create_flux_neumann_problem(bkd)
 
         fwd = SteadyForwardModel(
@@ -220,11 +201,10 @@ class TestSteadyBCParamJacobian(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.3, 0.1])[:, None]
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_flux_neumann_adapter_param_jacobian(self):
+    def test_flux_neumann_adapter_param_jacobian(self, bkd):
         """DerivativeChecker validates adapter param_jacobian with flux Neumann."""
-        bkd = self._bkd
         physics, param, init_state = _create_flux_neumann_problem(bkd)
 
         model = CollocationModel(physics, bkd, parameterization=param)
@@ -250,15 +230,14 @@ class TestSteadyBCParamJacobian(Generic[Array], unittest.TestCase):
             direction=None,
             relative=True,
         )[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_gradient_robin_param_jacobian(self):
+    def test_gradient_robin_param_jacobian(self, bkd):
         """DerivativeChecker validates param_jacobian with gradient Robin BC.
 
         GradientNormalOperator.has_coefficient_dependence() returns False,
         so BC rows should be zeroed.
         """
-        bkd = self._bkd
         physics, param, init_state = _create_gradient_robin_problem(bkd)
 
         fwd = SteadyForwardModel(
@@ -279,11 +258,10 @@ class TestSteadyBCParamJacobian(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.3, 0.1])[:, None]
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_all_dirichlet_no_regression(self):
+    def test_all_dirichlet_no_regression(self, bkd):
         """All-Dirichlet BCs still pass DerivativeChecker (no regression)."""
-        bkd = self._bkd
         physics, param, init_state = _create_all_dirichlet_problem(bkd)
 
         fwd = SteadyForwardModel(
@@ -304,22 +282,4 @@ class TestSteadyBCParamJacobian(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.3, 0.1])[:, None]
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
-
-
-class TestSteadyBCParamJacobianNumpy(TestSteadyBCParamJacobian[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSteadyBCParamJacobianTorch(TestSteadyBCParamJacobian[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+        assert ratio <= 1e-5

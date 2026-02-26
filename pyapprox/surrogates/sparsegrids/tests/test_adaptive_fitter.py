@@ -11,7 +11,6 @@ from typing import List
 
 import numpy as np
 import pytest
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
@@ -157,10 +156,10 @@ ADAPTIVE_CONFIGS = [
 ]
 
 
-class TestAdaptiveConvergence(ParametrizedTestCase):
+class TestAdaptiveConvergence:
     """Parametrized convergence tests for adaptive fitter."""
 
-    @parametrize("name,joint_config,max_level", ADAPTIVE_CONFIGS)
+    @pytest.mark.parametrize("name,joint_config,max_level", ADAPTIVE_CONFIGS)
     def test_adaptive_converges_to_pce(
         self, name: str, joint_config: str, max_level: int, bkd
     ) -> None:
@@ -242,14 +241,14 @@ ANISOTROPIC_CONFIGS = [
 ]
 
 
-class TestAdaptiveAnisotropicRecovery(ParametrizedTestCase):
+class TestAdaptiveAnisotropicRecovery:
     """Tests that adaptive SG recovers anisotropic index sets.
 
     Requires nested quadrature (Leja or Clenshaw-Curtis) for stable
     hierarchical surpluses.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,max_levels_1d,total_degree,growth_type,basis_type",
         ANISOTROPIC_CONFIGS,
     )
@@ -322,13 +321,13 @@ ADDITIVE_CONFIGS = [
 
 
 @slower_test
-class TestAdaptiveAdditiveRecovery(ParametrizedTestCase):
+class TestAdaptiveAdditiveRecovery:
     """Tests that additive functions only refine 1D subspaces.
 
     Requires nested quadrature (Leja or CC) for stable surpluses.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,max_levels_1d,growth_type,basis_type",
         ADDITIVE_CONFIGS,
     )

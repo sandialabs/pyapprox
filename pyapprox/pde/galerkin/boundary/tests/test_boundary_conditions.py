@@ -3,12 +3,9 @@
 Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 """
 
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-from numpy.typing import NDArray
-
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     BoundaryConditionSet,
@@ -22,99 +19,84 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestBoundaryConditionsBase(Generic[Array], unittest.TestCase):
-    """Base test class for boundary conditions."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
-
-class TestDirichletBCBase(TestBoundaryConditionsBase[Array]):
+class TestDirichletBCBase:
     """Tests for DirichletBC."""
 
-    __test__ = False
-
-    def test_1d_constant_dirichlet(self) -> None:
+    def test_1d_constant_dirichlet(self, numpy_bkd) -> None:
         """Test constant Dirichlet BC in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc = DirichletBC(basis, "left", value_func=1.5, bkd=self.bkd_inst)
+        bc = DirichletBC(basis, "left", value_func=1.5, bkd=bkd)
 
         # Check boundary DOFs
-        dofs = self.bkd_inst.to_numpy(bc.boundary_dofs())
-        self.assertEqual(len(dofs), 1)
-        self.assertEqual(dofs[0], 0)  # Left boundary is DOF 0
+        dofs = bkd.to_numpy(bc.boundary_dofs())
+        assert len(dofs) == 1
+        assert dofs[0] == 0  # Left boundary is DOF 0
 
         # Check boundary values
         values = bc.boundary_values(time=0.0)
-        expected = self.bkd_inst.asarray(np.array([1.5], dtype=np.float64))
-        self.bkd_inst.assert_allclose(values, expected)
+        expected = bkd.asarray(np.array([1.5], dtype=np.float64))
+        bkd.assert_allclose(values, expected)
 
-    def test_1d_function_dirichlet(self) -> None:
+    def test_1d_function_dirichlet(self, numpy_bkd) -> None:
         """Test function-valued Dirichlet BC in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # BC: u = x^2 at boundary
         def bc_func(x, t=None):
             return x[0] ** 2
 
-        bc = DirichletBC(basis, "right", value_func=bc_func, bkd=self.bkd_inst)
+        bc = DirichletBC(basis, "right", value_func=bc_func, bkd=bkd)
 
         # Right boundary is at x=1
         values = bc.boundary_values(time=0.0)
-        expected = self.bkd_inst.asarray(
+        expected = bkd.asarray(
             np.array([1.0], dtype=np.float64)  # 1^2 = 1
         )
-        self.bkd_inst.assert_allclose(values, expected)
+        bkd.assert_allclose(values, expected)
 
-    def test_1d_dirichlet_apply_to_residual(self) -> None:
+    def test_1d_dirichlet_apply_to_residual(self, numpy_bkd) -> None:
         """Test Dirichlet BC modifies residual correctly."""
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc = DirichletBC(basis, "left", value_func=2.0, bkd=self.bkd_inst)
+        bc = DirichletBC(basis, "left", value_func=2.0, bkd=bkd)
 
         # Create dummy state and residual
         nstates = basis.ndofs()
-        state = self.bkd_inst.asarray(np.zeros(nstates))
-        residual = self.bkd_inst.asarray(np.ones(nstates))
+        state = bkd.asarray(np.zeros(nstates))
+        residual = bkd.asarray(np.ones(nstates))
 
         # Apply BC
         modified_res = bc.apply_to_residual(residual, state, time=0.0)
-        modified_res_np = self.bkd_inst.to_numpy(modified_res)
+        modified_res_np = bkd.to_numpy(modified_res)
 
         # At Dirichlet DOF, residual should be state - g = 0 - 2 = -2
-        self.assertAlmostEqual(modified_res_np[0], -2.0)
+        assert abs(modified_res_np[0] - -2.0) < 1e-7
 
         # Other DOFs should be unchanged
         for i in range(1, nstates):
-            self.assertAlmostEqual(modified_res_np[i], 1.0)
+            assert abs(modified_res_np[i] - 1.0) < 1e-7
 
-    def test_1d_dirichlet_apply_to_jacobian(self) -> None:
+    def test_1d_dirichlet_apply_to_jacobian(self, numpy_bkd) -> None:
         """Test Dirichlet BC modifies Jacobian correctly."""
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc = DirichletBC(basis, "left", value_func=0.0, bkd=self.bkd_inst)
+        bc = DirichletBC(basis, "left", value_func=0.0, bkd=bkd)
 
         nstates = basis.ndofs()
-        state = self.bkd_inst.asarray(np.zeros(nstates))
-        jacobian = self.bkd_inst.asarray(np.ones((nstates, nstates)))
+        state = bkd.asarray(np.zeros(nstates))
+        jacobian = bkd.asarray(np.ones((nstates, nstates)))
 
         modified_jac = bc.apply_to_jacobian(jacobian, state, time=0.0)
-        modified_jac_np = self.bkd_inst.to_numpy(modified_jac)
+        modified_jac_np = bkd.to_numpy(modified_jac)
 
         # Dirichlet row should be identity row
         expected_row = np.zeros(nstates)
@@ -127,154 +109,155 @@ class TestDirichletBCBase(TestBoundaryConditionsBase[Array]):
                 modified_jac_np[i, :], np.ones(nstates)
             )
 
-    def test_2d_dirichlet_multiple_boundaries(self) -> None:
+    def test_2d_dirichlet_multiple_boundaries(self, numpy_bkd) -> None:
         """Test Dirichlet BC on multiple boundaries in 2D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc_left = DirichletBC(basis, "left", value_func=0.0, bkd=self.bkd_inst)
-        bc_right = DirichletBC(basis, "right", value_func=1.0, bkd=self.bkd_inst)
+        bc_left = DirichletBC(basis, "left", value_func=0.0, bkd=bkd)
+        bc_right = DirichletBC(basis, "right", value_func=1.0, bkd=bkd)
 
         # Check DOFs are distinct
-        left_dofs = set(self.bkd_inst.to_numpy(bc_left.boundary_dofs()))
-        right_dofs = set(self.bkd_inst.to_numpy(bc_right.boundary_dofs()))
+        left_dofs = set(bkd.to_numpy(bc_left.boundary_dofs()))
+        right_dofs = set(bkd.to_numpy(bc_right.boundary_dofs()))
 
-        self.assertEqual(len(left_dofs & right_dofs), 0)
+        assert len(left_dofs & right_dofs) == 0
 
 
-class TestNeumannBCBase(TestBoundaryConditionsBase[Array]):
+class TestNeumannBCBase:
     """Tests for NeumannBC."""
 
-    __test__ = False
-
-    def test_1d_constant_neumann(self) -> None:
+    def test_1d_constant_neumann(self, numpy_bkd) -> None:
         """Test constant Neumann BC in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc = NeumannBC(basis, "right", flux_func=1.0, bkd=self.bkd_inst)
+        bc = NeumannBC(basis, "right", flux_func=1.0, bkd=bkd)
 
         # Check flux values
         values = bc.flux_values(time=0.0)
-        expected = self.bkd_inst.asarray(np.array([1.0], dtype=np.float64))
-        self.bkd_inst.assert_allclose(values, expected)
+        expected = bkd.asarray(np.array([1.0], dtype=np.float64))
+        bkd.assert_allclose(values, expected)
 
-    def test_1d_neumann_apply_to_load(self) -> None:
+    def test_1d_neumann_apply_to_load(self, numpy_bkd) -> None:
         """Test Neumann BC adds to load vector."""
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Constant flux at right boundary
-        bc = NeumannBC(basis, "right", flux_func=2.0, bkd=self.bkd_inst)
+        bc = NeumannBC(basis, "right", flux_func=2.0, bkd=bkd)
 
         nstates = basis.ndofs()
-        load = self.bkd_inst.asarray(np.zeros(nstates))
+        load = bkd.asarray(np.zeros(nstates))
 
         modified_load = bc.apply_to_load(load, time=0.0)
-        modified_load_np = self.bkd_inst.to_numpy(modified_load)
+        modified_load_np = bkd.to_numpy(modified_load)
 
         # Neumann BC should add contribution at right boundary DOF
         # For 1D linear elements, the boundary integral of constant = value
         # The contribution goes to the boundary node
-        self.assertTrue(modified_load_np[-1] > 0)  # Right boundary is last DOF
+        assert modified_load_np[-1] > 0  # Right boundary is last DOF
 
 
-class TestRobinBCBase(TestBoundaryConditionsBase[Array]):
+class TestRobinBCBase:
     """Tests for RobinBC."""
 
-    __test__ = False
-
-    def test_1d_robin_reduces_to_dirichlet(self) -> None:
+    def test_1d_robin_reduces_to_dirichlet(self, numpy_bkd) -> None:
         """Test Robin BC with large alpha approaches Dirichlet."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Large alpha effectively enforces u = g/alpha
         alpha = 1000.0
         g_val = 1000.0  # g = alpha * u_desired = 1000 * 1 = 1000
-        bc = RobinBC(basis, "left", alpha=alpha, value_func=g_val, bkd=self.bkd_inst)
+        bc = RobinBC(basis, "left", alpha=alpha, value_func=g_val, bkd=bkd)
 
-        self.assertEqual(bc.alpha(), alpha)
+        assert bc.alpha() == alpha
 
-    def test_1d_robin_apply_to_stiffness(self) -> None:
+    def test_1d_robin_apply_to_stiffness(self, numpy_bkd) -> None:
         """Test Robin BC modifies stiffness matrix."""
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc = RobinBC(basis, "left", alpha=2.0, value_func=0.0, bkd=self.bkd_inst)
+        bc = RobinBC(basis, "left", alpha=2.0, value_func=0.0, bkd=bkd)
 
         nstates = basis.ndofs()
-        stiffness = self.bkd_inst.asarray(np.zeros((nstates, nstates)))
+        stiffness = bkd.asarray(np.zeros((nstates, nstates)))
 
         modified_stiff = bc.apply_to_stiffness(stiffness, time=0.0)
-        modified_stiff_np = self.bkd_inst.to_numpy(modified_stiff)
+        modified_stiff_np = bkd.to_numpy(modified_stiff)
 
         # Robin BC should add alpha * boundary_mass_matrix contribution
         # For 1D point boundary, this adds to (0,0) entry
-        self.assertTrue(modified_stiff_np[0, 0] > 0)
+        assert modified_stiff_np[0, 0] > 0
 
 
-class TestBoundaryConditionSetBase(TestBoundaryConditionsBase[Array]):
+class TestBoundaryConditionSetBase:
     """Tests for BoundaryConditionSet."""
 
-    __test__ = False
-
-    def test_empty_set(self) -> None:
+    def test_empty_set(self, numpy_bkd) -> None:
         """Test empty boundary condition set."""
-        bc_set = BoundaryConditionSet(self.bkd_inst)
+        bkd = numpy_bkd
+        bc_set = BoundaryConditionSet(bkd)
 
-        self.assertEqual(bc_set.ndirichlet(), 0)
-        self.assertEqual(bc_set.nneumann(), 0)
-        self.assertEqual(bc_set.nrobin(), 0)
+        assert bc_set.ndirichlet() == 0
+        assert bc_set.nneumann() == 0
+        assert bc_set.nrobin() == 0
 
-    def test_add_multiple_bcs(self) -> None:
+    def test_add_multiple_bcs(self, numpy_bkd) -> None:
         """Test adding multiple boundary conditions."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc_set = BoundaryConditionSet(self.bkd_inst)
+        bc_set = BoundaryConditionSet(bkd)
 
-        bc_left = DirichletBC(basis, "left", value_func=0.0, bkd=self.bkd_inst)
-        bc_right = NeumannBC(basis, "right", flux_func=1.0, bkd=self.bkd_inst)
+        bc_left = DirichletBC(basis, "left", value_func=0.0, bkd=bkd)
+        bc_right = NeumannBC(basis, "right", flux_func=1.0, bkd=bkd)
 
         bc_set.add_dirichlet(bc_left)
         bc_set.add_neumann(bc_right)
 
-        self.assertEqual(bc_set.ndirichlet(), 1)
-        self.assertEqual(bc_set.nneumann(), 1)
+        assert bc_set.ndirichlet() == 1
+        assert bc_set.nneumann() == 1
 
-    def test_dirichlet_dofs_and_values(self) -> None:
+    def test_dirichlet_dofs_and_values(self, numpy_bkd) -> None:
         """Test getting all Dirichlet DOFs and values."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
-        bc_set = BoundaryConditionSet(self.bkd_inst)
+        bc_set = BoundaryConditionSet(bkd)
         bc_set.add_dirichlet(
-            DirichletBC(basis, "left", value_func=1.0, bkd=self.bkd_inst)
+            DirichletBC(basis, "left", value_func=1.0, bkd=bkd)
         )
         bc_set.add_dirichlet(
-            DirichletBC(basis, "right", value_func=2.0, bkd=self.bkd_inst)
+            DirichletBC(basis, "right", value_func=2.0, bkd=bkd)
         )
 
-        dofs = self.bkd_inst.to_numpy(bc_set.dirichlet_dofs())
-        values = self.bkd_inst.to_numpy(bc_set.dirichlet_values(time=0.0))
+        dofs = bkd.to_numpy(bc_set.dirichlet_dofs())
+        values = bkd.to_numpy(bc_set.dirichlet_values(time=0.0))
 
-        self.assertEqual(len(dofs), 2)
-        self.assertEqual(len(values), 2)
+        assert len(dofs) == 2
+        assert len(values) == 2
 
 
-class TestCanonicalBoundaryNormal(TestBoundaryConditionsBase[Array]):
+class TestCanonicalBoundaryNormal:
     """Tests for canonical_boundary_normal function."""
 
-    __test__ = False
-
-    def test_1d_normals(self) -> None:
+    def test_1d_normals(self, numpy_bkd) -> None:
         """Test 1D boundary normals."""
+        bkd = numpy_bkd
         x = np.array([[0.0, 0.5, 1.0]])  # Shape: (1, 3)
 
         # Left boundary (index 0): normal = -1
@@ -285,8 +268,9 @@ class TestCanonicalBoundaryNormal(TestBoundaryConditionsBase[Array]):
         n_right = canonical_boundary_normal(1, x)
         np.testing.assert_array_almost_equal(n_right, [[1, 1, 1]])
 
-    def test_2d_normals(self) -> None:
+    def test_2d_normals(self, numpy_bkd) -> None:
         """Test 2D boundary normals."""
+        bkd = numpy_bkd
         x = np.array([[0.0, 0.5], [0.0, 0.5]])  # Shape: (2, 2)
 
         # Left (x=xmin): normal = [-1, 0]
@@ -310,14 +294,13 @@ class TestCanonicalBoundaryNormal(TestBoundaryConditionsBase[Array]):
         np.testing.assert_array_almost_equal(n_top[1, :], [1, 1])
 
 
-class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
+class TestManufacturedSolutionBCBase:
     """Tests for ManufacturedSolutionBC."""
 
-    __test__ = False
-
-    def test_1d_all_dirichlet(self) -> None:
+    def test_1d_all_dirichlet(self, numpy_bkd) -> None:
         """Test creating all Dirichlet BCs from manufactured solution."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # u = x
@@ -328,16 +311,17 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return np.ones_like(x)
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
         bc_set = ms_bc.create_boundary_conditions(["D", "D"])
 
-        self.assertEqual(bc_set.ndirichlet(), 2)
-        self.assertEqual(bc_set.nneumann(), 0)
-        self.assertEqual(bc_set.nrobin(), 0)
+        assert bc_set.ndirichlet() == 2
+        assert bc_set.nneumann() == 0
+        assert bc_set.nrobin() == 0
 
-    def test_1d_mixed_bcs(self) -> None:
+    def test_1d_mixed_bcs(self, numpy_bkd) -> None:
         """Test creating mixed BCs from manufactured solution."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def sol(x, t=None):
@@ -346,15 +330,16 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return 2 * x  # D * grad(u) = 1 * 2x
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
         bc_set = ms_bc.create_boundary_conditions(["D", "N"])
 
-        self.assertEqual(bc_set.ndirichlet(), 1)
-        self.assertEqual(bc_set.nneumann(), 1)
+        assert bc_set.ndirichlet() == 1
+        assert bc_set.nneumann() == 1
 
-    def test_1d_robin_bcs(self) -> None:
+    def test_1d_robin_bcs(self, numpy_bkd) -> None:
         """Test creating Robin BCs from manufactured solution."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def sol(x, t=None):
@@ -363,18 +348,19 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return np.ones_like(x)
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
         bc_set = ms_bc.create_boundary_conditions(["R", "R"], robin_alpha=1.0)
 
-        self.assertEqual(bc_set.nrobin(), 2)
+        assert bc_set.nrobin() == 2
 
-    def test_2d_all_dirichlet(self) -> None:
+    def test_2d_all_dirichlet(self, numpy_bkd) -> None:
         """Test 2D manufactured solution BCs."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
 
@@ -386,14 +372,15 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return np.ones_like(x)
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
         bc_set = ms_bc.create_boundary_conditions(["D", "D", "D", "D"])
 
-        self.assertEqual(bc_set.ndirichlet(), 4)
+        assert bc_set.ndirichlet() == 4
 
-    def test_invalid_bc_type(self) -> None:
+    def test_invalid_bc_type(self, numpy_bkd) -> None:
         """Test error on invalid BC type."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def sol(x, t=None):
@@ -402,14 +389,15 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return np.ones_like(x)
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ms_bc.create_boundary_conditions(["X", "D"])
 
-    def test_wrong_number_bc_types(self) -> None:
+    def test_wrong_number_bc_types(self, numpy_bkd) -> None:
         """Test error on wrong number of BC types."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def sol(x, t=None):
@@ -418,174 +406,9 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
         def flux(x, t=None):
             return np.ones_like(x)
 
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, self.bkd_inst)
+        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ms_bc.create_boundary_conditions(["D"])  # Need 2 for 1D
 
 
-# Concrete test classes for each backend
-
-
-class TestDirichletBCNumpy(TestDirichletBCBase[NDArray[Any]]):
-    """NumPy backend tests for DirichletBC."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestNeumannBCNumpy(TestNeumannBCBase[NDArray[Any]]):
-    """NumPy backend tests for NeumannBC."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestRobinBCNumpy(TestRobinBCBase[NDArray[Any]]):
-    """NumPy backend tests for RobinBC."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestBoundaryConditionSetNumpy(TestBoundaryConditionSetBase[NDArray[Any]]):
-    """NumPy backend tests for BoundaryConditionSet."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestCanonicalBoundaryNormalNumpy(TestCanonicalBoundaryNormal[NDArray[Any]]):
-    """NumPy backend tests for canonical_boundary_normal."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-class TestManufacturedSolutionBCNumpy(TestManufacturedSolutionBCBase[NDArray[Any]]):
-    """NumPy backend tests for ManufacturedSolutionBC."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Try to import torch for dual-backend testing
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestDirichletBCTorch(TestDirichletBCBase[torch.Tensor]):
-        """PyTorch backend tests for DirichletBC."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-    class TestNeumannBCTorch(TestNeumannBCBase[torch.Tensor]):
-        """PyTorch backend tests for NeumannBC."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-    class TestRobinBCTorch(TestRobinBCBase[torch.Tensor]):
-        """PyTorch backend tests for RobinBC."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-    class TestBoundaryConditionSetTorch(TestBoundaryConditionSetBase[torch.Tensor]):
-        """PyTorch backend tests for BoundaryConditionSet."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-    class TestCanonicalBoundaryNormalTorch(TestCanonicalBoundaryNormal[torch.Tensor]):
-        """PyTorch backend tests for canonical_boundary_normal."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-    class TestManufacturedSolutionBCTorch(TestManufacturedSolutionBCBase[torch.Tensor]):
-        """PyTorch backend tests for ManufacturedSolutionBC."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-except ImportError:
-    pass
-
-
-if __name__ == "__main__":
-    unittest.main()

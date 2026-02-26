@@ -6,7 +6,6 @@ Verifies via DerivativeChecker:
 3. compute_flux_jacobian in 2D
 """
 
-import unittest
 from typing import Any, Generic
 
 import numpy as np
@@ -25,9 +24,6 @@ from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _setup_2d_hyperelastic(bkd, npts_1d=6, lamda=1.0, mu=1.0):
     """Create 2D hyperelastic physics on [0,1]^2."""
     mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
@@ -234,20 +230,10 @@ class _FluxComponentOfState(Generic[Array]):
         return flux_jac[self._row][self._col]
 
 
-class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
+class TestHyperelasticSensitivity2D:
     """Test 2D residual sensitivities and flux for HyperelasticityPhysics."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_residual_mu_sensitivity_2d(self):
+    def test_residual_mu_sensitivity_2d(self, bkd):
         """DerivativeChecker validates dR/dmu in 2D."""
-        bkd = self._bkd
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
             bkd,
@@ -271,11 +257,10 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         sample = mu0[:, None]
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_residual_lamda_sensitivity_2d(self):
+    def test_residual_lamda_sensitivity_2d(self, bkd):
         """DerivativeChecker validates dR/dlam in 2D."""
-        bkd = self._bkd
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
             bkd,
@@ -299,11 +284,10 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         sample = lam0[:, None]
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_compute_flux_2d_matches_residual(self):
+    def test_compute_flux_2d_matches_residual(self, bkd):
         """Verify div(P) from compute_flux matches residual (no forcing)."""
-        bkd = self._bkd
         physics, basis = _setup_2d_hyperelastic(bkd, npts_1d=6)
         nstates = physics.nstates()
 
@@ -323,9 +307,8 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
         residual = physics.residual(state, 0.0)
         bkd.assert_allclose(div_P, residual, rtol=1e-12)
 
-    def test_compute_flux_jacobian_2d(self):
+    def test_compute_flux_jacobian_2d(self, bkd):
         """DerivativeChecker validates dP_iJ/d(state) for all 4 components."""
-        bkd = self._bkd
         physics, basis = _setup_2d_hyperelastic(bkd, npts_1d=6)
         nstates = physics.nstates()
 
@@ -338,26 +321,4 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
                 wrapper = _FluxComponentOfState(physics, bkd, i, jj)
                 checker = DerivativeChecker(wrapper)
                 errors = checker.check_derivatives(sample, verbosity=0)
-                self.assertLessEqual(
-                    float(checker.error_ratio(errors[0])),
-                    1e-5,
-                    f"Flux Jacobian check failed for P_{i + 1}{jj + 1}",
-                )
-
-
-class TestHyperelasticSensitivity2DNumpy(TestHyperelasticSensitivity2D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestHyperelasticSensitivity2DTorch(TestHyperelasticSensitivity2D[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
+                assert float(checker.error_ratio(errors[0])) <= 1e-5

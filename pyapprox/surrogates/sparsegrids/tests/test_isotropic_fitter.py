@@ -12,7 +12,6 @@ from typing import List, Union
 
 import numpy as np
 import pytest
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.probability import (
     IndependentJoint,
@@ -401,7 +400,7 @@ class TestFitterQuadrature:
 # =============================================================================
 
 
-class TestFitterInterpolation(ParametrizedTestCase):
+class TestFitterInterpolation:
     """Parametrized exact interpolation tests.
 
     For each basis type (Gauss, Leja, CC) and each dimension/marginal combo,
@@ -409,7 +408,7 @@ class TestFitterInterpolation(ParametrizedTestCase):
     level, then verifies interpolation is exact at random test points.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         GAUSS_INTERPOLATION_CONFIGS,
     )
@@ -431,7 +430,7 @@ class TestFitterInterpolation(ParametrizedTestCase):
         test_pts = joint.rvs(20)
         bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         LEJA_INTERPOLATION_CONFIGS,
     )
@@ -450,7 +449,7 @@ class TestFitterInterpolation(ParametrizedTestCase):
         test_pts = joint.rvs(20)
         bkd.assert_allclose(surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         CC_INTERPOLATION_CONFIGS,
     )
@@ -476,7 +475,7 @@ class TestFitterInterpolation(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestFitterIntegration(ParametrizedTestCase):
+class TestFitterIntegration:
     """Parametrized integration (mean) tests.
 
     For Lagrange-type bases (Gauss, Leja, CC), the PCE mean equals its
@@ -484,7 +483,7 @@ class TestFitterIntegration(ParametrizedTestCase):
     computes the exact mean.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         GAUSS_INTEGRATION_CONFIGS,
     )
@@ -503,7 +502,7 @@ class TestFitterIntegration(ParametrizedTestCase):
         expected_mean = pce.get_coefficients()[0, :]
         bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         LEJA_INTEGRATION_CONFIGS,
     )
@@ -522,7 +521,7 @@ class TestFitterIntegration(ParametrizedTestCase):
         expected_mean = pce.get_coefficients()[0, :]
         bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level",
         CC_INTEGRATION_CONFIGS,
     )
@@ -547,10 +546,10 @@ class TestFitterIntegration(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestFitterMultiQoI(ParametrizedTestCase):
+class TestFitterMultiQoI:
     """Multi-QoI interpolation tests using IsotropicSparseGridFitter."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level,nqoi",
         MULTI_QOI_CONFIGS,
     )
@@ -582,10 +581,10 @@ class TestFitterMultiQoI(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestFitterPiecewiseInterpolation(ParametrizedTestCase):
+class TestFitterPiecewiseInterpolation:
     """Piecewise interpolation tests: convergence on smooth functions."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level,basis_type,tol",
         PIECEWISE_INTERPOLATION_CONFIGS,
     )
@@ -617,7 +616,7 @@ class TestFitterPiecewiseInterpolation(ParametrizedTestCase):
         )
         assert error < tol
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,basis_type,expected_min_ratio",
         [
             ("linear_convergence", "piecewise_linear", 2.5),
@@ -663,10 +662,10 @@ class TestFitterPiecewiseInterpolation(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestFitterMixedInterpolation(ParametrizedTestCase):
+class TestFitterMixedInterpolation:
     """Mixed Lagrange + piecewise interpolation tests."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level,basis_types",
         MIXED_BASIS_INTERPOLATION_CONFIGS,
     )
@@ -703,10 +702,10 @@ class TestFitterMixedInterpolation(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestFitterPiecewiseIntegration(ParametrizedTestCase):
+class TestFitterPiecewiseIntegration:
     """Piecewise integration tests (mean against Gauss reference)."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level,basis_type",
         PIECEWISE_INTEGRATION_CONFIGS,
     )
@@ -729,7 +728,7 @@ class TestFitterPiecewiseIntegration(ParametrizedTestCase):
 
         bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,level,basis_types",
         MIXED_BASIS_INTEGRATION_CONFIGS,
     )

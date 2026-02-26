@@ -1,7 +1,6 @@
 """Tests for Helmholtz physics implementation."""
 
 import math
-import unittest
 
 import numpy as np
 
@@ -22,21 +21,11 @@ from pyapprox.pde.collocation.physics.tests.test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class TestHelmholtzPhysics(PhysicsTestBase):
     """Tests for HelmholtzPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences using DerivativeChecker."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -47,11 +36,10 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         # Random state
         state = bkd.array(np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self):
+    def test_jacobian_with_forcing(self, bkd):
         """Test Jacobian with non-zero forcing."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -67,11 +55,10 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         state = bkd.array(np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self):
+    def test_residual_at_manufactured_solution(self, bkd):
         """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -98,11 +85,10 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         )
 
         # Check residual is near zero at manufactured solution
-        self.check_residual_zero(physics, exact_solution, atol=1e-8)
+        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_solve_from_wrong_initial_guess(self):
+    def test_solve_from_wrong_initial_guess(self, bkd):
         """AFTER: Verify convergence to exact solution from wrong guess."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -139,9 +125,8 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-10)
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_helmholtz factory function."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -149,10 +134,6 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         physics = create_helmholtz(basis, bkd, wave_number_sq=2.0)
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
-        self.assertAlmostEqual(physics.wave_number_sq(), 2.0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
+        assert abs(physics.wave_number_sq() - 2.0) < 1e-7

@@ -4,9 +4,6 @@ Tests for adjoint-based gradient computation in time integrators.
 Uses finite difference verification to ensure adjoint gradients are correct.
 """
 
-import unittest
-from typing import Generic
-
 import numpy as np
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
@@ -25,22 +22,14 @@ from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 
 
-class TestAdjointJacobian(Generic[Array], unittest.TestCase):
+class TestAdjointJacobian:
     """Tests for adjoint-based gradient computation."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Return the backend. Override in subclasses."""
-        raise NotImplementedError
-
-    def _create_linear_ode_problem(self):
+    def _create_linear_ode_problem(self, bkd):
         """Create a simple linear ODE problem for testing."""
-        bkd = self.bkd()
         np.random.seed(42)
 
         nstates = 2
@@ -60,9 +49,10 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
         init_state: Array,
         param: Array,
         eps: float = 1e-6,
+        *,
+        bkd,
     ) -> Array:
         """Compute gradient using finite differences."""
-        bkd = self.bkd()
         nparams = param.shape[0]
         fd_grad = bkd.zeros((1, nparams))
         fd_grad = bkd.copy(fd_grad)
@@ -86,10 +76,9 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
 
         return fd_grad
 
-    def _check_gradient_stepper(self, stepper_class, tol: float = 1e-5) -> None:
+    def _check_gradient_stepper(self, stepper_class, tol: float = 1e-5, *, bkd) -> None:
         """Check gradient for a given stepper class."""
-        bkd = self.bkd()
-        ode_residual, nstates, nparams = self._create_linear_ode_problem()
+        ode_residual, nstates, nparams = self._create_linear_ode_problem(bkd)
 
         # Create time stepping residual (backend is extracted from ode_residual)
         time_residual = stepper_class(ode_residual)
@@ -124,43 +113,25 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
 
         # Compute finite difference gradient
         fd_grad = self._finite_difference_gradient(
-            integrator, init_state, param, eps=1e-6
+            integrator, init_state, param, eps=1e-6, bkd=bkd
         )
 
         # Check gradient
         error = bkd.norm(adjoint_grad - fd_grad) / (bkd.norm(fd_grad) + 1e-10)
-        self.assertLess(
-            float(error),
-            tol,
-            f"Gradient error {float(error):.2e} exceeds tolerance {tol:.2e} "
-            f"for {stepper_class.__name__}",
-        )
+        assert float(error) < tol
 
-    def test_backward_euler_gradient(self) -> None:
+    def test_backward_euler_gradient(self, bkd) -> None:
         """Test adjoint gradient for Backward Euler."""
-        self._check_gradient_stepper(BackwardEulerResidual, tol=1e-4)
+        self._check_gradient_stepper(BackwardEulerResidual, tol=1e-4, bkd=bkd)
 
-    def test_crank_nicolson_gradient(self) -> None:
+    def test_crank_nicolson_gradient(self, bkd) -> None:
         """Test adjoint gradient for Crank-Nicolson."""
-        self._check_gradient_stepper(CrankNicolsonResidual, tol=1e-4)
+        self._check_gradient_stepper(CrankNicolsonResidual, tol=1e-4, bkd=bkd)
 
-    def test_forward_euler_gradient(self) -> None:
+    def test_forward_euler_gradient(self, bkd) -> None:
         """Test adjoint gradient for Forward Euler."""
-        self._check_gradient_stepper(ForwardEulerResidual, tol=1e-4)
+        self._check_gradient_stepper(ForwardEulerResidual, tol=1e-4, bkd=bkd)
 
-    def test_heun_gradient(self) -> None:
+    def test_heun_gradient(self, bkd) -> None:
         """Test adjoint gradient for Heun."""
-        self._check_gradient_stepper(HeunResidual, tol=1e-4)
-
-
-class TestAdjointJacobianNumpy(TestAdjointJacobian):
-    """Test adjoint Jacobian with NumPy backend."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend:
-        return NumpyBkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._check_gradient_stepper(HeunResidual, tol=1e-4, bkd=bkd)

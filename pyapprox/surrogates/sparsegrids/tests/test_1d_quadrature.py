@@ -15,7 +15,7 @@ marginals (Beta, Gamma) where interpolation tests pass but integration fails.
 
 from typing import Any, Dict, Tuple, Union
 
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.probability import (
     BetaMarginal,
@@ -147,7 +147,7 @@ def get_analytical_moments(mtype: str, params: Dict[str, float]) -> Tuple[float,
 # =============================================================================
 
 
-class TestGaussQuadrature1D(ParametrizedTestCase):
+class TestGaussQuadrature1D:
     """Parametrized tests for 1D Gauss quadrature rules.
 
     Tests verify that Gauss quadrature rules for various probability measures
@@ -175,7 +175,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
         # points and weights are 1D arrays
         return bkd.flatten(points), bkd.flatten(weights)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
@@ -193,7 +193,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
                 atol=1e-14,
             )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
@@ -215,7 +215,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
                 atol=1e-14,
             )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
@@ -239,7 +239,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
                 atol=1e-14,
             )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
@@ -288,7 +288,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
                         atol=1e-12,
                     )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
@@ -315,7 +315,7 @@ class TestGaussQuadrature1D(ParametrizedTestCase):
                 atol=1e-14,
             )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )

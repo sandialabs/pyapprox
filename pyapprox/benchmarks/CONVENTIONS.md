@@ -292,34 +292,19 @@ from .instances import my_function_2d
 Create dual-backend tests in `tests/test_my_function.py`:
 
 ```python
-class TestMyFunction(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_output_shape(self):
-        bkd = self.bkd()
+class TestMyFunction:
+    def test_output_shape(self, bkd):
         benchmark = my_function_2d(bkd)
         samples = bkd.array([[0.0, 1.0], [0.0, 1.0]])  # (2, 2)
         result = benchmark.function()(samples)
-        self.assertEqual(result.shape, (1, 2))
+        assert result.shape == (1, 2)
 
-    def test_global_minimum(self):
-        bkd = self.bkd()
+    def test_global_minimum(self, bkd):
         benchmark = my_function_2d(bkd)
         gt = benchmark.ground_truth()
         minimizer = gt.global_minimizers
         result = benchmark.function()(minimizer)
         bkd.assert_allclose(result[0, 0], gt.global_minimum)
-
-class TestMyFunctionNumpy(TestMyFunction[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-class TestMyFunctionTorch(TestMyFunction[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
 ```
 
 ## Mathematical Notation

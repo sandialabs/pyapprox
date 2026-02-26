@@ -1,8 +1,6 @@
 """Tests for time integration module."""
 
 import math
-import unittest
-from typing import Generic
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -29,20 +27,11 @@ from pyapprox.pde.parameterizations.diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
+class TestPhysicsToODEResidualAdapter:
     """Base test class for PhysicsToODEResidualAdapter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_adapter_basic_interface(self):
+    def test_adapter_basic_interface(self, bkd):
         """Test that adapter provides ODEResidual interface."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -52,20 +41,19 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
 
         # Check interface methods exist
-        self.assertTrue(callable(adapter.bkd))
-        self.assertTrue(callable(adapter.set_time))
-        self.assertTrue(callable(adapter.jacobian))
-        self.assertTrue(callable(adapter.mass_matrix))
+        assert callable(adapter.bkd)
+        assert callable(adapter.set_time)
+        assert callable(adapter.jacobian)
+        assert callable(adapter.mass_matrix)
 
         # __call__ should work
         state = bkd.zeros((npts,))
         adapter.set_time(0.0)
         result = adapter(state)
-        self.assertEqual(result.shape, (npts,))
+        assert result.shape == (npts,)
 
-    def test_adapter_residual_consistency(self):
+    def test_adapter_residual_consistency(self, bkd):
         """Test that adapter residual matches physics residual."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -88,9 +76,8 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         # Should match when no BCs
         bkd.assert_allclose(adapter_res, physics_res, atol=1e-14)
 
-    def test_adapter_jacobian_consistency(self):
+    def test_adapter_jacobian_consistency(self, bkd):
         """Test that adapter Jacobian matches physics Jacobian."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -112,9 +99,8 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(adapter_jac, physics_jac, atol=1e-14)
 
-    def test_adapter_mass_matrix(self):
+    def test_adapter_mass_matrix(self, bkd):
         """Test that adapter returns identity mass matrix."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -128,14 +114,13 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(mass, expected, atol=1e-14)
 
-    def test_adapter_with_boundary_conditions(self):
+    def test_adapter_with_boundary_conditions(self, bkd):
         """Test that BCs are applied via physics.apply_boundary_conditions.
 
         The adapter returns the raw physics Jacobian. Boundary conditions
         are applied by CollocationModel._apply_boundary_conditions, which
         calls physics.apply_boundary_conditions on the Newton system.
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -166,9 +151,8 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jacobian_with_bc[0, :], bkd.eye(npts)[0, :], atol=1e-14)
         bkd.assert_allclose(jacobian_with_bc[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
 
-    def test_adapter_param_jacobian_available(self):
+    def test_adapter_param_jacobian_available(self, bkd):
         """Test that param_jacobian is available via parameterization."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -183,9 +167,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         adapter = PhysicsToODEResidualAdapter(physics, bkd, parameterization=param)
 
         # Should have param_jacobian
-        self.assertTrue(hasattr(adapter, "param_jacobian"))
-        self.assertTrue(hasattr(adapter, "nparams"))
-        self.assertTrue(hasattr(adapter, "set_param"))
+        assert hasattr(adapter, "param_jacobian")
+        assert hasattr(adapter, "nparams")
+        assert hasattr(adapter, "set_param")
 
         # Test that it works
         adapter.set_param(bkd.array([0.5]))
@@ -194,11 +178,10 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         adapter.set_time(0.0)
 
         param_jac = adapter.param_jacobian(state)
-        self.assertEqual(param_jac.shape, (npts, 1))
+        assert param_jac.shape == (npts, 1)
 
-    def test_adapter_no_param_jacobian_for_basic_physics(self):
+    def test_adapter_no_param_jacobian_for_basic_physics(self, bkd):
         """Test that basic physics does not have param_jacobian."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -208,21 +191,15 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
 
         # Should NOT have param_jacobian
-        self.assertFalse(hasattr(adapter, "param_jacobian"))
-        self.assertFalse(hasattr(adapter, "nparams"))
+        assert not hasattr(adapter, "param_jacobian")
+        assert not hasattr(adapter, "nparams")
 
 
-class TestCollocationModel(Generic[Array], unittest.TestCase):
+class TestCollocationModel:
     """Base test class for CollocationModel."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_model_creation(self):
+    def test_model_creation(self, bkd):
         """Test basic model creation."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -231,11 +208,11 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         model = CollocationModel(physics, bkd)
 
-        self.assertEqual(model.nstates(), npts)
-        self.assertIs(model.physics(), physics)
-        self.assertIs(model.bkd(), bkd)
+        assert model.nstates() == npts
+        assert model.physics() is physics
+        assert model.bkd() is bkd
 
-    def test_solve_steady_poisson(self):
+    def test_solve_steady_poisson(self, bkd):
         """Test steady-state solve for Poisson equation.
 
         Solve: D * laplacian(u) + f = 0 with u(-1) = 0, u(1) = 0
@@ -244,7 +221,6 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         So D * laplacian(u) = -D * pi^2 * sin(pi*x)
         For residual = 0, need f = D * pi^2 * sin(pi*x)
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -279,7 +255,7 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         u_exact = bkd.sin(math.pi * nodes)
         bkd.assert_allclose(u_steady, u_exact, atol=1e-6)
 
-    def test_solve_transient_decay(self):
+    def test_solve_transient_decay(self, bkd):
         """Test transient solve for exponential decay.
 
         Solve: du/dt = -r * u with u(0) = 1
@@ -287,7 +263,6 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
 
         For backward Euler with small time step, should converge to exact.
         """
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -316,9 +291,8 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         u_exact_final = math.exp(-r * 1.0) * bkd.ones((npts,))
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05)
 
-    def test_transient_forward_euler(self):
+    def test_transient_forward_euler(self, bkd):
         """Test Forward Euler time stepping."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -340,9 +314,8 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         u_exact_final = math.exp(-r * 0.5) * bkd.ones((npts,))
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.02)
 
-    def test_transient_heun(self):
+    def test_transient_heun(self, bkd):
         """Test Heun's method (RK2) time stepping."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -365,9 +338,8 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         # Heun should be more accurate than Forward Euler
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.01)
 
-    def test_transient_crank_nicolson(self):
+    def test_transient_crank_nicolson(self, bkd):
         """Test Crank-Nicolson time stepping."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -389,12 +361,11 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         u_exact_final = math.exp(-r * 0.5) * bkd.ones((npts,))
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.01)
 
-    def test_transient_diffusion(self):
+    def test_transient_diffusion(self, bkd):
         """Test transient diffusion equation.
 
         Solve: du/dt = D * laplacian(u) with BCs and IC.
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -432,9 +403,8 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         # Use atol for boundary points which are near zero
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05, atol=1e-10)
 
-    def test_time_output_shape(self):
+    def test_time_output_shape(self, bkd):
         """Test that output shapes are correct."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -453,24 +423,8 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         solutions, times = model.solve_transient(u0, config)
 
         # Should have 6 time points: 0, 0.1, 0.2, 0.3, 0.4, 0.5
-        self.assertEqual(times.shape[0], 6)
-        self.assertEqual(solutions.shape, (npts, 6))
+        assert times.shape[0] == 6
+        assert solutions.shape == (npts, 6)
 
 
 # NumPy backend tests
-class TestPhysicsToODEResidualAdapterNumpy(TestPhysicsToODEResidualAdapter):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-class TestCollocationModelNumpy(TestCollocationModel):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

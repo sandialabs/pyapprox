@@ -1,11 +1,8 @@
 """Tests for physics parameterization implementations."""
 
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -50,12 +47,6 @@ from pyapprox.pde.parameterizations.protocol import (
 from pyapprox.pde.parameterizations.reaction import (
     ReactionParameterization,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _create_diffusion_physics_and_basis(bkd, npts=20):
     """Create base ADR physics with BCs for testing parameterizations."""
     mesh = TransformedMesh1D(npts, bkd)
@@ -82,34 +73,23 @@ def _create_diffusion_physics_and_basis(bkd, npts=20):
     return physics, basis, nodes
 
 
-class TestParameterizations(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_diffusion_isinstance(self) -> None:
+class TestParameterizations:
+    def test_diffusion_isinstance(self, bkd) -> None:
         """DiffusionParameterization satisfies ParameterizationProtocol."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
         dp = create_diffusion_parameterization(bkd, basis, fm)
-        self.assertTrue(isinstance(dp, ParameterizationProtocol))
+        assert isinstance(dp, ParameterizationProtocol)
 
-    def test_diffusion_init_type_error(self) -> None:
+    def test_diffusion_init_type_error(self, bkd) -> None:
         """DiffusionParameterization raises TypeError for non-FieldMap."""
-        bkd = self._bkd
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             DiffusionParameterization("not_a_field_map", [], bkd)
 
-    def test_diffusion_apply_sets_field(self) -> None:
+    def test_diffusion_apply_sets_field(self, bkd) -> None:
         """DiffusionParameterization.apply sets diffusion on physics."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -125,9 +105,8 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         actual_diff = physics._get_diffusion(0.0)
         bkd.assert_allclose(actual_diff, expected_diff, rtol=1e-12)
 
-    def test_diffusion_param_jacobian_fd(self) -> None:
+    def test_diffusion_param_jacobian_fd(self, bkd) -> None:
         """DiffusionParameterization.param_jacobian matches FD."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         num_kle_terms = 2
@@ -171,11 +150,51 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         params = bkd.array([0.1, -0.1])[:, None]
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_diffusion_initial_param_jacobian_zeros(self) -> None:
+    def test_diffusion_param_jacobian_autograd(self, torch_bkd) -> None:
+        """Torch autograd matches DiffusionParameterization.param_jacobian."""
+        import torch
+
+        bkd = torch_bkd
+        # Use physics WITHOUT BCs so residual is pure PDE operator
+        npts = 20
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        nodes = basis.nodes()
+
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
+
+        physics = AdvectionDiffusionReaction(
+            basis,
+            bkd,
+            diffusion=1.0,
+            forcing=forcing,
+        )
+
+        phi0 = bkd.ones((npts,))
+        phi1 = nodes
+        fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
+        dp = create_diffusion_parameterization(bkd, basis, fm)
+
+        # Use a state that's non-zero everywhere to avoid near-zero issues
+        state = bkd.cos(0.5 * math.pi * nodes) + 1.0
+        time = 0.0
+
+        params = torch.tensor([0.3, -0.1], dtype=torch.float64)
+
+        def torch_residual(p):
+            dp.apply(physics, p)
+            return physics.residual(state, time)
+
+        autograd_jac = torch.autograd.functional.jacobian(torch_residual, params)
+        dp.apply(physics, params)
+        analytical_jac = dp.param_jacobian(physics, state, time, params)
+        bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
+
+    def test_diffusion_initial_param_jacobian_zeros(self, bkd) -> None:
         """DiffusionParameterization.initial_param_jacobian returns zeros."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -186,17 +205,16 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_forcing_apply_and_jacobian(self) -> None:
+    def test_forcing_apply_and_jacobian(self, bkd) -> None:
         """ForcingParameterization.apply and param_jacobian work correctly."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         base_forcing = bkd.sin(math.pi * nodes)
         fm = ScalarAmplitude(bkd, base_forcing)
         fp = ForcingParameterization(fm, bkd)
 
-        self.assertTrue(isinstance(fp, ParameterizationProtocol))
-        self.assertEqual(fp.nparams(), 1)
+        assert isinstance(fp, ParameterizationProtocol)
+        assert fp.nparams() == 1
 
         state = bkd.sin(math.pi * nodes)
         time = 0.0
@@ -226,19 +244,18 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         params = bkd.array([2.0])[:, None]
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_reaction_apply_and_jacobian(self) -> None:
+    def test_reaction_apply_and_jacobian(self, bkd) -> None:
         """ReactionParameterization.apply and param_jacobian work correctly."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 0.0, [phi0])
         rp = ReactionParameterization(fm, bkd)
 
-        self.assertTrue(isinstance(rp, ParameterizationProtocol))
-        self.assertEqual(rp.nparams(), 1)
+        assert isinstance(rp, ParameterizationProtocol)
+        assert rp.nparams() == 1
 
         state = bkd.sin(math.pi * nodes)
         time = 0.0
@@ -268,11 +285,10 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         params = bkd.array([-0.5])[:, None]
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_composite_isinstance(self) -> None:
+    def test_composite_isinstance(self, bkd) -> None:
         """CompositeParameterization satisfies ParameterizationProtocol."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -284,17 +300,15 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         fp = ForcingParameterization(fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
-        self.assertTrue(isinstance(comp, ParameterizationProtocol))
+        assert isinstance(comp, ParameterizationProtocol)
 
-    def test_composite_init_type_error(self) -> None:
+    def test_composite_init_type_error(self, bkd) -> None:
         """CompositeParameterization raises TypeError for non-protocol part."""
-        bkd = self._bkd
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             CompositeParameterization(["not_a_param"], bkd)
 
-    def test_composite_nparams(self) -> None:
+    def test_composite_nparams(self, bkd) -> None:
         """CompositeParameterization.nparams is sum of parts."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -307,11 +321,10 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         fp = ForcingParameterization(fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
-        self.assertEqual(comp.nparams(), 3)  # 2 diffusion + 1 forcing
+        assert comp.nparams() == 3
 
-    def test_composite_param_jacobian_fd(self) -> None:
+    def test_composite_param_jacobian_fd(self, bkd) -> None:
         """CompositeParameterization.param_jacobian matches FD."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         num_kle_terms = 2
@@ -359,11 +372,10 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         params = bkd.array([0.1, -0.1, 2.0])[:, None]
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_composite_initial_param_jacobian(self) -> None:
+    def test_composite_initial_param_jacobian(self, bkd) -> None:
         """CompositeParameterization.initial_param_jacobian block structure."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -380,20 +392,18 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         expected = bkd.zeros((npts, 2))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_composite_dynamic_binding_all_differentiable(self) -> None:
+    def test_composite_dynamic_binding_all_differentiable(self, bkd) -> None:
         """Composite with all-differentiable parts HAS param_jacobian."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
         dp = create_diffusion_parameterization(bkd, basis, fm)
         comp = CompositeParameterization([dp], bkd)
-        self.assertTrue(hasattr(comp, "param_jacobian"))
+        assert hasattr(comp, "param_jacobian")
 
-    def test_composite_dynamic_binding_eval_only(self) -> None:
+    def test_composite_dynamic_binding_eval_only(self, bkd) -> None:
         """Composite with eval-only part does NOT have param_jacobian."""
-        bkd = self._bkd
 
         class EvalOnlyFieldMap:
             def nvars(self) -> int:
@@ -410,11 +420,10 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
                 pass
 
         comp = CompositeParameterization([EvalOnlyParam()], bkd)
-        self.assertFalse(hasattr(comp, "param_jacobian"))
+        assert not hasattr(comp, "param_jacobian")
 
-    def test_composite_append_removes_param_jacobian(self) -> None:
+    def test_composite_append_removes_param_jacobian(self, bkd) -> None:
         """Appending non-differentiable part removes param_jacobian."""
-        bkd = self._bkd
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -422,7 +431,7 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         dp = create_diffusion_parameterization(bkd, basis, fm)
 
         comp = CompositeParameterization([dp], bkd)
-        self.assertTrue(hasattr(comp, "param_jacobian"))
+        assert hasattr(comp, "param_jacobian")
 
         class EvalOnlyParam:
             def nparams(self) -> int:
@@ -432,94 +441,28 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
                 pass
 
         comp.append(EvalOnlyParam())
-        self.assertFalse(hasattr(comp, "param_jacobian"))
+        assert not hasattr(comp, "param_jacobian")
 
-    def test_composite_append_type_error(self) -> None:
+    def test_composite_append_type_error(self, bkd) -> None:
         """CompositeParameterization.append raises TypeError for non-protocol."""
-        bkd = self._bkd
         comp = CompositeParameterization([], bkd)
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             comp.append("not_a_param")
 
-    def test_forcing_init_type_error(self) -> None:
+    def test_forcing_init_type_error(self, bkd) -> None:
         """ForcingParameterization raises TypeError for non-FieldMap."""
-        bkd = self._bkd
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             ForcingParameterization("not_a_field_map", bkd)
 
-    def test_reaction_init_type_error(self) -> None:
+    def test_reaction_init_type_error(self, bkd) -> None:
         """ReactionParameterization raises TypeError for non-FieldMap."""
-        bkd = self._bkd
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             ReactionParameterization("not_a_field_map", bkd)
 
 
-class TestParameterizationsNumpy(TestParameterizations[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestParameterizationsTorch(TestParameterizations[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def test_diffusion_param_jacobian_autograd(self) -> None:
-        """Torch autograd matches DiffusionParameterization.param_jacobian."""
-        bkd = self._bkd
-        # Use physics WITHOUT BCs so residual is pure PDE operator
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        def forcing(t):
-            return (math.pi**2) * bkd.sin(math.pi * nodes)
-
-        physics = AdvectionDiffusionReaction(
-            basis,
-            bkd,
-            diffusion=1.0,
-            forcing=forcing,
-        )
-
-        phi0 = bkd.ones((npts,))
-        phi1 = nodes
-        fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
-
-        # Use a state that's non-zero everywhere to avoid near-zero issues
-        state = bkd.cos(0.5 * math.pi * nodes) + 1.0
-        time = 0.0
-
-        params = torch.tensor([0.3, -0.1], dtype=torch.float64)
-
-        def torch_residual(p):
-            dp.apply(physics, p)
-            return physics.residual(state, time)
-
-        autograd_jac = torch.autograd.functional.jacobian(torch_residual, params)
-        dp.apply(physics, params)
-        analytical_jac = dp.param_jacobian(physics, state, time, params)
-        bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
-
-
-class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
+class TestCompositeWithSteadyForwardModel:
     """Integration test: CompositeParameterization with SteadyForwardModel."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _create_composite_forward_model(self):
-        bkd = self._bkd
+    def _create_composite_forward_model(self, bkd) :
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         num_kle_terms = 2
@@ -543,24 +486,22 @@ class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=comp)
         return fwd
 
-    def test_nvars_is_sum(self) -> None:
+    def test_nvars_is_sum(self, bkd) -> None:
         """Forward model nvars = nkle + 1 (diffusion + forcing)."""
-        fwd = self._create_composite_forward_model()
-        self.assertEqual(fwd.nvars(), 3)  # 2 KLE + 1 forcing
+        fwd = self._create_composite_forward_model(bkd)
+        assert fwd.nvars() == 3
 
-    def test_call_works(self) -> None:
+    def test_call_works(self, bkd) -> None:
         """Forward model __call__ works with CompositeParameterization."""
-        bkd = self._bkd
-        fwd = self._create_composite_forward_model()
+        fwd = self._create_composite_forward_model(bkd)
         samples = bkd.array([0.1, -0.1, 2.0])[:, None]
         result = fwd(samples)
-        self.assertEqual(result.shape[0], fwd.nqoi())
-        self.assertEqual(result.shape[1], 1)
+        assert result.shape[0] == fwd.nqoi()
+        assert result.shape[1] == 1
 
-    def test_jacobian_derivative_checker(self) -> None:
+    def test_jacobian_derivative_checker(self, bkd) -> None:
         """Forward model Jacobian passes DerivativeChecker."""
-        bkd = self._bkd
-        fwd = self._create_composite_forward_model()
+        fwd = self._create_composite_forward_model(bkd)
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
@@ -572,22 +513,4 @@ class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.1, -0.1, 2.0])[:, None]
         errors = checker.check_derivatives(sample)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
-
-
-class TestCompositeWithSteadyForwardModelNumpy(
-    TestCompositeWithSteadyForwardModel[NDArray[Any]]
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCompositeWithSteadyForwardModelTorch(
-    TestCompositeWithSteadyForwardModel[torch.Tensor]
-):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
+        assert ratio <= 1e-5

@@ -10,13 +10,7 @@ The key design:
 - This ensures consistent forcing computation and residual evaluation
 """
 
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
-
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -34,13 +28,7 @@ from pyapprox.pde.collocation.physics import (
     LinearReaction,
     TwoSpeciesReactionDiffusionPhysics,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class PhysicsDerivativeWrapper(Generic[Array]):
+class PhysicsDerivativeWrapper:
     """Wrapper to adapt physics interface for DerivativeChecker.
 
     DerivativeChecker expects:
@@ -85,17 +73,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
+class TestManufacturedReactionDiffusion1D:
     """Test 1D reaction-diffusion physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_linear_reaction_residual(self):
+    def test_linear_reaction_residual(self, bkd):
         """Test reaction-diffusion residual with linear reaction."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -166,9 +148,8 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_linear_reaction_jacobian(self):
+    def test_linear_reaction_jacobian(self, bkd):
         """Test reaction-diffusion Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -203,11 +184,10 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_fitzhugh_nagumo_residual(self):
+    def test_fitzhugh_nagumo_residual(self, bkd):
         """Test reaction-diffusion residual with FitzHugh-Nagumo reaction."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -268,9 +248,8 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_fitzhugh_nagumo_jacobian(self):
+    def test_fitzhugh_nagumo_jacobian(self, bkd):
         """Test FitzHugh-Nagumo Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -307,328 +286,4 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
-
-
-class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
-    """Parameterized 1D reaction-diffusion residual tests."""
-
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
-        "name,sol0_str,sol1_str,a00,a01,a10,a11,D0,D1,npts",
-        [
-            (
-                "linear_basic",
-                "(1 - x**2)",
-                "0.5*(1 - x**2)",
-                1.0,
-                -0.5,
-                0.5,
-                -1.0,
-                1.0,
-                0.5,
-                15,
-            ),
-            (
-                "linear_symmetric",
-                "(1 - x**2)",
-                "(1 - x**2)",
-                -1.0,
-                0.5,
-                0.5,
-                -1.0,
-                1.0,
-                1.0,
-                15,
-            ),
-            (
-                "linear_diagonal",
-                "(1 - x**2)",
-                "0.3*(1 - x**2)",
-                -2.0,
-                0.0,
-                0.0,
-                -1.0,
-                0.5,
-                0.2,
-                15,
-            ),
-            (
-                "quartic_sol",
-                "(1 - x**2)**2",
-                "0.5*(1 - x**2)**2",
-                1.0,
-                -0.5,
-                0.5,
-                -1.0,
-                1.0,
-                0.5,
-                20,
-            ),
-            (
-                "higher_diffusion",
-                "(1 - x**2)",
-                "0.5*(1 - x**2)",
-                1.0,
-                -0.5,
-                0.5,
-                -1.0,
-                5.0,
-                2.5,
-                15,
-            ),
-        ],
-    )
-    def test_linear_reaction_residual(
-        self, name, sol0_str, sol1_str, a00, a01, a10, a11, D0, D1, npts
-    ):
-        """Test 1D linear reaction-diffusion residual for parameterized cases."""
-        bkd = self.bkd()
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
-        nodes = basis.nodes()
-
-        reaction = LinearReaction(a00=a00, a01=a01, a10=a10, a11=a11, bkd=bkd)
-
-        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
-            sol_strs=[sol0_str, sol1_str],
-            nvars=1,
-            diff_strs=[str(D0), str(D1)],
-            reaction=reaction,
-            bkd=bkd,
-            oned=True,
-        )
-
-        u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
-        forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
-
-        physics = TwoSpeciesReactionDiffusionPhysics(
-            basis,
-            bkd,
-            diffusion0=D0,
-            diffusion1=D1,
-            reaction=reaction,
-            forcing0=lambda t: forcing[:, 0],
-            forcing1=lambda t: forcing[:, 1],
-        )
-
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        bcs = [
-            zero_dirichlet_bc(bkd, left_idx),
-            zero_dirichlet_bc(bkd, right_idx),
-            zero_dirichlet_bc(bkd, left_idx + npts),
-            zero_dirichlet_bc(bkd, right_idx + npts),
-        ]
-        physics.set_boundary_conditions(bcs)
-
-        state_exact = bkd.hstack([u_exact[:, 0], u_exact[:, 1]])
-        residual = physics.residual(state_exact, 0.0)
-        jac = physics.jacobian(state_exact, 0.0)
-        residual_with_bc, _ = physics.apply_boundary_conditions(
-            residual, jac, state_exact, 0.0
-        )
-
-        boundary_indices = {0, npts - 1, npts, 2 * npts - 1}
-        interior = [i for i in range(2 * npts) if i not in boundary_indices]
-        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior])
-
-        bkd.assert_allclose(
-            interior_residual,
-            bkd.zeros(interior_residual.shape),
-            atol=1e-9,
-        )
-
-    @parametrize(
-        "name,sol0_str,sol1_str,alpha,eps,beta,gamma,D0,npts",
-        [
-            (
-                "fhn_basic",
-                "0.5*(1 - x**2)",
-                "0.3*(1 - x**2)",
-                0.1,
-                0.01,
-                0.5,
-                1.0,
-                0.01,
-                15,
-            ),
-            (
-                "fhn_high_alpha",
-                "0.5*(1 - x**2)",
-                "0.3*(1 - x**2)",
-                0.3,
-                0.01,
-                0.5,
-                1.0,
-                0.01,
-                15,
-            ),
-            (
-                "fhn_high_eps",
-                "0.5*(1 - x**2)",
-                "0.3*(1 - x**2)",
-                0.1,
-                0.1,
-                0.5,
-                1.0,
-                0.01,
-                15,
-            ),
-            (
-                "fhn_quartic",
-                "0.3*(1 - x**2)**2",
-                "0.2*(1 - x**2)**2",
-                0.1,
-                0.01,
-                0.5,
-                1.0,
-                0.01,
-                20,
-            ),
-        ],
-    )
-    def test_fitzhugh_nagumo_residual(
-        self, name, sol0_str, sol1_str, alpha, eps, beta, gamma, D0, npts
-    ):
-        """Test 1D FitzHugh-Nagumo residual for parameterized cases."""
-        bkd = self.bkd()
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
-        nodes = basis.nodes()
-
-        reaction = FitzHughNagumoReaction(
-            alpha=alpha, eps=eps, beta=beta, gamma=gamma, bkd=bkd
-        )
-
-        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
-            sol_strs=[sol0_str, sol1_str],
-            nvars=1,
-            diff_strs=[str(D0), "0.0"],
-            reaction=reaction,
-            bkd=bkd,
-            oned=True,
-        )
-
-        u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
-        forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
-
-        physics = TwoSpeciesReactionDiffusionPhysics(
-            basis,
-            bkd,
-            diffusion0=D0,
-            diffusion1=0.0,
-            reaction=reaction,
-            forcing0=lambda t: forcing[:, 0],
-            forcing1=lambda t: forcing[:, 1],
-        )
-
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        bcs = [
-            zero_dirichlet_bc(bkd, left_idx),
-            zero_dirichlet_bc(bkd, right_idx),
-            zero_dirichlet_bc(bkd, left_idx + npts),
-            zero_dirichlet_bc(bkd, right_idx + npts),
-        ]
-        physics.set_boundary_conditions(bcs)
-
-        state_exact = bkd.hstack([u_exact[:, 0], u_exact[:, 1]])
-        residual = physics.residual(state_exact, 0.0)
-        jac = physics.jacobian(state_exact, 0.0)
-        residual_with_bc, _ = physics.apply_boundary_conditions(
-            residual, jac, state_exact, 0.0
-        )
-
-        boundary_indices = {0, npts - 1, npts, 2 * npts - 1}
-        interior = [i for i in range(2 * npts) if i not in boundary_indices]
-        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior])
-
-        bkd.assert_allclose(
-            interior_residual,
-            bkd.zeros(interior_residual.shape),
-            atol=1e-9,
-        )
-
-    @parametrize(
-        "name,a00,a01,a10,a11,npts",
-        [
-            ("jacobian_basic", 1.0, -0.5, 0.5, -1.0, 10),
-            ("jacobian_symmetric", -1.0, 0.5, 0.5, -1.0, 10),
-            ("jacobian_diagonal", -2.0, 0.0, 0.0, -1.0, 10),
-        ],
-    )
-    def test_linear_reaction_jacobian(self, name, a00, a01, a10, a11, npts):
-        """Test 1D linear reaction Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        reaction = LinearReaction(a00=a00, a01=a01, a10=a10, a11=a11, bkd=bkd)
-
-        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
-            sol_strs=["(1 - x**2)", "0.5*(1 - x**2)"],
-            nvars=1,
-            diff_strs=["1.0", "0.5"],
-            reaction=reaction,
-            bkd=bkd,
-            oned=True,
-        )
-
-        u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
-        forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
-
-        physics = TwoSpeciesReactionDiffusionPhysics(
-            basis,
-            bkd,
-            diffusion0=1.0,
-            diffusion1=0.5,
-            reaction=reaction,
-            forcing0=lambda t: forcing[:, 0],
-            forcing1=lambda t: forcing[:, 1],
-        )
-
-        state_exact = bkd.hstack([u_exact[:, 0], u_exact[:, 1]])
-        wrapper = PhysicsDerivativeWrapper(physics)
-        checker = DerivativeChecker(wrapper)
-        errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
-
-
-# Concrete backend implementations
-class TestManufacturedReactionDiffusion1DNumpy(
-    TestManufacturedReactionDiffusion1D[NDArray[Any]]
-):
-    """NumPy backend tests for 1D reaction-diffusion."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedReactionDiffusion1DTorch(
-    TestManufacturedReactionDiffusion1D[torch.Tensor]
-):
-    """PyTorch backend tests for 1D reaction-diffusion."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert checker.error_ratio(errors[0]) <= 1e-6

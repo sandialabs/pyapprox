@@ -1,8 +1,7 @@
 """Tests for 2D collocation quadrature weights."""
 
 import math
-import unittest
-from typing import Any, Generic
+from typing import Any
 
 import torch
 from numpy.typing import NDArray
@@ -19,33 +18,20 @@ from pyapprox.pde.collocation.quadrature import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_full_domain_weights_shape(self):
+class TestCollocationQuadrature2D:
+    def test_full_domain_weights_shape(self, bkd):
         """Full-domain weights have correct shape and are positive."""
-        bkd = self._bkd
         nx, ny = 8, 6
         mesh = TransformedMesh2D(nx, ny, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
         quad = CollocationQuadrature2D(basis, bkd)
         w = quad.full_domain_weights()
-        self.assertEqual(w.shape, (nx * ny,))
+        assert w.shape == (nx * ny,)
         # On reference [-1,1]^2, all weights should be positive
-        self.assertGreater(float(bkd.min(w)), 0.0)
+        assert float(bkd.min(w)) > 0.0
 
-    def test_reference_area(self):
+    def test_reference_area(self, bkd):
         """Integral of 1 on reference [-1,1]^2 = 4."""
-        bkd = self._bkd
         nx, ny = 8, 8
         mesh = TransformedMesh2D(nx, ny, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -58,9 +44,8 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_cartesian_area(self):
+    def test_cartesian_area(self, bkd):
         """Integral of 1 on [0,2] x [0,3] = 6."""
-        bkd = self._bkd
         nx, ny = 8, 8
         transform = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
         mesh = TransformedMesh2D(nx, ny, bkd, transform)
@@ -74,9 +59,8 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_polynomial_exactness_cartesian(self):
+    def test_polynomial_exactness_cartesian(self, bkd):
         """Integrate x^a * y^b on [0,1]^2 for low-degree polynomials."""
-        bkd = self._bkd
         nx, ny = 10, 10
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(nx, ny, bkd, transform)
@@ -98,9 +82,8 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
                     rtol=1e-10,
                 )
 
-    def test_polar_area(self):
+    def test_polar_area(self, bkd):
         """Integral of 1 on quarter-annulus = pi/4 * (Ro^2 - Ri^2)."""
-        bkd = self._bkd
         r_inner, r_outer = 1.0, 2.0
         nx, ny = 10, 10
         transform = PolarTransform(
@@ -120,13 +103,12 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_polar_integral_x2_y2(self):
+    def test_polar_integral_x2_y2(self, bkd):
         """Integrate x^2 + y^2 = r^2 on quarter-annulus.
 
         Exact: integral_0^{pi/2} integral_{Ri}^{Ro} r^2 * r dr dtheta
              = pi/2 * (Ro^4 - Ri^4) / 4
         """
-        bkd = self._bkd
         r_inner, r_outer = 1.0, 2.0
         nx, ny = 12, 12
         transform = PolarTransform(
@@ -148,9 +130,8 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_subdomain_weights_reference(self):
+    def test_subdomain_weights_reference(self, bkd):
         """Subdomain weights on a sub-rectangle of reference domain."""
-        bkd = self._bkd
         nx, ny = 10, 10
         mesh = TransformedMesh2D(nx, ny, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -165,14 +146,13 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_subdomain_polar_sub_annulus(self):
+    def test_subdomain_polar_sub_annulus(self, bkd):
         """Subdomain on inner half of quarter-annulus.
 
         Inner half: r in [Ri, (Ri+Ro)/2], theta in [0, pi/2]
         In reference: x in [-1, 0], y in [-1, 1] (full theta range)
         Area = pi/4 * ((Ri+Ro)^2/4 - Ri^2)
         """
-        bkd = self._bkd
         r_inner, r_outer = 1.0, 3.0
         r_mid = (r_inner + r_outer) / 2.0
         nx, ny = 12, 12
@@ -195,9 +175,8 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_subdomain_sum_equals_full(self):
+    def test_subdomain_sum_equals_full(self, bkd):
         """Left + right subdomain weights sum to full-domain weights."""
-        bkd = self._bkd
         nx, ny = 8, 8
         mesh = TransformedMesh2D(nx, ny, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -207,18 +186,3 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
         w_left = quad.weights(x_bounds=(-1.0, 0.0))
         w_right = quad.weights(x_bounds=(0.0, 1.0))
         bkd.assert_allclose(w_left + w_right, w_full, rtol=1e-12)
-
-
-class TestCollocationQuadrature2DNumpy(
-    TestCollocationQuadrature2D[NDArray[Any]],
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCollocationQuadrature2DTorch(
-    TestCollocationQuadrature2D[torch.Tensor],
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

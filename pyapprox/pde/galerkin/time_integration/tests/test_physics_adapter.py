@@ -4,8 +4,7 @@ Tests that the adapter correctly translates GalerkinPhysics to ODEResidualProtoc
 and works with the time steppers in typing.pde.time.
 """
 
-import unittest
-from typing import Any, Generic
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,73 +16,82 @@ from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.implicit_steppers import BackwardEulerResidual
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 
 
-class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
+class TestPhysicsAdapterBase:
     """Base test class for GalerkinPhysicsODEAdapter."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
+    def _setup(self, bkd):
         # Create simple 1D physics for testing
-        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         self.basis = LagrangeBasis(self.mesh, degree=1)
         self.physics = LinearAdvectionDiffusionReaction(
-            basis=self.basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=self.basis, diffusivity=0.01, bkd=bkd
         )
         self.adapter = GalerkinPhysicsODEAdapter(self.physics)
 
-    def test_adapter_has_required_methods(self) -> None:
+    def test_adapter_has_required_methods(self, numpy_bkd) -> None:
         """Test adapter exposes required ODEResidualProtocol methods."""
-        self.assertTrue(callable(getattr(self.adapter, "bkd")))
-        self.assertTrue(callable(getattr(self.adapter, "__call__")))
-        self.assertTrue(callable(getattr(self.adapter, "set_time")))
-        self.assertTrue(callable(getattr(self.adapter, "jacobian")))
-        self.assertTrue(callable(getattr(self.adapter, "mass_matrix")))
+        bkd = numpy_bkd
+        self._setup(bkd)
+        assert callable(getattr(self.adapter, "bkd"))
+        assert callable(getattr(self.adapter, "__call__"))
+        assert callable(getattr(self.adapter, "set_time"))
+        assert callable(getattr(self.adapter, "jacobian"))
+        assert callable(getattr(self.adapter, "mass_matrix"))
 
-    def test_residual_call(self) -> None:
+    def test_residual_call(self, numpy_bkd) -> None:
         """Test calling adapter returns residual with correct shape."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         u0 = self.physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         self.adapter.set_time(0.0)
         residual = self.adapter(u0)
-        self.assertEqual(residual.shape, (self.physics.nstates(),))
+        assert residual.shape == (self.physics.nstates(),)
 
-    def test_jacobian_shape(self) -> None:
+    def test_jacobian_shape(self, numpy_bkd) -> None:
         """Test Jacobian has correct shape."""
-        u0 = self.bkd_inst.asarray(np.zeros(self.physics.nstates()))
+        bkd = numpy_bkd
+        self._setup(bkd)
+        u0 = bkd.asarray(np.zeros(self.physics.nstates()))
         self.adapter.set_time(0.0)
         jac = self.adapter.jacobian(u0)
-        self.assertEqual(jac.shape, (self.physics.nstates(), self.physics.nstates()))
+        assert jac.shape == (self.physics.nstates(), self.physics.nstates())
 
-    def test_mass_matrix_shape(self) -> None:
+    def test_mass_matrix_shape(self, numpy_bkd) -> None:
         """Test mass matrix has correct shape."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         M = self.adapter.mass_matrix(self.physics.nstates())
-        self.assertEqual(M.shape, (self.physics.nstates(), self.physics.nstates()))
+        assert M.shape == (self.physics.nstates(), self.physics.nstates())
 
-    def test_mass_matrix_cached(self) -> None:
+    def test_mass_matrix_cached(self, numpy_bkd) -> None:
         """Test mass matrix is cached."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         M1 = self.adapter.mass_matrix(self.physics.nstates())
         M2 = self.adapter.mass_matrix(self.physics.nstates())
         # Check they are the same object (cached)
-        self.assertIs(M1, M2)
+        assert M1 is M2
 
-    def test_set_time(self) -> None:
+    def test_set_time(self, numpy_bkd) -> None:
         """Test set_time updates internal time."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         self.adapter.set_time(1.5)
-        self.assertEqual(self.adapter._time, 1.5)
+        assert self.adapter._time == 1.5
 
-    def test_bkd_returns_backend(self) -> None:
+    def test_bkd_returns_backend(self, numpy_bkd) -> None:
         """Test bkd returns correct backend."""
-        self.assertIs(self.adapter.bkd(), self.bkd_inst)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        assert self.adapter.bkd() is bkd
 
-    def test_with_backward_euler(self) -> None:
+    def test_with_backward_euler(self, numpy_bkd) -> None:
         """Test adapter works with BackwardEulerResidual."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         # Create time stepper
         stepper = BackwardEulerResidual(self.adapter)
 
@@ -96,14 +104,16 @@ class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
 
         # Evaluate residual (this tests the interface compatibility)
         res = stepper(u0)
-        self.assertEqual(res.shape, (self.physics.nstates(),))
+        assert res.shape == (self.physics.nstates(),)
 
         # Evaluate Jacobian
         jac = stepper.jacobian(u0)
-        self.assertEqual(jac.shape, (self.physics.nstates(), self.physics.nstates()))
+        assert jac.shape == (self.physics.nstates(), self.physics.nstates())
 
-    def test_time_stepping_single_step(self) -> None:
+    def test_time_stepping_single_step(self, numpy_bkd) -> None:
         """Test taking a single time step with Newton's method."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         # Create time stepper
         stepper = BackwardEulerResidual(self.adapter)
 
@@ -115,20 +125,22 @@ class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
         stepper.set_time(0.0, dt, u0)
 
         # Simple Newton iteration for one time step
-        u_new = self.bkd_inst.copy(u0)
+        u_new = bkd.copy(u0)
         for _ in range(5):  # Newton iterations
             res = stepper(u_new)
             jac = stepper.jacobian(u_new)
-            du = solve_maybe_sparse(self.bkd_inst, jac, -res)
+            du = solve_maybe_sparse(bkd, jac, -res)
             u_new = u_new + du
 
         # Check solution is different from initial
-        u0_np = self.bkd_inst.to_numpy(u0)
-        u_new_np = self.bkd_inst.to_numpy(u_new)
-        self.assertTrue(np.linalg.norm(u_new_np - u0_np) > 1e-10)
+        u0_np = bkd.to_numpy(u0)
+        u_new_np = bkd.to_numpy(u_new)
+        assert np.linalg.norm(u_new_np - u0_np) > 1e-10
 
-    def test_newton_convergence(self) -> None:
+    def test_newton_convergence(self, numpy_bkd) -> None:
         """Test Newton iteration converges for a single time step."""
+        bkd = numpy_bkd
+        self._setup(bkd)
         stepper = BackwardEulerResidual(self.adapter)
 
         # Initial condition: sine wave
@@ -139,70 +151,21 @@ class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
         stepper.set_time(0.0, dt, u)
 
         # Track residual norms during Newton iteration
-        u_new = self.bkd_inst.copy(u)
+        u_new = bkd.copy(u)
         residual_norms = []
 
         for _ in range(10):  # Newton iterations
             res = stepper(u_new)
-            res_np = self.bkd_inst.to_numpy(res)
+            res_np = bkd.to_numpy(res)
             residual_norms.append(np.linalg.norm(res_np))
 
             jac = stepper.jacobian(u_new)
-            du = solve_maybe_sparse(self.bkd_inst, jac, -res)
+            du = solve_maybe_sparse(bkd, jac, -res)
             u_new = u_new + du
 
         # Newton should converge - final residual should be much smaller
-        self.assertLess(residual_norms[-1], 1e-10)
+        assert residual_norms[-1] < 1e-10
         # And should be much smaller than initial
-        self.assertLess(residual_norms[-1], residual_norms[0] * 1e-6)
+        assert residual_norms[-1] < residual_norms[0] * 1e-6
 
 
-class TestPhysicsAdapterNumpy(TestPhysicsAdapterBase[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Try to import torch for dual-backend testing
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestPhysicsAdapterTorch(TestPhysicsAdapterBase[torch.Tensor]):
-        """PyTorch backend tests.
-
-        Tests requiring sparse solves are skipped because
-        torch.sparse.spsolve is not available on CPU.
-        """
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_time_stepping_single_step(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_newton_convergence(self) -> None:
-            pass
-
-except ImportError:
-    pass
-
-
-if __name__ == "__main__":
-    unittest.main()

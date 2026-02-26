@@ -4,10 +4,9 @@ Validates that GalerkinModel.solve_transient produces the same results
 as the manual time-stepping loop for all 4 integration methods.
 """
 
-import unittest
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -71,21 +70,21 @@ def _setup_adr_physics(bkd, nx=32):
 
 
 IMPLICIT_CASES = [
-    ("backward_euler",),
-    ("crank_nicolson",),
+    "backward_euler",
+    "crank_nicolson",
 ]
 
 
-class TestGalerkinModelImplicit(ParametrizedTestCase):
+class TestGalerkinModelImplicit:
     """Test GalerkinModel with implicit methods."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "method",
         IMPLICIT_CASES,
     )
-    def test_solve_transient_implicit(self, method: str) -> None:
+    def test_solve_transient_implicit(self, numpy_bkd, method: str) -> None:
         """GalerkinModel matches exact solution for time-linear problem."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         physics, exact_at_time = _setup_adr_physics(bkd)
 
         model = GalerkinModel(physics, bkd)
@@ -105,35 +104,31 @@ class TestGalerkinModelImplicit(ParametrizedTestCase):
         u_norm = np.linalg.norm(u_exact_final)
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Method {method}: rel_error={rel_error:.2e} should be < 1e-6",
-        )
+        assert rel_error < 1e-6
 
 
 EXPLICIT_CASES = [
-    ("forward_euler",),
-    ("heun",),
+    "forward_euler",
+    "heun",
 ]
 
 
 @slow_test
-class TestGalerkinModelExplicit(ParametrizedTestCase):
+class TestGalerkinModelExplicit:
     """Test GalerkinModel with explicit methods (CFL-constrained)."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "method",
         EXPLICIT_CASES,
     )
-    def test_solve_transient_explicit(self, method: str) -> None:
+    def test_solve_transient_explicit(self, numpy_bkd, method: str) -> None:
         """GalerkinModel matches exact solution for time-linear problem.
 
         Uses nx=4, P2 which exactly represents u=(1-x)*x*(1+T).
         Zero spatial error + linear-in-time → machine precision.
         CFL: h=0.25, D=4, dt < h²/(2D) = 0.0078 → dt=1e-5 well within.
         """
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         physics, exact_at_time = _setup_adr_physics(bkd, nx=4)
 
         model = GalerkinModel(physics, bkd)
@@ -153,14 +148,4 @@ class TestGalerkinModelExplicit(ParametrizedTestCase):
         u_norm = np.linalg.norm(u_exact_final)
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
-        self.assertLess(
-            rel_error,
-            1e-10,
-            f"Method {method}: rel_error={rel_error:.2e} should be < 1e-10",
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-10

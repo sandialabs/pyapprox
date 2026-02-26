@@ -1,6 +1,5 @@
 """Tests for Shallow Ice physics implementation."""
 
-import unittest
 
 import numpy as np
 
@@ -28,21 +27,11 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class TestShallowIcePhysics(PhysicsTestBase):
     """Tests for ShallowIcePhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences using DerivativeChecker."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -59,11 +48,10 @@ class TestShallowIcePhysics(PhysicsTestBase):
         # Positive ice thickness (physically meaningful)
         state = 100.0 + 50.0 * (1.0 - nodes**2)
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_sloped_bed(self):
+    def test_jacobian_sloped_bed(self, bkd):
         """Test Jacobian with sloped bed topography."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -80,9 +68,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         # Positive ice thickness
         state = 150.0 + 30.0 * (1.0 - nodes**2)
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self):
+    def test_residual_at_manufactured_solution(self, bkd):
         """Verify residual is near zero at manufactured solution.
 
         Uses normalized parameters (A=1, rho=1) to avoid numerical issues
@@ -90,7 +78,6 @@ class TestShallowIcePhysics(PhysicsTestBase):
         parameters (A~1e-16, rho~917), the forcing terms are O(1e10) which
         causes numerical issues with spectral methods.
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -137,15 +124,14 @@ class TestShallowIcePhysics(PhysicsTestBase):
             exact_solution = exact_solution[:, 0]
 
         # Check residual is near zero at manufactured solution
-        self.check_residual_zero(physics, exact_solution, atol=1e-6)
+        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-6)
 
-    def test_solve_steady_from_small_perturbation(self):
+    def test_solve_steady_from_small_perturbation(self, bkd):
         """Verify Newton converges from small perturbation.
 
         Uses normalized parameters for numerical stability.
         Tests that NewtonSolver converges when starting close to solution.
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -210,9 +196,8 @@ class TestShallowIcePhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-6)
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_shallow_ice factory function."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -223,17 +208,16 @@ class TestShallowIcePhysics(PhysicsTestBase):
             basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0
         )
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
 
-    def _setup_transient_shallow_ice(self):
+    def _setup_transient_shallow_ice(self, bkd):
         """Set up transient shallow ice with manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
         (exact for CN). Boundary values are constant: H(±1,t)=2.
         Normalized parameters (A=1, rho=1) for numerical stability.
         """
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -276,9 +260,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_shallow_ice(self, method, atol):
+    def _run_transient_shallow_ice(self, bkd, method, atol) :
         """Run transient shallow ice test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_ice()
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_ice(bkd)
         model = CollocationModel(physics, bkd)
 
         state0 = man_sol.functions["solution"](nodes[None, :], 0.0)
@@ -297,18 +281,14 @@ class TestShallowIcePhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
 
-    def test_transient_manufactured_backward_euler(self):
+    def test_transient_manufactured_backward_euler(self, bkd):
         """Test transient shallow ice with backward Euler."""
-        self._run_transient_shallow_ice("backward_euler", atol=0.1)
+        self._run_transient_shallow_ice(bkd, "backward_euler", atol=0.1)
 
-    def test_transient_manufactured_crank_nicolson(self):
+    def test_transient_manufactured_crank_nicolson(self, bkd):
         """Test transient shallow ice with Crank-Nicolson.
 
         Uses polynomial-in-space and quadratic-in-time manufactured solution.
         CN integrates quadratic-in-time exactly, so only spatial error remains.
         """
-        self._run_transient_shallow_ice("crank_nicolson", atol=1e-8)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._run_transient_shallow_ice(bkd, "crank_nicolson", atol=1e-8)

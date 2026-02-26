@@ -8,13 +8,12 @@ This module contains:
    Uses manufactured solutions with natural (zero Neumann) boundary conditions.
 """
 
-import unittest
 from typing import Any, Generic, List, Tuple
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
@@ -25,104 +24,101 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 
 
-class TestLinearADRBase(Generic[Array], unittest.TestCase):
+class TestLinearADRBase:
     """Base test class for LinearAdvectionDiffusionReaction."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
-    def _to_dense(self, matrix):
+    def _to_dense(self, bkd, matrix) :
         """Convert sparse or backend matrix to dense numpy array."""
         if issparse(matrix):
             return matrix.toarray()
-        return self.bkd_inst.to_numpy(matrix)
+        return bkd.to_numpy(matrix)
 
-    def test_1d_mass_matrix_symmetric(self) -> None:
+    def test_1d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         M = physics.mass_matrix()
-        M_np = self._to_dense(M)
+        M_np = self._to_dense(bkd, M)
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_1d_mass_matrix_positive_definite(self) -> None:
+    def test_1d_mass_matrix_positive_definite(self, numpy_bkd) -> None:
         """Test mass matrix is positive definite."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         M = physics.mass_matrix()
-        M_np = self._to_dense(M)
+        M_np = self._to_dense(bkd, M)
 
         eigenvalues = np.linalg.eigvalsh(M_np)
-        self.assertTrue(np.all(eigenvalues > 0))
+        assert np.all(eigenvalues > 0)
 
-    def test_1d_stiffness_assembly(self) -> None:
+    def test_1d_stiffness_assembly(self, numpy_bkd) -> None:
         """Test stiffness matrix assembly in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=1.0, bkd=self.bkd_inst
+            basis=basis, diffusivity=1.0, bkd=bkd
         )
 
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        jac_np = self._to_dense(jac)
+        jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion (no reaction), -jacobian should be the
         # stiffness matrix, which should be symmetric
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_1d_residual_shape(self) -> None:
+    def test_1d_residual_shape(self, numpy_bkd) -> None:
         """Test residual has correct shape."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         res = physics.residual(u0, 0.0)
 
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_1d_jacobian_shape(self) -> None:
+    def test_1d_jacobian_shape(self, numpy_bkd) -> None:
         """Test Jacobian has correct shape."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         jac = physics.jacobian(u0, 0.0)
 
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_physics(self) -> None:
+    def test_2d_physics(self, numpy_bkd) -> None:
         """Test physics works in 2D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
-            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=self.bkd_inst
+            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
         )
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         # Initial condition
@@ -131,42 +127,44 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         )
 
         # Check shapes
-        self.assertEqual(u0.shape, (physics.nstates(),))
+        assert u0.shape == (physics.nstates(),)
 
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_with_forcing(self) -> None:
+    def test_with_forcing(self, numpy_bkd) -> None:
         """Test physics with forcing term."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def forcing(x):
             return np.ones(x.shape[1])
 
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, forcing=forcing, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, forcing=forcing, bkd=bkd
         )
 
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        res_np = self.bkd_inst.to_numpy(res)
+        res_np = bkd.to_numpy(res)
 
         # With forcing and u=0, residual should be non-zero
-        self.assertTrue(np.linalg.norm(res_np) > 0)
+        assert np.linalg.norm(res_np) > 0
 
-    def test_3d_physics(self) -> None:
+    def test_3d_physics(self, numpy_bkd) -> None:
         """Test physics works in 3D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         # Initial condition
@@ -175,63 +173,66 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         )
 
         # Check shapes
-        self.assertEqual(u0.shape, (physics.nstates(),))
+        assert u0.shape == (physics.nstates(),)
 
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
         jac = physics.jacobian(u0, 0.0)
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_3d_mass_matrix_symmetric(self) -> None:
+    def test_3d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric in 3D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, bkd=self.bkd_inst
+            basis=basis, diffusivity=0.01, bkd=bkd
         )
 
         M = physics.mass_matrix()
-        M_np = self._to_dense(M)
+        M_np = self._to_dense(bkd, M)
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_3d_stiffness_symmetric(self) -> None:
+    def test_3d_stiffness_symmetric(self, numpy_bkd) -> None:
         """Test stiffness matrix is symmetric in 3D (pure diffusion)."""
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=1.0, bkd=self.bkd_inst
+            basis=basis, diffusivity=1.0, bkd=bkd
         )
 
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        jac_np = self._to_dense(jac)
+        jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion, -jacobian = stiffness matrix should be symmetric
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_3d_steady_state_solve(self) -> None:
+    def test_3d_steady_state_solve(self, numpy_bkd) -> None:
         """Test steady-state solve in 3D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
 
@@ -241,21 +242,22 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
             diffusivity=0.1,
             reaction=1.0,
             forcing=lambda x: np.ones(x.shape[1]),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
 
         solver = SteadyStateSolver(physics, tol=1e-10)
         result = solver.solve_linear()
 
-        self.assertTrue(result.converged)
-        self.assertLess(result.residual_norm, 1e-8)
+        assert result.converged
+        assert result.residual_norm < 1e-8
 
-    def test_manufactured_solution_1d(self) -> None:
+    def test_manufactured_solution_1d(self, numpy_bkd) -> None:
         """Test convergence using manufactured solution in 1D.
 
         Use u_exact = cos(pi*x), which satisfies zero Neumann BCs at x=0,1.
         Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
+        bkd = numpy_bkd
         D = 1.0
         r = 1.0
         bounds = [0.0, 1.0]
@@ -278,7 +280,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         for nx in mesh_sizes:
             mesh = StructuredMesh1D(
-                nx=nx, bounds=(bounds[0], bounds[1]), bkd=self.bkd_inst
+                nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
             )
             basis = LagrangeBasis(mesh, degree=1)
 
@@ -287,15 +289,15 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
                 diffusivity=D,
                 reaction=r,
                 forcing=forcing,
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
 
             solver = SteadyStateSolver(physics, tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
-            u_num = self.bkd_inst.to_numpy(result.solution)
-            dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
+            u_num = bkd.to_numpy(result.solution)
+            dof_locs = bkd.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
             error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
@@ -305,14 +307,15 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         rates = np.log(errors_arr[:-1] / errors_arr[1:]) / np.log(2)
 
         # P1 elements should have convergence rate ~2
-        self.assertTrue(np.all(rates > 1.5), f"Rates: {rates}")
+        assert np.all(rates > 1.5), f"Rates: {rates}"
 
-    def test_manufactured_solution_2d(self) -> None:
+    def test_manufactured_solution_2d(self, numpy_bkd) -> None:
         """Test convergence using manufactured solution in 2D.
 
         Use u_exact = cos(pi*x)*cos(pi*y), which satisfies zero Neumann BCs.
         Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
+        bkd = numpy_bkd
         D = 1.0
         r = 1.0
         bounds = [0.0, 1.0, 0.0, 1.0]
@@ -338,7 +341,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
                 nx=n,
                 ny=n,
                 bounds=[(0.0, 1.0), (0.0, 1.0)],
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
             basis = LagrangeBasis(mesh, degree=1)
 
@@ -347,15 +350,15 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
                 diffusivity=D,
                 reaction=r,
                 forcing=forcing,
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
 
             solver = SteadyStateSolver(physics, tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
-            u_num = self.bkd_inst.to_numpy(result.solution)
-            dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
+            u_num = bkd.to_numpy(result.solution)
+            dof_locs = bkd.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
             error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
@@ -365,14 +368,15 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         rates = np.log(errors_arr[:-1] / errors_arr[1:]) / np.log(2)
 
         # P1 elements should have convergence rate ~2
-        self.assertTrue(np.all(rates > 1.5), f"Rates: {rates}")
+        assert np.all(rates > 1.5), f"Rates: {rates}"
 
-    def test_manufactured_solution_3d(self) -> None:
+    def test_manufactured_solution_3d(self, numpy_bkd) -> None:
         """Test convergence using manufactured solution in 3D.
 
         Use u_exact = cos(pi*x)*cos(pi*y)*cos(pi*z), which satisfies zero Neumann BCs.
         Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
+        bkd = numpy_bkd
         D = 1.0
         r = 1.0
         bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
@@ -399,7 +403,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
                 ny=n,
                 nz=n,
                 bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
             basis = LagrangeBasis(mesh, degree=1)
 
@@ -408,15 +412,15 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
                 diffusivity=D,
                 reaction=r,
                 forcing=forcing,
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
 
             solver = SteadyStateSolver(physics, tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
-            u_num = self.bkd_inst.to_numpy(result.solution)
-            dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
+            u_num = bkd.to_numpy(result.solution)
+            dof_locs = bkd.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
             error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
@@ -427,7 +431,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         # P1 elements should have convergence rate ~2
         # Use lower threshold for 3D due to coarser meshes
-        self.assertTrue(np.all(rates > 1.4), f"Rates: {rates}")
+        assert np.all(rates > 1.4), f"Rates: {rates}"
 
 
 # =============================================================================
@@ -477,7 +481,7 @@ ADR_2D_CONVERGENCE_CASES: List[Tuple[str, int, int, float, bool, float]] = [
 ]
 
 
-class TestParametrizedADR1DConvergence(ParametrizedTestCase):
+class TestParametrizedADR1DConvergence:
     """Parametrized 1D ADR convergence tests with P2 elements.
 
     Uses P2 (quadratic) Lagrange elements with smooth manufactured solutions
@@ -488,12 +492,13 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
     test_finite_elements.py lines 636-664.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,wavenumber,diffusivity,has_advection,reaction",
         ADR_1D_CONVERGENCE_CASES,
     )
     def test_convergence_rate(
         self,
+        numpy_bkd,
         name: str,
         wavenumber: int,
         diffusivity: float,
@@ -501,7 +506,7 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
         reaction: float,
     ) -> None:
         """Test O(h^3) convergence for P2 elements."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         mesh_sizes = [10, 20, 40]
         errors = []
 
@@ -564,13 +569,10 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
         # P2 elements should have convergence rate ~3
         # Use relaxed threshold for stability
         min_expected_rate = 2.5 if has_advection else 2.8
-        self.assertTrue(
-            np.all(rates > min_expected_rate),
-            f"Test {name}: rates={rates} should be > {min_expected_rate}",
-        )
+        assert np.all(rates > min_expected_rate), f"Test {name}: rates={rates} should be > {min_expected_rate}"
 
 
-class TestParametrizedADR2DConvergence(ParametrizedTestCase):
+class TestParametrizedADR2DConvergence:
     """Parametrized 2D ADR convergence tests with P2 elements.
 
     Uses P2 (quadratic) Lagrange elements with smooth manufactured solutions
@@ -581,12 +583,13 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
     test_finite_elements.py lines 617-729.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,wavenumber_x,wavenumber_y,diffusivity,has_advection,reaction",
         ADR_2D_CONVERGENCE_CASES,
     )
     def test_convergence_rate(
         self,
+        numpy_bkd,
         name: str,
         wavenumber_x: int,
         wavenumber_y: int,
@@ -595,7 +598,7 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
         reaction: float,
     ) -> None:
         """Test O(h^3) convergence for P2 elements in 2D."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         mesh_sizes = [5, 10, 20]
         errors = []
 
@@ -663,61 +666,7 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
         # P2 elements should have convergence rate ~3
         # Use relaxed threshold for stability
         min_expected_rate = 2.3 if has_advection else 2.5
-        self.assertTrue(
-            np.all(rates > min_expected_rate),
-            f"Test {name}: rates={rates} should be > {min_expected_rate}",
-        )
-
-
-class TestLinearADRNumpy(TestLinearADRBase[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Try to import torch for dual-backend testing
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestLinearADRTorch(TestLinearADRBase[torch.Tensor]):
-        """PyTorch backend tests."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_manufactured_solution_1d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_manufactured_solution_2d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_manufactured_solution_3d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_3d_steady_state_solve(self) -> None:
-            pass
-
-except ImportError:
-    pass
+        assert np.all(rates > min_expected_rate), f"Test {name}: rates={rates} should be > {min_expected_rate}"
 
 
 # =============================================================================
@@ -894,7 +843,7 @@ ADR_2D_EXACT_CASES: List[
 ]
 
 
-class TestParametrizedADR1DExact(ParametrizedTestCase):
+class TestParametrizedADR1DExact:
     """Parametrized 1D ADR exact reproduction tests with P2 elements.
 
     Uses P2 (quadratic) Lagrange elements with linear solutions and various
@@ -905,12 +854,13 @@ class TestParametrizedADR1DExact(ParametrizedTestCase):
     test_finite_elements.py lines 636-694.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,bndry_types,sol_str,diffusivity,vel_str,reaction",
         ADR_1D_EXACT_CASES,
     )
     def test_exact_reproduction(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -920,7 +870,7 @@ class TestParametrizedADR1DExact(ParametrizedTestCase):
         reaction: float,
     ) -> None:
         """Test exact reproduction for linear solution with P2 elements."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nx = 10  # Mesh size
 
         # Create mesh and basis
@@ -987,9 +937,7 @@ class TestParametrizedADR1DExact(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact)
 
         # P2 elements should exactly reproduce linear solutions
-        self.assertLess(
-            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
-        )
+        assert rel_error < 1e-8
 
 
 # 1D conservative advection exact reproduction test cases
@@ -1006,7 +954,7 @@ ADR_1D_CONSERVATIVE_CASES: List[
 ]
 
 
-class TestParametrizedADR1DConservative(ParametrizedTestCase):
+class TestParametrizedADR1DConservative:
     """Parametrized 1D ADR exact reproduction tests with conservative advection.
 
     Uses P2 elements with linear solutions and conservative advection form
@@ -1015,12 +963,13 @@ class TestParametrizedADR1DConservative(ParametrizedTestCase):
     the Galerkin weak form drops the advective boundary term from IBP.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,bndry_types,sol_str,diffusivity,vel_str,reaction",
         ADR_1D_CONSERVATIVE_CASES,
     )
     def test_exact_reproduction(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -1030,7 +979,7 @@ class TestParametrizedADR1DConservative(ParametrizedTestCase):
         reaction: float,
     ) -> None:
         """Test exact reproduction with conservative advection and P2 elements."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nx = 10
 
         mesh = StructuredMesh1D(
@@ -1089,12 +1038,10 @@ class TestParametrizedADR1DConservative(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact)
 
-        self.assertLess(
-            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
-        )
+        assert rel_error < 1e-8
 
 
-class TestParametrizedADR2DExact(ParametrizedTestCase):
+class TestParametrizedADR2DExact:
     """Parametrized 2D ADR exact reproduction tests with P2 elements.
 
     Uses P2 (quadratic) Lagrange elements with linear/quadratic solutions
@@ -1105,12 +1052,13 @@ class TestParametrizedADR2DExact(ParametrizedTestCase):
     test_finite_elements.py lines 617-729.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,bndry_types,sol_str,diffusivity,vel_strs,reaction",
         ADR_2D_EXACT_CASES,
     )
     def test_exact_reproduction(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -1120,7 +1068,7 @@ class TestParametrizedADR2DExact(ParametrizedTestCase):
         reaction: float,
     ) -> None:
         """Test exact reproduction for linear/quadratic solution with P2 elements."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nx, ny = 5, 5  # Mesh size
 
         # Create mesh and basis
@@ -1191,12 +1139,4 @@ class TestParametrizedADR2DExact(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact)
 
         # P2 elements should exactly reproduce quadratic solutions
-        self.assertLess(
-            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-8

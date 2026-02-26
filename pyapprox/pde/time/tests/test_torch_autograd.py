@@ -14,7 +14,6 @@ float() to extract values. This test module creates autograd-friendly
 versions for comparison.
 """
 
-import unittest
 
 import torch
 
@@ -140,18 +139,18 @@ def functional_autograd(y_final, state_idx=0):
     return y_final[state_idx]
 
 
-class TestTorchAutogradComparison(unittest.TestCase):
+class TestTorchAutogradComparison:
     """Compare analytical derivatives with PyTorch autograd.
 
     Uses autograd-friendly simulation functions to verify that the
     adjoint-based Jacobian and HVP match torch.autograd results.
     """
 
-    def setUp(self):
+    def setup_method(self):
         """Set up torch with float64 precision."""
         torch.set_default_dtype(torch.float64)
         torch.manual_seed(42)
-        self._bkd = TorchBkd()
+        bkd = TorchBkd()
         self._tol = 1e-8
         self._Amat = torch.tensor([[-0.5, 0.1], [0.2, -0.3]], dtype=torch.float64)
         self._dt = 0.1
@@ -167,9 +166,8 @@ class TestTorchAutogradComparison(unittest.TestCase):
         }
         return name_map[stepper_class]
 
-    def _create_quadratic_ode_operator(self, stepper_class):
+    def _create_quadratic_ode_operator(self, bkd, stepper_class) :
         """Create operator with quadratic ODE (has non-zero HVP)."""
-        bkd = self._bkd
         nstates = 2
         nparams = 2
 
@@ -220,12 +218,11 @@ class TestTorchAutogradComparison(unittest.TestCase):
         _, hvp = torch.autograd.functional.hvp(forward_fn, param_flat, vvec_flat)
         return hvp.detach()
 
-    def _check_jacobian_stepper(self, stepper_class):
+    def _check_jacobian_stepper(self, bkd, stepper_class) :
         """Check Jacobian matches autograd for given stepper."""
-        bkd = self._bkd
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
+        operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -246,19 +243,13 @@ class TestTorchAutogradComparison(unittest.TestCase):
         norm = float(torch.max(torch.abs(autograd_flat))) + 1e-12
         rel_error = error / norm
 
-        self.assertLess(
-            rel_error,
-            self._tol,
-            f"Jacobian error {rel_error:.2e} exceeds {self._tol:.2e} "
-            f"for {stepper_class.__name__}",
-        )
+        assert rel_error < self._tol
 
-    def _check_hvp_stepper(self, stepper_class):
+    def _check_hvp_stepper(self, bkd, stepper_class) :
         """Check HVP matches autograd for given stepper with quadratic ODE."""
-        bkd = self._bkd
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
+        operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -288,64 +279,67 @@ class TestTorchAutogradComparison(unittest.TestCase):
         norm = float(torch.max(torch.abs(autograd_flat))) + 1e-12
         rel_error = error / norm
 
-        self.assertLess(
-            rel_error,
-            self._tol,
-            f"HVP error {rel_error:.2e} exceeds {self._tol:.2e} "
-            f"for {stepper_class.__name__}",
-        )
+        assert rel_error < self._tol
 
     # =========================================================================
     # Jacobian tests
     # =========================================================================
 
-    def test_backward_euler_jacobian(self):
+    def test_backward_euler_jacobian(self, torch_bkd):
         """Test Backward Euler Jacobian matches autograd."""
-        self._check_jacobian_stepper(BackwardEulerResidual)
+        bkd = torch_bkd
+        self._check_jacobian_stepper(bkd, BackwardEulerResidual)
 
-    def test_crank_nicolson_jacobian(self):
+    def test_crank_nicolson_jacobian(self, torch_bkd):
         """Test Crank-Nicolson Jacobian matches autograd."""
-        self._check_jacobian_stepper(CrankNicolsonResidual)
+        bkd = torch_bkd
+        self._check_jacobian_stepper(bkd, CrankNicolsonResidual)
 
-    def test_forward_euler_jacobian(self):
+    def test_forward_euler_jacobian(self, torch_bkd):
         """Test Forward Euler Jacobian matches autograd."""
-        self._check_jacobian_stepper(ForwardEulerResidual)
+        bkd = torch_bkd
+        self._check_jacobian_stepper(bkd, ForwardEulerResidual)
 
-    def test_heun_jacobian(self):
+    def test_heun_jacobian(self, torch_bkd):
         """Test Heun Jacobian matches autograd."""
-        self._check_jacobian_stepper(HeunResidual)
+        bkd = torch_bkd
+        self._check_jacobian_stepper(bkd, HeunResidual)
 
     # =========================================================================
     # HVP tests
     # =========================================================================
 
-    def test_backward_euler_hvp(self):
+    def test_backward_euler_hvp(self, torch_bkd):
         """Test Backward Euler HVP matches autograd."""
-        self._check_hvp_stepper(BackwardEulerResidual)
+        bkd = torch_bkd
+        self._check_hvp_stepper(bkd, BackwardEulerResidual)
 
-    def test_crank_nicolson_hvp(self):
+    def test_crank_nicolson_hvp(self, torch_bkd):
         """Test Crank-Nicolson HVP matches autograd."""
-        self._check_hvp_stepper(CrankNicolsonResidual)
+        bkd = torch_bkd
+        self._check_hvp_stepper(bkd, CrankNicolsonResidual)
 
-    def test_forward_euler_hvp(self):
+    def test_forward_euler_hvp(self, torch_bkd):
         """Test Forward Euler HVP matches autograd."""
-        self._check_hvp_stepper(ForwardEulerResidual)
+        bkd = torch_bkd
+        self._check_hvp_stepper(bkd, ForwardEulerResidual)
 
-    def test_heun_hvp(self):
+    def test_heun_hvp(self, torch_bkd):
         """Test Heun HVP matches autograd."""
-        self._check_hvp_stepper(HeunResidual)
+        bkd = torch_bkd
+        self._check_hvp_stepper(bkd, HeunResidual)
 
     # =========================================================================
     # Additional validation tests
     # =========================================================================
 
-    def test_hvp_multiple_directions(self):
+    def test_hvp_multiple_directions(self, torch_bkd):
         """Test HVP with multiple random directions."""
-        bkd = self._bkd
+        bkd = torch_bkd
         stepper_class = BackwardEulerResidual
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
+        operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -371,16 +365,14 @@ class TestTorchAutogradComparison(unittest.TestCase):
             norm = float(torch.max(torch.abs(autograd_hvp))) + 1e-12
             rel_error = error / norm
 
-            self.assertLess(
-                rel_error, self._tol, f"HVP error {rel_error:.2e} for seed {seed}"
-            )
+            assert rel_error < self._tol
 
-    def test_jacobian_matches_hvp_with_basis_vectors(self):
+    def test_jacobian_matches_hvp_with_basis_vectors(self, torch_bkd):
         """Verify H·e_i equals i-th column of Hessian (via FD of Jacobian)."""
-        bkd = self._bkd
+        bkd = torch_bkd
         stepper_class = BackwardEulerResidual
 
-        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
+        operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -421,8 +413,4 @@ class TestTorchAutogradComparison(unittest.TestCase):
             rel_error = error / norm
 
             # Use slightly relaxed tolerance for FD comparison
-            self.assertLess(rel_error, 1e-5, f"HVP·e_{ii} error {rel_error:.2e}")
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert rel_error < 1e-5

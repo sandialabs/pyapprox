@@ -12,10 +12,9 @@ Time dependence is cubic (T^3) so both first- and second-order methods
 see nonzero truncation error.
 """
 
-import unittest
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -138,23 +137,24 @@ EXPLICIT_CONVERGENCE_CASES = [
 
 
 @slow_test
-class TestTemporalConvergenceImplicit(ParametrizedTestCase):
+class TestTemporalConvergenceImplicit:
     """Temporal convergence for implicit methods with homogeneous Dirichlet.
 
     u(x,t) = (1-x)*x*(1+T^3), D=0.1, no velocity, no reaction.
     P2 on nx=4 is spatially exact. Error is purely temporal.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "method,expected_order",
         IMPLICIT_CONVERGENCE_CASES,
     )
     def test_convergence_homogeneous_dirichlet(
         self,
+        numpy_bkd,
         method: str,
         expected_order: float,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         model, exact_at_time = _setup_physics_and_model(
             bkd,
             sol_str="(1-x)*x*(1+T**3)",
@@ -185,14 +185,13 @@ class TestTemporalConvergenceImplicit(ParametrizedTestCase):
         rates = _compute_convergence_rates(dt_values, errors)
 
         min_expected = expected_order - 0.15
-        self.assertTrue(
-            np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
+        assert np.all(rates > min_expected), (
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}"
         )
 
 
 @slow_test
-class TestTemporalConvergenceExplicit(ParametrizedTestCase):
+class TestTemporalConvergenceExplicit:
     """Temporal convergence for explicit methods with homogeneous Dirichlet.
 
     u(x,t) = (1-x)*x*(1+T^3), D=0.1, no velocity, no reaction.
@@ -200,16 +199,17 @@ class TestTemporalConvergenceExplicit(ParametrizedTestCase):
     CFL-constrained dt values: 0.01, 0.005, 0.0025.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "method,expected_order",
         EXPLICIT_CONVERGENCE_CASES,
     )
     def test_convergence_homogeneous_dirichlet(
         self,
+        numpy_bkd,
         method: str,
         expected_order: float,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         model, exact_at_time = _setup_physics_and_model(
             bkd,
             sol_str="(1-x)*x*(1+T**3)",
@@ -240,9 +240,8 @@ class TestTemporalConvergenceExplicit(ParametrizedTestCase):
         rates = _compute_convergence_rates(dt_values, errors)
 
         min_expected = expected_order - 0.15
-        self.assertTrue(
-            np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
+        assert np.all(rates > min_expected), (
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}"
         )
 
 
@@ -254,7 +253,7 @@ class TestTemporalConvergenceExplicit(ParametrizedTestCase):
 
 
 @slow_test
-class TestTemporalConvergenceNonzeroDirichlet(ParametrizedTestCase):
+class TestTemporalConvergenceNonzeroDirichlet:
     """Temporal convergence with time-varying nonzero Dirichlet BCs.
 
     u(x,t) = x*(1+T^3), D=0.1, no velocity, no reaction.
@@ -263,16 +262,17 @@ class TestTemporalConvergenceNonzeroDirichlet(ParametrizedTestCase):
     Tests both BE (order 1) and CN (order 2).
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "method,expected_order",
         IMPLICIT_CONVERGENCE_CASES,
     )
     def test_convergence_nonzero_dirichlet(
         self,
+        numpy_bkd,
         method: str,
         expected_order: float,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         model, exact_at_time = _setup_physics_and_model(
             bkd,
             sol_str="x*(1+T**3)",
@@ -303,13 +303,6 @@ class TestTemporalConvergenceNonzeroDirichlet(ParametrizedTestCase):
         rates = _compute_convergence_rates(dt_values, errors)
 
         min_expected = expected_order - 0.15
-        self.assertTrue(
-            np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
+        assert np.all(rates > min_expected), (
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}"
         )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()

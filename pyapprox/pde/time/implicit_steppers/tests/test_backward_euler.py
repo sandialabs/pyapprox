@@ -1,9 +1,6 @@
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.nonlinear_decoupled import (
     NonLinearDecoupledODE,
@@ -14,13 +11,9 @@ from pyapprox.pde.time.implicit_steppers.backward_euler import (
 from pyapprox.pde.time.implicit_steppers.integrator import (
     ImplicitTimeIntegrator,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestImplicitTimeIntegration:
 
     def bkd(self) -> Backend[Array]:
         """
@@ -29,13 +22,11 @@ class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
         """
         raise NotImplementedError("Derived classes must implement this method.")
 
-    def test_decoupled_nonlinear_ode_backward_euler(self) -> None:
+    def test_decoupled_nonlinear_ode_backward_euler(self, bkd) -> None:
         """
         Test implicit time integration for a decoupled nonlinear ODE using
         Backward Euler.
         """
-        bkd = self.bkd()
-
         # Define problem parameters
         nstates = 3
         param = bkd.array([4.0, 3.0])
@@ -109,25 +100,4 @@ class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
 
 
 # Derived test class for NumPy backend
-class TestImplicitTimeIntegrationNumpy(TestImplicitTimeIntegration[NDArray[Any]]):
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
 # Derived test class for PyTorch backend
-class TestImplicitTimeIntegrationTorch(TestImplicitTimeIntegration[torch.Tensor]):
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-        super().setUp()
-
-    def bkd(self) -> Backend[torch.Tensor]:
-        return self._bkd
-
-
-if __name__ == "__main__":
-    unittest.main()

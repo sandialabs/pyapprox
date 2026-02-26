@@ -4,8 +4,7 @@ Tests Neumann, Robin, and mixed BC combinations in 1D and 2D using
 manufactured solutions with non-zero boundary values.
 """
 
-import unittest
-from typing import Any, Generic
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -45,22 +44,15 @@ def _get_exact_displacement(funcs, basis, bkd):
 # =========================================================================
 
 
-class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
+class TestHyperelasticityBCs1DBase:
     """1D boundary condition tests with non-zero boundary values."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup(self, bkd) -> None:
         self._stress = NeoHookeanStress(1.0, 1.0)
         # Solution non-zero at x=1: u(0)=0, u(1)=0.05
         self._sol_strs = ["0.1*x**2*(1-x) + 0.05*x"]
 
-    def _setup_problem(self, bc_types, nx=30, degree=2, robin_alpha=1.0):
-        bkd = self._bkd
+    def _setup_problem(self, bkd, bc_types, nx=30, degree=2, robin_alpha=1.0) :
         functions, nvars = create_hyperelasticity_manufactured_test(
             bounds=[0.0, 1.0],
             sol_strs=self._sol_strs,
@@ -81,81 +73,50 @@ class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
         )
         return physics, functions, basis
 
-    def _check_newton_solve(self, physics, functions, basis, tol=1e-4):
-        exact = _get_exact_displacement(functions, basis, self._bkd)
+    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-4) :
+        exact = _get_exact_displacement(functions, basis, bkd)
         solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
-        init_guess = self._bkd.asarray(exact + 0.005)
+        init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
-        self.assertTrue(
-            result.converged,
-            f"Newton did not converge: {result.residual_norm:.2e}",
-        )
-        u_np = self._bkd.to_numpy(result.solution)
+        assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"
+        u_np = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
-        self.assertLess(
-            rel_error,
-            tol,
-            f"Newton solve rel error: {rel_error:.2e}",
-        )
+        assert rel_error < tol
 
-    def test_bc_dirichlet_neumann_1d(self) -> None:
+    def test_bc_dirichlet_neumann_1d(self, numpy_bkd) -> None:
         """Dirichlet left, Neumann right."""
-        physics, functions, basis = self._setup_problem(["D", "N"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "N"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_dirichlet_robin_1d(self) -> None:
+    def test_bc_dirichlet_robin_1d(self, numpy_bkd) -> None:
         """Dirichlet left, Robin right."""
-        physics, functions, basis = self._setup_problem(["D", "R"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "R"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_robin_dirichlet_1d(self) -> None:
+    def test_bc_robin_dirichlet_1d(self, numpy_bkd) -> None:
         """Robin left, Dirichlet right."""
-        physics, functions, basis = self._setup_problem(["R", "D"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["R", "D"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_residual_at_exact_neumann_1d(self) -> None:
+    def test_bc_residual_at_exact_neumann_1d(self, numpy_bkd) -> None:
         """Residual at exact solution should be small with Neumann BC."""
-        physics, functions, basis = self._setup_problem(["D", "N"])
-        exact = _get_exact_displacement(functions, basis, self._bkd)
-        state = self._bkd.asarray(exact)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "N"])
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
         res = physics.residual(state, 0.0)
-        res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
-        self.assertLess(res_norm, 1e-3)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-3
 
 
-class TestHyperelasticityBCs1DNumpy(TestHyperelasticityBCs1DBase[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestHyperelasticityBCs1DTorch(TestHyperelasticityBCs1DBase[torch.Tensor]):
-        __test__ = True
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_dirichlet_neumann_1d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_dirichlet_robin_1d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_robin_dirichlet_1d(self) -> None:
-            pass
-
-except ImportError:
-    pass
 
 
 # =========================================================================
@@ -163,16 +124,10 @@ except ImportError:
 # =========================================================================
 
 
-class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
+class TestHyperelasticityBCs2DBase:
     """2D boundary condition tests with non-zero boundary values."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
+    def _setup(self, bkd) -> None:
         self._stress = NeoHookeanStress(1.0, 1.0)
         # Non-zero on right/top: u vanishes at x=0, y=0 but not at x=1, y=1
         self._sol_strs = [
@@ -180,8 +135,7 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
             "0.05*x**2*(1-x)*y**2*(1-y) + 0.01*x*y",
         ]
 
-    def _setup_problem(self, bc_types, nx=12, ny=12, degree=2, robin_alpha=1.0):
-        bkd = self._bkd
+    def _setup_problem(self, bkd, bc_types, nx=12, ny=12, degree=2, robin_alpha=1.0) :
         functions, nvars = create_hyperelasticity_manufactured_test(
             bounds=[0.0, 1.0, 0.0, 1.0],
             sol_strs=self._sol_strs,
@@ -202,81 +156,47 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
         )
         return physics, functions, basis
 
-    def _check_newton_solve(self, physics, functions, basis, tol=1e-3):
-        exact = _get_exact_displacement(functions, basis, self._bkd)
+    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3) :
+        exact = _get_exact_displacement(functions, basis, bkd)
         solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
-        init_guess = self._bkd.asarray(exact + 0.005)
+        init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
-        self.assertTrue(
-            result.converged,
-            f"Newton did not converge: {result.residual_norm:.2e}",
-        )
-        u_np = self._bkd.to_numpy(result.solution)
+        assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"
+        u_np = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
-        self.assertLess(
-            rel_error,
-            tol,
-            f"Newton solve rel error: {rel_error:.2e}",
-        )
+        assert rel_error < tol
 
-    def test_bc_mixed_DN_2d(self) -> None:
+    def test_bc_mixed_DN_2d(self, numpy_bkd) -> None:
         """Dirichlet left/bottom, Neumann right/top."""
-        physics, functions, basis = self._setup_problem(["D", "N", "D", "N"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "N"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_mixed_DR_2d(self) -> None:
+    def test_bc_mixed_DR_2d(self, numpy_bkd) -> None:
         """Dirichlet left/bottom, Robin right/top."""
-        physics, functions, basis = self._setup_problem(["D", "R", "D", "R"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "R", "D", "R"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_mixed_DNR_2d(self) -> None:
+    def test_bc_mixed_DNR_2d(self, numpy_bkd) -> None:
         """Dirichlet left, Neumann right, Dirichlet bottom, Robin top."""
-        physics, functions, basis = self._setup_problem(["D", "N", "D", "R"])
-        self._check_newton_solve(physics, functions, basis)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
+        self._check_newton_solve(bkd, physics, functions, basis)
 
-    def test_bc_residual_at_exact_mixed_2d(self) -> None:
+    def test_bc_residual_at_exact_mixed_2d(self, numpy_bkd) -> None:
         """Residual at exact solution should be small with mixed BCs."""
-        physics, functions, basis = self._setup_problem(["D", "N", "D", "R"])
-        exact = _get_exact_displacement(functions, basis, self._bkd)
-        state = self._bkd.asarray(exact)
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
         res = physics.residual(state, 0.0)
-        res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
-        self.assertLess(res_norm, 1e-3)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-3
 
 
-class TestHyperelasticityBCs2DNumpy(TestHyperelasticityBCs2DBase[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestHyperelasticityBCs2DTorch(TestHyperelasticityBCs2DBase[torch.Tensor]):
-        __test__ = True
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_mixed_DN_2d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_mixed_DR_2d(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_bc_mixed_DNR_2d(self) -> None:
-            pass
-
-except ImportError:
-    pass
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

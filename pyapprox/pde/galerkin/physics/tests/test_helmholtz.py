@@ -11,13 +11,12 @@ The manufactured solution is created using the ADR machinery with D=1,
 no velocity, and reaction R(u) = -k^2*u so that the forcing matches.
 """
 
-import unittest
 from typing import Any, Callable, Dict, Generic, List, Tuple
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
@@ -88,71 +87,67 @@ def _create_screened_poisson_manufactured(
     return man_sol.functions, sqwavenum_func, nvars
 
 
-class TestHelmholtzBase(Generic[Array], unittest.TestCase):
+class TestHelmholtzBase:
     """Base test class for Helmholtz physics."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
-    def test_1d_mass_matrix_symmetric(self) -> None:
+    def test_1d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
 
         M = physics.mass_matrix()
-        M_np = M.toarray() if issparse(M) else self.bkd_inst.to_numpy(M)
+        M_np = M.toarray() if issparse(M) else bkd.to_numpy(M)
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_1d_stiffness_symmetric(self) -> None:
+    def test_1d_stiffness_symmetric(self, numpy_bkd) -> None:
         """Test stiffness matrix is symmetric in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
 
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        jac_np = jac.toarray() if issparse(jac) else self.bkd_inst.to_numpy(jac)
+        jac_np = jac.toarray() if issparse(jac) else bkd.to_numpy(jac)
 
         # For Helmholtz, -jacobian = K = K_laplacian + k^2*M, should be symmetric
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_1d_residual_shape(self) -> None:
+    def test_1d_residual_shape(self, numpy_bkd) -> None:
         """Test residual has correct shape."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         res = physics.residual(u0, 0.0)
 
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_1d_jacobian_shape(self) -> None:
+    def test_1d_jacobian_shape(self, numpy_bkd) -> None:
         """Test Jacobian has correct shape."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         jac = physics.jacobian(u0, 0.0)
 
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_physics(self) -> None:
+    def test_2d_physics(self, numpy_bkd) -> None:
         """Test Helmholtz works in 2D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
-            nx=5, ny=5, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=self.bkd_inst
+            nx=5, ny=5, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
         )
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(basis=basis, wavenumber=np.pi, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=np.pi, bkd=bkd)
 
         # Initial condition
         u0 = physics.initial_condition(
@@ -160,42 +155,45 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         )
 
         # Check shapes
-        self.assertEqual(u0.shape, (physics.nstates(),))
+        assert u0.shape == (physics.nstates(),)
 
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_with_forcing(self) -> None:
+    def test_with_forcing(self, numpy_bkd) -> None:
         """Test Helmholtz with forcing term."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         def forcing(x):
             return np.ones(x.shape[1])
 
         physics = Helmholtz(
-            basis=basis, wavenumber=2 * np.pi, forcing=forcing, bkd=self.bkd_inst
+            basis=basis, wavenumber=2 * np.pi, forcing=forcing, bkd=bkd
         )
 
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        res_np = self.bkd_inst.to_numpy(res)
+        res_np = bkd.to_numpy(res)
 
         # With forcing and u=0, residual should be non-zero
-        self.assertTrue(np.linalg.norm(res_np) > 0)
+        assert np.linalg.norm(res_np) > 0
 
-    def test_wavenumber_property(self) -> None:
+    def test_wavenumber_property(self, numpy_bkd) -> None:
         """Test wavenumber property."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         k = 3.5
-        physics = Helmholtz(basis=basis, wavenumber=k, bkd=self.bkd_inst)
+        physics = Helmholtz(basis=basis, wavenumber=k, bkd=bkd)
 
-        self.assertEqual(physics.wavenumber(), k)
+        assert physics.wavenumber() == k
 
-    def test_steady_state_solve(self) -> None:
+    def test_steady_state_solve(self, numpy_bkd) -> None:
         """Test solving steady-state Helmholtz with forcing."""
-        mesh = StructuredMesh1D(nx=20, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=20, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Point source in the middle
@@ -206,53 +204,14 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
             basis=basis,
             wavenumber=2 * np.pi,  # wavelength = 1
             forcing=forcing,
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
 
         solver = SteadyStateSolver(physics, tol=1e-10)
         result = solver.solve_linear()
 
-        self.assertTrue(result.converged)
-        self.assertLess(result.residual_norm, 1e-8)
-
-
-class TestHelmholtzNumpy(TestHelmholtzBase[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-# Try to import torch for dual-backend testing
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestHelmholtzTorch(TestHelmholtzBase[torch.Tensor]):
-        """PyTorch backend tests."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_steady_state_solve(self) -> None:
-            pass
-
-except ImportError:
-    pass
+        assert result.converged
+        assert result.residual_norm < 1e-8
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +236,7 @@ HELMHOLTZ_MANUFACTURED_CASES: List[Tuple[str, List[float], str, str, List[str]]]
 ]
 
 
-class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
+class TestParametrizedHelmholtzManufactured:
     """Parametrized Helmholtz manufactured solution tests with P2 elements.
 
     Uses P2 (quadratic) Lagrange elements and manufactured solutions to
@@ -293,12 +252,13 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
     pyapprox/pde/galerkin/tests/test_finite_elements.py::test_helmholtz.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,sol_str,sqwavenum_str,bndry_types",
         HELMHOLTZ_MANUFACTURED_CASES,
     )
     def test_manufactured_helmholtz(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         sol_str: str,
@@ -306,7 +266,7 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
         bndry_types: List[str],
     ) -> None:
         """Test manufactured solution for Helmholtz equation."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
 
         # Create manufactured solution with sign convention matching
         # the screened Poisson equation: -div(grad(u)) + k^2*u = f
@@ -365,12 +325,4 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact)
 
         # P2 elements should exactly reproduce polynomial solutions ≤ degree 2
-        self.assertLess(
-            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-8

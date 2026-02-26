@@ -1,7 +1,7 @@
 """Tests for Shallow Shelf Approximation physics implementations."""
 
-import unittest
 
+import pytest
 import numpy as np
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
@@ -29,21 +29,14 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 class TestShallowShelfVelocityPhysics(PhysicsTestBase):
     """Tests for ShallowShelfVelocityPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences."""
-        bkd = self.bkd()
         npts_1d = 6
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -62,11 +55,10 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         np.random.seed(42)
         state = bkd.array(0.1 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_sloped_bed(self):
+    def test_jacobian_sloped_bed(self, bkd):
         """Test Jacobian with sloped bed topography."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -86,11 +78,10 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         np.random.seed(123)
         state = bkd.array(0.05 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_ncomponents(self):
+    def test_ncomponents(self, bkd):
         """Test number of components."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -105,12 +96,11 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         )
 
         # 2D: u and v velocity components
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertEqual(physics.nstates(), 2 * npts)
+        assert physics.ncomponents() == 2
+        assert physics.nstates() == 2 * npts
 
-    def test_requires_2d_basis(self):
+    def test_requires_2d_basis(self, bkd):
         """Test that 1D basis raises error."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -119,14 +109,13 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         depth = bkd.full((npts,), 1000.0)
         bed = bkd.zeros((npts,))
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ShallowShelfVelocityPhysics(
                 basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
             )
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_shallow_shelf_velocity factory."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -140,11 +129,10 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
             basis, bkd, depth=depth, bed=bed, friction=1e6, A=1e-16, rho=917.0
         )
 
-        self.assertEqual(physics.ncomponents(), 2)
+        assert physics.ncomponents() == 2
 
-    def test_set_depth(self):
+    def test_set_depth(self, bkd):
         """Test updating depth."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -165,10 +153,10 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         # Check that residual can still be computed
         state = bkd.zeros((physics.nstates(),))
         residual = physics.residual(state, time=0.0)
-        self.assertEqual(residual.shape[0], physics.nstates())
+        assert residual.shape[0] == physics.nstates()
 
     @slow_test
-    def test_residual_at_manufactured_solution(self):
+    def test_residual_at_manufactured_solution(self, bkd):
         """Verify residual is near zero at manufactured solution.
 
         Uses a manufactured solution with smooth polynomial velocities.
@@ -182,7 +170,6 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         with n=3), requiring many points for spectral accuracy. With 50
         points per dimension, the residual norm reaches ~7.6e-9.
         """
-        bkd = self.bkd()
         npts_1d = 50  # Need many points for nonlinear SSA
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -250,20 +237,14 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
 
         # Residual should be very small (spectral discretization error only)
         res_norm = float(bkd.norm(residual))
-        self.assertLess(res_norm, 1e-8, f"Residual norm {res_norm:.4e} too large")
+        assert res_norm < 1e-8, f"Residual norm {res_norm:.4e} too large"
 
 
 class TestShallowShelfDepthPhysics(PhysicsTestBase):
     """Tests for ShallowShelfDepthPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_constant_velocity(self):
+    def test_jacobian_constant_velocity(self, bkd):
         """Test Jacobian with constant velocity field."""
-        bkd = self.bkd()
         npts_1d = 6
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -286,11 +267,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         state = bkd.array(500.0 + 50.0 * np.random.randn(npts))
         state = bkd.array(np.maximum(np.asarray(state), 100.0))  # Ensure positive
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D depth evolution."""
-        bkd = self.bkd()
         npts_1d = 6
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -313,11 +293,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         state = bkd.array(500.0 + 50.0 * np.random.randn(npts))
         state = bkd.array(np.maximum(np.asarray(state), 100.0))  # Ensure positive
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_uniform_depth_and_velocity(self):
+    def test_residual_uniform_depth_and_velocity(self, bkd):
         """Test residual is zero for uniform depth and divergence-free velocity."""
-        bkd = self.bkd()
         npts_1d = 8
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -342,11 +321,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         residual = physics.residual(state, time=0.0)
 
         # Should be very small (not exactly zero due to spectral diff of constant)
-        self.assertLess(float(bkd.norm(residual)), 1e-9)
+        assert float(bkd.norm(residual)) < 1e-9
 
-    def test_ncomponents(self):
+    def test_ncomponents(self, bkd):
         """Test number of components."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -355,12 +333,11 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
 
-    def test_requires_velocity_set(self):
+    def test_requires_velocity_set(self, bkd):
         """Test that residual requires velocities to be set."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -370,23 +347,21 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         physics = ShallowShelfDepthPhysics(basis, bkd)
         state = bkd.full((npts,), 1000.0)
 
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             physics.residual(state, time=0.0)
 
-    def test_requires_2d_basis(self):
+    def test_requires_2d_basis(self, bkd):
         """Test that 1D basis raises error."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ShallowShelfDepthPhysics(basis, bkd)
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_shallow_shelf_depth factory."""
-        bkd = self.bkd()
         npts_1d = 5
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -395,10 +370,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         physics = create_shallow_shelf_depth(basis, bkd)
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
 
-    def test_transient_depth_equilibrium(self):
+    def test_transient_depth_equilibrium(self, bkd):
         """Test transient equilibrium for depth evolution.
 
         Shallow shelf depth equation: dH/dt = -div(H*u)
@@ -406,7 +381,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         Note: Uses constant velocity which is divergence-free.
         """
-        bkd = self.bkd()
         npts_1d = 8
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -440,22 +414,21 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         # Check solution is finite and physical (H > 0)
         H_final = solutions[:, -1]
-        self.assertTrue(bkd.isfinite(bkd.norm(H_final)))
-        self.assertGreater(float(bkd.min(H_final)), 0.0)
+        assert bkd.isfinite(bkd.norm(H_final))
+        assert float(bkd.min(H_final)) > 0.0
 
         # With uniform depth and divergence-free velocity:
         # -div(H*u) = -H*div(u) - u·grad(H) = 0 (since div(u)=0 and grad(H)=0)
         # So depth should remain unchanged
         bkd.assert_allclose(H_final, H0, rtol=1e-6, atol=1e-10)
 
-    def test_transient_depth_with_forcing(self):
+    def test_transient_depth_with_forcing(self, bkd):
         """Test transient depth evolution with source term.
 
         dH/dt = -div(H*u) + f
         With uniform depth, constant velocity (div-free), and constant f > 0,
         depth should increase linearly: H(t) = H0 + f*t
         """
-        bkd = self.bkd()
         npts_1d = 8
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -489,14 +462,14 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         # Check solution is finite and physical (H > 0)
         H_final = solutions[:, -1]
-        self.assertTrue(bkd.isfinite(bkd.norm(H_final)))
-        self.assertGreater(float(bkd.min(H_final)), 0.0)
+        assert bkd.isfinite(bkd.norm(H_final))
+        assert float(bkd.min(H_final)) > 0.0
 
         # Expected: H(t) = H0 + f*t
         H_expected = H0 + f_val * final_time
         bkd.assert_allclose(H_final, H_expected, rtol=0.01, atol=1e-6)
 
-    def _setup_transient_depth_manufactured(self):
+    def _setup_transient_depth_manufactured(self, bkd):
         """Set up transient depth with manufactured solution.
 
         Uses ManufacturedShallowShelfVelocityAndDepthEquations with:
@@ -507,7 +480,6 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         Only depth forcing is used; velocity equations are not solved.
         """
-        bkd = self.bkd()
         npts_1d = 10
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -551,9 +523,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_depth_manufactured(self, method, atol):
+    def _run_transient_depth_manufactured(self, bkd, method, atol) :
         """Run transient depth test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = self._setup_transient_depth_manufactured()
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_depth_manufactured(bkd)
         model = CollocationModel(physics, bkd)
 
         # Initial condition: H(x,y,0)
@@ -574,30 +546,24 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         exact_final = man_sol.functions["solution"](nodes, t_final)[:, 0]
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
 
-    def test_transient_depth_manufactured_backward_euler(self):
+    def test_transient_depth_manufactured_backward_euler(self, bkd):
         """Test transient depth with backward Euler and manufactured solution."""
-        self._run_transient_depth_manufactured("backward_euler", atol=0.5)
+        self._run_transient_depth_manufactured(bkd, "backward_euler", atol=0.5)
 
-    def test_transient_depth_manufactured_crank_nicolson(self):
+    def test_transient_depth_manufactured_crank_nicolson(self, bkd):
         """Test transient depth with Crank-Nicolson and manufactured solution.
 
         Uses polynomial-in-space and quadratic-in-time manufactured solution.
         CN integrates quadratic-in-time exactly, so only spatial error remains.
         """
-        self._run_transient_depth_manufactured("crank_nicolson", atol=1e-8)
+        self._run_transient_depth_manufactured(bkd, "crank_nicolson", atol=1e-8)
 
 
 class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
     """Tests for coupled ShallowShelfDepthVelocityPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def _create_coupled_physics(self, npts_1d=6):
+    def _create_coupled_physics(self, bkd, npts_1d=6) :
         """Create coupled depth-velocity physics for testing."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
@@ -608,18 +574,18 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         )
         return bkd, mesh, basis, npts, physics
 
-    def test_ncomponents(self):
+    def test_ncomponents(self, bkd):
         """Test number of components is 3 (H, u, v)."""
-        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
-        self.assertEqual(physics.ncomponents(), 3)
-        self.assertEqual(physics.nstates(), 3 * npts)
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
+        assert physics.ncomponents() == 3
+        assert physics.nstates() == 3 * npts
 
-    def test_mass_matrix_structure(self):
+    def test_mass_matrix_structure(self, bkd):
         """Test mass matrix is [[I, 0], [0, 0]]."""
-        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
         M = physics.mass_matrix()
 
-        self.assertEqual(M.shape, (3 * npts, 3 * npts))
+        assert M.shape == (3 * npts, 3 * npts)
 
         # Top-left block should be identity
         bkd.assert_allclose(M[:npts, :npts], bkd.eye(npts), atol=1e-15)
@@ -627,9 +593,9 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         bkd.assert_allclose(M[:npts, npts:], bkd.zeros((npts, 2 * npts)), atol=1e-15)
         bkd.assert_allclose(M[npts:, :], bkd.zeros((2 * npts, 3 * npts)), atol=1e-15)
 
-    def test_apply_mass_matrix(self):
+    def test_apply_mass_matrix(self, bkd):
         """Test apply_mass_matrix zeros velocity components."""
-        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
 
         vec = bkd.array(np.ones(3 * npts))
         result = physics.apply_mass_matrix(vec)
@@ -639,9 +605,9 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         # Velocity parts zeroed
         bkd.assert_allclose(result[npts:], bkd.zeros((2 * npts,)), atol=1e-15)
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences."""
-        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
 
         # State with positive depth and small velocities
         np.random.seed(42)
@@ -650,20 +616,19 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         v = 0.1 * np.random.randn(npts)
         state = bkd.array(np.concatenate([H, u, v]))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_requires_2d_basis(self):
+    def test_requires_2d_basis(self, bkd):
         """Test that 1D basis raises error."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(10, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ShallowShelfDepthVelocityPhysics(
                 basis, bkd, bed=bkd.zeros((10,)), friction=1.0, A=1.0, rho=1.0
             )
 
-    def _setup_transient_coupled_manufactured(self):
+    def _setup_transient_coupled_manufactured(self, bkd):
         """Set up transient coupled depth+velocity manufactured solution.
 
         Uses ManufacturedShallowShelfVelocityAndDepthEquations matching
@@ -675,8 +640,6 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         - Domain [0,1]^2 via AffineTransform2D
         """
         from pyapprox.pde.collocation.mesh import AffineTransform2D
-
-        bkd = self.bkd()
         npts_1d = 8
 
         # Domain [0,1]^2
@@ -781,10 +744,10 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_coupled_manufactured(self, method, rtol):
+    def _run_transient_coupled_manufactured(self, bkd, method, rtol) :
         """Run transient coupled test with given method and tolerance."""
         bkd, npts, nodes, man_sol, physics = (
-            self._setup_transient_coupled_manufactured()
+            self._setup_transient_coupled_manufactured(bkd)
         )
         model = CollocationModel(physics, bkd)
 
@@ -815,14 +778,10 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_state, rtol=rtol)
 
-    def test_transient_coupled_backward_euler(self):
+    def test_transient_coupled_backward_euler(self, bkd):
         """Test transient coupled depth+velocity with backward Euler."""
-        self._run_transient_coupled_manufactured("backward_euler", rtol=1e-5)
+        self._run_transient_coupled_manufactured(bkd, "backward_euler", rtol=1e-5)
 
-    def test_transient_coupled_crank_nicolson(self):
+    def test_transient_coupled_crank_nicolson(self, bkd):
         """Test transient coupled depth+velocity with Crank-Nicolson."""
-        self._run_transient_coupled_manufactured("crank_nicolson", rtol=1e-5)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._run_transient_coupled_manufactured(bkd, "crank_nicolson", rtol=1e-5)

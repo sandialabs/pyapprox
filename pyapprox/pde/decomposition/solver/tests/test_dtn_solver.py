@@ -9,7 +9,6 @@ Note: All tests use the reference domain [-1, 1] where the Chebyshev
 basis operates directly, avoiding coordinate transformation issues.
 """
 
-import unittest
 from typing import Generic
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -47,9 +46,6 @@ from pyapprox.pde.decomposition.solver import (
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class DtNResidualDerivativeWrapper(Generic[Array]):
     """Wrap DtN residual for DerivativeChecker compatibility.
 
@@ -120,7 +116,7 @@ class DtNResidualDerivativeWrapper(Generic[Array]):
         return jacobian_computer(interface_dofs)
 
 
-class TestDtNSolver1DSimple(unittest.TestCase):
+class TestDtNSolver1DSimple:
     """Test DtN solver for simple 1D Poisson on reference domain.
 
     Problem: -u'' = f on [-1, 1]
@@ -136,11 +132,11 @@ class TestDtNSolver1DSimple(unittest.TestCase):
     At interface: u(0) = 1, u'(0) = 0 (from both sides due to symmetry)
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 12
 
-    def _create_problem(self):
+    def _create_problem(self, bkd) :
         """Create simple 1D problem on reference domain."""
         bkd = self.bkd
         npts = self.npts
@@ -291,10 +287,10 @@ class TestDtNSolver1DSimple(unittest.TestCase):
             "exact_interface_value": 0.5,
         }
 
-    def test_residual_zero_at_exact_solution(self):
+    def test_residual_zero_at_exact_solution(self, bkd):
         """Test residual is zero at exact interface solution."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -307,16 +303,12 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-10,
-            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
-        )
+        assert res_norm < 1e-10
 
-    def test_solver_converges_from_wrong_initial_guess(self):
+    def test_solver_converges_from_wrong_initial_guess(self, bkd):
         """Test solver converges from non-exact initial guess."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -332,16 +324,14 @@ class TestDtNSolver1DSimple(unittest.TestCase):
 
         result = solver.solve(initial_guess)
 
-        self.assertTrue(result.converged, "Solver should converge")
+        assert result.converged, "Solver should converge"
 
         computed = float(result.interface_dofs[0])
         exact = problem["exact_interface_value"]
-        self.assertAlmostEqual(
-            computed, exact, places=8, msg=f"Computed {computed} != exact {exact}"
-        )
+        assert abs(computed - exact) < 10**(-8)
 
 
-class TestDtNSolver1DWithForcing(unittest.TestCase):
+class TestDtNSolver1DWithForcing:
     """Test DtN solver with non-zero forcing.
 
     Problem: -u'' = 2 on [-1, 1] (each subdomain)
@@ -379,11 +369,11 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
     Subdomain 1: u = 3 - 2x - x^2, u(-1) = 3 + 2 - 1 = 4 ✓, u(1) = 3 - 2 - 1 = 0 ✓
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 12
 
-    def _create_problem(self):
+    def _create_problem(self, bkd) :
         """Create problem with forcing."""
         bkd = self.bkd
         npts = self.npts
@@ -442,10 +432,10 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
             "exact_interface_value": 4.0,
         }
 
-    def test_residual_zero_at_exact_solution(self):
+    def test_residual_zero_at_exact_solution(self, bkd):
         """Test residual is zero at exact solution with forcing."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -458,12 +448,12 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10, f"Residual {res_norm} should be < 1e-10")
+        assert res_norm < 1e-10
 
-    def test_solver_finds_correct_interface_value(self):
+    def test_solver_finds_correct_interface_value(self, bkd):
         """Test solver finds correct non-trivial interface value."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -477,13 +467,13 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         # Start from zero (exact is 4)
         result = solver.solve(bkd.asarray([0.0]))
 
-        self.assertTrue(result.converged)
+        assert result.converged
         computed = float(result.interface_dofs[0])
         exact = problem["exact_interface_value"]
-        self.assertAlmostEqual(computed, exact, places=8)
+        assert abs(computed - exact) < 10**(-8)
 
 
-class TestDtNSolverThreeSubdomains(unittest.TestCase):
+class TestDtNSolverThreeSubdomains:
     """Test DtN solver with three subdomains (two interfaces).
 
     Setup with Laplace equation:
@@ -518,11 +508,11 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
     lambda1 = 2/3
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
         self.npts = 10
 
-    def _create_problem(self):
+    def _create_problem(self, bkd) :
         """Create 3-subdomain problem."""
         bkd = self.bkd
         npts = self.npts
@@ -603,10 +593,10 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
             "exact_interface_values": [1.0 / 3.0, 2.0 / 3.0],
         }
 
-    def test_residual_zero_at_exact_solution(self):
+    def test_residual_zero_at_exact_solution(self, bkd):
         """Test residual is zero at exact solution with multiple interfaces."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -619,12 +609,12 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10)
+        assert res_norm < 1e-10
 
-    def test_solver_converges_multiple_interfaces(self):
+    def test_solver_converges_multiple_interfaces(self, bkd):
         """Test solver converges with multiple interface DOFs."""
         bkd = self.bkd
-        problem = self._create_problem()
+        problem = self._create_problem(bkd)
 
         residual = DtNResidual(
             bkd,
@@ -638,24 +628,24 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         # Initial guess
         result = solver.solve(bkd.asarray([0.0, 0.0]))
 
-        self.assertTrue(result.converged)
+        assert result.converged
 
         exact_values = problem["exact_interface_values"]
         for i, exact in enumerate(exact_values):
             computed = float(result.interface_dofs[i])
-            self.assertAlmostEqual(computed, exact, places=6)
+            assert abs(computed - exact) < 10**(-6)
 
 
-class TestDtNJacobian(unittest.TestCase):
+class TestDtNJacobian:
     """Test DtN Jacobian computation with DerivativeChecker.
 
     Uses the same patterns as pyapprox physics tests for derivative checking.
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def _create_two_subdomain_problem(self, npts=8, forcing_value=1.0):
+    def _create_two_subdomain_problem(self, bkd, npts=8, forcing_value=1.0) :
         """Create a simple two-subdomain problem for testing."""
         bkd = self.bkd
 
@@ -711,7 +701,7 @@ class TestDtNJacobian(unittest.TestCase):
 
         return residual
 
-    def _create_three_subdomain_problem(self, npts=8):
+    def _create_three_subdomain_problem(self, bkd, npts=8) :
         """Create a three-subdomain problem for testing (2 interface DOFs)."""
         bkd = self.bkd
 
@@ -792,10 +782,10 @@ class TestDtNJacobian(unittest.TestCase):
 
         return residual
 
-    def test_jacobian_derivative_checker_1dof(self):
+    def test_jacobian_derivative_checker_1dof(self, bkd):
         """Test Jacobian using DerivativeChecker with 1 interface DOF."""
         bkd = self.bkd
-        residual = self._create_two_subdomain_problem()
+        residual = self._create_two_subdomain_problem(bkd)
 
         # Wrap for DerivativeChecker
         wrapper = DtNResidualDerivativeWrapper(residual, bkd)
@@ -810,14 +800,12 @@ class TestDtNJacobian(unittest.TestCase):
 
         # Check that minimum error is small
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(
-            min_error, 1e-5, f"Jacobian error {min_error:.2e} exceeds tolerance 1e-5"
-        )
+        assert min_error < 1e-5
 
-    def test_jacobian_derivative_checker_2dof(self):
+    def test_jacobian_derivative_checker_2dof(self, bkd):
         """Test Jacobian using DerivativeChecker with 2 interface DOFs."""
         bkd = self.bkd
-        residual = self._create_three_subdomain_problem()
+        residual = self._create_three_subdomain_problem(bkd)
 
         wrapper = DtNResidualDerivativeWrapper(residual, bkd)
 
@@ -834,18 +822,16 @@ class TestDtNJacobian(unittest.TestCase):
             errors = checker.check_derivatives(sample, verbosity=0)
 
             min_error = float(bkd.min(errors[0]))
-            self.assertLess(
-                min_error, 1e-5, f"Jacobian error {min_error:.2e} at {test_dofs}"
-            )
+            assert min_error < 1e-5
 
-    def test_jacobian_error_ratio(self):
+    def test_jacobian_error_ratio(self, bkd):
         """Test error ratio from DerivativeChecker is small.
 
         When the Jacobian is correct, the error ratio (min_error/max_error)
         should be small, indicating that errors decrease with epsilon.
         """
         bkd = self.bkd
-        residual = self._create_two_subdomain_problem()
+        residual = self._create_two_subdomain_problem(bkd)
 
         wrapper = DtNResidualDerivativeWrapper(residual, bkd)
         test_dofs = bkd.asarray([0.5])
@@ -856,18 +842,16 @@ class TestDtNJacobian(unittest.TestCase):
 
         # The error_ratio method computes min/max
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(
-            error_ratio, 1e-3, f"Error ratio {error_ratio:.2e} should be < 1e-3"
-        )
+        assert error_ratio < 1e-3
 
-    def test_jacobian_symmetry_for_symmetric_problem(self):
+    def test_jacobian_symmetry_for_symmetric_problem(self, bkd):
         """Test Jacobian is symmetric for symmetric problems.
 
         For the Laplace equation with symmetric BCs and geometry,
         the Schur complement (and hence DtN Jacobian) should be symmetric.
         """
         bkd = self.bkd
-        residual = self._create_three_subdomain_problem()
+        residual = self._create_three_subdomain_problem(bkd)
 
         # Test at a point
         test_dofs = bkd.asarray([0.3, 0.7])
@@ -883,14 +867,10 @@ class TestDtNJacobian(unittest.TestCase):
         sym_error = float(bkd.norm(J - J.T))
         J_norm = float(bkd.norm(J))
         relative_sym_error = sym_error / J_norm if J_norm > 1e-14 else sym_error
-        self.assertLess(
-            relative_sym_error,
-            1e-5,
-            f"Jacobian not symmetric: relative ||J - J^T|| = {relative_sym_error}",
-        )
+        assert relative_sym_error < 1e-5
 
 
-class TestDtNSolver2D(unittest.TestCase):
+class TestDtNSolver2D:
     """Test DtN solver for 2D Poisson with domain decomposition.
 
     Problem: -Laplacian(u) = f on [-1, 1] x [-1, 1]
@@ -901,10 +881,10 @@ class TestDtNSolver2D(unittest.TestCase):
     with zero forcing. This gives interface values u(0, y) = 0.5.
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def _compute_boundary_indices_2d(self, npts_x, npts_y):
+    def _compute_boundary_indices_2d(self, bkd, npts_x, npts_y) :
         """Compute 2D boundary indices (x varies fastest)."""
         bkd = self.bkd
         # Left: x=0, all y
@@ -952,7 +932,7 @@ class TestDtNSolver2D(unittest.TestCase):
             basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
         )
 
-        bounds0 = self._compute_boundary_indices_2d(npts_x, npts_y)
+        bounds0 = self._compute_boundary_indices_2d(bkd, npts_x, npts_y)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
 
@@ -982,7 +962,7 @@ class TestDtNSolver2D(unittest.TestCase):
             basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
         )
 
-        bounds1 = self._compute_boundary_indices_2d(npts_x, npts_y)
+        bounds1 = self._compute_boundary_indices_2d(bkd, npts_x, npts_y)
         nodes_x1 = basis1.nodes_x()
 
         # Physical x coords for right subdomain
@@ -1027,7 +1007,7 @@ class TestDtNSolver2D(unittest.TestCase):
             "npts_y": npts_y,
         }
 
-    def test_residual_zero_at_exact_solution_2d(self):
+    def test_residual_zero_at_exact_solution_2d(self, bkd):
         """Test residual = 0 at exact interface values."""
         bkd = self.bkd
         problem = self._create_2d_problem_linear_solution(npts_x=6, npts_y=6)
@@ -1047,13 +1027,9 @@ class TestDtNSolver2D(unittest.TestCase):
         res = residual(interface_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-6,
-            f"Residual norm {res_norm} should be < 1e-6 at exact solution",
-        )
+        assert res_norm < 1e-6
 
-    def test_solver_converges_2d(self):
+    def test_solver_converges_2d(self, bkd):
         """Test solver converges to correct interface values from wrong guess."""
         bkd = self.bkd
         problem = self._create_2d_problem_linear_solution(npts_x=6, npts_y=6)
@@ -1067,18 +1043,16 @@ class TestDtNSolver2D(unittest.TestCase):
         initial_guess = bkd.zeros((ndofs,))
         result = solver.solve(initial_guess)
 
-        self.assertTrue(result.converged, "Solver should converge")
+        assert result.converged, "Solver should converge"
 
         # Check interface values are close to exact (constant 0.5)
         computed_values = interface.evaluate(result.interface_dofs)
         expected_values = bkd.full(computed_values.shape, exact_value)
 
         max_error = float(bkd.max(bkd.abs(computed_values - expected_values)))
-        self.assertLess(
-            max_error, 1e-6, f"Max interface error {max_error} should be < 1e-6"
-        )
+        assert max_error < 1e-6
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Test Jacobian using DerivativeChecker for 2D problem."""
         bkd = self.bkd
         problem = self._create_2d_problem_linear_solution(npts_x=5, npts_y=5)
@@ -1095,12 +1069,10 @@ class TestDtNSolver2D(unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(
-            min_error, 1e-4, f"Jacobian error {min_error:.2e} exceeds tolerance 1e-4"
-        )
+        assert min_error < 1e-4
 
 
-class TestDtNSolver3D(unittest.TestCase):
+class TestDtNSolver3D:
     """Test DtN solver for 3D Poisson with domain decomposition.
 
     Problem: -Laplacian(u) = 0 on [-1, 1]^3
@@ -1110,10 +1082,10 @@ class TestDtNSolver3D(unittest.TestCase):
     Using linear solution u(x, y, z) = x + 0.5 which satisfies Laplace equation.
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def _compute_boundary_indices_3d(self, npts_x, npts_y, npts_z):
+    def _compute_boundary_indices_3d(self, bkd, npts_x, npts_y, npts_z) :
         """Compute 3D boundary indices (x varies fastest, then y, then z)."""
         bkd = self.bkd
         npts_xy = npts_x * npts_y
@@ -1210,7 +1182,7 @@ class TestDtNSolver3D(unittest.TestCase):
             basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
         )
 
-        bounds0 = self._compute_boundary_indices_3d(npts_x, npts_y, npts_z)
+        bounds0 = self._compute_boundary_indices_3d(bkd, npts_x, npts_y, npts_z)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         x_phys0 = 0.5 * (nodes_x0 - 1)
@@ -1270,7 +1242,7 @@ class TestDtNSolver3D(unittest.TestCase):
             basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
         )
 
-        bounds1 = self._compute_boundary_indices_3d(npts_x, npts_y, npts_z)
+        bounds1 = self._compute_boundary_indices_3d(bkd, npts_x, npts_y, npts_z)
         nodes_x1 = basis1.nodes_x()
         x_phys1 = 0.5 * (nodes_x1 + 1)
 
@@ -1344,7 +1316,7 @@ class TestDtNSolver3D(unittest.TestCase):
             "interface": interface,
         }
 
-    def test_residual_zero_at_exact_solution_3d(self):
+    def test_residual_zero_at_exact_solution_3d(self, bkd):
         """Test residual = 0 at exact interface values for 3D."""
         bkd = self.bkd
         problem = self._create_3d_problem_linear_solution(npts=4)
@@ -1359,13 +1331,9 @@ class TestDtNSolver3D(unittest.TestCase):
         res = residual(interface_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(
-            res_norm,
-            1e-5,
-            f"Residual norm {res_norm} should be < 1e-5 at exact solution",
-        )
+        assert res_norm < 1e-5
 
-    def test_solver_converges_3d(self):
+    def test_solver_converges_3d(self, bkd):
         """Test solver converges for 3D problem."""
         bkd = self.bkd
         problem = self._create_3d_problem_linear_solution(npts=4)
@@ -1378,18 +1346,16 @@ class TestDtNSolver3D(unittest.TestCase):
         initial_guess = bkd.zeros((ndofs,))
         result = solver.solve(initial_guess)
 
-        self.assertTrue(result.converged, "3D solver should converge")
+        assert result.converged, "3D solver should converge"
 
         computed_values = interface.evaluate(result.interface_dofs)
         expected_values = bkd.full(computed_values.shape, exact_value)
 
         max_error = float(bkd.max(bkd.abs(computed_values - expected_values)))
-        self.assertLess(
-            max_error, 1e-5, f"Max interface error {max_error} should be < 1e-5"
-        )
+        assert max_error < 1e-5
 
 
-class TestVectorPhysicsFlux(unittest.TestCase):
+class TestVectorPhysicsFlux:
     """Test compute_interface_flux for vector-valued physics.
 
     These tests verify the flux computation methods work correctly for:
@@ -1398,10 +1364,10 @@ class TestVectorPhysicsFlux(unittest.TestCase):
     3. Linear elasticity physics
     """
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_advection_diffusion_flux(self):
+    def test_advection_diffusion_flux(self, bkd):
         """Test compute_interface_flux for advection-diffusion."""
         bkd = self.bkd
         npts = 10
@@ -1431,9 +1397,9 @@ class TestVectorPhysicsFlux(unittest.TestCase):
 
         # For u(x) = x, du/dx = 1, so flux = D * du/dx * n = 1.0 * 1.0 * 1.0 = 1.0
         expected_flux = 1.0
-        self.assertAlmostEqual(float(flux[0]), expected_flux, places=10)
+        assert abs(float(flux[0]) - expected_flux) < 10**(-10)
 
-    def test_reaction_diffusion_flux(self):
+    def test_reaction_diffusion_flux(self, bkd):
         """Test compute_interface_flux for two-species reaction-diffusion."""
         bkd = self.bkd
         npts = 10
@@ -1466,11 +1432,11 @@ class TestVectorPhysicsFlux(unittest.TestCase):
         # flux0 = D0 * du0/dx * n = 1.0 * 1.0 * 1.0 = 1.0
         # flux1 = D1 * du1/dx * n = 2.0 * 2.0 * 1.0 = 4.0
         # Component-stacked: [flux0, flux1]
-        self.assertEqual(flux.shape[0], 2)  # 2 components * 1 boundary point
-        self.assertAlmostEqual(float(flux[0]), 1.0, places=10)
-        self.assertAlmostEqual(float(flux[1]), 4.0, places=10)
+        assert flux.shape[0] == 2
+        assert abs(float(flux[0]) - 1.0) < 10**(-10)
+        assert abs(float(flux[1]) - 4.0) < 10**(-10)
 
-    def test_linear_elasticity_flux(self):
+    def test_linear_elasticity_flux(self, bkd):
         """Test compute_interface_flux for linear elasticity."""
         bkd = self.bkd
         npts = 6
@@ -1512,24 +1478,24 @@ class TestVectorPhysicsFlux(unittest.TestCase):
 
         # Expected: t_x = 3.0 for all points, t_y = 0.0 for all points
         # Shape: (2 * npts,)
-        self.assertEqual(flux.shape[0], 2 * npts)
+        assert flux.shape[0] == 2 * npts
 
         # First npts entries are t_x, should be ~3.0
         for i in range(npts):
-            self.assertAlmostEqual(float(flux[i]), 3.0, places=8)
+            assert abs(float(flux[i]) - 3.0) < 10**(-8)
 
         # Next npts entries are t_y, should be ~0.0
         for i in range(npts, 2 * npts):
-            self.assertAlmostEqual(float(flux[i]), 0.0, places=10)
+            assert abs(float(flux[i]) - 0.0) < 10**(-10)
 
 
-class TestVectorInterfaceComponents(unittest.TestCase):
+class TestVectorInterfaceComponents:
     """Test interface classes with ncomponents parameter."""
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_interface1d_with_ncomponents(self):
+    def test_interface1d_with_ncomponents(self, bkd):
         """Test Interface1D handles multiple components."""
         bkd = self.bkd
 
@@ -1541,9 +1507,9 @@ class TestVectorInterfaceComponents(unittest.TestCase):
             ncomponents=2,
         )
 
-        self.assertEqual(interface.ncomponents(), 2)
-        self.assertEqual(interface.ndofs(), 1)  # 1 DOF per component
-        self.assertEqual(interface.total_ndofs(), 2)  # 2 total DOFs
+        assert interface.ncomponents() == 2
+        assert interface.ndofs() == 1
+        assert interface.total_ndofs() == 2
 
         # Set up interpolation
         interface.set_subdomain_boundary_points(0, bkd.asarray([0.0]))
@@ -1552,11 +1518,11 @@ class TestVectorInterfaceComponents(unittest.TestCase):
         # Evaluate with 2 coefficients
         coeffs = bkd.asarray([1.0, 2.0])
         values = interface.evaluate(coeffs)
-        self.assertEqual(values.shape[0], 2)  # 2 components * 1 point
-        self.assertAlmostEqual(float(values[0]), 1.0)
-        self.assertAlmostEqual(float(values[1]), 2.0)
+        assert values.shape[0] == 2
+        assert abs(float(values[0]) - 1.0) < 1e-7
+        assert abs(float(values[1]) - 2.0) < 1e-7
 
-    def test_interface_with_ncomponents(self):
+    def test_interface_with_ncomponents(self, bkd):
         """Test Interface handles multiple components."""
         bkd = self.bkd
 
@@ -1575,8 +1541,8 @@ class TestVectorInterfaceComponents(unittest.TestCase):
         )
 
         ndofs = interface.ndofs()
-        self.assertEqual(interface.ncomponents(), 2)
-        self.assertEqual(interface.total_ndofs(), 2 * ndofs)
+        assert interface.ncomponents() == 2
+        assert interface.total_ndofs() == 2 * ndofs
 
         # Evaluate with component-stacked coefficients
         # First component: all zeros
@@ -1593,12 +1559,8 @@ class TestVectorInterfaceComponents(unittest.TestCase):
 
         # First npts values should be ~0
         for i in range(npts):
-            self.assertAlmostEqual(float(values[i]), 0.0, places=10)
+            assert abs(float(values[i]) - 0.0) < 10**(-10)
 
         # Second npts values should be ~1
         for i in range(npts, 2 * npts):
-            self.assertAlmostEqual(float(values[i]), 1.0, places=10)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert abs(float(values[i]) - 1.0) < 10**(-10)

@@ -8,14 +8,13 @@ Verifies:
 5. Dual backend support (NumPy and PyTorch)
 """
 
-import unittest
-from typing import Any, Generic
+from typing import Generic
+
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -46,10 +45,7 @@ from pyapprox.pde.collocation.physics.stress_models import (
     NeoHookeanStress,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -153,22 +149,16 @@ def _get_interior_indices(mesh_bc, npts, ndim):
 # ------------------------------------------------------------------
 
 
-class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
+class TestHyperelasticity1D:
     """Test 1D hyperelasticity with Neo-Hookean manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_residual_polynomial_1d(self):
+    def test_residual_polynomial_1d(self, bkd):
         """Residual = 0 at exact polynomial solution.
 
         Note: Neo-Hookean forcing involves transcendental functions (log, 1/J),
         so spectral approximation error is larger than for polynomial forcings.
         Using npts=16 gives sufficient accuracy for atol=1e-8.
         """
-        bkd = self.bkd()
         npts = 16
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -205,9 +195,8 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
-    def test_jacobian_1d(self):
+    def test_jacobian_1d(self, bkd):
         """Jacobian correctness via DerivativeChecker."""
-        bkd = self.bkd()
         npts = 8
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -223,11 +212,10 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
         fd_eps = bkd.flip(bkd.logspace(-13, -2, 12))
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, fd_eps=fd_eps, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_solve_1d(self):
+    def test_solve_1d(self, bkd):
         """Numerical solve recovers manufactured solution."""
-        bkd = self.bkd()
         npts = 16
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -264,17 +252,11 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
 # ------------------------------------------------------------------
 
 
-class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
+class TestHyperelasticity2D:
     """Test 2D hyperelasticity with Neo-Hookean manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_residual_polynomial_2d(self):
+    def test_residual_polynomial_2d(self, bkd):
         """Residual = 0 at exact polynomial solution."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -314,9 +296,8 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
-    def test_jacobian_2d(self):
+    def test_jacobian_2d(self, bkd):
         """Jacobian correctness via DerivativeChecker."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -332,11 +313,10 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
         fd_eps = bkd.flip(bkd.logspace(-13, -2, 12))
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, fd_eps=fd_eps, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_solve_2d(self):
+    def test_solve_2d(self, bkd):
         """Numerical solve recovers manufactured solution."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -377,18 +357,12 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
 # ------------------------------------------------------------------
 
 
-class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
+class TestHyperelasticity3D:
     """Test 3D hyperelasticity residual with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
     @slow_test
-    def test_residual_polynomial_3d(self):
+    def test_residual_polynomial_3d(self, bkd):
         """Residual = 0 at exact polynomial solution."""
-        bkd = self.bkd()
         npts_x, npts_y, npts_z = 6, 6, 6
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
@@ -435,13 +409,10 @@ class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
 # ------------------------------------------------------------------
 
 
-class TestHyperelasticityParameterized(ParametrizedTestCase):
+class TestHyperelasticityParameterized:
     """Parameterized tests for residual and Jacobian."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,lamda,mu,npts_1d",
         [
             ("1d_basic", "0.1*x**2*(1-x)**2", 1.0, 1.0, 16),
@@ -449,9 +420,8 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
             ("1d_stiff", "0.05*x**2*(1-x)**2", 5.0, 10.0, 16),
         ],
     )
-    def test_residual_1d(self, name, sol_str, lamda, mu, npts_1d):
+    def test_residual_1d(self, bkd, name, sol_str, lamda, mu, npts_1d):
         """Parameterized 1D residual test."""
-        bkd = self.bkd()
         stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_1d(npts_1d, bkd)
 
@@ -485,7 +455,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,u_str,v_str,lamda,mu,npts_1d",
         [
             (
@@ -506,9 +476,8 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
             ),
         ],
     )
-    def test_residual_2d(self, name, u_str, v_str, lamda, mu, npts_1d):
+    def test_residual_2d(self, bkd, name, u_str, v_str, lamda, mu, npts_1d):
         """Parameterized 2D residual test."""
-        bkd = self.bkd()
         stress = NeoHookeanStress(lamda=lamda, mu=mu)
         basis, mesh_bc, nodes = _setup_2d(npts_1d, npts_1d, bkd)
 
@@ -543,7 +512,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,lamda,mu,npts_1d",
         [
             ("1d_jac", 1.0, 1.0, 8),
@@ -552,9 +521,8 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
             ("2d_jac_high_mu", 0.5, 2.5, 6),
         ],
     )
-    def test_jacobian(self, name, lamda, mu, npts_1d):
+    def test_jacobian(self, bkd, name, lamda, mu, npts_1d):
         """Parameterized Jacobian test via DerivativeChecker."""
-        bkd = self.bkd()
         stress = NeoHookeanStress(lamda=lamda, mu=mu)
 
         if name.startswith("1d"):
@@ -572,64 +540,9 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
         fd_eps = bkd.flip(bkd.logspace(-13, -2, 12))
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, fd_eps=fd_eps, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
 
 # ------------------------------------------------------------------
 # Concrete backend classes
 # ------------------------------------------------------------------
-
-
-class TestHyperelasticity1DNumpy(TestHyperelasticity1D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestHyperelasticity1DTorch(TestHyperelasticity1D[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-class TestHyperelasticity2DNumpy(TestHyperelasticity2D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestHyperelasticity2DTorch(TestHyperelasticity2D[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-class TestHyperelasticity3DNumpy(TestHyperelasticity3D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestHyperelasticity3DTorch(TestHyperelasticity3D[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-if __name__ == "__main__":
-    unittest.main()

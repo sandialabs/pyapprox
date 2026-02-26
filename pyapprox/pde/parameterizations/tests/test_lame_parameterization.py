@@ -9,12 +9,9 @@ Verifies:
 6. Dual backend support (NumPy and PyTorch)
 """
 
+import pytest
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -40,12 +37,6 @@ from pyapprox.pde.parameterizations.lame import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _create_elasticity_physics_and_basis(bkd, npts_1d=6):
     """Create 2D linear elasticity physics with basis for testing."""
     mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
@@ -71,36 +62,24 @@ def _create_elasticity_physics_and_basis(bkd, npts_1d=6):
     return physics, basis, nodes
 
 
-class TestLameParameterization(Generic[Array], unittest.TestCase):
+class TestLameParameterization:
     """Tests for YoungModulusParameterization."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_isinstance_protocol(self):
+    def test_isinstance_protocol(self, bkd):
         """YoungModulusParameterization satisfies ParameterizationProtocol."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
         param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
-        self.assertTrue(isinstance(param, ParameterizationProtocol))
+        assert isinstance(param, ParameterizationProtocol)
 
-    def test_type_error_non_field_map(self):
+    def test_type_error_non_field_map(self, bkd):
         """TypeError when passing non-FieldMap object."""
-        bkd = self._bkd
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             YoungModulusParameterization("not_a_field_map", [], bkd, 0.3)
 
-    def test_apply_sets_lame_params(self):
+    def test_apply_sets_lame_params(self, bkd):
         """apply() correctly converts E to mu and lambda."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
 
@@ -126,21 +105,19 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_nparams(self):
+    def test_nparams(self, bkd):
         """nparams matches field_map.nvars()."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         phi1 = nodes[0, :]  # x-coordinate
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
         param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
-        self.assertEqual(param.nparams(), 2)
-        self.assertEqual(param.nparams(), fm.nvars())
+        assert param.nparams() == 2
+        assert param.nparams() == fm.nvars()
 
-    def test_initial_param_jacobian_zeros(self):
+    def test_initial_param_jacobian_zeros(self, bkd):
         """initial_param_jacobian returns zeros of correct shape."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         nstates = 2 * npts
@@ -152,9 +129,8 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
         expected = bkd.zeros((nstates, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_dynamic_binding_without_jacobian(self):
+    def test_dynamic_binding_without_jacobian(self, bkd):
         """No param_jacobian when field_map lacks jacobian method."""
-        bkd = self._bkd
 
         class NoJacFieldMap:
             """Field map without jacobian method."""
@@ -167,13 +143,12 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
 
         fm = NoJacFieldMap()
         # Must satisfy FieldMapProtocol at least structurally
-        self.assertTrue(isinstance(fm, FieldMapProtocol))
+        assert isinstance(fm, FieldMapProtocol)
         param = YoungModulusParameterization(fm, [], bkd, 0.3)
-        self.assertFalse(hasattr(param, "param_jacobian"))
+        assert not hasattr(param, "param_jacobian")
 
-    def test_nonpositive_E_raises(self):
+    def test_nonpositive_E_raises(self, bkd):
         """apply() raises ValueError when E field is non-positive."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -181,12 +156,11 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
         param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
         # E = 0.5 + (-1.0)*ones = -0.5, non-positive
         params = bkd.array([-1.0])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             param.apply(physics, params)
 
-    def test_param_jacobian_fd(self):
+    def test_param_jacobian_fd(self, bkd):
         """param_jacobian matches FD via DerivativeChecker."""
-        bkd = self._bkd
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         nstates = 2 * npts
@@ -234,23 +208,4 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
         params = bkd.array([0.1, -0.05])[:, None]
         errors = checker.check_derivatives(params, verbosity=0)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
-
-
-class TestLameParameterizationNumpy(TestLameParameterization[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLameParameterizationTorch(TestLameParameterization[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert ratio <= 1e-5

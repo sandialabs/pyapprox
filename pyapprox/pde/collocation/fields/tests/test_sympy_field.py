@@ -1,10 +1,7 @@
 """Tests for SympyField2D and field factory functions."""
 
-import unittest
-from typing import Any, Generic
+import pytest
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.fields.sympy_field import (
     SympyField2D,
@@ -17,23 +14,11 @@ from pyapprox.pde.collocation.mesh.transformed import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestSympyField2D(Generic[Array], unittest.TestCase):
+class TestSympyField2D:
     """Tests for SympyField2D."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_constant_field(self):
+    def test_constant_field(self, bkd):
         """Test constant field evaluation."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
@@ -42,9 +27,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, 5.0 * bkd.ones((mesh.npts(),)), rtol=1e-14)
 
-    def test_linear_field_normalized(self):
+    def test_linear_field_normalized(self, bkd):
         """Test linear field with normalized coordinates."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
@@ -62,9 +46,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_linear_field_physical(self):
+    def test_linear_field_physical(self, bkd):
         """Test linear field with physical coordinates."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
@@ -77,9 +60,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_quadratic_bed_y_direction(self):
+    def test_quadratic_bed_y_direction(self, bkd):
         """Test quadratic bed matches expected formula."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(15, 15, bkd, transform)
 
@@ -93,9 +75,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_quadratic_bed_x_direction(self):
+    def test_quadratic_bed_x_direction(self, bkd):
         """Test quadratic bed in x direction."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(15, 15, bkd, transform)
 
@@ -108,9 +89,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_quadratic_bed_xy_direction(self):
+    def test_quadratic_bed_xy_direction(self, bkd):
         """Test quadratic bed in both directions."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(15, 15, bkd, transform)
 
@@ -124,9 +104,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_polynomial_surface(self):
+    def test_polynomial_surface(self, bkd):
         """Test polynomial surface factory."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(12, 12, bkd, transform)
 
@@ -141,9 +120,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_beta_surface(self):
+    def test_beta_surface(self, bkd):
         """Test beta function surface factory."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(15, 15, bkd, transform)
 
@@ -154,15 +132,14 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         vals = surface.evaluate()
 
         # Check that values are positive and have maximum in interior
-        self.assertTrue(float(bkd.min(vals)) >= 0)
+        assert float(bkd.min(vals) >= 0)
 
         # Find maximum - should be near center for symmetric beta(2,2)
         max_val = float(bkd.max(vals))
-        self.assertGreater(max_val, 0)
+        assert max_val > 0
 
-    def test_shallow_wave_bed_legacy(self):
+    def test_shallow_wave_bed_legacy(self, bkd):
         """Test legacy shallow wave bed formula."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 10.0, 0.0, 5.0), bkd)
         mesh = TransformedMesh2D(20, 20, bkd, transform)
 
@@ -177,9 +154,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_gradient_constant(self):
+    def test_gradient_constant(self, bkd):
         """Test gradient of constant field is zero."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
@@ -189,9 +165,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(grad[0], bkd.zeros((mesh.npts(),)), atol=1e-14)
         bkd.assert_allclose(grad[1], bkd.zeros((mesh.npts(),)), atol=1e-14)
 
-    def test_gradient_linear_normalized(self):
+    def test_gradient_linear_normalized(self, bkd):
         """Test gradient of linear field with normalized coords."""
-        bkd = self.bkd()
         Lx, Ly = 2.0, 3.0
         transform = AffineTransform2D((0.0, Lx, 0.0, Ly), bkd)
         mesh = TransformedMesh2D(12, 12, bkd, transform)
@@ -208,9 +183,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(grad[0], expected_dx * bkd.ones((mesh.npts(),)), rtol=1e-12)
         bkd.assert_allclose(grad[1], expected_dy * bkd.ones((mesh.npts(),)), rtol=1e-12)
 
-    def test_gradient_quadratic_normalized(self):
+    def test_gradient_quadratic_normalized(self, bkd):
         """Test gradient of quadratic field."""
-        bkd = self.bkd()
         Lx, Ly = 2.0, 3.0
         transform = AffineTransform2D((0.0, Lx, 0.0, Ly), bkd)
         mesh = TransformedMesh2D(15, 15, bkd, transform)
@@ -231,9 +205,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(grad[0], expected_dx, rtol=1e-10)
         bkd.assert_allclose(grad[1], expected_dy, rtol=1e-10)
 
-    def test_gradient_physical_coords(self):
+    def test_gradient_physical_coords(self, bkd):
         """Test gradient with physical coordinates."""
-        bkd = self.bkd()
         transform = AffineTransform2D((1.0, 3.0, 2.0, 5.0), bkd)
         mesh = TransformedMesh2D(12, 12, bkd, transform)
 
@@ -249,9 +222,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(grad[0], expected_dx, rtol=1e-12)
         bkd.assert_allclose(grad[1], expected_dy, rtol=1e-12)
 
-    def test_params_substitution(self):
+    def test_params_substitution(self, bkd):
         """Test parameter substitution works correctly."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
@@ -270,36 +242,10 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(vals, expected, rtol=1e-12)
 
-    def test_invalid_coord_type_raises(self):
+    def test_invalid_coord_type_raises(self, bkd):
         """Test invalid coord_type raises ValueError."""
-        bkd = self.bkd()
         transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         mesh = TransformedMesh2D(10, 10, bkd, transform)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             SympyField2D("xn", {}, mesh, bkd, coord_type="invalid")
-
-
-class TestSympyField2DNumpy(TestSympyField2D[NDArray[Any]]):
-    """NumPy backend tests for SympyField2D."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSympyField2DTorch(TestSympyField2D[torch.Tensor]):
-    """PyTorch backend tests for SympyField2D."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-if __name__ == "__main__":
-    unittest.main()

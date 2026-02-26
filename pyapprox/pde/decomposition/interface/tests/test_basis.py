@@ -1,42 +1,42 @@
 """Tests for interface basis implementations."""
 
-import unittest
 
+import pytest
 import numpy as np
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.decomposition.interface.basis import (
     LegendreInterfaceBasis1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
-class TestLegendreInterfaceBasis1D(unittest.TestCase):
+class TestLegendreInterfaceBasis1D:
     """Tests for LegendreInterfaceBasis1D."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
         self.bkd = NumpyBkd()
 
-    def test_initialization(self):
+    def test_initialization(self, bkd):
         """Test basic initialization."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
 
         # degree 5 -> 6 Gauss-Legendre points (degree + 1)
-        self.assertEqual(basis.ndofs(), 6)
-        self.assertEqual(basis.npts(), 6)
-        self.assertEqual(basis.degree(), 5)
+        assert basis.ndofs() == 6
+        assert basis.npts() == 6
+        assert basis.degree() == 5
 
-    def test_minimum_degree(self):
+    def test_minimum_degree(self, bkd):
         """Test that degree must be at least 1."""
         # degree=1 should work (gives 2 Gauss points)
         basis = LegendreInterfaceBasis1D(self.bkd, degree=1, physical_bounds=(0.0, 1.0))
-        self.assertEqual(basis.ndofs(), 2)
+        assert basis.ndofs() == 2
 
         # degree=0 should fail
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             LegendreInterfaceBasis1D(self.bkd, degree=0, physical_bounds=(0.0, 1.0))
 
-    def test_reference_points_exclude_endpoints(self):
+    def test_reference_points_exclude_endpoints(self, bkd):
         """Test that Gauss-Legendre points are strictly interior to [-1, 1]."""
         basis = LegendreInterfaceBasis1D(
             self.bkd, degree=4, physical_bounds=(-1.0, 1.0)
@@ -44,22 +44,22 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
         ref_pts = basis.reference_points()
 
         # Shape should be (1, npts) where npts = degree + 1 = 5
-        self.assertEqual(ref_pts.shape, (1, 5))
+        assert ref_pts.shape == (1, 5)
 
         # Gauss-Legendre points are strictly interior to [-1, 1]
-        self.assertTrue(np.all(ref_pts > -1.0))
-        self.assertTrue(np.all(ref_pts < 1.0))
+        assert np.all(ref_pts > -1.0)
+        assert np.all(ref_pts < 1.0)
 
-    def test_physical_points_mapping(self):
+    def test_physical_points_mapping(self, bkd):
         """Test mapping from reference to physical coordinates."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=4, physical_bounds=(2.0, 5.0))
         phys_pts = basis.physical_points()
 
         # Points should be strictly interior to [2, 5]
-        self.assertTrue(np.all(phys_pts > 2.0))
-        self.assertTrue(np.all(phys_pts < 5.0))
+        assert np.all(phys_pts > 2.0)
+        assert np.all(phys_pts < 5.0)
 
-    def test_nodal_evaluation(self):
+    def test_nodal_evaluation(self, bkd):
         """Test that nodal evaluation returns coefficients unchanged."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
         # degree=5 -> 6 DOFs
@@ -68,7 +68,7 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
         values = basis.evaluate(coeffs)
         np.testing.assert_allclose(values, coeffs)
 
-    def test_interpolation_at_nodes(self):
+    def test_interpolation_at_nodes(self, bkd):
         """Test interpolation recovers nodal values at nodes."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
         # degree=5 -> 6 DOFs
@@ -80,7 +80,7 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
 
         np.testing.assert_allclose(values, coeffs, rtol=1e-12)
 
-    def test_interpolation_polynomial_exactness(self):
+    def test_interpolation_polynomial_exactness(self, bkd):
         """Test that interpolation is exact for polynomials up to degree."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=4, physical_bounds=(0.0, 2.0))
 
@@ -99,7 +99,7 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
 
         np.testing.assert_allclose(interp_values, exact_values, rtol=1e-10)
 
-    def test_interpolation_matrix(self):
+    def test_interpolation_matrix(self, bkd):
         """Test interpolation matrix gives same result as evaluate_at_points."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
         # degree=5 -> 6 DOFs
@@ -112,7 +112,7 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
 
         np.testing.assert_allclose(values_matrix, values_direct, rtol=1e-12)
 
-    def test_quadrature_integration(self):
+    def test_quadrature_integration(self, bkd):
         """Test quadrature integration accuracy.
 
         Gauss-Legendre with n points integrates polynomials of degree 2n-1 exactly.
@@ -144,71 +144,62 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
         integral_deg7 = basis.integrate(values_deg7)
         np.testing.assert_allclose(integral_deg7, 1.0, rtol=1e-12)
 
-    def test_quadrature_weights_sum(self):
+    def test_quadrature_weights_sum(self, bkd):
         """Test that quadrature weights sum to domain length."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(2.0, 5.0))
         weights = basis.quadrature_weights()
 
         # Gauss-Legendre weights sum to domain length (exactly)
-        self.assertTrue(np.all(weights > 0))
+        assert np.all(weights > 0)
         np.testing.assert_allclose(np.sum(weights), 3.0, rtol=1e-12)  # 5.0 - 2.0 = 3.0
 
-    def test_different_physical_bounds(self):
+    @pytest.mark.parametrize(
+        "start,end",
+        [(0.0, 1.0), (-1.0, 1.0), (10.0, 20.0), (-5.0, 5.0)],
+    )
+    def test_different_physical_bounds(self, bkd, start, end):
         """Test with various physical bounds."""
-        test_cases = [
-            (0.0, 1.0),
-            (-1.0, 1.0),
-            (10.0, 20.0),
-            (-5.0, 5.0),
-        ]
+        basis = LegendreInterfaceBasis1D(
+            self.bkd, degree=4, physical_bounds=(start, end)
+        )
+        phys_pts = basis.physical_points()[0, :]
 
-        for start, end in test_cases:
-            with self.subTest(bounds=(start, end)):
-                basis = LegendreInterfaceBasis1D(
-                    self.bkd, degree=4, physical_bounds=(start, end)
-                )
-                phys_pts = basis.physical_points()[0, :]
+        # Points should be strictly interior
+        assert np.all(phys_pts > start)
+        assert np.all(phys_pts < end)
 
-                # Points should be strictly interior
-                self.assertTrue(np.all(phys_pts > start))
-                self.assertTrue(np.all(phys_pts < end))
-
-    def test_repr(self):
+    def test_repr(self, bkd):
         """Test string representation."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
         repr_str = repr(basis)
 
-        self.assertIn("LegendreInterfaceBasis1D", repr_str)
-        self.assertIn("degree=5", repr_str)
-        self.assertIn("ndofs=6", repr_str)  # degree + 1 = 6
+        assert "LegendreInterfaceBasis1D" in repr_str
+        assert "degree=5" in repr_str
+        assert "ndofs=6" in repr_str  # degree + 1 = 6
 
 
-class TestLegendreInterfaceBasis1DEdgeCases(unittest.TestCase):
+class TestLegendreInterfaceBasis1DEdgeCases:
     """Edge case tests for LegendreInterfaceBasis1D."""
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_minimum_working_degree(self):
+    def test_minimum_working_degree(self, bkd):
         """Test degree=1 gives exactly 2 DOFs (minimum valid degree)."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=1, physical_bounds=(0.0, 1.0))
-        self.assertEqual(basis.ndofs(), 2)  # degree + 1 = 2
-        self.assertEqual(basis.npts(), 2)
+        assert basis.ndofs() == 2  # degree + 1 = 2
+        assert basis.npts() == 2
 
-    def test_coefficient_shape_validation(self):
+    def test_coefficient_shape_validation(self, bkd):
         """Test that wrong coefficient shape raises error."""
         basis = LegendreInterfaceBasis1D(self.bkd, degree=5, physical_bounds=(0.0, 1.0))
         # degree=5 -> 6 DOFs
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             basis.evaluate(self.bkd.asarray([1.0, 2.0]))  # Wrong size (need 6)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             basis.evaluate_at_points(
                 self.bkd.asarray([1.0, 2.0]),  # Wrong size (need 6)
                 self.bkd.asarray([0.5]),
             )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -4,11 +4,10 @@ Tests backward Euler and Crank-Nicolson time stepping for LinearElasticity
 using manufactured solutions with time-dependent displacement fields.
 """
 
-import unittest
 from typing import List, Tuple
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -96,23 +95,24 @@ TRANSIENT_ELASTICITY_2D_CASES: List[Tuple[str, str]] = [
 ]
 
 
-class TestTransientElasticity2D(ParametrizedTestCase):
+class TestTransientElasticity2D:
     """Transient 2D linear elasticity with manufactured solutions.
 
     Uses time-linear solutions u(x,y,t) = u0(x,y)*(1+T) which are
     exactly reproduced by both backward Euler and Crank-Nicolson.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,method",
         TRANSIENT_ELASTICITY_2D_CASES,
     )
     def test_transient_elasticity_2d(
         self,
+        numpy_bkd,
         name: str,
         method: str,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         bounds = [0.0, 1.0, 0.0, 1.0]
         sol_strs = [
             "(1-x)*x*(1-y)*y*(1+T)",
@@ -219,14 +219,4 @@ class TestTransientElasticity2D(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-5,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-5",
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-5

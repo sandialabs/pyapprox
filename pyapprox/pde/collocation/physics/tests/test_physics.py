@@ -1,8 +1,6 @@
 """Tests for physics implementations."""
 
 import math
-import unittest
-from typing import Generic
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -33,25 +31,16 @@ from pyapprox.pde.parameterizations.diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
+class TestAdvectionDiffusionReaction:
     """Base test class for ADR physics."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_diffusion_residual_polynomial(self):
+    def test_diffusion_residual_polynomial(self, bkd):
         """Test diffusion residual with polynomial solution.
 
         For u(x) = x^2 on [-1, 1]:
         laplacian(u) = 2
         With D = 1: residual = D * laplacian(u) = 2
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -68,9 +57,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         expected = bkd.full((npts,), 2.0)
         bkd.assert_allclose(residual, expected, atol=1e-10)
 
-    def test_diffusion_jacobian(self):
+    def test_diffusion_jacobian(self, bkd):
         """Test diffusion Jacobian via finite differences."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -98,13 +86,12 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac, jac_fd, atol=1e-6)
 
-    def test_advection_residual(self):
+    def test_advection_residual(self, bkd):
         """Test advection residual.
 
         For u(x) = sin(pi*x), v = 1:
         -v * du/dx = -cos(pi*x) * pi
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -122,9 +109,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         expected = -math.pi * bkd.cos(math.pi * nodes)
         bkd.assert_allclose(residual, expected, atol=1e-8)
 
-    def test_advection_jacobian(self):
+    def test_advection_jacobian(self, bkd):
         """Test advection Jacobian via finite differences."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -151,12 +137,11 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac, jac_fd, atol=1e-6)
 
-    def test_reaction_residual(self):
+    def test_reaction_residual(self, bkd):
         """Test reaction residual.
 
         For u and r = 2: residual = 2 * u
         """
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -170,9 +155,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         expected = 2.0 * u
         bkd.assert_allclose(residual, expected, atol=1e-14)
 
-    def test_forcing_residual(self):
+    def test_forcing_residual(self, bkd):
         """Test forcing term."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -187,9 +171,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         # With no other terms, residual = forcing
         bkd.assert_allclose(residual, forcing, atol=1e-14)
 
-    def test_combined_adr(self):
+    def test_combined_adr(self, bkd):
         """Test combined ADR physics."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -221,9 +204,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac, jac_fd, atol=1e-5)
 
-    def test_boundary_condition_application(self):
+    def test_boundary_condition_application(self, bkd):
         """Test applying boundary conditions."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -254,7 +236,7 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jacobian[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
 
 
-class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
+class TestDiffusionParameterization:
     """Test parameterized diffusion via DiffusionParameterization.
 
     Validates param_jacobian, nparams, and initial_param_jacobian using
@@ -262,14 +244,8 @@ class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
     TestAdvectionDiffusionReactionWithParam tests).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_param_jacobian(self):
+    def test_param_jacobian(self, bkd):
         """Test parameter Jacobian via finite differences."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -317,9 +293,8 @@ class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(param_jac, param_jac_fd, atol=1e-5)
 
-    def test_nparams(self):
+    def test_nparams(self, bkd):
         """Test nparams method."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -331,11 +306,10 @@ class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1, phi2])
         dp = create_diffusion_parameterization(bkd, basis, fm)
 
-        self.assertEqual(dp.nparams(), 3)
+        assert dp.nparams() == 3
 
-    def test_initial_param_jacobian_zero(self):
+    def test_initial_param_jacobian_zero(self, bkd):
         """Test initial param Jacobian is zero (IC does not depend on params)."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -354,29 +328,22 @@ class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(ic_jac, expected, atol=1e-14)
 
 
-class TestFactoryFunctions(Generic[Array], unittest.TestCase):
+class TestFactoryFunctions:
     """Base test class for factory functions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_create_steady_diffusion(self):
+    def test_create_steady_diffusion(self, bkd):
         """Test create_steady_diffusion factory."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = create_steady_diffusion(basis, bkd, diffusion=2.0)
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
 
-    def test_create_advection_diffusion(self):
+    def test_create_advection_diffusion(self, bkd):
         """Test create_advection_diffusion factory."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -386,10 +353,10 @@ class TestFactoryFunctions(Generic[Array], unittest.TestCase):
             basis, bkd, diffusion=1.0, velocity=velocity
         )
 
-        self.assertEqual(physics.ncomponents(), 1)
+        assert physics.ncomponents() == 1
 
 
-class TestADRTransient(Generic[Array], unittest.TestCase):
+class TestADRTransient:
     """Test transient ADR with manufactured solutions.
 
     Uses quadratic-in-time manufactured solution so CN (2nd order) is
@@ -397,14 +364,8 @@ class TestADRTransient(Generic[Array], unittest.TestCase):
     Solution: u = sin(pi*x)*(1 + T + T**2), homogeneous Dirichlet BCs.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _setup_transient_adr(self):
+    def _setup_transient_adr(self, bkd) :
         """Create ADR physics with quadratic-in-time manufactured solution."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -437,8 +398,8 @@ class TestADRTransient(Generic[Array], unittest.TestCase):
 
         return physics, man_sol, nodes, bkd
 
-    def _run_transient_adr(self, method, atol):
-        physics, man_sol, nodes, bkd = self._setup_transient_adr()
+    def _run_transient_adr(self, bkd, method, atol) :
+        physics, man_sol, nodes, bkd = self._setup_transient_adr(bkd)
         model = CollocationModel(physics, bkd)
 
         u0 = man_sol.functions["solution"](nodes[None, :], 0.0)
@@ -457,51 +418,21 @@ class TestADRTransient(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(solutions[:, -1], u_exact, atol=atol)
 
-    def test_transient_backward_euler(self):
+    def test_transient_backward_euler(self, bkd):
         """Test transient ADR with backward Euler.
 
         BE is 1st order in time, so with dt=0.005 and quadratic-in-time
         solution there is O(dt) temporal error.
         """
-        self._run_transient_adr("backward_euler", atol=0.01)
+        self._run_transient_adr(bkd, "backward_euler", atol=0.01)
 
-    def test_transient_crank_nicolson(self):
+    def test_transient_crank_nicolson(self, bkd):
         """Test transient ADR with Crank-Nicolson.
 
         CN is 2nd order in time. For quadratic-in-time solution,
         CN integrates the time derivative exactly.
         """
-        self._run_transient_adr("crank_nicolson", atol=1e-8)
+        self._run_transient_adr(bkd, "crank_nicolson", atol=1e-8)
 
 
 # NumPy backend tests
-class TestAdvectionDiffusionReactionNumpy(TestAdvectionDiffusionReaction):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-class TestDiffusionParameterizationNumpy(TestDiffusionParameterization):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-class TestFactoryFunctionsNumpy(TestFactoryFunctions):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-class TestADRTransientNumpy(TestADRTransient):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

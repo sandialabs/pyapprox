@@ -1,10 +1,10 @@
 """Tests for reaction-diffusion physics implementations."""
 
 import math
-import unittest
 
 import numpy as np
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -35,21 +35,11 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
     """Tests for TwoSpeciesReactionDiffusionPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_linear_reaction(self):
+    def test_jacobian_linear_reaction(self, bkd):
         """Test Jacobian with linear reaction."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -65,11 +55,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         # Random state
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_fhn_reaction(self):
+    def test_jacobian_fhn_reaction(self, bkd):
         """Test Jacobian with FitzHugh-Nagumo reaction."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -86,11 +75,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         # State in reasonable range for FHN
         state = bkd.array(0.5 + 0.2 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self):
+    def test_jacobian_with_forcing(self, bkd):
         """Test Jacobian with forcing terms."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -113,11 +101,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         state = bkd.array(np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self):
+    def test_residual_at_manufactured_solution(self, bkd):
         """BEFORE: Verify residual = 0 at manufactured solution."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -152,11 +139,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             forcing1=lambda t: forcing1,
         )
 
-        self.check_residual_zero(physics, exact_solution, atol=1e-8)
+        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_solve_steady_linear_system(self):
+    def test_solve_steady_linear_system(self, bkd):
         """AFTER: Verify convergence for linear reaction-diffusion."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -215,9 +201,8 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_two_species_reaction_diffusion factory."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -233,17 +218,16 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             reaction=reaction,
         )
 
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertEqual(physics.nstates(), 2 * npts)
+        assert physics.ncomponents() == 2
+        assert physics.nstates() == 2 * npts
 
-    def test_transient_diffusion_only(self):
+    def test_transient_diffusion_only(self, bkd):
         """Test transient evolution with pure diffusion (no reaction).
 
         For u0, u1 = sin(pi*x) with homogeneous Dirichlet BCs and no reaction:
         du/dt = D * d²u/dx²
         Exact solution: u(x,t) = exp(-D*pi²*t) * sin(pi*x)
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -293,14 +277,13 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_final, rtol=0.02, atol=1e-10)
 
-    def test_transient_diffusion_only_crank_nicolson(self):
+    def test_transient_diffusion_only_crank_nicolson(self, bkd):
         """Test transient reaction-diffusion with CN and manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
         (exact for CN) with zero reaction. Tight tolerance since both spatial
         and temporal discretization errors are near machine precision.
         """
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -375,14 +358,8 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
 class TestFitzHughNagumoPhysics(PhysicsTestBase):
     """Tests for FitzHughNagumoPhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -396,11 +373,10 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         np.random.seed(42)
         state = bkd.array(0.3 + 0.2 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_different_parameters(self):
+    def test_jacobian_different_parameters(self, bkd):
         """Test Jacobian with different FHN parameters."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -414,11 +390,10 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         np.random.seed(123)
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_parameter_accessors(self):
+    def test_parameter_accessors(self, bkd):
         """Test parameter accessor methods."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -428,14 +403,13 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
             basis, bkd, alpha=0.15, eps=0.02, beta=0.6, gamma=0.9
         )
 
-        self.assertAlmostEqual(physics.alpha(), 0.15)
-        self.assertAlmostEqual(physics.eps(), 0.02)
-        self.assertAlmostEqual(physics.beta(), 0.6)
-        self.assertAlmostEqual(physics.gamma(), 0.9)
+        assert abs(physics.alpha() - 0.15) < 1e-7
+        assert abs(physics.eps() - 0.02) < 1e-7
+        assert abs(physics.beta() - 0.6) < 1e-7
+        assert abs(physics.gamma() - 0.9) < 1e-7
 
-    def test_set_parameters(self):
+    def test_set_parameters(self, bkd):
         """Test updating FHN parameters."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -446,15 +420,14 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         # Update parameters
         physics.set_parameters(alpha=0.2, eps=0.05)
 
-        self.assertAlmostEqual(physics.alpha(), 0.2)
-        self.assertAlmostEqual(physics.eps(), 0.05)
+        assert abs(physics.alpha() - 0.2) < 1e-7
+        assert abs(physics.eps() - 0.05) < 1e-7
         # Unchanged parameters
-        self.assertAlmostEqual(physics.beta(), 0.5)
-        self.assertAlmostEqual(physics.gamma(), 1.0)
+        assert abs(physics.beta() - 0.5) < 1e-7
+        assert abs(physics.gamma() - 1.0) < 1e-7
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_fitzhugh_nagumo factory."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -464,13 +437,12 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
             basis, bkd, diffusion_v=1e-3, alpha=0.1, eps=0.01
         )
 
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertEqual(physics.nstates(), 2 * npts)
-        self.assertAlmostEqual(physics.alpha(), 0.1)
+        assert physics.ncomponents() == 2
+        assert physics.nstates() == 2 * npts
+        assert abs(physics.alpha() - 0.1) < 1e-7
 
-    def test_no_diffusion_on_recovery(self):
+    def test_no_diffusion_on_recovery(self, bkd):
         """Verify recovery variable has zero diffusion."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -479,17 +451,16 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         physics = FitzHughNagumoPhysics(basis, bkd, diffusion_v=1e-3)
 
         d0, d1 = physics.diffusion()
-        self.assertAlmostEqual(d0, 1e-3)
-        self.assertAlmostEqual(d1, 0.0)
+        assert abs(d0 - 1e-3) < 1e-7
+        assert abs(d1 - 0.0) < 1e-7
 
-    def test_transient_evolution(self):
+    def test_transient_evolution(self, bkd):
         """Test FitzHugh-Nagumo transient behavior.
 
         FHN is inherently transient with excitable dynamics. We test that
         the system evolves and doesn't blow up with physically reasonable
         initial conditions.
         """
-        bkd = self.bkd()
         npts = 25
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -518,22 +489,21 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 
         # Check solution is finite and bounded
         final_state = solutions[:, -1]
-        self.assertTrue(bkd.isfinite(bkd.norm(final_state)))
-        self.assertLess(float(bkd.norm(final_state)), 100.0)
+        assert bkd.isfinite(bkd.norm(final_state))
+        assert float(bkd.norm(final_state)) < 100.0
 
         # Check that the system evolved (not stuck at initial)
         initial_norm = float(bkd.norm(state0))
         final_norm = float(bkd.norm(final_state))
         # FHN dynamics should change the state
-        self.assertNotAlmostEqual(initial_norm, final_norm, places=2)
+        assert abs(initial_norm - final_norm) >= 10**(-2)
 
 
-class TestFitzHughNagumoReaction(unittest.TestCase):
+class TestFitzHughNagumoReaction:
     """Unit tests for FitzHughNagumoReaction class."""
 
-    def test_reaction_values(self):
+    def test_reaction_values(self, bkd):
         """Test reaction term evaluation."""
-        bkd = NumpyBkd()
         reaction = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
 
         u0 = bkd.array([0.0, 0.5, 1.0])
@@ -554,9 +524,8 @@ class TestFitzHughNagumoReaction(unittest.TestCase):
         expected_R1 = bkd.array([0.0, 0.0015, 0.005])
         bkd.assert_allclose(R1, expected_R1, atol=1e-10)
 
-    def test_reaction_jacobian(self):
+    def test_reaction_jacobian(self, bkd):
         """Test reaction Jacobian computation."""
-        bkd = NumpyBkd()
         reaction = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
 
         u0 = bkd.array([0.5])
@@ -575,7 +544,3 @@ class TestFitzHughNagumoReaction(unittest.TestCase):
         _, R1_plus = reaction(u0 + eps, u1)
         fd_dR1_du0 = (R1_plus - R1_base) / eps
         bkd.assert_allclose(dR1_du0, fd_dR1_du0, atol=1e-5)
-
-
-if __name__ == "__main__":
-    unittest.main()

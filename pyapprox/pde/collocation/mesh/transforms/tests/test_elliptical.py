@@ -1,33 +1,18 @@
 """Tests for elliptical coordinate transform."""
 
 import math
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.mesh.transforms.elliptical import (
     EllipticalTransform,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestEllipticalTransform(Generic[Array], unittest.TestCase):
+class TestEllipticalTransform:
     """Tests for EllipticalTransform."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_elliptical_basic_mapping(self):
+    def test_elliptical_basic_mapping(self, bkd):
         """Test basic elliptical to Cartesian mapping."""
-        bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
             (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
@@ -48,9 +33,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(phys_pts[0, :], expected_x, atol=1e-14)
         bkd.assert_allclose(phys_pts[1, :], expected_y, atol=1e-14)
 
-    def test_elliptical_inverse_mapping(self):
+    def test_elliptical_inverse_mapping(self, bkd):
         """Test inverse mapping recovers original points."""
-        bkd = self.bkd()
         a = 1.5
         transform = EllipticalTransform(
             (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
@@ -63,9 +47,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-12)
 
-    def test_elliptical_from_reference_mapping(self):
+    def test_elliptical_from_reference_mapping(self, bkd):
         """Test from_reference=True mode with affine mapping."""
-        bkd = self.bkd()
         a = 2.0
         u_bounds = (0.5, 2.5)
         v_bounds = (0.1, math.pi - 0.1)
@@ -97,9 +80,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         ref_pts_back = transform.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-12)
 
-    def test_elliptical_jacobian_determinant(self):
+    def test_elliptical_jacobian_determinant(self, bkd):
         """Test Jacobian determinant formula: a^2 * (sinh^2(u) + sin^2(v))."""
-        bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
             (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
@@ -114,9 +96,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         expected = a**2 * (np.sinh(u) ** 2 + np.sin(v) ** 2)
         bkd.assert_allclose(jac_det, bkd.asarray(expected), atol=1e-14)
 
-    def test_elliptical_jacobian_matrix_consistency(self):
+    def test_elliptical_jacobian_matrix_consistency(self, bkd):
         """Test Jacobian matrix determinant matches jacobian_determinant."""
-        bkd = self.bkd()
         a = 1.0
         transform = EllipticalTransform(
             (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
@@ -132,9 +113,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
-    def test_elliptical_scale_factors(self):
+    def test_elliptical_scale_factors(self, bkd):
         """Test scale factors h_u = h_v = a * sqrt(sinh^2(u) + sin^2(v))."""
-        bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
             (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
@@ -153,9 +133,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         # Verify h_u = h_v
         bkd.assert_allclose(scale[:, 0], scale[:, 1], atol=1e-14)
 
-    def test_elliptical_unit_basis_orthonormality(self):
+    def test_elliptical_unit_basis_orthonormality(self, bkd):
         """Test unit curvilinear basis vectors are orthonormal."""
-        bkd = self.bkd()
         a = 1.5
         transform = EllipticalTransform(
             (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
@@ -178,9 +157,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         dot = bkd.sum(e_u * e_v, axis=1)
         bkd.assert_allclose(dot, bkd.zeros((npts,)), atol=1e-14)
 
-    def test_elliptical_gradient_factors_consistency(self):
+    def test_elliptical_gradient_factors_consistency(self, bkd):
         """Test gradient factors equal unit_basis / scale_factors."""
-        bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
             (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
@@ -195,42 +173,39 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         expected = unit_basis / scale[:, None, :]
         bkd.assert_allclose(grad_factors, expected, atol=1e-14)
 
-    def test_elliptical_bounds_validation(self):
+    def test_elliptical_bounds_validation(self, bkd):
         """Test bounds validation."""
-        bkd = self.bkd()
-
         # u_min <= 0 (singularity at focal points)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.0, 2.0), (0.0, math.pi), 1.0, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((-0.5, 2.0), (0.0, math.pi), 1.0, bkd)
 
         # u_max <= u_min
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((2.0, 1.0), (0.0, math.pi), 1.0, bkd)
 
         # v out of [0, 2*pi]
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.5, 2.0), (-0.1, math.pi), 1.0, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.5, 2.0), (0.0, 2 * math.pi + 0.1), 1.0, bkd)
 
         # v_max <= v_min
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.5, 2.0), (2.0, 1.0), 1.0, bkd)
 
         # a <= 0
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.5, 2.0), (0.0, math.pi), 0.0, bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EllipticalTransform((0.5, 2.0), (0.0, math.pi), -1.0, bkd)
 
-    def test_elliptical_constant_u_is_ellipse(self):
+    def test_elliptical_constant_u_is_ellipse(self, bkd):
         """Verify that constant u curves are ellipses."""
-        bkd = self.bkd()
         a = 1.0
         u_val = 1.0
         transform = EllipticalTransform(
@@ -257,9 +232,8 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
             bkd.asarray(ellipse_eq), bkd.ones((len(v_vals),)), atol=1e-12
         )
 
-    def test_elliptical_jacobian_via_finite_differences(self):
+    def test_elliptical_jacobian_via_finite_differences(self, bkd):
         """Verify Jacobian matrix via finite differences."""
-        bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
             (0.5, 3.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
@@ -291,28 +265,3 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jac[0, 0, 1], dx_dv_fd, rtol=1e-6)
         bkd.assert_allclose(jac[0, 1, 0], dy_du_fd, rtol=1e-6)
         bkd.assert_allclose(jac[0, 1, 1], dy_dv_fd, rtol=1e-6)
-
-
-class TestEllipticalTransformNumpy(TestEllipticalTransform[NDArray[Any]]):
-    """NumPy backend tests for EllipticalTransform."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestEllipticalTransformTorch(TestEllipticalTransform[torch.Tensor]):
-    """PyTorch backend tests for EllipticalTransform."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-if __name__ == "__main__":
-    unittest.main()

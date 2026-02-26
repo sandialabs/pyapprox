@@ -8,14 +8,14 @@ Verifies:
 5. Dual backend support (NumPy and PyTorch)
 """
 
+from typing import Generic
+
 import math
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -29,12 +29,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker."""
 
@@ -109,51 +103,42 @@ def _interior_indices(mesh_obj, npts):
     return [i for i in range(2 * npts) if i not in boundary_set]
 
 
-class TestVariableLame(Generic[Array], unittest.TestCase):
+class TestVariableLame:
     """Test variable Lame parameter support in LinearElasticityPhysics."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
 
     # ------------------------------------------------------------------
     # Setter tests
     # ------------------------------------------------------------------
 
-    def test_set_mu_positive_scalar(self):
+    def test_set_mu_positive_scalar(self, bkd):
         """set_mu with positive scalar updates array and preserves value."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd)
         physics.set_mu(2.5)
         bkd.assert_allclose(
             physics._mu_array,
             bkd.full((basis.npts(),), 2.5),
         )
-        self.assertEqual(physics._mu_value, 2.5)
+        assert physics._mu_value == 2.5
 
-    def test_set_mu_positive_array(self):
+    def test_set_mu_positive_array(self, bkd):
         """set_mu with positive array updates array and clears value."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd)
         npts = basis.npts()
         mu_arr = bkd.full((npts,), 3.0)
         physics.set_mu(mu_arr)
         bkd.assert_allclose(physics._mu_array, mu_arr)
-        self.assertIsNone(physics._mu_value)
+        assert physics._mu_value is None
 
-    def test_set_mu_nonpositive_raises(self):
+    def test_set_mu_nonpositive_raises(self, bkd):
         """set_mu raises ValueError for non-positive mu."""
-        bkd = self.bkd()
         physics, _, _ = _setup_2d_physics(bkd)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             physics.set_mu(0.0)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             physics.set_mu(-1.0)
 
-    def test_set_lamda_nonnegative(self):
+    def test_set_lamda_nonnegative(self, bkd):
         """set_lamda accepts zero and positive values."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd)
         npts = basis.npts()
         physics.set_lamda(0.0)
@@ -161,29 +146,26 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         physics.set_lamda(1.5)
         bkd.assert_allclose(physics._lambda_array, bkd.full((npts,), 1.5))
 
-    def test_set_lamda_negative_raises(self):
+    def test_set_lamda_negative_raises(self, bkd):
         """set_lamda raises ValueError for negative lambda."""
-        bkd = self.bkd()
         physics, _, _ = _setup_2d_physics(bkd)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             physics.set_lamda(-0.1)
 
-    def test_set_scalar_preserves_constant_path(self):
+    def test_set_scalar_preserves_constant_path(self, bkd):
         """set_mu/set_lamda with scalars keep _*_value non-None."""
-        bkd = self.bkd()
         physics, _, _ = _setup_2d_physics(bkd)
         physics.set_mu(2.0)
         physics.set_lamda(3.0)
-        self.assertEqual(physics._mu_value, 2.0)
-        self.assertEqual(physics._lambda_value, 3.0)
+        assert physics._mu_value == 2.0
+        assert physics._lambda_value == 3.0
 
     # ------------------------------------------------------------------
     # Variable Lame Jacobian
     # ------------------------------------------------------------------
 
-    def test_variable_lame_jacobian(self):
+    def test_variable_lame_jacobian(self, bkd):
         """DerivativeChecker validates variable-Lame Jacobian."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
         basis.npts()
@@ -204,11 +186,10 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
 
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_variable_matches_uniform(self):
+    def test_variable_matches_uniform(self, bkd):
         """Variable arrays of constant value match scalar constructor."""
-        bkd = self.bkd()
         lam_val, mu_val = 1.5, 0.8
 
         # Constant via constructor
@@ -237,9 +218,8 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
     # Manufactured solution with variable Lame
     # ------------------------------------------------------------------
 
-    def test_manufactured_variable_lame(self):
+    def test_manufactured_variable_lame(self, bkd):
         """Residual = 0 at exact solution with variable lambda(x), mu(x)."""
-        bkd = self.bkd()
         npts_1d = 10
         physics, basis, mesh_obj = _setup_2d_physics(bkd, npts_1d=npts_1d)
         nodes = _get_nodes(basis, bkd)
@@ -300,9 +280,8 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
     # Residual sensitivity FD tests
     # ------------------------------------------------------------------
 
-    def test_residual_mu_sensitivity_fd(self):
+    def test_residual_mu_sensitivity_fd(self, bkd):
         """Finite-difference validation of residual_mu_sensitivity."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
         npts = basis.npts()
@@ -338,9 +317,8 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(sens_analytical, sens_fd, atol=1e-5)
 
-    def test_residual_lamda_sensitivity_fd(self):
+    def test_residual_lamda_sensitivity_fd(self, bkd):
         """Finite-difference validation of residual_lamda_sensitivity."""
-        bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
         npts = basis.npts()
@@ -375,22 +353,3 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         physics.set_lamda(lam0)
 
         bkd.assert_allclose(sens_analytical, sens_fd, atol=1e-5)
-
-
-class TestVariableLameNumpy(TestVariableLame[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestVariableLameTorch(TestVariableLame[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

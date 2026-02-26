@@ -6,11 +6,7 @@ Tests PeriodicBC with:
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import DirichletBC, PeriodicBC
@@ -22,28 +18,16 @@ from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform2D
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestPeriodicBCTransforms(Generic[Array], unittest.TestCase):
+class TestPeriodicBCTransforms:
     """Integration tests for periodic BCs on transformed domains."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_rectangular_periodic_adr(self):
+    def test_rectangular_periodic_adr(self, bkd):
         """Full periodic ADR on [0, 2π]².
 
         u = cos(x)*cos(y), D = 1, reaction = 3*u
         Solution is naturally 2π-periodic in both x and y.
         Forcing f = -u (non-trivial), so u=0 is not a solution.
         """
-        bkd = self.bkd()
         npts = 20
         transform = AffineTransform2D((0.0, 2 * math.pi, 0.0, 2 * math.pi), bkd)
         mesh = TransformedMesh2D(npts, npts, bkd, transform)
@@ -85,13 +69,12 @@ class TestPeriodicBCTransforms(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
 
-    def test_annular_periodic_theta(self):
+    def test_annular_periodic_theta(self, bkd):
         """θ-periodic annular domain, r ∈ [1, 2], θ ∈ [0, 2π].
 
         u = x = r*cos(θ), D = 1, reaction = u
         Dirichlet at r_min and r_max, periodic in θ.
         """
-        bkd = self.bkd()
         npts_r, npts_theta = 20, 30
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
@@ -141,24 +124,4 @@ class TestPeriodicBCTransforms(Generic[Array], unittest.TestCase):
 
 
 # NumPy backend
-class TestPeriodicBCTransformsNumpy(TestPeriodicBCTransforms[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # Torch backend
-class TestPeriodicBCTransformsTorch(TestPeriodicBCTransforms[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

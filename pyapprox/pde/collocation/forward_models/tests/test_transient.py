@@ -1,12 +1,8 @@
 """Tests for transient forward model classes."""
 
 import math
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -44,12 +40,6 @@ from pyapprox.pde.parameterizations.diffusion import (
 )
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     """Create a parameterized transient diffusion problem for testing.
 
@@ -101,18 +91,9 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     return physics, param, init_state, time_config
 
 
-class TestTransientForwardModel(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_call_matches_direct_solve(self):
+class TestTransientForwardModel:
+    def test_call_matches_direct_solve(self, bkd):
         """__call__ with default functional matches solve_transient result."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -135,9 +116,8 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
         # Default functional returns all states at final time
         bkd.assert_allclose(qoi[:, 0], solutions[:, -1], rtol=1e-10)
 
-    def test_call_multiple_samples(self):
+    def test_call_multiple_samples(self, bkd):
         """__call__ handles multiple parameter samples correctly."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -152,17 +132,16 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
         samples = bkd.asarray(param_array)
 
         result = forward_model(samples)
-        self.assertEqual(result.shape[0], forward_model.nqoi())
-        self.assertEqual(result.shape[1], nsamples)
+        assert result.shape[0] == forward_model.nqoi()
+        assert result.shape[1] == nsamples
 
         # Verify each sample individually
         for ii in range(nsamples):
             single_result = forward_model(samples[:, ii : ii + 1])
             bkd.assert_allclose(result[:, ii : ii + 1], single_result, rtol=1e-10)
 
-    def test_nvars_nqoi(self):
+    def test_nvars_nqoi(self, bkd):
         """nvars and nqoi are correct for default functional."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -171,12 +150,11 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
             physics, bkd, init_state, time_config, parameterization=param
         )
 
-        self.assertEqual(forward_model.nvars(), 2)
-        self.assertEqual(forward_model.nqoi(), physics.nstates())
+        assert forward_model.nvars() == 2
+        assert forward_model.nqoi() == physics.nstates()
 
-    def test_jacobian_vector_qoi_derivative_checker(self):
+    def test_jacobian_vector_qoi_derivative_checker(self, bkd):
         """Jacobian with default functional (vector QoI) passes DerivativeChecker."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -196,11 +174,10 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_jacobian_scalar_qoi_endpoint(self):
+    def test_jacobian_scalar_qoi_endpoint(self, bkd):
         """Jacobian with EndpointFunctional (scalar QoI) passes DerivativeChecker."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -218,7 +195,7 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
             functional=functional,
             parameterization=param,
         )
-        self.assertEqual(forward_model.nqoi(), 1)
+        assert forward_model.nqoi() == 1
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
@@ -231,11 +208,10 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_scalar_qoi_matches_vector_qoi_row(self):
+    def test_scalar_qoi_matches_vector_qoi_row(self, bkd):
         """Scalar QoI Jacobian matches corresponding row of vector QoI Jacobian."""
-        bkd = self._bkd
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
@@ -268,17 +244,36 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
             jac_vector[state_idx : state_idx + 1, :], jac_scalar, rtol=1e-8
         )
 
-    def test_protocol_isinstance(self):
-        """Protocol isinstance checks with parameterization path."""
-        bkd = self._bkd
+    def test_torch_autograd_jacobian(self, torch_bkd):
+        """Torch autograd.functional.jacobian matches fwd.jacobian."""
+        import torch
+
+        bkd = torch_bkd
         physics, param, init_state, tc = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
         fwd = TransientForwardModel(
             physics, bkd, init_state, tc, parameterization=param
         )
-        self.assertTrue(isinstance(fwd, FunctionProtocol))
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        sample = torch.tensor([0.3, 0.1], dtype=torch.float64)
+
+        def fwd_call(p):
+            return fwd(p[:, None])[:, 0]
+
+        autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
+        analytical_jac = fwd.jacobian(sample[:, None])
+        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
+
+    def test_protocol_isinstance(self, bkd):
+        """Protocol isinstance checks with parameterization path."""
+        physics, param, init_state, tc = (
+            _create_parameterized_transient_diffusion_problem(bkd)
+        )
+        fwd = TransientForwardModel(
+            physics, bkd, init_state, tc, parameterization=param
+        )
+        assert isinstance(fwd, FunctionProtocol)
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
 
 def _create_robin_transient_problem(bkd, npts=15):
@@ -412,20 +407,10 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
     return physics, param, init_state, time_config
 
 
-class TestTransientRobinBC(Generic[Array], unittest.TestCase):
+class TestTransientRobinBC:
     """Tests for transient forward model with Robin BCs on both boundaries."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_vector_qoi_derivative_checker(self):
+    def test_vector_qoi_derivative_checker(self, bkd):
         """Forward sensitivity Jacobian passes DerivativeChecker with Robin BCs."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_robin_transient_problem(bkd)
 
         forward_model = TransientForwardModel(
@@ -443,11 +428,10 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_scalar_qoi_adjoint_derivative_checker(self):
+    def test_scalar_qoi_adjoint_derivative_checker(self, bkd):
         """Adjoint gradient passes DerivativeChecker with Robin BCs."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_robin_transient_problem(bkd)
         nstates = physics.nstates()
         nparams = param.nparams()
@@ -463,7 +447,7 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
             functional=functional,
             parameterization=param,
         )
-        self.assertEqual(forward_model.nqoi(), 1)
+        assert forward_model.nqoi() == 1
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
@@ -476,11 +460,10 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_scalar_matches_vector_row(self):
+    def test_scalar_matches_vector_row(self, bkd):
         """Scalar QoI adjoint Jacobian matches vector QoI forward sensitivity row."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_robin_transient_problem(bkd)
         nstates = physics.nstates()
         nparams = param.nparams()
@@ -509,20 +492,10 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
         )
 
 
-class TestTransientMixedBC(Generic[Array], unittest.TestCase):
+class TestTransientMixedBC:
     """Tests for transient forward model with mixed Robin + Dirichlet BCs."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_vector_qoi_derivative_checker(self):
+    def test_vector_qoi_derivative_checker(self, bkd):
         """Forward sensitivity Jacobian passes DerivativeChecker with mixed BCs."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_mixed_bc_transient_problem(bkd)
 
         forward_model = TransientForwardModel(
@@ -540,11 +513,10 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_scalar_qoi_adjoint_derivative_checker(self):
+    def test_scalar_qoi_adjoint_derivative_checker(self, bkd):
         """Adjoint gradient passes DerivativeChecker with mixed BCs."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_mixed_bc_transient_problem(bkd)
         nstates = physics.nstates()
         nparams = param.nparams()
@@ -560,7 +532,7 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
             functional=functional,
             parameterization=param,
         )
-        self.assertEqual(forward_model.nqoi(), 1)
+        assert forward_model.nqoi() == 1
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
@@ -573,11 +545,10 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        self.assertLessEqual(float(bkd.min(errors) / bkd.max(errors)), 1e-5)
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
 
-    def test_scalar_matches_vector_row(self):
+    def test_scalar_matches_vector_row(self, bkd):
         """Scalar QoI adjoint Jacobian matches vector QoI forward sensitivity row."""
-        bkd = self._bkd
         physics, param, init_state, tc = _create_mixed_bc_transient_problem(bkd)
         nstates = physics.nstates()
         nparams = param.nparams()
@@ -604,61 +575,3 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(
             jac_vector[state_idx : state_idx + 1, :], jac_scalar, rtol=1e-8
         )
-
-
-class TestTransientForwardModelNumpy(TestTransientForwardModel[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientForwardModelTorch(TestTransientForwardModel[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    def test_torch_autograd_jacobian(self):
-        """Torch autograd.functional.jacobian matches fwd.jacobian."""
-        bkd = self._bkd
-        physics, param, init_state, tc = (
-            _create_parameterized_transient_diffusion_problem(bkd)
-        )
-        fwd = TransientForwardModel(
-            physics, bkd, init_state, tc, parameterization=param
-        )
-        sample = torch.tensor([0.3, 0.1], dtype=torch.float64)
-
-        def fwd_call(p):
-            return fwd(p[:, None])[:, 0]
-
-        autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
-        analytical_jac = fwd.jacobian(sample[:, None])
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
-
-
-class TestTransientRobinBCNumpy(TestTransientRobinBC[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientRobinBCTorch(TestTransientRobinBC[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestTransientMixedBCNumpy(TestTransientMixedBC[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientMixedBCTorch(TestTransientMixedBC[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)

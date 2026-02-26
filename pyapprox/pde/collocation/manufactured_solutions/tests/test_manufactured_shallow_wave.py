@@ -26,13 +26,12 @@ For steady state (du/dt = 0), the physics gives:
 This matches the manufactured solution forcing, so no sign negation is needed.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
+
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -46,12 +45,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import ShallowWavePhysics
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -97,17 +90,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
+class TestManufacturedShallowWave1D:
     """Test 1D Shallow Wave physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_shallow_wave_residual(self):
+    def test_steady_shallow_wave_residual(self, bkd):
         """Test steady shallow wave residual with manufactured solution."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -178,9 +165,8 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_steady_shallow_wave_jacobian(self):
+    def test_steady_shallow_wave_jacobian(self, bkd):
         """Test Shallow Wave Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -209,11 +195,10 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_flat_bed(self):
+    def test_flat_bed(self, bkd):
         """Test with flat bed topography."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -274,9 +259,8 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
-    def test_quiescent_state(self):
+    def test_quiescent_state(self, bkd):
         """Test quiescent state: h + b = const, u = 0 gives zero residual."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -299,13 +283,10 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(residual, bkd.zeros_like(residual), atol=1e-10)
 
 
-class TestShallowWave1DParameterized(ParametrizedTestCase):
+class TestShallowWave1DParameterized:
     """Parameterized 1D Shallow Wave residual tests."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,depth_str,mom_str,bed_str,npts",
         [
             ("quadratic_sloped", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.1*x", 20),
@@ -322,10 +303,9 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         ],
     )
     def test_shallow_wave_1d_momentum_residual(
-        self, name, depth_str, mom_str, bed_str, npts
+        self, bkd, name, depth_str, mom_str, bed_str, npts
     ):
         """Test 1D Shallow Wave momentum residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -387,7 +367,7 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
             atol=1e-7,
         )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,depth_str,mom_str,bed_str,npts",
         [
             ("jacobian_basic", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.1*x", 12),
@@ -401,9 +381,8 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
             ),
         ],
     )
-    def test_shallow_wave_1d_jacobian(self, name, depth_str, mom_str, bed_str, npts):
+    def test_shallow_wave_1d_jacobian(self, bkd, name, depth_str, mom_str, bed_str, npts):
         """Test 1D Shallow Wave Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -431,31 +410,7 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
 
 # Concrete backend implementations
-class TestManufacturedShallowWave1DNumpy(TestManufacturedShallowWave1D[NDArray[Any]]):
-    """NumPy backend tests for 1D Shallow Wave."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedShallowWave1DTorch(TestManufacturedShallowWave1D[torch.Tensor]):
-    """PyTorch backend tests for 1D Shallow Wave."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -22,12 +22,11 @@ The ShallowShelfVelocityPhysics computes residual as:
 For the exact manufactured solution with correct forcing, residual = 0.
 """
 
-import unittest
+import pytest
 from typing import Any, Generic
 
 import torch
 from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -43,7 +42,7 @@ from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -91,17 +90,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
+class TestManufacturedShallowShelf2D:
     """Test 2D Shallow Shelf physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_shallow_shelf_residual(self):
+    def test_steady_shallow_shelf_residual(self, bkd):
         """Test steady shallow shelf residual with manufactured solution."""
-        bkd = self.bkd()
         npts_1d = 40  # Need many points for nonlinear SSA
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -165,11 +158,10 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
 
         # Residual should be very small (spectral discretization error only)
         res_norm = float(bkd.norm(residual))
-        self.assertLess(res_norm, 1e-6, f"Residual norm {res_norm:.4e} too large")
+        assert res_norm < 1e-6
 
-    def test_steady_shallow_shelf_jacobian(self):
+    def test_steady_shallow_shelf_jacobian(self, bkd):
         """Test Shallow Shelf Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts_1d = 6  # Smaller for Jacobian test
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -220,11 +212,10 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(exact_state.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_sloped_bed(self):
+    def test_sloped_bed(self, bkd):
         """Test with sloped bed topography."""
-        bkd = self.bkd()
         npts_1d = 40
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
@@ -273,16 +264,16 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         residual = physics.residual(exact_state, time=0.0)
 
         res_norm = float(bkd.norm(residual))
-        self.assertLess(res_norm, 1e-6, f"Residual norm {res_norm:.4e} too large")
+        assert res_norm < 1e-6
 
 
-class TestShallowShelf2DParameterized(ParametrizedTestCase):
+class TestShallowShelf2DParameterized:
     """Parameterized 2D Shallow Shelf residual tests."""
 
     def bkd(self):
         return NumpyBkd()
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,u_str,v_str,bed_str,depth_str,friction_str,npts_1d",
         [
             ("quadratic_flat", "x**2 + y", "x + y**2", "0.0", "1.0", "1.0", 40),
@@ -294,10 +285,9 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
     )
     @slow_test
     def test_shallow_shelf_2d_residual(
-        self, name, u_str, v_str, bed_str, depth_str, friction_str, npts_1d
+        self, bkd, name, u_str, v_str, bed_str, depth_str, friction_str, npts_1d
     ):
         """Test 2D Shallow Shelf residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -349,13 +339,11 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
         forcing_norm = float(bkd.norm(forcing))
         if forcing_norm > 1e-10:
             rel_residual = res_norm / forcing_norm
-            self.assertLess(
-                rel_residual, 1e-5, f"Relative residual {rel_residual:.4e} too large"
-            )
+            assert rel_residual < 1e-5
         else:
-            self.assertLess(res_norm, 1e-6, f"Residual norm {res_norm:.4e} too large")
+            assert res_norm < 1e-6
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,u_str,v_str,npts_1d",
         [
             ("jacobian_quadratic", "x**2 + y", "x + y**2", 6),
@@ -363,9 +351,8 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
             ("jacobian_cubic", "x**3 + y", "x + y**3", 7),
         ],
     )
-    def test_shallow_shelf_2d_jacobian(self, name, u_str, v_str, npts_1d):
+    def test_shallow_shelf_2d_jacobian(self, bkd, name, u_str, v_str, npts_1d):
         """Test 2D Shallow Shelf Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -413,31 +400,7 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(exact_state.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
 
 # Concrete backend implementations
-class TestManufacturedShallowShelf2DNumpy(TestManufacturedShallowShelf2D[NDArray[Any]]):
-    """NumPy backend tests for 2D Shallow Shelf."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedShallowShelf2DTorch(TestManufacturedShallowShelf2D[torch.Tensor]):
-    """PyTorch backend tests for 2D Shallow Shelf."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

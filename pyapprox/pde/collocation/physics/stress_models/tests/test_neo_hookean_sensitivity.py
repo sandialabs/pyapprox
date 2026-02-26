@@ -6,7 +6,6 @@ Verifies dP/dmu and dP/dlambda in 2D via:
 3. Consistency with 1D methods for diagonal F
 """
 
-import unittest
 from typing import Any, Generic
 
 import numpy as np
@@ -22,9 +21,6 @@ from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class _StressOfMu(Generic[Array]):
     """Wraps P(F; mu) as function of scalar mu for DerivativeChecker.
 
@@ -159,23 +155,16 @@ class _StressOfLamda(Generic[Array]):
         return bkd.concatenate(list(dP)).reshape(-1, 1)
 
 
-class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
+class TestNeoHookeanSensitivity2D:
     """Test NeoHookean 2D material parameter sensitivities."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
+    def setup_method(self):
         self._lamda = 2.0
         self._mu = 1.5
         self._stress_model = NeoHookeanStress(self._lamda, self._mu)
 
-    def _random_F_near_identity(self, npts, seed=42):
+    def _random_F_near_identity(self, bkd, npts, seed=42) :
         """Generate F components near identity (small deformation)."""
-        bkd = self._bkd
         np.random.seed(seed)
         eps = 0.1
         F11 = bkd.asarray(1.0 + eps * np.random.randn(npts))
@@ -184,33 +173,30 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
         F22 = bkd.asarray(1.0 + eps * np.random.randn(npts))
         return F11, F12, F21, F22
 
-    def test_stress_sensitivity_mu_2d(self):
+    def test_stress_sensitivity_mu_2d(self, bkd):
         """DerivativeChecker validates dP/dmu for all 4 stress components."""
-        bkd = self._bkd
         npts = 10
-        F11, F12, F21, F22 = self._random_F_near_identity(npts)
+        F11, F12, F21, F22 = self._random_F_near_identity(bkd, npts)
 
         wrapper = _StressOfMu(self._lamda, F11, F12, F21, F22, bkd)
         checker = DerivativeChecker(wrapper)
         sample = bkd.asarray([[self._mu]])
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_stress_sensitivity_lamda_2d(self):
+    def test_stress_sensitivity_lamda_2d(self, bkd):
         """DerivativeChecker validates dP/dlambda for all 4 stress components."""
-        bkd = self._bkd
         npts = 10
-        F11, F12, F21, F22 = self._random_F_near_identity(npts)
+        F11, F12, F21, F22 = self._random_F_near_identity(bkd, npts)
 
         wrapper = _StressOfLamda(self._mu, F11, F12, F21, F22, bkd)
         checker = DerivativeChecker(wrapper)
         sample = bkd.asarray([[self._lamda]])
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_sensitivity_mu_2d_identity(self):
+    def test_sensitivity_mu_2d_identity(self, bkd):
         """At F=I (no deformation), dP/dmu = F - F^{-T} = I - I = 0."""
-        bkd = self._bkd
         npts = 5
         F11 = bkd.ones((npts,))
         F12 = bkd.zeros((npts,))
@@ -227,9 +213,8 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(dP21, zeros, atol=1e-14)
         bkd.assert_allclose(dP22, zeros, atol=1e-14)
 
-    def test_sensitivity_lamda_2d_identity(self):
+    def test_sensitivity_lamda_2d_identity(self, bkd):
         """At F=I, J=1 so ln(J)=0, thus dP/dlam = 0."""
-        bkd = self._bkd
         npts = 5
         F11 = bkd.ones((npts,))
         F12 = bkd.zeros((npts,))
@@ -246,9 +231,8 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(dP21, zeros, atol=1e-14)
         bkd.assert_allclose(dP22, zeros, atol=1e-14)
 
-    def test_consistency_1d_2d(self):
+    def test_consistency_1d_2d(self, bkd):
         """Diagonal F (F12=F21=0) matches 1D sensitivity for (1,1) component."""
-        bkd = self._bkd
         npts = 8
         np.random.seed(99)
         F_vals = bkd.asarray(1.0 + 0.2 * np.random.randn(npts))
@@ -268,21 +252,3 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(dP_mu[0], dP_dmu_1d, rtol=1e-12)
         bkd.assert_allclose(dP_lam[0], dP_dlam_1d, rtol=1e-12)
-
-
-class TestNeoHookeanSensitivity2DNumpy(TestNeoHookeanSensitivity2D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestNeoHookeanSensitivity2DTorch(TestNeoHookeanSensitivity2D[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()

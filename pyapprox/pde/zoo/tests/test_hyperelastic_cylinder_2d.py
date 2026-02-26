@@ -9,12 +9,9 @@ Verifies:
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
+from pyapprox.util.backends.protocols import Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -53,10 +50,7 @@ from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 # ======================================================================
 # Helpers
@@ -124,24 +118,14 @@ def _make_outer_wall_functional(bkd, mesh, npts, nparams):
 
 
 @slow_test
-class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
+class TestHyperelasticCylinder2D:
     """Tests for 2D hyperelastic pressurized cylinder."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
     # ------------------------------------------------------------------
     # Manufactured solution with all-Dirichlet BCs (baseline)
     # ------------------------------------------------------------------
 
-    def test_manufactured_all_dirichlet(self):
+    def test_manufactured_all_dirichlet(self, bkd):
         """Manufactured hyperelastic solution with all-Dirichlet BCs."""
-        bkd = self._bkd
         npts_r, npts_theta = 12, 12
         r_inner, r_outer = 1.0, 2.0
         lamda_val, mu_val = 1.0, 1.0
@@ -206,9 +190,8 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
     # Manufactured solution with mixed BCs
     # ------------------------------------------------------------------
 
-    def test_manufactured_mixed_bcs(self):
+    def test_manufactured_mixed_bcs(self, bkd):
         """Manufactured hyperelastic solution with cylinder-style BCs."""
-        bkd = self._bkd
         npts_r, npts_theta = 12, 12
         r_inner, r_outer = 1.0, 2.5
         lamda_val, mu_val = 1.5, 0.8
@@ -361,9 +344,8 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
     # Small pressure: hyperelastic ≈ linear
     # ------------------------------------------------------------------
 
-    def test_small_pressure_matches_linear(self):
+    def test_small_pressure_matches_linear(self, bkd):
         """Low pressure: hyperelastic QoI matches linear QoI."""
-        bkd = self._bkd
         npts_r, npts_theta = 10, 10
         r_inner, r_outer = 1.0, 2.0
         E_mean = 1.0
@@ -429,9 +411,8 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
     # Parameter Jacobian via DerivativeChecker
     # ------------------------------------------------------------------
 
-    def test_param_jacobian(self):
+    def test_param_jacobian(self, bkd):
         """DerivativeChecker on KLE-parameterized hyperelastic cylinder."""
-        bkd = self._bkd
         npts_r, npts_theta = 8, 8
         r_inner, r_outer = 1.0, 2.0
         E_mean = 1.0
@@ -460,7 +441,7 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
@@ -473,15 +454,14 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.1, -0.1])[:, None]
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
     # ------------------------------------------------------------------
     # Factory produces valid model
     # ------------------------------------------------------------------
 
-    def test_factory_produces_valid_model(self):
+    def test_factory_produces_valid_model(self, bkd):
         """Zoo factory returns valid SteadyForwardModel with correct shapes."""
-        bkd = self._bkd
         npts_r, npts_theta = 6, 6
         r_inner, r_outer = 1.0, 2.0
         num_kle_terms = 2
@@ -507,31 +487,20 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
         npts = npts_r * npts_theta
-        self.assertEqual(fwd.nvars(), num_kle_terms)
-        self.assertEqual(fwd.nqoi(), 2 * npts)
+        assert fwd.nvars() == num_kle_terms
+        assert fwd.nqoi() == 2 * npts
 
         sample = bkd.zeros((num_kle_terms, 1))
         result = fwd(sample)
-        self.assertEqual(result.shape, (2 * npts, 1))
+        assert result.shape == (2 * npts, 1)
 
         jac = fwd.jacobian(sample)
-        self.assertEqual(jac.shape, (2 * npts, num_kle_terms))
+        assert jac.shape == (2 * npts, num_kle_terms)
 
 
 # ======================================================================
 # Backend-specific test classes
 # ======================================================================
-
-
-class TestHyperelasticCylinder2DNumpy(TestHyperelasticCylinder2D[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestHyperelasticCylinder2DTorch(TestHyperelasticCylinder2D[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

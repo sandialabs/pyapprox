@@ -5,11 +5,7 @@ verifying that the numerical solution matches the exact solution.
 """
 
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -46,21 +42,10 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
+class TestGradientNeumannSolve:
     """Integration tests for gradient Neumann BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_1d_gradient_neumann_solve(self):
+    def test_1d_gradient_neumann_solve(self, bkd):
         """1D diffusion: Neumann left, Dirichlet right.
 
         u = x^2 + x, D = 1
@@ -68,7 +53,6 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
         At x=-1: grad(u).n = (2*(-1)+1)*(-1) = 1
         At x=+1: u = 2 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -114,13 +98,12 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_2d_gradient_neumann_solve(self):
+    def test_2d_gradient_neumann_solve(self, bkd):
         """2D diffusion: Neumann on left, Dirichlet on other 3 sides.
 
         u = (1 - x^2)*y, D = 1
         At x=-1: du/dx = -2x*y = 2y at x=-1, grad(u).n = 2y*(-1) = -2y
         """
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         tmesh = TransformedMesh2D(npts_x, npts_y, bkd)
         basis = ChebyshevBasis2D(tmesh, bkd)
@@ -177,15 +160,10 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-9)
 
 
-class TestGradientRobinSolve(Generic[Array], unittest.TestCase):
+class TestGradientRobinSolve:
     """Integration tests for gradient Robin BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_1d_gradient_robin_solve(self):
+    def test_1d_gradient_robin_solve(self, bkd):
         """1D diffusion: Robin left, Dirichlet right.
 
         u = x^2 + 2x + 1, D = 1
@@ -193,7 +171,6 @@ class TestGradientRobinSolve(Generic[Array], unittest.TestCase):
         At x=-1: u=0, du/dx=0, grad(u).n=0*(-1)=0, g=1*0+1*0=0
         At x=+1: u=4 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -250,15 +227,10 @@ class TestGradientRobinSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
 
-class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
+class TestFluxNeumannSolve:
     """Integration tests for flux Neumann BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_1d_flux_neumann_solve(self):
+    def test_1d_flux_neumann_solve(self, bkd):
         """1D diffusion: flux Neumann left, Dirichlet right.
 
         u = x^2, D = 2
@@ -266,7 +238,6 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
         At x=-1: flux = 4, flux.n = 4*(-1) = -4
         At x=+1: u = 1 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -310,7 +281,7 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_1d_flux_neumann_with_velocity(self):
+    def test_1d_flux_neumann_with_velocity(self, bkd):
         """1D ADR: flux Neumann left, Dirichlet right.
 
         u = x^2, D = 1, v = 2
@@ -318,7 +289,6 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
         At x=-1: flux = 2 + 2 = 4, flux.n = 4*(-1) = -4
         At x=+1: u = 1 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -365,15 +335,10 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
 
-class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
+class TestFluxRobinSolve:
     """Integration tests for flux Robin BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_1d_flux_robin_solve(self):
+    def test_1d_flux_robin_solve(self, bkd):
         """1D diffusion: flux Robin left, Dirichlet right.
 
         u = x^2 + x, D = 1
@@ -383,7 +348,6 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
         g = 2*0 + 1*(-1) = -1
         At x=+1: u=2 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -433,7 +397,7 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_1d_flux_robin_with_velocity(self):
+    def test_1d_flux_robin_with_velocity(self, bkd):
         """1D ADR: flux Robin left, Dirichlet right.
 
         u = x^2, D = 1, v = 3
@@ -443,7 +407,6 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
         g = 1*1 + 1*(-5) = -4
         At x=+1: u=1 (Dirichlet)
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -496,17 +459,11 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
 
-class TestMixedBCSolve(Generic[Array], unittest.TestCase):
+class TestMixedBCSolve:
     """Integration tests for mixed Dirichlet + Robin/Neumann BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _dirichlet_bcs_on_sides(self, tmesh, u_exact, sides):
+    def _dirichlet_bcs_on_sides(self, bkd, tmesh, u_exact, sides) :
         """Create Dirichlet BCs from exact solution on given sides."""
-        bkd = self.bkd()
         bcs = []
         for side in sides:
             idx = tmesh.boundary_indices(side)
@@ -514,9 +471,8 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
             bcs.append(DirichletBC(bkd, idx, lambda t, v=vals: v))
         return bcs
 
-    def _solve_2d_mixed_robin(self, convention, diffusion):
+    def _solve_2d_mixed_robin(self, bkd, convention, diffusion) :
         """Solve 2D diffusion with Robin on left, Dirichlet on other 3."""
-        bkd = self.bkd()
         npts = 12
         tmesh = TransformedMesh2D(npts, npts, bkd)
         basis = ChebyshevBasis2D(tmesh, bkd)
@@ -577,7 +533,7 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
                 robin_val,
             )
 
-        bcs = [bc_left] + self._dirichlet_bcs_on_sides(tmesh, u_exact, [1, 2, 3])
+        bcs = [bc_left] + self._dirichlet_bcs_on_sides(bkd, tmesh, u_exact, [1, 2, 3])
         physics.set_boundary_conditions(bcs)
 
         model = CollocationModel(physics, bkd)
@@ -588,17 +544,16 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
-    def test_mixed_dirichlet_gradient_robin(self):
+    def test_mixed_dirichlet_gradient_robin(self, bkd):
         """2D: 3 Dirichlet + 1 gradient Robin, D=1, reaction=u."""
-        self._solve_2d_mixed_robin("gradient", 1.0)
+        self._solve_2d_mixed_robin(bkd, "gradient", 1.0)
 
-    def test_mixed_dirichlet_flux_robin(self):
+    def test_mixed_dirichlet_flux_robin(self, bkd):
         """2D: 3 Dirichlet + 1 flux Robin, D=2, reaction=u."""
-        self._solve_2d_mixed_robin("flux", 2.0)
+        self._solve_2d_mixed_robin(bkd, "flux", 2.0)
 
-    def test_variable_diffusion_flux_neumann(self):
+    def test_variable_diffusion_flux_neumann(self, bkd):
         """1D with D(x) = 1+x^2, flux Neumann left, Dirichlet right."""
-        bkd = self.bkd()
         npts = 15
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -658,20 +613,14 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-9)
 
 
-class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
+class TestTransientRobinSolve:
     """Integration tests for time-dependent Robin BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _solve_1d_transient_robin(self, convention, diffusion, velocity_val):
+    def _solve_1d_transient_robin(self, convention, diffusion, velocity_val, bkd):
         """Solve 1D transient with Robin left, Dirichlet right.
 
         u = (x^2+1)*(1+T), linear in time => backward Euler exact.
         """
-        bkd = self.bkd()
         npts = 15
         tmesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(tmesh, bkd)
@@ -756,30 +705,24 @@ class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
         u_exact_final = man_sol.functions["solution"](pts, t_final)
         bkd.assert_allclose(solutions[:, -1], u_exact_final, atol=1e-8)
 
-    def test_transient_gradient_robin(self):
+    def test_transient_gradient_robin(self, bkd):
         """1D transient gradient Robin, D=1, no velocity."""
-        self._solve_1d_transient_robin("gradient", 1.0, 0)
+        self._solve_1d_transient_robin("gradient", 1.0, 0, bkd)
 
-    def test_transient_flux_robin(self):
+    def test_transient_flux_robin(self, bkd):
         """1D transient flux Robin, D=2, v=1."""
-        self._solve_1d_transient_robin("flux", 2.0, 1)
+        self._solve_1d_transient_robin("flux", 2.0, 1, bkd)
 
 
-class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
+class TestCurvilinearRobinSolve:
     """Integration tests for Robin BCs on curvilinear meshes."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_polar_gradient_robin_solve(self):
+    def test_polar_gradient_robin_solve(self, bkd):
         """Polar domain r in [1,2], theta in [-pi/2,pi/2].
 
         u = x^2*y^2, D=1, reaction=u.
         Robin on r_min (varying normals), Dirichlet on other 3 sides.
         """
-        bkd = self.bkd()
         npts = 25
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
@@ -852,22 +795,16 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
 
 
-class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
+class TestElasticityTractionBC:
     """Integration tests for elasticity traction Robin/Neumann BCs."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _setup_elasticity_problem(self):
+    def _setup_elasticity_problem(self, bkd):
         """Set up 2D elasticity problem with solution nonzero on left boundary.
 
         Solution: u = [x^2*(1-y^2), x*y*(1-y^2)]
         At x=-1 (left): u_x = 1-y^2, u_y = -y*(1-y^2) -- nonzero
         At y=+/-1 (top/bottom): u = 0 -- simplifies Dirichlet
         """
-        bkd = self.bkd()
         npts = 10
         tmesh = TransformedMesh2D(npts, npts, bkd)
         basis = ChebyshevBasis2D(tmesh, bkd)
@@ -912,9 +849,8 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
             "D_list": [Dx, Dy],
         }
 
-    def _dirichlet_bcs_for_elasticity(self, umesh, u_exact_flat, npts, sides):
+    def _dirichlet_bcs_for_elasticity(self, bkd, umesh, u_exact_flat, npts, sides) :
         """Create Dirichlet BCs for both components on given sides."""
-        bkd = self.bkd()
         bcs = []
         for side in sides:
             boundary_idx = umesh.boundary_indices(side)
@@ -927,14 +863,13 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
             bcs.append(DirichletBC(bkd, boundary_idx_v, vals_v))
         return bcs
 
-    def test_elasticity_traction_neumann(self):
+    def test_elasticity_traction_neumann(self, bkd):
         """Traction Neumann on left, Dirichlet on other 3 sides.
 
         Tests pure traction (alpha=0, beta=1) with nonzero displacement
         at the Robin boundary.
         """
-        s = self._setup_elasticity_problem()
-        bkd = s["bkd"]
+        s = self._setup_elasticity_problem(bkd)
 
         left_idx = s["umesh"].boundary_indices(0)
         left_normals = s["tmesh"].boundary_normals(0)
@@ -968,7 +903,7 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         )
 
         # Dirichlet on sides 1, 2, 3
-        bcs = [bc_tx, bc_ty] + self._dirichlet_bcs_for_elasticity(
+        bcs = [bc_tx, bc_ty] + self._dirichlet_bcs_for_elasticity(bkd,
             s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
         )
         s["physics"].set_boundary_conditions(bcs)
@@ -979,13 +914,12 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(u_numerical, s["u_exact_flat"], atol=1e-8)
 
-    def test_elasticity_traction_robin(self):
+    def test_elasticity_traction_robin(self, bkd):
         """Traction Robin (alpha=1, beta=1) on left, Dirichlet on other 3.
 
         Tests full Robin with nonzero alpha*u contribution at boundary.
         """
-        s = self._setup_elasticity_problem()
-        bkd = s["bkd"]
+        s = self._setup_elasticity_problem(bkd)
 
         alpha, beta = 1.0, 1.0
         left_idx = s["umesh"].boundary_indices(0)
@@ -1024,7 +958,7 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         )
 
         # Dirichlet on sides 1, 2, 3
-        bcs = [bc_rx, bc_ry] + self._dirichlet_bcs_for_elasticity(
+        bcs = [bc_rx, bc_ry] + self._dirichlet_bcs_for_elasticity(bkd,
             s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
         )
         s["physics"].set_boundary_conditions(bcs)
@@ -1037,150 +971,4 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
 
 
 # NumPy backend
-class TestGradientNeumannSolveNumpy(TestGradientNeumannSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGradientRobinSolveNumpy(TestGradientRobinSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFluxNeumannSolveNumpy(TestFluxNeumannSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFluxRobinSolveNumpy(TestFluxRobinSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestMixedBCSolveNumpy(TestMixedBCSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientRobinSolveNumpy(TestTransientRobinSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestCurvilinearRobinSolveNumpy(TestCurvilinearRobinSolve[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestElasticityTractionBCNumpy(TestElasticityTractionBC[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # Torch backend
-class TestGradientNeumannSolveTorch(TestGradientNeumannSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestGradientRobinSolveTorch(TestGradientRobinSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestFluxNeumannSolveTorch(TestFluxNeumannSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestFluxRobinSolveTorch(TestFluxRobinSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestMixedBCSolveTorch(TestMixedBCSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestTransientRobinSolveTorch(TestTransientRobinSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestCurvilinearRobinSolveTorch(TestCurvilinearRobinSolve[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestElasticityTractionBCTorch(TestElasticityTractionBC[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

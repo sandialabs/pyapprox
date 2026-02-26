@@ -1,11 +1,7 @@
 """Tests for boundary conditions."""
 
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -26,23 +22,11 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestDirichletBC(Generic[Array], unittest.TestCase):
+class TestDirichletBC:
     """Base test class for Dirichlet boundary conditions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_dirichlet_constant(self):
+    def test_dirichlet_constant(self, bkd):
         """Test constant Dirichlet BC."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -59,7 +43,7 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
         residual = bc.apply_to_residual(residual, state, 0.0)
 
         # res[0] = u[0] - 2.0 = 1.0 - 2.0 = -1.0
-        self.assertAlmostEqual(float(residual[0]), -1.0, places=12)
+        assert abs(float(residual[0]) - -1.0) < 10**(-12)
 
         # Test Jacobian
         jacobian = bkd.zeros((npts, npts))
@@ -68,9 +52,8 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
         # Row 0 should be [1, 0, 0, 0, 0]
         bkd.assert_allclose(jacobian[0, :], bkd.eye(npts)[0, :], atol=1e-14)
 
-    def test_dirichlet_zero(self):
+    def test_dirichlet_zero(self, bkd):
         """Test zero Dirichlet BC."""
-        bkd = self.bkd()
         npts = 5
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
@@ -82,11 +65,10 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
         residual = bc.apply_to_residual(residual, state, 0.0)
 
         # res[0] = u[0] - 0 = 3.0
-        self.assertAlmostEqual(float(residual[0]), 3.0, places=12)
+        assert abs(float(residual[0]) - 3.0) < 10**(-12)
 
-    def test_dirichlet_time_dependent(self):
+    def test_dirichlet_time_dependent(self, bkd):
         """Test time-dependent Dirichlet BC."""
-        bkd = self.bkd()
         npts = 5
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
@@ -103,25 +85,19 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
 
         # At t=0: g(0) = 1, res = 0 - 1 = -1
         residual = bc.apply_to_residual(residual, state, 0.0)
-        self.assertAlmostEqual(float(residual[0]), -1.0, places=12)
+        assert abs(float(residual[0]) - -1.0) < 10**(-12)
 
         # At t=2: g(2) = 3, res = 0 - 3 = -3
         residual = bkd.zeros((npts,))
         residual = bc.apply_to_residual(residual, state, 2.0)
-        self.assertAlmostEqual(float(residual[0]), -3.0, places=12)
+        assert abs(float(residual[0]) - -3.0) < 10**(-12)
 
 
-class TestNeumannBC(Generic[Array], unittest.TestCase):
+class TestNeumannBC:
     """Base test class for Neumann boundary conditions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_neumann_zero(self):
+    def test_neumann_zero(self, bkd):
         """Test zero Neumann BC (du/dn = 0)."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -145,11 +121,10 @@ class TestNeumannBC(Generic[Array], unittest.TestCase):
         # res[0] = -1 * (D @ u)[0] - 0 = -1 * 1 = -1
         # (since du/dx = 1 for u = x)
         expected_flux = float(-1.0 * (D_bndry @ state)[0])
-        self.assertAlmostEqual(float(residual[0]), expected_flux, places=10)
+        assert abs(float(residual[0]) - expected_flux) < 10**(-10)
 
-    def test_neumann_jacobian(self):
+    def test_neumann_jacobian(self, bkd):
         """Test Neumann BC Jacobian."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -171,17 +146,11 @@ class TestNeumannBC(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jacobian[0, :], expected_row, atol=1e-12)
 
 
-class TestRobinBC(Generic[Array], unittest.TestCase):
+class TestRobinBC:
     """Base test class for Robin boundary conditions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_robin_reduces_to_dirichlet(self):
+    def test_robin_reduces_to_dirichlet(self, bkd):
         """Test Robin BC with alpha=1, beta=0 reduces to Dirichlet."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -213,9 +182,8 @@ class TestRobinBC(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(jac_robin, jac_dirichlet, atol=1e-14)
 
-    def test_robin_homogeneous(self):
+    def test_robin_homogeneous(self, bkd):
         """Test homogeneous Robin BC."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -236,20 +204,14 @@ class TestRobinBC(Generic[Array], unittest.TestCase):
         # res = 1 * u[0] + 1 * (-1 * (D @ u)[0]) - 0
         flux = -1.0 * float((D_bndry @ state)[0])
         expected = 1.0 * state[0] + 1.0 * flux
-        self.assertAlmostEqual(float(residual[0]), expected, places=10)
+        assert abs(float(residual[0]) - expected) < 10**(-10)
 
 
-class TestPeriodicBC(Generic[Array], unittest.TestCase):
+class TestPeriodicBC:
     """Base test class for periodic boundary conditions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_periodic_residual(self):
+    def test_periodic_residual(self, bkd):
         """Test periodic BC residual: value and derivative matching."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -268,16 +230,15 @@ class TestPeriodicBC(Generic[Array], unittest.TestCase):
         residual = bc.apply_to_residual(residual, state, 0.0)
 
         # Value matching: res[0] = u[0] - u[4] = 0 - 4 = -4
-        self.assertAlmostEqual(float(residual[0]), -4.0, places=12)
+        assert abs(float(residual[0]) - -4.0) < 10**(-12)
 
         # Derivative matching: res[4] = D[0,:] @ u - D[4,:] @ u
         du_left = float(bkd.dot(D[0, :], state))
         du_right = float(bkd.dot(D[4, :], state))
-        self.assertAlmostEqual(float(residual[4]), du_left - du_right, places=12)
+        assert abs(float(residual[4]) - (du_left - du_right)) < 10**(-12)
 
-    def test_periodic_jacobian(self):
+    def test_periodic_jacobian(self, bkd):
         """Test periodic BC Jacobian: value and derivative rows."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -305,17 +266,11 @@ class TestPeriodicBC(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jacobian[4, :], expected_deriv, atol=1e-14)
 
 
-class TestGradientRobinBC(Generic[Array], unittest.TestCase):
+class TestGradientRobinBC:
     """Base test class for gradient_robin_bc and gradient_neumann_bc."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_gradient_robin_1d_residual(self):
+    def test_gradient_robin_1d_residual(self, bkd):
         """Test gradient Robin BC residual for u = x^2."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -342,9 +297,8 @@ class TestGradientRobinBC(Generic[Array], unittest.TestCase):
             bkd.reshape(residual[left_idx], (1,)), bkd.array([0.0]), atol=1e-10
         )
 
-    def test_gradient_robin_1d_jacobian(self):
+    def test_gradient_robin_1d_jacobian(self, bkd):
         """Test gradient Robin BC Jacobian via finite differences."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -379,10 +333,9 @@ class TestGradientRobinBC(Generic[Array], unittest.TestCase):
                 atol=1e-5,
             )
 
-    def test_gradient_robin_reduces_to_neumann(self):
+    def test_gradient_robin_reduces_to_neumann(self, bkd):
         """Test that gradient_robin_bc with alpha=0, beta=1 matches
         gradient_neumann_bc."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -412,116 +365,4 @@ class TestGradientRobinBC(Generic[Array], unittest.TestCase):
 
 
 # NumPy backend
-class TestDirichletBCNumpy(TestDirichletBC[NDArray[Any]]):
-    """NumPy backend tests for Dirichlet BC."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestNeumannBCNumpy(TestNeumannBC[NDArray[Any]]):
-    """NumPy backend tests for Neumann BC."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestRobinBCNumpy(TestRobinBC[NDArray[Any]]):
-    """NumPy backend tests for Robin BC."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPeriodicBCNumpy(TestPeriodicBC[NDArray[Any]]):
-    """NumPy backend tests for Periodic BC."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGradientRobinBCNumpy(TestGradientRobinBC[NDArray[Any]]):
-    """NumPy backend tests for gradient Robin BC."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # Torch backend
-class TestDirichletBCTorch(TestDirichletBC[torch.Tensor]):
-    """Torch backend tests for Dirichlet BC."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestNeumannBCTorch(TestNeumannBC[torch.Tensor]):
-    """Torch backend tests for Neumann BC."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestRobinBCTorch(TestRobinBC[torch.Tensor]):
-    """Torch backend tests for Robin BC."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestPeriodicBCTorch(TestPeriodicBC[torch.Tensor]):
-    """Torch backend tests for Periodic BC."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestGradientRobinBCTorch(TestGradientRobinBC[torch.Tensor]):
-    """Torch backend tests for gradient Robin BC."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

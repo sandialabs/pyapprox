@@ -4,9 +4,9 @@ Provides wrappers and base classes for testing physics with DerivativeChecker
 and NewtonSolver.
 """
 
-import unittest
 from typing import Generic
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -170,127 +170,56 @@ class PhysicsNewtonResidual(Generic[Array]):
         return self._bkd.solve(jacobian_bc, prev_residual)
 
 
-class PhysicsTestBase(Generic[Array], unittest.TestCase):
+class PhysicsTestBase:
     """Base class for physics tests with derivative checking utilities.
 
     Provides helper methods for testing physics implementations using
     DerivativeChecker.
 
-    Subclasses must implement `bkd()` method and set `__test__ = True`.
-
-    Examples
-    --------
-    >>> class TestMyPhysics(PhysicsTestBase):
-    ...     __test__ = True
-    ...     def bkd(self):
-    ...         return NumpyBkd()
-    ...
-    ...     def test_jacobian(self):
-    ...         physics = MyPhysics(basis, self.bkd())
-    ...         state = self.bkd().randn((physics.nstates(),))
-    ...         self.check_jacobian(physics, state)
+    Test methods receive ``bkd`` via pytest fixture injection.
     """
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend.
-
-        Subclasses must implement this method.
-        """
-        raise NotImplementedError
 
     def check_jacobian(
         self,
-        physics: AbstractPhysics[Array],
-        state: Array,
+        bkd,
+        physics: AbstractPhysics,
+        state,
         time: float = 0.0,
         atol: float = 1e-5,
     ) -> None:
-        """Verify physics Jacobian using DerivativeChecker.
-
-        Parameters
-        ----------
-        physics : AbstractPhysics[Array]
-            Physics to test.
-        state : Array
-            State at which to check Jacobian. Shape: (nstates,).
-        time : float
-            Time value.
-        atol : float
-            Absolute tolerance for derivative error.
-
-        Raises
-        ------
-        AssertionError
-            If minimum derivative error exceeds tolerance.
-        """
+        """Verify physics Jacobian using DerivativeChecker."""
         wrapper = PhysicsDerivativeWrapper(physics, time)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state[:, None])
-        min_error = float(self.bkd().min(errors[0]))
-        self.assertLess(
-            min_error,
-            atol,
-            f"Jacobian error {min_error:.2e} exceeds tolerance {atol:.2e}",
+        min_error = float(bkd.min(errors[0]))
+        assert min_error < atol, (
+            f"Jacobian error {min_error:.2e} exceeds tolerance {atol:.2e}"
         )
 
     def check_residual_zero(
         self,
-        physics: AbstractPhysics[Array],
-        exact_state: Array,
+        bkd,
+        physics: AbstractPhysics,
+        exact_state,
         time: float = 0.0,
         atol: float = 1e-10,
     ) -> None:
-        """Verify residual is zero at manufactured solution.
-
-        Parameters
-        ----------
-        physics : AbstractPhysics[Array]
-            Physics to test.
-        exact_state : Array
-            Exact solution. Shape: (nstates,).
-        time : float
-            Time value.
-        atol : float
-            Absolute tolerance for residual norm.
-
-        Raises
-        ------
-        AssertionError
-            If residual norm exceeds tolerance.
-        """
+        """Verify residual is zero at manufactured solution."""
         residual = physics.residual(exact_state, time)
-        norm = float(self.bkd().norm(residual))
-        self.assertLess(
-            norm,
-            atol,
-            f"Residual norm {norm:.2e} exceeds tolerance {atol:.2e}",
+        norm = float(bkd.norm(residual))
+        assert norm < atol, (
+            f"Residual norm {norm:.2e} exceeds tolerance {atol:.2e}"
         )
 
     def check_jacobian_at_boundary(
         self,
-        physics: AbstractPhysics[Array],
-        state: Array,
+        bkd,
+        physics: AbstractPhysics,
+        state,
         time: float = 0.0,
         atol: float = 1e-5,
     ) -> None:
-        """Verify Jacobian with boundary conditions applied.
-
-        Tests that Jacobian is consistent after applying boundary conditions.
-
-        Parameters
-        ----------
-        physics : AbstractPhysics[Array]
-            Physics with boundary conditions set.
-        state : Array
-            State at which to check Jacobian. Shape: (nstates,).
-        time : float
-            Time value.
-        atol : float
-            Absolute tolerance for derivative error.
-        """
-        bkd = self.bkd()
+        """Verify Jacobian with boundary conditions applied."""
         nstates = physics.nstates()
 
         # Compute analytical Jacobian with BCs

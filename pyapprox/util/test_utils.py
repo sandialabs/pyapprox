@@ -1,8 +1,5 @@
 """Shared test utilities."""
 
-import unittest
-from typing import Iterable, cast
-
 import pytest
 
 # Convenience aliases — apply the marker with "*" (all backends).
@@ -10,21 +7,6 @@ import pytest
 slow_test = pytest.mark.slow_on("*")
 slower_test = pytest.mark.slower_on("*")
 slowest_test = pytest.mark.slowest_on("*")
-
-
-# Kept during incremental migration — will be removed in Phase 13.
-def load_tests(
-    loader: unittest.TestLoader,
-    tests: unittest.TestSuite,
-    pattern: str | None,
-) -> unittest.TestSuite:
-    """Exclude base classes from unittest discovery."""
-    suite = unittest.TestSuite()
-    for group in cast(Iterable[Iterable[unittest.TestCase]], tests):
-        for test in group:
-            if test.__class__.__dict__.get("__test__", True):
-                suite.addTest(test)
-    return suite
 
 
 def allocate_with_allocator(est, target_cost: float):

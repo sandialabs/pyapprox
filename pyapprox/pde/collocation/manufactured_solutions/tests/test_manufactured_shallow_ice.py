@@ -21,13 +21,12 @@ For residual = 0: f must equal -div(D*grad(s)), which matches manufactured.
 No sign negation needed.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
+
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -41,12 +40,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import ShallowIcePhysics
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -92,17 +85,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
+class TestManufacturedShallowIce1D:
     """Test 1D Shallow Ice physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_shallow_ice_residual(self):
+    def test_steady_shallow_ice_residual(self, bkd):
         """Test steady Shallow Ice residual with manufactured solution."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -155,9 +142,8 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-6
         )
 
-    def test_steady_shallow_ice_jacobian(self):
+    def test_steady_shallow_ice_jacobian(self, bkd):
         """Test Shallow Ice Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -191,11 +177,10 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         # DerivativeChecker expects sample shape (nvars, 1)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_flat_bed(self):
+    def test_flat_bed(self, bkd):
         """Test with flat bed topography."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -245,13 +230,10 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         )
 
 
-class TestShallowIce1DParameterized(ParametrizedTestCase):
+class TestShallowIce1DParameterized:
     """Parameterized 1D Shallow Ice residual tests."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,bed_str,friction_str,npts",
         [
             ("quadratic_flat_bed", "2 + 0.5*(1 - x**2)", "0.0", "1.0", 20),
@@ -261,9 +243,8 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
             ("quartic_profile", "2 + 0.25*(1 - x**2)**2", "0.1*x", "1.0", 30),
         ],
     )
-    def test_shallow_ice_1d_residual(self, name, sol_str, bed_str, friction_str, npts):
+    def test_shallow_ice_1d_residual(self, bkd, name, sol_str, bed_str, friction_str, npts):
         """Test 1D Shallow Ice residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -320,7 +301,7 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
             atol=1e-4,
         )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,bed_str,npts",
         [
             ("jacobian_basic", "2 + 0.5*(1 - x**2)", "0.1*x", 15),
@@ -328,9 +309,8 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
             ("jacobian_curved_bed", "2 + 0.5*(1 - x**2)", "0.05*x**2", 15),
         ],
     )
-    def test_shallow_ice_1d_jacobian(self, name, sol_str, bed_str, npts):
+    def test_shallow_ice_1d_jacobian(self, bkd, name, sol_str, bed_str, npts):
         """Test 1D Shallow Ice Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -362,31 +342,7 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
 
 # Concrete backend implementations
-class TestManufacturedShallowIce1DNumpy(TestManufacturedShallowIce1D[NDArray[Any]]):
-    """NumPy backend tests for 1D Shallow Ice."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedShallowIce1DTorch(TestManufacturedShallowIce1D[torch.Tensor]):
-    """PyTorch backend tests for 1D Shallow Ice."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -5,10 +5,8 @@ Uses DerivativeChecker with error_ratio to ensure HVP via second-order adjoints
 matches the finite difference of the Jacobian.
 """
 
-import unittest
-from typing import Generic
-
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -36,11 +34,10 @@ from pyapprox.pde.time.implicit_steppers.integrator import (
 from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class TimeAdjointOperatorWrapper(Generic[Array]):
+class TimeAdjointOperatorWrapper:
     """
     Wrapper to make TimeAdjointOperatorWithHVP compatible with DerivativeChecker.
 
@@ -86,22 +83,16 @@ class TimeAdjointOperatorWrapper(Generic[Array]):
         return self._operator.hvp(self._init_state, param, vvec).T  # (1, nparams)
 
 
-class TestAdjointHVP(Generic[Array], unittest.TestCase):
+class TestAdjointHVP:
     """Tests for HVP computation via second-order adjoints."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        """Return the backend. Override in subclasses."""
-        raise NotImplementedError
-
-    def _create_linear_ode_mse_problem(self):
+    def _create_linear_ode_mse_problem(self, bkd):
         """
         Create a linear ODE with MSE functional.
 
-        The MSE functional Q = (1/2σ²)||y - obs||² provides non-zero d²Q/dy².
+        The MSE functional Q = (1/2sigma^2)||y - obs||^2 provides non-zero
+        d^2Q/dy^2.
         """
-        bkd = self.bkd()
         np.random.seed(42)
 
         nstates = 2
@@ -115,13 +106,12 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
 
         return ode_residual, nstates, nparams
 
-    def _create_quadratic_ode_problem(self):
+    def _create_quadratic_ode_problem(self, bkd):
         """
         Create a quadratic ODE for full HVP testing.
 
-        The quadratic term y² provides non-zero d²f/dy².
+        The quadratic term y^2 provides non-zero d^2f/dy^2.
         """
-        bkd = self.bkd()
         np.random.seed(42)
 
         nstates = 2
@@ -143,8 +133,6 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         eps: float = 1e-6,
     ) -> Array:
         """Compute HVP using finite difference of the Jacobian."""
-        self.bkd()
-
         # Compute Jacobian at param + eps*v and param - eps*v
         param_plus = param + eps * vvec
         param_minus = param - eps * vvec
@@ -161,16 +149,17 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         return fd_hvp.T  # Convert (1, nparams) to (nparams, 1)
 
     def _check_hvp_stepper_linear_ode_mse(
-        self, stepper_class, error_ratio_tol: float = 1e-6
+        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
     ) -> None:
         """
         Check HVP for linear ODE with MSE functional using DerivativeChecker.
 
-        The linear ODE has zero d²f/dy², but MSE has non-zero d²Q/dy².
+        The linear ODE has zero d^2f/dy^2, but MSE has non-zero d^2Q/dy^2.
         Uses error_ratio test with tolerance 1e-6.
         """
-        bkd = self.bkd()
-        ode_residual, nstates, nparams = self._create_linear_ode_mse_problem()
+        ode_residual, nstates, nparams = self._create_linear_ode_mse_problem(
+            bkd
+        )
 
         # Create time stepping residual
         time_residual = stepper_class(ode_residual)
@@ -213,7 +202,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
 
         # Check if HVP is available
         if not hasattr(time_residual, "state_state_hvp"):
-            self.skipTest(f"HVP not available for {stepper_class.__name__}")
+            pytest.skip(f"HVP not available for {stepper_class.__name__}")
 
         # Wrap operator for DerivativeChecker
         wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
@@ -231,34 +220,26 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         # Check Jacobian error ratio
         jac_error = errors[0]
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(
-            jac_ratio,
-            error_ratio_tol,
-            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with linear ODE + MSE",
-        )
+        assert jac_ratio < error_ratio_tol
 
         # Check HVP error ratio
         hvp_error = errors[1]
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(
-            hvp_ratio,
-            error_ratio_tol,
-            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with linear ODE + MSE",
-        )
+        assert hvp_ratio < error_ratio_tol
 
     def _check_hvp_stepper_quadratic_ode(
-        self, stepper_class, error_ratio_tol: float = 1e-6
+        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
     ) -> None:
         """
-        Check HVP for quadratic ODE with endpoint functional using DerivativeChecker.
+        Check HVP for quadratic ODE with endpoint functional using
+        DerivativeChecker.
 
-        The quadratic ODE has non-zero d²f/dy².
+        The quadratic ODE has non-zero d^2f/dy^2.
         Uses error_ratio test with tolerance 1e-6.
         """
-        bkd = self.bkd()
-        ode_residual, nstates, nparams = self._create_quadratic_ode_problem()
+        ode_residual, nstates, nparams = self._create_quadratic_ode_problem(
+            bkd
+        )
 
         # Create time stepping residual
         time_residual = stepper_class(ode_residual)
@@ -290,7 +271,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
 
         # Check if HVP is available
         if not hasattr(time_residual, "state_state_hvp"):
-            self.skipTest(f"HVP not available for {stepper_class.__name__}")
+            pytest.skip(f"HVP not available for {stepper_class.__name__}")
 
         # Wrap operator for DerivativeChecker
         wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
@@ -308,44 +289,34 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         # Check Jacobian error ratio
         jac_error = errors[0]
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(
-            jac_ratio,
-            error_ratio_tol,
-            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE",
-        )
+        assert jac_ratio < error_ratio_tol
 
         # Check HVP error ratio
         hvp_error = errors[1]
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(
-            hvp_ratio,
-            error_ratio_tol,
-            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE",
-        )
+        assert hvp_ratio < error_ratio_tol
 
-    def test_backward_euler_hvp_linear_ode_mse(self) -> None:
+    def test_backward_euler_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Backward Euler with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(BackwardEulerResidual)
+        self._check_hvp_stepper_linear_ode_mse(BackwardEulerResidual, bkd)
 
-    def test_crank_nicolson_hvp_linear_ode_mse(self) -> None:
+    def test_crank_nicolson_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(CrankNicolsonResidual)
+        self._check_hvp_stepper_linear_ode_mse(CrankNicolsonResidual, bkd)
 
-    def test_forward_euler_hvp_linear_ode_mse(self) -> None:
+    def test_forward_euler_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Forward Euler with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(ForwardEulerResidual)
+        self._check_hvp_stepper_linear_ode_mse(ForwardEulerResidual, bkd)
 
-    def test_heun_hvp_linear_ode_mse(self) -> None:
+    def test_heun_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(HeunResidual)
+        self._check_hvp_stepper_linear_ode_mse(HeunResidual, bkd)
 
-    def test_backward_euler_hvp_quadratic_ode(self) -> None:
+    def test_backward_euler_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Backward Euler with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(BackwardEulerResidual)
+        self._check_hvp_stepper_quadratic_ode(BackwardEulerResidual, bkd)
 
-    def test_crank_nicolson_hvp_quadratic_ode(self) -> None:
+    def test_crank_nicolson_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with quadratic ODE.
 
         Note: Crank-Nicolson with this quadratic ODE configuration has
@@ -355,31 +326,32 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         tests pass with 1e-6 tolerance). Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode(
-            CrankNicolsonResidual, error_ratio_tol=1e-4
+            CrankNicolsonResidual, bkd, error_ratio_tol=1e-4
         )
 
-    def test_forward_euler_hvp_quadratic_ode(self) -> None:
+    def test_forward_euler_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Forward Euler with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(ForwardEulerResidual)
+        self._check_hvp_stepper_quadratic_ode(ForwardEulerResidual, bkd)
 
-    def test_heun_hvp_quadratic_ode(self) -> None:
+    def test_heun_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(HeunResidual)
+        self._check_hvp_stepper_quadratic_ode(HeunResidual, bkd)
 
     def _check_hvp_stepper_quadratic_ode_mse(
-        self, stepper_class, error_ratio_tol: float = 1e-6
+        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
     ) -> None:
         """
         Check HVP for quadratic ODE with MSE functional using DerivativeChecker.
 
         Both the ODE and functional are nonlinear:
-        - Quadratic ODE has non-zero d²f/dy²
-        - MSE functional has non-zero d²Q/dy²
+        - Quadratic ODE has non-zero d^2f/dy^2
+        - MSE functional has non-zero d^2Q/dy^2
 
         Uses error_ratio test with tolerance 1e-6.
         """
-        bkd = self.bkd()
-        ode_residual, nstates, nparams = self._create_quadratic_ode_problem()
+        ode_residual, nstates, nparams = self._create_quadratic_ode_problem(
+            bkd
+        )
 
         # Create time stepping residual
         time_residual = stepper_class(ode_residual)
@@ -425,7 +397,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
 
         # Check if HVP is available
         if not hasattr(time_residual, "state_state_hvp"):
-            self.skipTest(f"HVP not available for {stepper_class.__name__}")
+            pytest.skip(f"HVP not available for {stepper_class.__name__}")
 
         # Wrap operator for DerivativeChecker
         wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
@@ -443,49 +415,40 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         # Check Jacobian error ratio
         jac_error = errors[0]
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(
-            jac_ratio,
-            error_ratio_tol,
-            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE + MSE",
-        )
+        assert jac_ratio < error_ratio_tol
 
         # Check HVP error ratio
         hvp_error = errors[1]
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(
-            hvp_ratio,
-            error_ratio_tol,
-            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE + MSE",
-        )
+        assert hvp_ratio < error_ratio_tol
 
-    def test_backward_euler_hvp_quadratic_ode_mse(self) -> None:
+    def test_backward_euler_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Backward Euler with quadratic ODE + MSE (both nonlinear)."""
-        self._check_hvp_stepper_quadratic_ode_mse(BackwardEulerResidual)
+        self._check_hvp_stepper_quadratic_ode_mse(BackwardEulerResidual, bkd)
 
-    def test_crank_nicolson_hvp_quadratic_ode_mse(self) -> None:
+    def test_crank_nicolson_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with quadratic ODE + MSE.
 
         Note: Crank-Nicolson with this quadratic ODE configuration has
         numerical conditioning issues. Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode_mse(
-            CrankNicolsonResidual, error_ratio_tol=1e-4
+            CrankNicolsonResidual, bkd, error_ratio_tol=1e-4
         )
 
-    def test_forward_euler_hvp_quadratic_ode_mse(self) -> None:
+    def test_forward_euler_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Forward Euler with quadratic ODE + MSE."""
-        self._check_hvp_stepper_quadratic_ode_mse(ForwardEulerResidual)
+        self._check_hvp_stepper_quadratic_ode_mse(ForwardEulerResidual, bkd)
 
-    def test_heun_hvp_quadratic_ode_mse(self) -> None:
+    def test_heun_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE + MSE."""
-        self._check_hvp_stepper_quadratic_ode_mse(HeunResidual)
+        self._check_hvp_stepper_quadratic_ode_mse(HeunResidual, bkd)
 
-    def test_hvp_linearity(self) -> None:
-        """Test that HVP is linear: H·(αv) = α·H·v."""
-        bkd = self.bkd()
-        ode_residual, nstates, nparams = self._create_linear_ode_mse_problem()
+    def test_hvp_linearity(self, bkd) -> None:
+        """Test that HVP is linear: H*(alpha*v) = alpha*H*v."""
+        ode_residual, nstates, nparams = self._create_linear_ode_mse_problem(
+            bkd
+        )
 
         time_residual = BackwardEulerResidual(ode_residual)
         newton_solver = NewtonSolver(time_residual)
@@ -521,21 +484,4 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         error = bkd.norm(hvp_alpha_v - alpha * hvp_v) / (
             bkd.norm(alpha * hvp_v) + 1e-10
         )
-        self.assertLess(
-            float(error),
-            1e-10,
-            f"Linearity test failed: error = {float(error):.2e}",
-        )
-
-
-class TestAdjointHVPNumpy(TestAdjointHVP):
-    """Test adjoint HVP with NumPy backend."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend:
-        return NumpyBkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert float(error) < 1e-10

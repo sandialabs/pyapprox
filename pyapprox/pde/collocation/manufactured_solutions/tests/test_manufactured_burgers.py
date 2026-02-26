@@ -25,13 +25,12 @@ For steady state (du/dt = 0), the physics gives:
 This matches the manufactured solution forcing, so no sign negation is needed.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
+
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -45,12 +44,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import BurgersPhysics1D
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -96,17 +89,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
+class TestManufacturedBurgers1D:
     """Test 1D Burgers physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_burgers_residual_quadratic(self):
+    def test_steady_burgers_residual_quadratic(self, bkd):
         """Test steady Burgers residual with quadratic solution u = 1 - x²."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -147,9 +134,8 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_steady_burgers_jacobian(self):
+    def test_steady_burgers_jacobian(self, bkd):
         """Test Burgers Jacobian via derivative checker."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -180,11 +166,10 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(wrapper)
         # DerivativeChecker expects sample shape (nvars, 1)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
-    def test_steady_burgers_high_viscosity(self):
+    def test_steady_burgers_high_viscosity(self, bkd):
         """Test with high viscosity (diffusion-dominated)."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -224,9 +209,8 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_non_conservative_form(self):
+    def test_non_conservative_form(self, bkd):
         """Test non-conservative form of Burgers equation."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -270,13 +254,10 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         )
 
 
-class TestBurgers1DParameterized(ParametrizedTestCase):
+class TestBurgers1DParameterized:
     """Parameterized 1D Burgers residual tests."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,viscosity,npts",
         [
             ("quadratic_low_nu", "(1 - x**2)", 0.05, 15),
@@ -287,9 +268,8 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
             ("sixth_order", "(1 - x**2)**3", 0.1, 20),
         ],
     )
-    def test_burgers_1d_residual(self, name, sol_str, viscosity, npts):
+    def test_burgers_1d_residual(self, bkd, name, sol_str, viscosity, npts):
         """Test 1D Burgers residual for parameterized cases."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -330,7 +310,7 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
             atol=1e-9,
         )
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,viscosity,npts",
         [
             ("quadratic_jacobian", "(1 - x**2)", 0.1, 12),
@@ -338,9 +318,8 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
             ("cubic_jacobian", "x*(1 - x**2)", 0.05, 12),
         ],
     )
-    def test_burgers_1d_jacobian(self, name, sol_str, viscosity, npts):
+    def test_burgers_1d_jacobian(self, bkd, name, sol_str, viscosity, npts):
         """Test 1D Burgers Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -370,31 +349,7 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
 
 # Concrete backend implementations
-class TestManufacturedBurgers1DNumpy(TestManufacturedBurgers1D[NDArray[Any]]):
-    """NumPy backend tests for 1D Burgers."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedBurgers1DTorch(TestManufacturedBurgers1D[torch.Tensor]):
-    """PyTorch backend tests for 1D Burgers."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,102 +1,86 @@
 """Tests for Chebyshev-Gauss-Lobatto nodes."""
 
-import unittest
-from typing import Generic
 
+import pytest
 import numpy as np
 
 from pyapprox.pde.collocation.basis.chebyshev.nodes import (
     ChebyshevGaussLobattoNodes1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 
 
-class TestChebyshevNodes(Generic[Array], unittest.TestCase):
+class TestChebyshevNodes:
     """Base test class for Chebyshev nodes."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_single_node(self):
+    def test_single_node(self, bkd):
         """Test single node case (n=1)."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
         nodes = gen.generate(1)
 
-        self.assertEqual(nodes.shape, (1,))
-        bkd.assert_allclose(nodes[0], 0.0, atol=1e-14)
+        assert nodes.shape == (1,)
+        bkd.assert_allclose(nodes[0], bkd.asarray(0.0), atol=1e-14)
 
-    def test_two_nodes(self):
+    def test_two_nodes(self, bkd):
         """Test two nodes case (n=2) - endpoints."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
         nodes = gen.generate(2)
 
-        self.assertEqual(nodes.shape, (2,))
+        assert nodes.shape == (2,)
         # First node is cos(0) = 1, second is cos(pi) = -1
-        bkd.assert_allclose(nodes[0], 1.0, atol=1e-14)
-        bkd.assert_allclose(nodes[1], -1.0, atol=1e-14)
+        bkd.assert_allclose(nodes[0], bkd.asarray(1.0), atol=1e-14)
+        bkd.assert_allclose(nodes[1], bkd.asarray(-1.0), atol=1e-14)
 
-    def test_three_nodes(self):
+    def test_three_nodes(self, bkd):
         """Test three nodes case."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
         nodes = gen.generate(3)
 
-        self.assertEqual(nodes.shape, (3,))
+        assert nodes.shape == (3,)
         # cos(0) = 1, cos(pi/2) = 0, cos(pi) = -1
         expected = bkd.asarray([1.0, 0.0, -1.0])
         bkd.assert_allclose(nodes, expected, atol=1e-14)
 
-    def test_nodes_in_range(self):
+    def test_nodes_in_range(self, bkd):
         """Test all nodes are in [-1, 1]."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
         for npts in [5, 10, 20]:
             nodes = gen.generate(npts)
-            self.assertEqual(nodes.shape, (npts,))
+            assert nodes.shape == (npts,)
             nodes_np = bkd.to_numpy(nodes)
-            self.assertTrue(np.all(nodes_np >= -1.0 - 1e-14))
-            self.assertTrue(np.all(nodes_np <= 1.0 + 1e-14))
+            assert np.all(nodes_np >= -1.0 - 1e-14)
+            assert np.all(nodes_np <= 1.0 + 1e-14)
 
-    def test_endpoints_included(self):
+    def test_endpoints_included(self, bkd):
         """Test that endpoints -1 and 1 are included."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
         for npts in [5, 10, 20]:
             nodes = gen.generate(npts)
             # First node is 1, last is -1 (decreasing order)
-            bkd.assert_allclose(nodes[0], 1.0, atol=1e-14)
-            bkd.assert_allclose(nodes[-1], -1.0, atol=1e-14)
+            bkd.assert_allclose(nodes[0], bkd.asarray(1.0), atol=1e-14)
+            bkd.assert_allclose(nodes[-1], bkd.asarray(-1.0), atol=1e-14)
 
-    def test_nodes_decreasing(self):
+    def test_nodes_decreasing(self, bkd):
         """Test nodes are in decreasing order."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
         nodes = gen.generate(10)
         for i in range(len(nodes) - 1):
-            self.assertGreater(float(nodes[i]), float(nodes[i + 1]))
+            assert float(nodes[i]) > float(nodes[i + 1])
 
-    def test_symmetric(self):
+    def test_symmetric(self, bkd):
         """Test nodes are symmetric about 0."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
         for npts in [5, 10, 11]:
             nodes = gen.generate(npts)
             # Check x_i = -x_{n-1-i}
-            reversed_nodes = nodes[::-1]
+            reversed_nodes = bkd.flip(nodes)
             bkd.assert_allclose(nodes, -reversed_nodes, atol=1e-14)
 
-    def test_cosine_formula(self):
+    def test_cosine_formula(self, bkd):
         """Test nodes match exact cosine formula."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
         npts = 7
@@ -109,25 +93,11 @@ class TestChebyshevNodes(Generic[Array], unittest.TestCase):
         expected_arr = bkd.asarray(expected)
         bkd.assert_allclose(nodes, expected_arr, atol=1e-14)
 
-    def test_invalid_npts(self):
+    def test_invalid_npts(self, bkd):
         """Test that invalid npts raises error."""
-        bkd = self.bkd()
         gen = ChebyshevGaussLobattoNodes1D(bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             gen.generate(0)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             gen.generate(-1)
-
-
-class TestChebyshevNodesNumpy(TestChebyshevNodes):
-    """NumPy backend tests for Chebyshev nodes."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

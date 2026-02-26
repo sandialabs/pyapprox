@@ -1,8 +1,6 @@
 """Tests for BCEnforcingTimeResidual adapter."""
 
 import math
-import unittest
-from typing import Generic
 
 from numpy.typing import NDArray
 
@@ -26,20 +24,11 @@ from pyapprox.pde.time.implicit_steppers.backward_euler import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
+class TestBCEnforcingTimeResidual:
     """Base test class for BCEnforcingTimeResidual."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _setup_diffusion_problem(self, npts=15):
+    def _setup_diffusion_problem(self, bkd, npts=15) :
         """Create a 1D diffusion problem with Dirichlet BCs."""
-        bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         umesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
@@ -74,12 +63,12 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
             "D": D,
         }
 
-    def test_bc_residual_matches_manual(self):
+    def test_bc_residual_matches_manual(self, bkd):
         """Compare BCEnforcingTimeResidual against manual BE+BC computation.
 
         Reproduces the logic from CollocationModel._backward_euler_step.
         """
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
         physics = s["physics"]
         adapter = s["adapter"]
@@ -113,9 +102,9 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(bc_residual_val, manual_residual, atol=1e-12)
         bkd.assert_allclose(bc_jacobian_val, manual_jacobian, atol=1e-12)
 
-    def test_bc_rows_are_identity_in_jacobian(self):
+    def test_bc_rows_are_identity_in_jacobian(self, bkd):
         """Verify that boundary rows in the Jacobian are identity rows."""
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
         npts = s["npts"]
 
@@ -136,9 +125,9 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
             expected_row[idx] = 1.0
             bkd.assert_allclose(jac[idx, :], expected_row, atol=1e-14)
 
-    def test_bc_residual_at_boundaries(self):
+    def test_bc_residual_at_boundaries(self, bkd):
         """Verify residual at boundary DOFs is u - g(t)."""
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
 
         deltat = 0.05
@@ -163,27 +152,27 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
             atol=1e-14,
         )
 
-    def test_dynamic_binding_no_param_jacobian(self):
+    def test_dynamic_binding_no_param_jacobian(self, bkd):
         """Verify param_jacobian is NOT exposed for non-parameterized physics."""
-        s = self._setup_diffusion_problem()
-        self.assertFalse(hasattr(s["bc_residual"], "param_jacobian"))
-        self.assertFalse(hasattr(s["bc_residual"], "adjoint_diag_jacobian"))
+        s = self._setup_diffusion_problem(bkd)
+        assert not hasattr(s["bc_residual"], "param_jacobian")
+        assert not hasattr(s["bc_residual"], "adjoint_diag_jacobian")
 
-    def test_sensitivity_protocol_delegation(self):
+    def test_sensitivity_protocol_delegation(self, bkd):
         """Test that sensitivity methods delegate correctly."""
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bc_res = s["bc_residual"]
 
         # is_explicit should return False for backward Euler
-        self.assertFalse(bc_res.is_explicit())
+        assert not bc_res.is_explicit()
         # has_prev_state_hessian should return False for backward Euler
-        self.assertFalse(bc_res.has_prev_state_hessian())
+        assert not bc_res.has_prev_state_hessian()
         # native_residual should be the adapter
-        self.assertIs(bc_res.native_residual, s["adapter"])
+        assert bc_res.native_residual is s["adapter"]
 
-    def test_linsolve_with_bcs(self):
+    def test_linsolve_with_bcs(self, bkd):
         """Test that linsolve uses the BC-modified Jacobian."""
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
 
         deltat = 0.05
@@ -198,9 +187,9 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
         jac = s["bc_residual"].jacobian(y)
         bkd.assert_allclose(bkd.dot(jac, delta), res, atol=1e-10)
 
-    def test_newton_convergence(self):
+    def test_newton_convergence(self, bkd):
         """Test that Newton iteration converges with BC-enforcing residual."""
-        s = self._setup_diffusion_problem()
+        s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
 
         deltat = 0.01
@@ -221,11 +210,4 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
             delta = bkd.solve(jac, -res)
             y = y + delta
 
-        self.assertLess(res_norm, 1e-10)
-
-
-class TestBCEnforcingTimeResidualNumpy(TestBCEnforcingTimeResidual[NDArray]):
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
+        assert res_norm < 1e-10

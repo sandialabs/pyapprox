@@ -1,7 +1,5 @@
 """Tests for Chebyshev derivative matrix."""
 
-import unittest
-from typing import Generic
 
 import numpy as np
 
@@ -11,44 +9,34 @@ from pyapprox.pde.collocation.basis.chebyshev.derivative import (
 from pyapprox.pde.collocation.basis.chebyshev.nodes import (
     ChebyshevGaussLobattoNodes1D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 
 
-class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
+class TestChebyshevDerivative:
     """Base test class for Chebyshev derivative matrix."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_single_node(self):
+    def test_single_node(self, bkd):
         """Test single node case returns zero matrix."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
         nodes = nodes_gen.generate(1)
         D = deriv_comp.compute(nodes)
 
-        self.assertEqual(D.shape, (1, 1))
+        assert D.shape == (1, 1)
         bkd.assert_allclose(D, bkd.zeros((1, 1)), atol=1e-14)
 
-    def test_matrix_shape(self):
+    def test_matrix_shape(self, bkd):
         """Test derivative matrix has correct shape."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
         for npts in [3, 5, 10]:
             nodes = nodes_gen.generate(npts)
             D = deriv_comp.compute(nodes)
-            self.assertEqual(D.shape, (npts, npts))
+            assert D.shape == (npts, npts)
 
-    def test_row_sum_zero(self):
+    def test_row_sum_zero(self, bkd):
         """Test that rows sum to zero (constant function property)."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -58,9 +46,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
             row_sums = bkd.sum(D, axis=1)
             bkd.assert_allclose(row_sums, bkd.zeros(npts), atol=1e-12)
 
-    def test_constant_derivative(self):
+    def test_constant_derivative(self, bkd):
         """Test derivative of constant is zero."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -73,9 +60,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         df = D @ f
         bkd.assert_allclose(df, bkd.zeros(npts), atol=1e-12)
 
-    def test_linear_derivative(self):
+    def test_linear_derivative(self, bkd):
         """Test derivative of x is 1."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -88,9 +74,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         df = D @ f
         bkd.assert_allclose(df, bkd.ones(npts), atol=1e-12)
 
-    def test_quadratic_derivative(self):
+    def test_quadratic_derivative(self, bkd):
         """Test derivative of x^2 is 2x."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -104,9 +89,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         expected = 2.0 * nodes
         bkd.assert_allclose(df, expected, atol=1e-11)
 
-    def test_cubic_derivative(self):
+    def test_cubic_derivative(self, bkd):
         """Test derivative of x^3 is 3x^2."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -120,9 +104,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         expected = 3.0 * nodes**2
         bkd.assert_allclose(df, expected, atol=1e-10)
 
-    def test_polynomial_exactness(self):
+    def test_polynomial_exactness(self, bkd):
         """Test exact differentiation for polynomials up to degree n-1."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -144,9 +127,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
 
             bkd.assert_allclose(df_computed, df_expected, atol=1e-9)
 
-    def test_second_derivative(self):
+    def test_second_derivative(self, bkd):
         """Test second derivative via D @ D."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -161,9 +143,8 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         expected = 6.0 * nodes
         bkd.assert_allclose(d2f, expected, atol=1e-9)
 
-    def test_sin_derivative(self):
+    def test_sin_derivative(self, bkd):
         """Test derivative of sin(pi*x) converges to pi*cos(pi*x)."""
-        bkd = self.bkd()
         nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
 
@@ -185,20 +166,11 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         # Check convergence (errors should generally decrease until machine precision)
         # At machine precision (~1e-13), errors may fluctuate
         # Check that later errors are much smaller than earlier ones
-        self.assertLess(errors[-1], errors[0] * 0.01)
+        assert errors[-1] < errors[0] * 0.01
 
         # Check final accuracy is very good (near machine precision)
-        self.assertLess(errors[-1], 1e-10)
+        assert errors[-1] < 1e-10
 
 
 class TestChebyshevDerivativeNumpy(TestChebyshevDerivative):
     """NumPy backend tests for Chebyshev derivative matrix."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

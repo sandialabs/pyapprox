@@ -12,11 +12,10 @@ Implicit cases use GalerkinModel.solve_transient() with backward Euler or
 Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
 """
 
-import unittest
 from typing import List, Tuple
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -125,7 +124,7 @@ TRANSIENT_ADR_1D_CASES: List[Tuple[str, List[str], List[str], str]] = [
 ]
 
 
-class TestTransientADR1D(ParametrizedTestCase):
+class TestTransientADR1D:
     """Parametrized 1D transient ADR tests with P2 + backward Euler.
 
     Replicates legacy test_finite_elements.py
@@ -133,19 +132,20 @@ class TestTransientADR1D(ParametrizedTestCase):
     Uses GalerkinModel.solve_transient() for time integration.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bndry_types,vel_strs,react_str",
         TRANSIENT_ADR_1D_CASES,
     )
     def test_transient_adr_1d(
         self,
+        numpy_bkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
         react_str: str,
     ) -> None:
         """Test transient ADR with manufactured solution."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         _, model, exact_at_time = _setup_1d_problem(
             bkd,
             bounds=[0.0, 1.0],
@@ -179,12 +179,7 @@ class TestTransientADR1D(ParametrizedTestCase):
         # Nonlinear reaction with Neumann BCs has slightly larger error
         # due to spatial discretization of u^2 term
         tol = 2e-6 if "R" in name and "N" in "".join(bndry_types) else 1e-6
-        self.assertLess(
-            rel_error,
-            tol,
-            f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
-            f"should be < {tol}",
-        )
+        assert rel_error < tol
 
 
 # =========================================================================
@@ -202,24 +197,25 @@ TRANSIENT_ADR_2D_CASES: List[Tuple[str, List[str], List[str]]] = [
 ]
 
 
-class TestTransientADR2D(ParametrizedTestCase):
+class TestTransientADR2D:
     """Parametrized 2D transient ADR tests with P2 + backward Euler.
 
     Uses GalerkinModel.solve_transient() for time integration.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bndry_types,vel_strs",
         TRANSIENT_ADR_2D_CASES,
     )
     def test_transient_adr_2d(
         self,
+        numpy_bkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
     ) -> None:
         """Test 2D transient ADR with manufactured solution."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         bounds = [0.0, 1.0, 0.0, 1.0]
         sol_str = "(1-x)*x*(1-y)*y*(1+T)"
         diff_str = "4+1e-16*x+1e-16*y"
@@ -288,12 +284,7 @@ class TestTransientADR2D(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
-            f"should be < 1e-6",
-        )
+        assert rel_error < 1e-6
 
 
 # =========================================================================
@@ -306,24 +297,25 @@ TRANSIENT_ADR_1D_CN_CASES: List[Tuple[str, List[str], List[str], str]] = [
 ]
 
 
-class TestTransientADR1D_CN(ParametrizedTestCase):
+class TestTransientADR1D_CN:
     """1D transient ADR tests with P2 + Crank-Nicolson.
 
     Uses GalerkinModel.solve_transient() for time integration.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bndry_types,vel_strs,react_str",
         TRANSIENT_ADR_1D_CN_CASES,
     )
     def test_transient_adr_1d_cn(
         self,
+        numpy_bkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
         react_str: str,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         _, model, exact_at_time = _setup_1d_problem(
             bkd,
             bounds=[0.0, 1.0],
@@ -354,12 +346,7 @@ class TestTransientADR1D_CN(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
-            f"should be < 1e-6",
-        )
+        assert rel_error < 1e-6
 
 
 # =========================================================================
@@ -371,23 +358,24 @@ TRANSIENT_ADR_2D_CN_CASES: List[Tuple[str, List[str], List[str]]] = [
 ]
 
 
-class TestTransientADR2D_CN(ParametrizedTestCase):
+class TestTransientADR2D_CN:
     """2D transient ADR tests with P2 + Crank-Nicolson.
 
     Uses GalerkinModel.solve_transient() for time integration.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bndry_types,vel_strs",
         TRANSIENT_ADR_2D_CN_CASES,
     )
     def test_transient_adr_2d_cn(
         self,
+        numpy_bkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         bounds = [0.0, 1.0, 0.0, 1.0]
         sol_str = "(1-x)*x*(1-y)*y*(1+T)"
         diff_str = "4+1e-16*x+1e-16*y"
@@ -456,12 +444,7 @@ class TestTransientADR2D_CN(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
-            f"should be < 1e-6",
-        )
+        assert rel_error < 1e-6
 
 
 # =========================================================================
@@ -483,7 +466,7 @@ TRANSIENT_ADR_1D_EXPLICIT_CASES: List[Tuple[str, str, List[str], bool]] = [
 
 
 @slow_test
-class TestTransientADRExplicit1D(ParametrizedTestCase):
+class TestTransientADRExplicit1D:
     """1D transient ADR tests with P2 + explicit methods (FE, Heun).
 
     Uses GalerkinModel.solve_transient() with CFL-constrained dt.
@@ -491,18 +474,19 @@ class TestTransientADRExplicit1D(ParametrizedTestCase):
     zero. Remaining error is purely temporal discretization.
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,method,vel_strs,has_vel",
         TRANSIENT_ADR_1D_EXPLICIT_CASES,
     )
     def test_transient_adr_1d_explicit(
         self,
+        numpy_bkd,
         name: str,
         method: str,
         vel_strs: List[str],
         has_vel: bool,
     ) -> None:
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         _, model, exact_at_time = _setup_1d_problem(
             bkd,
             bounds=[0.0, 1.0],
@@ -533,12 +517,7 @@ class TestTransientADRExplicit1D(ParametrizedTestCase):
         else:
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
-        self.assertLess(
-            rel_error,
-            1e-5,
-            f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
-            f"should be < 1e-5",
-        )
+        assert rel_error < 1e-5
 
 
 # =========================================================================
@@ -546,16 +525,16 @@ class TestTransientADRExplicit1D(ParametrizedTestCase):
 # =========================================================================
 
 
-class TestManualNewtonWithConstraint(unittest.TestCase):
+class TestManualNewtonWithConstraint:
     """Low-level test of ConstrainedTimeStepResidual with manual Newton.
 
     Verifies that the wrapper correctly applies Dirichlet constraints
     to the assembled Newton system at a low level.
     """
 
-    def test_manual_newton_backward_euler(self) -> None:
+    def test_manual_newton_backward_euler(self, numpy_bkd) -> None:
         """Manual Newton with BE + ConstrainedTimeStepResidual."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         _, _, exact_at_time = _setup_1d_problem(
             bkd,
             bounds=[0.0, 1.0],
@@ -632,15 +611,11 @@ class TestManualNewtonWithConstraint(unittest.TestCase):
         u_norm = np.linalg.norm(u_exact_final)
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Manual Newton: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
-        )
+        assert rel_error < 1e-6
 
-    def test_manual_newton_crank_nicolson(self) -> None:
+    def test_manual_newton_crank_nicolson(self, numpy_bkd) -> None:
         """Manual Newton with CN + ConstrainedTimeStepResidual."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
 
         functions, _ = create_adr_manufactured_test(
             bounds=[0.0, 1.0],
@@ -710,14 +685,4 @@ class TestManualNewtonWithConstraint(unittest.TestCase):
         u_norm = np.linalg.norm(u_exact_final)
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
-        self.assertLess(
-            rel_error,
-            1e-6,
-            f"Manual Newton CN: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rel_error < 1e-6

@@ -4,18 +4,17 @@ Tests for Lotka-Volterra ODE residual with HVP support.
 Uses TimeAdjointDerivativeChecker for all derivative tests.
 """
 
-import unittest
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.time.benchmarks.lotka_volterra import (
     LotkaVolterraResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
-class TestLotkaVolterraResidual(unittest.TestCase):
+class TestLotkaVolterraResidual:
     """Test the Lotka-Volterra residual class."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
         self._bkd = NumpyBkd()
         self._nspecies = 3
@@ -33,18 +32,18 @@ class TestLotkaVolterraResidual(unittest.TestCase):
     def test_residual_shape(self):
         """Test that residual returns correct shape."""
         result = self._residual(self._state)
-        self.assertEqual(result.shape, (self._nspecies,))
+        assert result.shape == (self._nspecies,)
 
     def test_jacobian_shape(self):
         """Test that Jacobian returns correct shape."""
         result = self._residual.jacobian(self._state)
-        self.assertEqual(result.shape, (self._nspecies, self._nspecies))
+        assert result.shape == (self._nspecies, self._nspecies)
 
     def test_param_jacobian_shape(self):
         """Test that param Jacobian returns correct shape."""
         result = self._residual.param_jacobian(self._state)
         nparams = self._nspecies + self._nspecies**2
-        self.assertEqual(result.shape, (self._nspecies, nparams))
+        assert result.shape == (self._nspecies, nparams)
 
     def test_hvp_shapes(self):
         """Test that all HVP methods return correct shapes."""
@@ -52,17 +51,17 @@ class TestLotkaVolterraResidual(unittest.TestCase):
         vvec = self._bkd.ones(12) * 0.1
 
         ss = self._residual.state_state_hvp(self._state, self._adj_state, wvec)
-        self.assertEqual(ss.shape, (self._nspecies,))
+        assert ss.shape == (self._nspecies,)
 
         sp = self._residual.state_param_hvp(self._state, self._adj_state, vvec)
-        self.assertEqual(sp.shape, (self._nspecies,))
+        assert sp.shape == (self._nspecies,)
 
         ps = self._residual.param_state_hvp(self._state, self._adj_state, wvec)
         nparams = self._nspecies + self._nspecies**2
-        self.assertEqual(ps.shape, (nparams,))
+        assert ps.shape == (nparams,)
 
         pp = self._residual.param_param_hvp(self._state, self._adj_state, vvec)
-        self.assertEqual(pp.shape, (nparams,))
+        assert pp.shape == (nparams,)
 
     def test_mass_matrix_is_identity(self):
         """Test that mass matrix is identity."""
@@ -71,10 +70,10 @@ class TestLotkaVolterraResidual(unittest.TestCase):
         self._bkd.assert_allclose(mass, expected, rtol=1e-14, atol=1e-14)
 
 
-class TestLotkaVolterraWithTimeAdjoint(unittest.TestCase):
+class TestLotkaVolterraWithTimeAdjoint:
     """Test Lotka-Volterra with TimeAdjointDerivativeChecker."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
         self._bkd = NumpyBkd()
         self._nspecies = 3
@@ -245,7 +244,3 @@ class TestLotkaVolterraWithTimeAdjoint(unittest.TestCase):
 
         errors = checker.check_hvp(self._init_state, param_2d)
         checker._assert_derivatives_close(errors, 1e-5, "HVP")
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,8 +1,7 @@
 """Tests for curvilinear transforms (polar, spherical, chained)."""
 
+import pytest
 import math
-import unittest
-from typing import Generic
 
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
@@ -13,21 +12,13 @@ from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.mesh.transforms.spherical import (
     SphericalTransform,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 
 
-class TestPolarTransform(Generic[Array], unittest.TestCase):
+class TestPolarTransform:
     """Tests for PolarTransform."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_polar_basic_mapping(self):
+    def test_polar_basic_mapping(self, bkd):
         """Test basic polar to Cartesian mapping (direct polar input)."""
-        bkd = self.bkd()
         transform = PolarTransform(
             (0.0, 2.0), (-math.pi, math.pi), bkd, from_reference=False
         )
@@ -41,9 +32,8 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         expected = bkd.asarray([[1.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
         bkd.assert_allclose(phys_pts, expected, atol=1e-14)
 
-    def test_polar_inverse_mapping(self):
+    def test_polar_inverse_mapping(self, bkd):
         """Test inverse mapping recovers original points."""
-        bkd = self.bkd()
         # Test both modes
 
         # With from_reference=False (direct polar coords)
@@ -64,9 +54,8 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         ref_pts_back = transform_ref.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts_std, atol=1e-14)
 
-    def test_polar_jacobian_determinant(self):
+    def test_polar_jacobian_determinant(self, bkd):
         """Test Jacobian determinant equals r (for direct polar input)."""
-        bkd = self.bkd()
         transform = PolarTransform(
             (0.0, 10.0), (-math.pi, math.pi), bkd, from_reference=False
         )
@@ -78,9 +67,8 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         expected = ref_pts[0, :]
         bkd.assert_allclose(jac_det, expected, atol=1e-14)
 
-    def test_polar_jacobian_matrix_consistency(self):
+    def test_polar_jacobian_matrix_consistency(self, bkd):
         """Test Jacobian matrix determinant matches jacobian_determinant."""
-        bkd = self.bkd()
         # Test both modes
 
         # from_reference=False (direct polar)
@@ -107,9 +95,8 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
-    def test_polar_scale_factors(self):
+    def test_polar_scale_factors(self, bkd):
         """Test scale factors h_r=1, h_theta=r (for direct polar input)."""
-        bkd = self.bkd()
         transform = PolarTransform(
             (0.0, 10.0), (-math.pi, math.pi), bkd, from_reference=False
         )
@@ -122,9 +109,8 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         # h_theta = r
         bkd.assert_allclose(scale[:, 1], ref_pts[0, :], atol=1e-14)
 
-    def test_polar_unit_basis_orthogonality(self):
+    def test_polar_unit_basis_orthogonality(self, bkd):
         """Test unit curvilinear basis vectors are orthonormal."""
-        bkd = self.bkd()
         # Unit basis doesn't depend on scale, so both modes should give same result
         transform = PolarTransform(
             (0.0, 5.0), (-math.pi, math.pi), bkd, from_reference=False
@@ -145,29 +131,26 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         dot = bkd.sum(e_r * e_theta, axis=1)
         bkd.assert_allclose(dot, bkd.zeros((2,)), atol=1e-14)
 
-    def test_polar_bounds_validation(self):
+    def test_polar_bounds_validation(self, bkd):
         """Test bounds validation."""
-        bkd = self.bkd()
-
         # r_min < 0
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PolarTransform((-1.0, 2.0), (0.0, math.pi), bkd)
 
         # r_max <= r_min
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PolarTransform((2.0, 1.0), (0.0, math.pi), bkd)
 
         # theta out of [-2*pi, 2*pi]
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PolarTransform((0.0, 1.0), (-2 * math.pi - 0.1, math.pi), bkd)
 
         # theta_max <= theta_min
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             PolarTransform((0.0, 1.0), (1.0, 0.0), bkd)
 
-    def test_polar_from_reference_mapping(self):
+    def test_polar_from_reference_mapping(self, bkd):
         """Test mapping from [-1,1]^2 reference domain."""
-        bkd = self.bkd()
         r_min, r_max = 1.0, 2.0
         theta_min, theta_max = 0.0, math.pi / 2
 
@@ -202,17 +185,11 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(phys_pts[1, :], expected_y, atol=1e-14)
 
 
-class TestSphericalTransform(Generic[Array], unittest.TestCase):
+class TestSphericalTransform:
     """Tests for SphericalTransform."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_spherical_basic_mapping(self):
+    def test_spherical_basic_mapping(self, bkd):
         """Test basic spherical to Cartesian mapping."""
-        bkd = self.bkd()
         transform = SphericalTransform(
             (0.0, 2.0), (-math.pi, math.pi), (0.0, math.pi), bkd
         )
@@ -228,9 +205,8 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         expected = bkd.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
         bkd.assert_allclose(phys_pts, expected, atol=1e-14)
 
-    def test_spherical_inverse_mapping(self):
+    def test_spherical_inverse_mapping(self, bkd):
         """Test inverse mapping recovers original points."""
-        bkd = self.bkd()
         transform = SphericalTransform(
             (0.1, 5.0), (-math.pi / 2, math.pi / 2), (0.1, math.pi - 0.1), bkd
         )
@@ -247,9 +223,8 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-12)
 
-    def test_spherical_jacobian_determinant(self):
+    def test_spherical_jacobian_determinant(self, bkd):
         """Test Jacobian determinant equals r^2 * sin(elevation)."""
-        bkd = self.bkd()
         transform = SphericalTransform(
             (0.0, 10.0), (-math.pi, math.pi), (0.0, math.pi), bkd
         )
@@ -269,9 +244,8 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         expected = r**2 * bkd.sin(el)
         bkd.assert_allclose(jac_det, expected, atol=1e-14)
 
-    def test_spherical_scale_factors(self):
+    def test_spherical_scale_factors(self, bkd):
         """Test scale factors h_r=1, h_az=r*sin(el), h_el=r."""
-        bkd = self.bkd()
         transform = SphericalTransform(
             (0.0, 10.0), (-math.pi, math.pi), (0.0, math.pi), bkd
         )
@@ -295,9 +269,8 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         # h_el = r
         bkd.assert_allclose(scale[:, 2], r, atol=1e-14)
 
-    def test_spherical_unit_basis_orthogonality(self):
+    def test_spherical_unit_basis_orthogonality(self, bkd):
         """Test unit curvilinear basis vectors are orthonormal."""
-        bkd = self.bkd()
         transform = SphericalTransform(
             (0.0, 5.0), (-math.pi, math.pi), (0.01, math.pi - 0.01), bkd
         )
@@ -321,32 +294,23 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
                 dot = bkd.sum(e_i * e_j, axis=1)
                 bkd.assert_allclose(dot, bkd.zeros((2,)), atol=1e-14)
 
-    def test_spherical_bounds_validation(self):
+    def test_spherical_bounds_validation(self, bkd):
         """Test bounds validation."""
-        bkd = self.bkd()
-
         # elevation out of [0, pi]
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             SphericalTransform((0.0, 1.0), (-math.pi, math.pi), (-0.1, math.pi), bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             SphericalTransform(
                 (0.0, 1.0), (-math.pi, math.pi), (0.0, math.pi + 0.1), bkd
             )
 
 
-class TestChainedTransform(Generic[Array], unittest.TestCase):
+class TestChainedTransform:
     """Tests for ChainedTransform."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_chained_identity(self):
+    def test_chained_identity(self, bkd):
         """Test chaining two identity-like transforms."""
-        bkd = self.bkd()
-
         # Identity affine transform
         affine = AffineTransform2D((-1.0, 1.0, -1.0, 1.0), bkd)
         chained = ChainedTransform([affine, affine], bkd)
@@ -357,10 +321,8 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
         # Two identities should give back the same points
         bkd.assert_allclose(phys_pts, ref_pts, atol=1e-14)
 
-    def test_chained_affine_composition(self):
+    def test_chained_affine_composition(self, bkd):
         """Test chaining two affine transforms."""
-        bkd = self.bkd()
-
         # First: [-1, 1] -> [0, 2]
         affine1 = AffineTransform2D((0.0, 2.0, 0.0, 2.0), bkd)
         # Second: [0, 2] -> [0, 4] (interpreted as scale from [0, 2])
@@ -380,10 +342,8 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
         ref_pts_back = chained.map_to_reference(phys_pts)
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_chained_jacobian_determinant_product(self):
+    def test_chained_jacobian_determinant_product(self, bkd):
         """Test that chained Jacobian determinant is product."""
-        bkd = self.bkd()
-
         # Two scaling transforms
         affine1 = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)  # det=1*1.5=1.5
         affine2 = AffineTransform2D((0.0, 4.0, 0.0, 6.0), bkd)  # det=2*3=6
@@ -398,10 +358,8 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(det_chained, det1 * det2, atol=1e-14)
 
-    def test_chained_inverse_roundtrip(self):
+    def test_chained_inverse_roundtrip(self, bkd):
         """Test that chained transform inverse works."""
-        bkd = self.bkd()
-
         affine1 = AffineTransform2D((0.0, 2.0, 0.0, 3.0), bkd)
         affine2 = AffineTransform2D((1.0, 5.0, -1.0, 4.0), bkd)
 
@@ -413,10 +371,8 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_chained_polar_with_affine(self):
+    def test_chained_polar_with_affine(self, bkd):
         """Test chaining polar transform with affine scaling."""
-        bkd = self.bkd()
-
         # Test with from_reference=False (direct polar coords)
         polar = PolarTransform(
             (0.5, 2.0), (-math.pi / 2, math.pi / 2), bkd, from_reference=False
@@ -431,10 +387,8 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(phys_pts[0, :], expected_x, atol=1e-14)
         bkd.assert_allclose(phys_pts[1, :], expected_y, atol=1e-14)
 
-    def test_chained_3d(self):
+    def test_chained_3d(self, bkd):
         """Test chained 3D transforms."""
-        bkd = self.bkd()
-
         affine1 = AffineTransform3D((0.0, 2.0, 0.0, 2.0, 0.0, 2.0), bkd)
         affine2 = AffineTransform3D((1.0, 3.0, 1.0, 3.0, 1.0, 3.0), bkd)
 
@@ -446,43 +400,22 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
-    def test_chained_requires_same_ndim(self):
+    def test_chained_requires_same_ndim(self, bkd):
         """Test that chaining requires same ndim."""
-        bkd = self.bkd()
-
         affine2d = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
         affine3d = AffineTransform3D((0.0, 1.0, 0.0, 1.0, 0.0, 1.0), bkd)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ChainedTransform([affine2d, affine3d], bkd)
 
 
 class TestPolarTransformNumpy(TestPolarTransform):
     """NumPy backend tests for polar transform."""
 
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
 
 class TestSphericalTransformNumpy(TestSphericalTransform):
     """NumPy backend tests for spherical transform."""
 
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
 
 class TestChainedTransformNumpy(TestChainedTransform):
     """NumPy backend tests for chained transform."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

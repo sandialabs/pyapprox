@@ -1,12 +1,11 @@
 """Tests for GalerkinLameParameterization."""
 
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -26,11 +25,6 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _to_dense(mat):
     """Convert sparse matrix to dense numpy array if needed."""
     if issparse(mat):
@@ -120,56 +114,49 @@ def _make_multi_material_physics(bkd, with_bcs=True):
     )
 
 
-class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
-    __test__ = False
+class TestGalerkinLameParameterization:
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
-    def test_protocol_conformance(self) -> None:
+    def test_protocol_conformance(self, numpy_bkd) -> None:
         """GalerkinLameParameterization satisfies ParameterizationProtocol."""
-        physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
-        self.assertIsInstance(param, ParameterizationProtocol)
+        physics = _make_physics(numpy_bkd)
+        param = create_galerkin_lame_parameterization(physics, numpy_bkd)
+        assert isinstance(param, ParameterizationProtocol)
 
-    def test_nparams(self) -> None:
+    def test_nparams(self, numpy_bkd) -> None:
         """nparams returns 2 * nmaterials."""
-        physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
-        self.assertEqual(param.nparams(), 2)
+        physics = _make_physics(numpy_bkd)
+        param = create_galerkin_lame_parameterization(physics, numpy_bkd)
+        assert param.nparams() == 2
 
-        physics_multi = _make_multi_material_physics(self.bkd_inst)
+        physics_multi = _make_multi_material_physics(numpy_bkd)
         param_multi = create_galerkin_lame_parameterization(
-            physics_multi, self.bkd_inst
+            physics_multi, numpy_bkd
         )
-        self.assertEqual(param_multi.nparams(), 4)
+        assert param_multi.nparams() == 4
 
-    def test_apply_changes_stiffness(self) -> None:
+    def test_apply_changes_stiffness(self, numpy_bkd) -> None:
         """apply() modifies the physics stiffness matrix."""
-        physics = _make_physics(self.bkd_inst, E=1.0, nu=0.3)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
+        physics = _make_physics(numpy_bkd, E=1.0, nu=0.3)
+        param = create_galerkin_lame_parameterization(physics, numpy_bkd)
 
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
-        param.apply(physics, self.bkd_inst.asarray(np.array([2.0, 0.25])))
+        param.apply(physics, numpy_bkd.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix())
 
         diff = np.linalg.norm(K2 - K1)
-        self.assertGreater(diff, 1e-10)
+        assert diff > 1e-10
 
-    def test_apply_poisson_validation(self) -> None:
+    def test_apply_poisson_validation(self, numpy_bkd) -> None:
         """apply() raises for invalid Poisson ratio."""
-        physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
-        with self.assertRaises(ValueError):
-            param.apply(physics, self.bkd_inst.asarray(np.array([1.0, 0.5])))
+        physics = _make_physics(numpy_bkd)
+        param = create_galerkin_lame_parameterization(physics, numpy_bkd)
+        with pytest.raises(ValueError):
+            param.apply(physics, numpy_bkd.asarray(np.array([1.0, 0.5])))
 
-    def test_param_jacobian_fd_validation(self) -> None:
+    def test_param_jacobian_fd_validation(self, numpy_bkd) -> None:
         """FD validation of param_jacobian via DerivativeChecker."""
-        bkd = self.bkd_inst
+        bkd = numpy_bkd
         E0, nu0 = 2.0, 0.3
         physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=False)
         param = create_galerkin_lame_parameterization(physics, bkd)
@@ -207,11 +194,11 @@ class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
         sample = bkd.asarray(np.array([[E0], [nu0]]))
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-6)
+        assert ratio <= 1e-6
 
-    def test_param_jacobian_multi_material_fd(self) -> None:
+    def test_param_jacobian_multi_material_fd(self, numpy_bkd) -> None:
         """FD validation for multi-material param_jacobian."""
-        bkd = self.bkd_inst
+        bkd = numpy_bkd
         physics = _make_multi_material_physics(bkd, with_bcs=False)
         param = create_galerkin_lame_parameterization(physics, bkd)
         nstates = physics.nstates()
@@ -249,11 +236,11 @@ class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
         sample = bkd.asarray(p0.reshape(-1, 1))
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-6)
+        assert ratio <= 1e-6
 
-    def test_initial_param_jacobian_is_zero(self) -> None:
+    def test_initial_param_jacobian_is_zero(self, numpy_bkd) -> None:
         """initial_param_jacobian returns all zeros."""
-        bkd = self.bkd_inst
+        bkd = numpy_bkd
         physics = _make_physics(bkd)
         param = create_galerkin_lame_parameterization(physics, bkd)
         p = bkd.asarray(np.array([1.0, 0.3]))
@@ -261,13 +248,13 @@ class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
         ipj_np = bkd.to_numpy(ipj)
         np.testing.assert_array_equal(ipj_np, 0.0)
 
-    def test_adjoint_gradient_steady_integration(self) -> None:
+    def test_adjoint_gradient_steady_integration(self, numpy_bkd) -> None:
         """Full steady-state solve + adjoint gradient through parameterization.
 
         QoI: Q(u(p)) = c^T u(p) where u(p) solves K(p)*u = b.
         Adjoint gradient: dQ/dp = (dF/dp)^T lambda, with J^T lambda = -c.
         """
-        bkd = self.bkd_inst
+        bkd = numpy_bkd
         E0, nu0 = 1.0, 0.3
         physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=True)
         param = create_galerkin_lame_parameterization(physics, bkd)
@@ -334,55 +321,4 @@ class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
         sample = bkd.asarray(np.array([[E0], [nu0]]))
         errors = checker.check_derivatives(sample, relative=True)[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        self.assertLessEqual(ratio, 1e-6)
-
-
-class TestGalerkinLameParameterizationNumpy(
-    TestGalerkinLameParameterizationBase[NDArray[Any]]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestGalerkinLameParameterizationTorch(
-        TestGalerkinLameParameterizationBase[torch.Tensor]
-    ):
-        __test__ = True
-
-        def setUp(self) -> None:
-            torch.set_default_dtype(torch.float64)
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_adjoint_gradient_steady_integration(self) -> None:
-            pass
-
-        @unittest.skip("sparse @ torch returns numpy — pre-existing issue")
-        def test_param_jacobian_fd_validation(self) -> None:
-            pass
-
-        @unittest.skip("sparse @ torch returns numpy — pre-existing issue")
-        def test_param_jacobian_multi_material_fd(self) -> None:
-            pass
-
-except ImportError:
-    pass
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert ratio <= 1e-6

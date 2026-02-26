@@ -1,11 +1,8 @@
 """Tests for zoo factory functions."""
 
+import pytest
 import math
-import unittest
-from typing import Any, Generic
 
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -25,12 +22,6 @@ from pyapprox.pde.zoo.diffusion import (
     create_steady_diffusion_1d,
     create_transient_diffusion_1d,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 def _make_kle_field_map(bkd, nodes, num_kle_terms=2):
     """Helper: create lognormal KLE field map on Chebyshev nodes."""
     npts = nodes.shape[0]
@@ -45,17 +36,8 @@ def _make_kle_field_map(bkd, nodes, num_kle_terms=2):
     )
 
 
-class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_model(self):
-        bkd = self._bkd
+class TestSteadyDiffusionZoo:
+    def _create_model(self, bkd) :
         npts = 20
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
@@ -77,34 +59,32 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-    def test_factory_produces_valid_model(self):
+    def test_factory_produces_valid_model(self, bkd):
         """Zoo factory produces a working forward model."""
-        fwd = self._create_model()
-        bkd = self._bkd
+        fwd = self._create_model(bkd)
         samples = bkd.zeros((2, 1))
         result = fwd(samples)
-        self.assertEqual(result.shape[0], fwd.nqoi())
-        self.assertEqual(result.shape[1], 1)
+        assert result.shape[0] == fwd.nqoi()
+        assert result.shape[1] == 1
 
-    def test_has_jacobian(self):
+    def test_has_jacobian(self, bkd):
         """Zoo model has jacobian."""
-        fwd = self._create_model()
-        self.assertTrue(hasattr(fwd, "jacobian"))
+        fwd = self._create_model(bkd)
+        assert hasattr(fwd, "jacobian")
 
-    def test_isinstance_function_protocol(self):
+    def test_isinstance_function_protocol(self, bkd):
         """Zoo model satisfies FunctionProtocol."""
-        fwd = self._create_model()
-        self.assertTrue(isinstance(fwd, FunctionProtocol))
+        fwd = self._create_model(bkd)
+        assert isinstance(fwd, FunctionProtocol)
 
-    def test_isinstance_jacobian_protocol(self):
+    def test_isinstance_jacobian_protocol(self, bkd):
         """Zoo model satisfies FunctionWithJacobianProtocol."""
-        fwd = self._create_model()
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        fwd = self._create_model(bkd)
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Zoo model Jacobian passes DerivativeChecker."""
-        bkd = self._bkd
-        fwd = self._create_model()
+        fwd = self._create_model(bkd)
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
@@ -116,11 +96,10 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.1, -0.1])[:, None]
         errors = checker.check_derivatives(sample)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
-    def test_matches_manual_construction(self):
+    def test_matches_manual_construction(self, bkd):
         """Zoo factory matches manually constructed forward model."""
-        bkd = self._bkd
         npts = 20
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
@@ -168,7 +147,7 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
             physics, bkd, init_state, parameterization=param
         )
 
-        fwd_zoo = self._create_model()
+        fwd_zoo = self._create_model(bkd)
 
         samples = bkd.zeros((2, 1))
         bkd.assert_allclose(
@@ -181,9 +160,8 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
             atol=1e-14,
         )
 
-    def test_cannot_specify_both_field_map_and_basis_funs(self):
+    def test_cannot_specify_both_field_map_and_basis_funs(self, bkd):
         """Raises ValueError if both field_map and basis_funs given."""
-        bkd = self._bkd
         npts = 10
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
@@ -194,7 +172,7 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
 
         field_map = _make_kle_field_map(bkd, nodes)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             create_steady_diffusion_1d(
                 bkd=bkd,
                 npts=npts,
@@ -205,17 +183,8 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
             )
 
 
-class TestTransientDiffusionZoo(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_model(self):
-        bkd = self._bkd
+class TestTransientDiffusionZoo:
+    def _create_model(self, bkd) :
         npts = 15
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
@@ -244,30 +213,28 @@ class TestTransientDiffusionZoo(Generic[Array], unittest.TestCase):
             field_map=field_map,
         )
 
-    def test_factory_produces_valid_model(self):
+    def test_factory_produces_valid_model(self, bkd):
         """Zoo factory produces a working transient forward model."""
-        fwd = self._create_model()
-        bkd = self._bkd
+        fwd = self._create_model(bkd)
         samples = bkd.zeros((2, 1))
         result = fwd(samples)
-        self.assertEqual(result.shape[0], fwd.nqoi())
-        self.assertEqual(result.shape[1], 1)
+        assert result.shape[0] == fwd.nqoi()
+        assert result.shape[1] == 1
 
-    def test_has_jacobian(self):
+    def test_has_jacobian(self, bkd):
         """Zoo transient model has jacobian."""
-        fwd = self._create_model()
-        self.assertTrue(hasattr(fwd, "jacobian"))
+        fwd = self._create_model(bkd)
+        assert hasattr(fwd, "jacobian")
 
-    def test_isinstance_protocols(self):
+    def test_isinstance_protocols(self, bkd):
         """Zoo transient model satisfies expected protocols."""
-        fwd = self._create_model()
-        self.assertTrue(isinstance(fwd, FunctionProtocol))
-        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        fwd = self._create_model(bkd)
+        assert isinstance(fwd, FunctionProtocol)
+        assert isinstance(fwd, FunctionWithJacobianProtocol)
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Zoo transient model Jacobian passes DerivativeChecker."""
-        bkd = self._bkd
-        fwd = self._create_model()
+        fwd = self._create_model(bkd)
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
@@ -279,22 +246,12 @@ class TestTransientDiffusionZoo(Generic[Array], unittest.TestCase):
         sample = bkd.array([0.1, -0.1])[:, None]
         errors = checker.check_derivatives(sample, direction=None, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
-        self.assertLessEqual(ratio, 1e-5)
+        assert ratio <= 1e-5
 
 
-class TestDiffusionPositivityValidation(Generic[Array], unittest.TestCase):
+class TestDiffusionPositivityValidation:
     """Tests for strict positivity validation in DiffusionParameterization."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _make_param_and_physics(self, npts):
-        bkd = self._bkd
+    def _make_param_and_physics(self, bkd, npts) :
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
         from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -315,61 +272,25 @@ class TestDiffusionPositivityValidation(Generic[Array], unittest.TestCase):
         param = create_diffusion_parameterization(bkd, basis, fm)
         return param, physics
 
-    def test_nonpositive_diffusion_raises(self):
+    def test_nonpositive_diffusion_raises(self, bkd):
         """ValueError raised when parameterized diffusion is non-positive."""
-        bkd = self._bkd
         npts = 5
-        param, physics = self._make_param_and_physics(npts)
+        param, physics = self._make_param_and_physics(bkd, npts)
         # field = 0.0 + (-0.1)*ones = -0.1 everywhere
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             param.apply(physics, bkd.array([-0.1]))
-        self.assertIn("positive", str(ctx.exception))
+        assert "positive" in str(ctx.value)
 
-    def test_zero_diffusion_raises(self):
+    def test_zero_diffusion_raises(self, bkd):
         """ValueError raised when parameterized diffusion is zero."""
-        bkd = self._bkd
         npts = 5
-        param, physics = self._make_param_and_physics(npts)
-        with self.assertRaises(ValueError):
+        param, physics = self._make_param_and_physics(bkd, npts)
+        with pytest.raises(ValueError):
             param.apply(physics, bkd.array([0.0]))
 
-    def test_positive_diffusion_succeeds(self):
+    def test_positive_diffusion_succeeds(self, bkd):
         """No error when parameterized diffusion is positive."""
-        bkd = self._bkd
         npts = 5
-        param, physics = self._make_param_and_physics(npts)
+        param, physics = self._make_param_and_physics(bkd, npts)
         # field = 0.0 + 1.5*ones = 1.5 everywhere
         param.apply(physics, bkd.array([1.5]))  # Should not raise
-
-
-class TestSteadyDiffusionZooNumpy(TestSteadyDiffusionZoo[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSteadyDiffusionZooTorch(TestSteadyDiffusionZoo[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestTransientDiffusionZooNumpy(TestTransientDiffusionZoo[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTransientDiffusionZooTorch(TestTransientDiffusionZoo[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestDiffusionPositivityNumpy(TestDiffusionPositivityValidation[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestDiffusionPositivityTorch(TestDiffusionPositivityValidation[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()

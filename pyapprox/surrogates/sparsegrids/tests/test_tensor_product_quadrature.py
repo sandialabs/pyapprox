@@ -14,7 +14,7 @@ These tests verify:
 """
 
 import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
+import pytest
 
 from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_tensor_product_pce,
@@ -69,10 +69,10 @@ MIXED_TENSOR_PRODUCT_CONFIGS = [
 # =============================================================================
 
 
-class TestTensorProductGauss(ParametrizedTestCase):
+class TestTensorProductGauss:
     """Test pure tensor product Gauss-Lagrange interpolation and quadrature."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
@@ -95,7 +95,7 @@ class TestTensorProductGauss(ParametrizedTestCase):
         test_pts = joint.rvs(20)
         bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
@@ -117,7 +117,7 @@ class TestTensorProductGauss(ParametrizedTestCase):
         computed_mean = subspace.integrate()
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
@@ -146,10 +146,10 @@ class TestTensorProductGauss(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestTensorProductLeja(ParametrizedTestCase):
+class TestTensorProductLeja:
     """Test pure tensor product Leja-Lagrange interpolation and quadrature."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
@@ -171,7 +171,7 @@ class TestTensorProductLeja(ParametrizedTestCase):
         test_pts = joint.rvs(20)
         bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
@@ -194,7 +194,7 @@ class TestTensorProductLeja(ParametrizedTestCase):
         computed_mean = subspace.integrate()
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
@@ -222,10 +222,10 @@ class TestTensorProductLeja(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestTensorProductPiecewise(ParametrizedTestCase):
+class TestTensorProductPiecewise:
     """Test tensor product piecewise linear interpolation."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_PIECEWISE_LINEAR_CONFIGS,
     )
@@ -257,7 +257,7 @@ class TestTensorProductPiecewise(ParametrizedTestCase):
         computed = subspace(test_pts)
         bkd.assert_allclose(computed, expected, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_PIECEWISE_LINEAR_CONFIGS,
     )
@@ -278,10 +278,10 @@ class TestTensorProductPiecewise(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestMixedTensorProduct(ParametrizedTestCase):
+class TestMixedTensorProduct:
     """Test tensor products with mixed basis types per dimension."""
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )
@@ -303,7 +303,7 @@ class TestMixedTensorProduct(ParametrizedTestCase):
         test_pts = joint.rvs(20)
         bkd.assert_allclose(subspace(test_pts), pce(test_pts), rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )
@@ -325,7 +325,7 @@ class TestMixedTensorProduct(ParametrizedTestCase):
         computed_mean = subspace.integrate()
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,joint_config,basis_types,npts_1d",
         MIXED_TENSOR_PRODUCT_CONFIGS,
     )

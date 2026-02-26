@@ -6,11 +6,7 @@ is compared to the exact manufactured solution. If both recover
 the exact solution to high accuracy, they implicitly agree.
 """
 
-import unittest
-from typing import Any, Generic
-
 import numpy as np
-from numpy.typing import NDArray
 
 # -- Collocation imports --
 from pyapprox.pde.collocation.basis import (
@@ -55,8 +51,7 @@ from pyapprox.pde.galerkin.physics import (
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 # =========================================================================
 # Helpers
@@ -263,18 +258,13 @@ def _solve_galerkin_2d(sol_strs, stress, nx, ny, degree, bkd):
 # =========================================================================
 
 
-class TestHyperelasticityComparison1D(Generic[Array], unittest.TestCase):
+class TestHyperelasticityComparison1D:
     """Compare Galerkin and Collocation 1D hyperelasticity solvers."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
     @slow_test
-    def test_both_recover_exact_1d(self) -> None:
+    def test_both_recover_exact_1d(self, numpy_bkd) -> None:
         """Both methods recover the exact 1D MMS solution."""
-        bkd = self.bkd()
+        bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = ["0.1*x**2*(1-x)**2"]
 
@@ -296,53 +286,14 @@ class TestHyperelasticityComparison1D(Generic[Array], unittest.TestCase):
             degree=2,
             bkd=bkd,
         )
-        self.assertTrue(gal_conv, "Galerkin Newton did not converge")
+        assert gal_conv, "Galerkin Newton did not converge"
         gal_norm = np.linalg.norm(gal_exact)
         gal_rel_err = np.linalg.norm(gal_num - gal_exact) / gal_norm
 
-        self.assertLess(
-            coll_rel_err,
-            1e-6,
-            f"Collocation rel error too large: {coll_rel_err:.2e}",
-        )
-        self.assertLess(
-            gal_rel_err,
-            1e-6,
-            f"Galerkin rel error too large: {gal_rel_err:.2e}",
-        )
+        assert coll_rel_err < 1e-6
+        assert gal_rel_err < 1e-6
 
 
-class TestHyperelasticityComparison1DNumpy(
-    TestHyperelasticityComparison1D[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestHyperelasticityComparison1DTorch(
-        TestHyperelasticityComparison1D[torch.Tensor]
-    ):
-        __test__ = True
-
-        def setUp(self) -> None:
-            torch.set_default_dtype(torch.float64)
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_both_recover_exact_1d(self) -> None:
-            super().test_both_recover_exact_1d()
-
-except ImportError:
-    pass
 
 
 # =========================================================================
@@ -350,18 +301,13 @@ except ImportError:
 # =========================================================================
 
 
-class TestHyperelasticityComparison2D(Generic[Array], unittest.TestCase):
+class TestHyperelasticityComparison2D:
     """Compare Galerkin and Collocation 2D hyperelasticity solvers."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
     @slow_test
-    def test_both_recover_exact_2d(self) -> None:
+    def test_both_recover_exact_2d(self, numpy_bkd) -> None:
         """Both methods recover the exact 2D MMS solution."""
-        bkd = self.bkd()
+        bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = [
             "0.1*x**2*(1-x)**2*y**2*(1-y)**2",
@@ -388,50 +334,11 @@ class TestHyperelasticityComparison2D(Generic[Array], unittest.TestCase):
             degree=2,
             bkd=bkd,
         )
-        self.assertTrue(gal_conv, "Galerkin Newton did not converge")
+        assert gal_conv, "Galerkin Newton did not converge"
         gal_norm = np.linalg.norm(gal_exact)
         gal_rel_err = np.linalg.norm(gal_num - gal_exact) / gal_norm
 
-        self.assertLess(
-            coll_rel_err,
-            1e-6,
-            f"Collocation rel error too large: {coll_rel_err:.2e}",
-        )
-        self.assertLess(
-            gal_rel_err,
-            1e-4,
-            f"Galerkin rel error too large: {gal_rel_err:.2e}",
-        )
+        assert coll_rel_err < 1e-6
+        assert gal_rel_err < 1e-4
 
 
-class TestHyperelasticityComparison2DNumpy(
-    TestHyperelasticityComparison2D[NDArray[Any]]
-):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestHyperelasticityComparison2DTorch(
-        TestHyperelasticityComparison2D[torch.Tensor]
-    ):
-        __test__ = True
-
-        def setUp(self) -> None:
-            torch.set_default_dtype(torch.float64)
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_both_recover_exact_2d(self) -> None:
-            super().test_both_recover_exact_2d()
-
-except ImportError:
-    pass

@@ -1,8 +1,8 @@
 """Tests for CompositeLinearElasticity physics."""
 
-import unittest
-from typing import Any, Generic
+from typing import Any
 
+import pytest
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
@@ -21,10 +21,7 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
+from pyapprox.util.backends.protocols import Array
 def _to_dense(mat, bkd):
     """Convert a matrix (possibly sparse) to a dense numpy array."""
     if issparse(mat):
@@ -52,55 +49,51 @@ def _uniform_material(
     )
 
 
-class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
+class TestCompositeLinearElasticityBase:
     # ---- Tests matching existing LinearElasticity tests ----
 
-    def test_1d_stiffness_symmetric(self) -> None:
+    def test_1d_stiffness_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(
             nx=5,
             bounds=(0.0, 1.0),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
-        K_np = _to_dense(K, self.bkd_inst)
+        K_np = _to_dense(K, bkd)
         np.testing.assert_array_almost_equal(K_np, K_np.T)
 
-    def test_1d_residual_shape(self) -> None:
+    def test_1d_residual_shape(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(
             nx=5,
             bounds=(0.0, 1.0),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_1d_rigid_body_motion(self) -> None:
+    def test_1d_rigid_body_motion(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(
             nx=5,
             bounds=(0.0, 1.0),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u = self.bkd_inst.asarray(np.ones(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u = bkd.asarray(np.ones(physics.nstates()))
         K = physics.stiffness_matrix()
-        Ku = _to_dense(K, self.bkd_inst) @ self.bkd_inst.to_numpy(u)
-        self.assertLess(np.linalg.norm(Ku), 1e-10)
+        Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
+        assert np.linalg.norm(Ku) < 1e-10
 
-    def test_1d_manufactured_solution(self) -> None:
+    def test_1d_manufactured_solution(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         from skfem.models.elasticity import lame_parameters as _lame
 
         from pyapprox.pde.galerkin.boundary.implementations import (
@@ -118,13 +111,13 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             sol_strs=["0.1*x*(1-x) + 0.2"],
             lambda_str=str(lam),
             mu_str=str(mu),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
 
         mesh = StructuredMesh1D(
             nx=10,
             bounds=(0.0, 1.0),
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=2)
 
@@ -144,155 +137,157 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             return result
 
         bc_list = [
-            DirichletBC(basis, "left", dirichlet_value, self.bkd_inst),
-            DirichletBC(basis, "right", dirichlet_value, self.bkd_inst),
+            DirichletBC(basis, "left", dirichlet_value, bkd),
+            DirichletBC(basis, "right", dirichlet_value, bkd),
         ]
         physics = _uniform_material(
             basis,
             E,
             nu,
-            self.bkd_inst,
+            bkd,
             body_force=body_force,
             boundary_conditions=bc_list,
         )
 
         solver = SteadyStateSolver(physics, tol=1e-12, max_iter=5, line_search=False)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
 
-        self.assertTrue(
-            result.converged,
-            f"1D did not converge: {result.residual_norm}",
-        )
+        assert result.converged, f"1D did not converge: {result.residual_norm}"
 
-        u_np = self.bkd_inst.to_numpy(result.solution)
-        dof_coords = self.bkd_inst.to_numpy(basis.dof_coordinates())
+        u_np = bkd.to_numpy(result.solution)
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
         sol_vals = functions["solution"](dof_coords)
         n_dofs = basis.ndofs()
         exact = np.zeros(n_dofs)
         for i in range(n_dofs):
             exact[i] = sol_vals[i, i % nvars]
         rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
-        self.assertLess(
-            rel_error,
-            1e-8,
-            f"1D manufactured solution rel error: {rel_error:.2e}",
-        )
+        assert rel_error < 1e-8
 
-    def test_2d_stiffness_symmetric(self) -> None:
+    def test_2d_stiffness_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
-        K_np = _to_dense(K, self.bkd_inst)
+        K_np = _to_dense(K, bkd)
         np.testing.assert_array_almost_equal(K_np, K_np.T)
 
-    def test_2d_mass_matrix_symmetric(self) -> None:
+    def test_2d_mass_matrix_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         M = physics.mass_matrix()
-        M_np = _to_dense(M, self.bkd_inst)
+        M_np = _to_dense(M, bkd)
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_2d_residual_shape(self) -> None:
+    def test_2d_residual_shape(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_2d_jacobian_shape(self) -> None:
+    def test_2d_jacobian_shape(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_3d_stiffness_symmetric(self) -> None:
+    def test_3d_stiffness_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
-        K_np = _to_dense(K, self.bkd_inst)
+        K_np = _to_dense(K, bkd)
         np.testing.assert_array_almost_equal(K_np, K_np.T)
 
-    def test_3d_mass_matrix_symmetric(self) -> None:
+    def test_3d_mass_matrix_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         M = physics.mass_matrix()
-        M_np = _to_dense(M, self.bkd_inst)
+        M_np = _to_dense(M, bkd)
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_3d_residual_shape(self) -> None:
+    def test_3d_residual_shape(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_3d_jacobian_shape(self) -> None:
+    def test_3d_jacobian_shape(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_with_body_force(self) -> None:
+    def test_2d_with_body_force(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
@@ -305,21 +300,22 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             basis,
             1.0,
             0.3,
-            self.bkd_inst,
+            bkd,
             body_force=body_force,
         )
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        res_np = self.bkd_inst.to_numpy(res)
-        self.assertTrue(np.linalg.norm(res_np) > 0)
+        res_np = bkd.to_numpy(res)
+        assert np.linalg.norm(res_np) > 0
 
-    def test_3d_with_body_force(self) -> None:
+    def test_3d_with_body_force(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
@@ -332,63 +328,66 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             basis,
             1.0,
             0.3,
-            self.bkd_inst,
+            bkd,
             body_force=body_force,
         )
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
         res = physics.residual(u0, 0.0)
-        res_np = self.bkd_inst.to_numpy(res)
-        self.assertTrue(np.linalg.norm(res_np) > 0)
+        res_np = bkd.to_numpy(res)
+        assert np.linalg.norm(res_np) > 0
 
-    def test_lame_parameters(self) -> None:
+    def test_lame_parameters(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         E = 100.0
         nu = 0.25
-        physics = _uniform_material(basis, E, nu, self.bkd_inst)
+        physics = _uniform_material(basis, E, nu, bkd)
         expected_lambda = E * nu / ((1 + nu) * (1 - 2 * nu))
         expected_mu = E / (2 * (1 + nu))
-        self.assertAlmostEqual(physics.lame_lambda(), expected_lambda, places=10)
-        self.assertAlmostEqual(physics.lame_mu(), expected_mu, places=10)
+        assert abs(physics.lame_lambda() - expected_lambda) < 10**(-10)
+        assert abs(physics.lame_mu() - expected_mu) < 10**(-10)
 
-    def test_poisson_ratio_validation(self) -> None:
+    def test_poisson_ratio_validation(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CompositeLinearElasticity(
                 basis=basis,
                 material_map={"m": (1.0, 0.5)},
                 element_materials={"m": np.arange(nelems)},
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CompositeLinearElasticity(
                 basis=basis,
                 material_map={"m": (1.0, -1.0)},
                 element_materials={"m": np.arange(nelems)},
-                bkd=self.bkd_inst,
+                bkd=bkd,
             )
 
-    def test_rigid_body_motion_2d(self) -> None:
+    def test_rigid_body_motion_2d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
 
         def u_translation(x):
             result = np.zeros_like(x)
@@ -398,19 +397,20 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
 
         u = physics.initial_condition(u_translation)
         K = physics.stiffness_matrix()
-        Ku = _to_dense(K, self.bkd_inst) @ self.bkd_inst.to_numpy(u)
-        self.assertLess(np.linalg.norm(Ku), 1e-10)
+        Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
+        assert np.linalg.norm(Ku) < 1e-10
 
-    def test_rigid_body_motion_3d(self) -> None:
+    def test_rigid_body_motion_3d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.25, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.25, bkd)
 
         def u_translation(x):
             result = np.zeros_like(x)
@@ -421,57 +421,60 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
 
         u = physics.initial_condition(u_translation)
         K = physics.stiffness_matrix()
-        Ku = _to_dense(K, self.bkd_inst) @ self.bkd_inst.to_numpy(u)
-        self.assertLess(np.linalg.norm(Ku), 1e-10)
+        Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
+        assert np.linalg.norm(Ku) < 1e-10
 
-    def test_stiffness_action_consistency(self) -> None:
+    def test_stiffness_action_consistency(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
 
         def u_linear(x):
             return x
 
         u = physics.initial_condition(u_linear)
         K = physics.stiffness_matrix()
-        Ku = _to_dense(K, self.bkd_inst) @ self.bkd_inst.to_numpy(u)
-        self.assertEqual(Ku.shape, (physics.nstates(),))
-        self.assertTrue(np.linalg.norm(Ku) > 0)
+        Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
+        assert Ku.shape == (physics.nstates(),)
+        assert np.linalg.norm(Ku) > 0
 
-    def test_stiffness_action_consistency_3d(self) -> None:
+    def test_stiffness_action_consistency_3d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
             ny=3,
             nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.25, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.25, bkd)
 
         def u_linear(x):
             return x
 
         u = physics.initial_condition(u_linear)
         K = physics.stiffness_matrix()
-        Ku = _to_dense(K, self.bkd_inst) @ self.bkd_inst.to_numpy(u)
-        self.assertEqual(Ku.shape, (physics.nstates(),))
-        self.assertTrue(np.linalg.norm(Ku) > 0)
+        Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
+        assert Ku.shape == (physics.nstates(),)
+        assert np.linalg.norm(Ku) > 0
 
     # ---- Multi-material specific tests ----
 
-    def test_two_material_differs_from_uniform(self) -> None:
+    def test_two_material_differs_from_uniform(self, numpy_bkd) -> None:
         """Two-material stiffness differs from uniform."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=10,
             ny=5,
             bounds=[[0.0, 2.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
@@ -484,7 +487,7 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             basis,
             1.0,
             0.3,
-            self.bkd_inst,
+            bkd,
         )
         physics_composite = CompositeLinearElasticity(
             basis=basis,
@@ -496,38 +499,40 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
                 "left": left_elems,
                 "right": right_elems,
             },
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
 
-        K_uni = _to_dense(physics_uniform.stiffness_matrix(), self.bkd_inst)
-        K_comp = _to_dense(physics_composite.stiffness_matrix(), self.bkd_inst)
+        K_uni = _to_dense(physics_uniform.stiffness_matrix(), bkd)
+        K_comp = _to_dense(physics_composite.stiffness_matrix(), bkd)
         # Should be different
-        self.assertTrue(np.linalg.norm(K_uni - K_comp) > 1e-6)
+        assert np.linalg.norm(K_uni - K_comp) > 1e-6
         # But both should be symmetric
         np.testing.assert_allclose(K_comp, K_comp.T, atol=1e-12)
 
-    def test_apply_invalidates_cache(self) -> None:
+    def test_apply_invalidates_cache(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        param = create_galerkin_lame_parameterization(physics, bkd)
 
-        K1 = _to_dense(physics.stiffness_matrix(), self.bkd_inst)
-        param.apply(physics, self.bkd_inst.asarray(np.array([2.0, 0.25])))
-        K2 = _to_dense(physics.stiffness_matrix(), self.bkd_inst)
-        self.assertTrue(np.linalg.norm(K1 - K2) > 1e-6)
+        K1 = _to_dense(physics.stiffness_matrix(), bkd)
+        param.apply(physics, bkd.asarray(np.array([2.0, 0.25])))
+        K2 = _to_dense(physics.stiffness_matrix(), bkd)
+        assert np.linalg.norm(K1 - K2) > 1e-6
 
-    def test_nparams_multi_material(self) -> None:
+    def test_nparams_multi_material(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=10,
             ny=5,
             bounds=[[0.0, 2.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
@@ -544,55 +549,57 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
                 "mat2": np.arange(nelems // 3, 2 * nelems // 3),
                 "mat3": np.arange(2 * nelems // 3, nelems),
             },
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
-        self.assertEqual(param.nparams(), 6)
+        param = create_galerkin_lame_parameterization(physics, bkd)
+        assert param.nparams() == 6
 
     # ---- Sensitivity method tests ----
 
-    def test_sensitivity_shape(self) -> None:
+    def test_sensitivity_shape(self, numpy_bkd) -> None:
         """residual_lam/mu_sensitivity return correct shapes."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        physics = _uniform_material(basis, 1.0, 0.3, bkd)
         n = physics.nstates()
         rng = np.random.RandomState(42)
-        u = self.bkd_inst.asarray(rng.randn(n))
+        u = bkd.asarray(rng.randn(n))
 
         lam_sens = physics.residual_lam_sensitivity(u, 0)
         mu_sens = physics.residual_mu_sensitivity(u, 0)
-        self.assertEqual(lam_sens.shape, (n,))
-        self.assertEqual(mu_sens.shape, (n,))
+        assert lam_sens.shape == (n,)
+        assert mu_sens.shape == (n,)
 
-    def test_sensitivity_cross_validate_parameterization(self) -> None:
+    def test_sensitivity_cross_validate_parameterization(self, numpy_bkd) -> None:
         """Sensitivity methods reproduce parameterization columns via chain rule.
 
         For material i with params (E, nu):
           col_E  = dlam/dE * lam_sens(i) + dmu/dE * mu_sens(i)
           col_nu = dlam/dnu * lam_sens(i) + dmu/dnu * mu_sens(i)
         """
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 2.0, 0.3, self.bkd_inst)
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
+        physics = _uniform_material(basis, 2.0, 0.3, bkd)
+        param = create_galerkin_lame_parameterization(physics, bkd)
 
         rng = np.random.RandomState(42)
-        u = self.bkd_inst.asarray(rng.randn(physics.nstates()))
-        params_1d = self.bkd_inst.asarray(np.array([2.0, 0.3]))
+        u = bkd.asarray(rng.randn(physics.nstates()))
+        params_1d = bkd.asarray(np.array([2.0, 0.3]))
 
         # Get param_jacobian via parameterization
-        pjac = self.bkd_inst.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
+        pjac = bkd.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
 
         E, nu = 2.0, 0.3
         denom = (1.0 + nu) * (1.0 - 2.0 * nu)
@@ -602,8 +609,8 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
         dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
         dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
 
-        lam_sens = self.bkd_inst.to_numpy(physics.residual_lam_sensitivity(u, 0))
-        mu_sens = self.bkd_inst.to_numpy(physics.residual_mu_sensitivity(u, 0))
+        lam_sens = bkd.to_numpy(physics.residual_lam_sensitivity(u, 0))
+        mu_sens = bkd.to_numpy(physics.residual_mu_sensitivity(u, 0))
 
         col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
         col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
@@ -621,13 +628,14 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             err_msg="Sensitivity cross-validation failed for nu column",
         )
 
-    def test_sensitivity_multi_material(self) -> None:
+    def test_sensitivity_multi_material(self, numpy_bkd) -> None:
         """Cross-validate sensitivities for multi-material setup."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=10,
             ny=5,
             bounds=[[0.0, 2.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
@@ -647,16 +655,16 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
                 "left": left_elems,
                 "right": right_elems,
             },
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
-        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
+        param = create_galerkin_lame_parameterization(physics, bkd)
 
         rng = np.random.RandomState(42)
-        u = self.bkd_inst.asarray(rng.randn(physics.nstates()))
-        params_1d = self.bkd_inst.asarray(
+        u = bkd.asarray(rng.randn(physics.nstates()))
+        params_1d = bkd.asarray(
             np.array([E_vals[0], nu_vals[0], E_vals[1], nu_vals[1]])
         )
-        pjac = self.bkd_inst.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
+        pjac = bkd.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
 
         for i, (E, nu) in enumerate(zip(E_vals, nu_vals)):
             denom = (1.0 + nu) * (1.0 - 2.0 * nu)
@@ -665,8 +673,8 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
             dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
 
-            lam_sens = self.bkd_inst.to_numpy(physics.residual_lam_sensitivity(u, i))
-            mu_sens = self.bkd_inst.to_numpy(physics.residual_mu_sensitivity(u, i))
+            lam_sens = bkd.to_numpy(physics.residual_lam_sensitivity(u, i))
+            mu_sens = bkd.to_numpy(physics.residual_mu_sensitivity(u, i))
 
             col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
             col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
@@ -686,13 +694,14 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
 
     # ---- Accessor method tests ----
 
-    def test_accessor_methods(self) -> None:
+    def test_accessor_methods(self, numpy_bkd) -> None:
         """Test nmaterials, material_names, material_params, element_materials."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=10,
             ny=5,
             bounds=[[0.0, 2.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
@@ -709,35 +718,36 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
                 "left": left_elems,
                 "right": right_elems,
             },
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
 
-        self.assertEqual(physics.nmaterials(), 2)
-        self.assertEqual(physics.material_names(), ["left", "right"])
-        self.assertEqual(physics.material_params("left"), (1.0, 0.3))
-        self.assertEqual(physics.material_params("right"), (5.0, 0.2))
+        assert physics.nmaterials() == 2
+        assert physics.material_names() == ["left", "right"]
+        assert physics.material_params("left") == (1.0, 0.3)
+        assert physics.material_params("right") == (5.0, 0.2)
         elem_mats = physics.element_materials()
         np.testing.assert_array_equal(elem_mats["left"], left_elems)
         np.testing.assert_array_equal(elem_mats["right"], right_elems)
 
-    def test_param_jacobian_fd_check(self) -> None:
+    def test_param_jacobian_fd_check(self, numpy_bkd) -> None:
         """Finite difference check for parameterization param_jacobian."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
             ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 2.0, 0.3, self.bkd_inst)
-        parameterization = create_galerkin_lame_parameterization(physics, self.bkd_inst)
+        physics = _uniform_material(basis, 2.0, 0.3, bkd)
+        parameterization = create_galerkin_lame_parameterization(physics, bkd)
 
         rng = np.random.RandomState(42)
-        u0 = self.bkd_inst.asarray(rng.randn(physics.nstates()))
+        u0 = bkd.asarray(rng.randn(physics.nstates()))
         p0 = np.array([2.0, 0.3])
-        p0_arr = self.bkd_inst.asarray(p0)
+        p0_arr = bkd.asarray(p0)
 
-        pjac = self.bkd_inst.to_numpy(
+        pjac = bkd.to_numpy(
             parameterization.param_jacobian(physics, u0, 0.0, p0_arr)
         )
 
@@ -749,10 +759,10 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
             p_minus = p0.copy()
             p_minus[j] -= eps
 
-            parameterization.apply(physics, self.bkd_inst.asarray(p_plus))
-            res_plus = self.bkd_inst.to_numpy(physics.spatial_residual(u0, 0.0))
-            parameterization.apply(physics, self.bkd_inst.asarray(p_minus))
-            res_minus = self.bkd_inst.to_numpy(physics.spatial_residual(u0, 0.0))
+            parameterization.apply(physics, bkd.asarray(p_plus))
+            res_plus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
+            parameterization.apply(physics, bkd.asarray(p_minus))
+            res_minus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
 
             fd_col = (res_plus - res_minus) / (2 * eps)
             np.testing.assert_allclose(
@@ -766,55 +776,3 @@ class TestCompositeLinearElasticityBase(Generic[Array], unittest.TestCase):
         parameterization.apply(physics, p0_arr)
 
 
-class TestCompositeLinearElasticityNumpy(
-    TestCompositeLinearElasticityBase[NDArray[Any]]
-):
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestCompositeLinearElasticityTorch(
-        TestCompositeLinearElasticityBase[torch.Tensor]
-    ):
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_1d_manufactured_solution(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_param_jacobian_fd_check(self) -> None:
-            pass
-
-        @unittest.skip("scipy sparse @ torch tensor returns numpy in sensitivity")
-        def test_sensitivity_cross_validate_parameterization(self) -> None:
-            pass
-
-        @unittest.skip("scipy sparse @ torch tensor returns numpy in sensitivity")
-        def test_sensitivity_multi_material(self) -> None:
-            pass
-
-except ImportError:
-    pass
-
-
-if __name__ == "__main__":
-    unittest.main()

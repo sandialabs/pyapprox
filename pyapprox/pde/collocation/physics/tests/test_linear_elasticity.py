@@ -5,9 +5,6 @@ integrates the time derivative exactly while backward Euler (1st order) has
 O(dt) temporal error.
 """
 
-import unittest
-from typing import Generic
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.manufactured_solutions import (
@@ -22,12 +19,9 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
+class TestLinearElasticityTransient:
     """Test transient linear elasticity with manufactured solutions.
 
     Solution: u = (1-x^2)(1-y^2)(1+T+T^2), v = (1-x^2)(1-y^2)x(1+T+T^2)
@@ -35,17 +29,11 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
     du/dt = f(x)(1+2T), which CN integrates exactly but BE does not.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def _setup_transient_elasticity(self):
+    def _setup_transient_elasticity(self, bkd):
         """Create elasticity physics with time-dependent manufactured solution.
 
         Returns physics, manufactured solution, nodes, and backend.
         """
-        bkd = self.bkd()
         npts_1d = 8
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -92,8 +80,8 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
 
         return physics, man_sol, nodes, npts, bkd
 
-    def _run_transient_elasticity(self, method, atol):
-        physics, man_sol, nodes, npts, bkd = self._setup_transient_elasticity()
+    def _run_transient_elasticity(self, bkd, method, atol) :
+        physics, man_sol, nodes, npts, bkd = self._setup_transient_elasticity(bkd)
         model = CollocationModel(physics, bkd)
 
         # Initial condition at t=0
@@ -116,27 +104,16 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(solutions[:, -1], u_exact_flat, atol=atol)
 
-    def test_transient_backward_euler(self):
+    def test_transient_backward_euler(self, bkd):
         """Test transient elasticity with backward Euler.
 
         BE is 1st order: O(dt) temporal error for quadratic-in-time solution.
         """
-        self._run_transient_elasticity("backward_euler", atol=0.01)
+        self._run_transient_elasticity(bkd, "backward_euler", atol=0.01)
 
-    def test_transient_crank_nicolson(self):
+    def test_transient_crank_nicolson(self, bkd):
         """Test transient elasticity with Crank-Nicolson.
 
         CN is 2nd order: exact for quadratic-in-time solution.
         """
-        self._run_transient_elasticity("crank_nicolson", atol=1e-8)
-
-
-class TestLinearElasticityTransientNumpy(TestLinearElasticityTransient):
-    __test__ = True
-
-    def bkd(self) -> Backend[Array]:
-        return NumpyBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._run_transient_elasticity(bkd, "crank_nicolson", atol=1e-8)

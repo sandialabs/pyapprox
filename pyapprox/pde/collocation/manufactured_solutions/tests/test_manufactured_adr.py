@@ -11,10 +11,12 @@ degree n-1 are exactly represented. We use degree <= 4 to ensure machine
 precision residuals even with moderate grid sizes.
 """
 
-import math
-import unittest
+import pytest
 from typing import Generic
 
+import math
+
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -43,12 +45,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -93,7 +90,7 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(state, self._time)
 
 
-class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
+class TestManufacturedADR1D:
     """Test ADR manufactured solutions in 1D.
 
     For residual tests, we use polynomial solutions that can be exactly
@@ -104,18 +101,12 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
     This gives machine precision residuals (< 1e-12).
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_diffusion_residual(self):
+    def test_steady_diffusion_residual(self, bkd):
         """Test residual = 0 at exact solution for steady diffusion.
 
         Uses polynomial solution u = (1-x**2)*x = x - x**3 (degree 3).
         With 10+ points, this should give machine precision.
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -162,9 +153,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         # Interior residual should be near machine precision
         bkd.assert_allclose(residual_with_bc[1:-1], bkd.zeros((npts - 2,)), atol=1e-12)
 
-    def test_steady_diffusion_jacobian(self):
+    def test_steady_diffusion_jacobian(self, bkd):
         """Test Jacobian correctness via DerivativeChecker."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -185,11 +175,10 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         # Should have small relative error at some epsilon
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_steady_diffusion_solve(self):
+    def test_steady_diffusion_solve(self, bkd):
         """Test numerical solution matches manufactured solution."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -230,12 +219,11 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         # Should match exact solution to machine precision
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_advection_diffusion_residual(self):
+    def test_advection_diffusion_residual(self, bkd):
         """Test residual for advection-diffusion problem.
 
         Uses polynomial solution u = (1-x**2)*(1+x) = 1 + x - x**2 - x**3 (degree 3).
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -276,9 +264,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         # Interior residual should be near machine precision
         bkd.assert_allclose(residual_with_bc[1:-1], bkd.zeros((npts - 2,)), atol=1e-12)
 
-    def test_advection_diffusion_jacobian(self):
+    def test_advection_diffusion_jacobian(self, bkd):
         """Test Jacobian for advection-diffusion problem."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -296,14 +283,13 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_reaction_diffusion_residual(self):
+    def test_reaction_diffusion_residual(self, bkd):
         """Test residual for reaction-diffusion problem.
 
         Uses polynomial solution u = (1-x**2)*x (degree 3).
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -342,9 +328,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(residual_with_bc[1:-1], bkd.zeros((npts - 2,)), atol=1e-12)
 
-    def test_reaction_diffusion_jacobian(self):
+    def test_reaction_diffusion_jacobian(self, bkd):
         """Test Jacobian for reaction-diffusion problem."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -359,14 +344,13 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_full_adr_residual(self):
+    def test_full_adr_residual(self, bkd):
         """Test residual for full ADR problem.
 
         Uses polynomial solution u = (1-x**2)*(1+2*x) (degree 3).
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -411,9 +395,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(residual_with_bc[1:-1], bkd.zeros((npts - 2,)), atol=1e-12)
 
-    def test_full_adr_solve(self):
+    def test_full_adr_solve(self, bkd):
         """Test numerical solution for full ADR problem."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -457,7 +440,7 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
 
-class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
+class TestManufacturedADR2D:
     """Test ADR manufactured solutions in 2D.
 
     For residual tests, we use polynomial solutions that can be exactly
@@ -468,17 +451,11 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
     With 8x8 or more points, these give machine precision residuals.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_diffusion_residual_2d(self):
+    def test_steady_diffusion_residual_2d(self, bkd):
         """Test residual = 0 for 2D steady diffusion.
 
         Uses polynomial solution u = (1-x**2)*(1-y**2) (degree 2 in each direction).
         """
-        bkd = self.bkd()
         npts_x, npts_y = 8, 8
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -536,9 +513,8 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
         )
 
-    def test_steady_diffusion_jacobian_2d(self):
+    def test_steady_diffusion_jacobian_2d(self, bkd):
         """Test Jacobian for 2D diffusion."""
-        bkd = self.bkd()
         npts_x, npts_y = 8, 8
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -554,11 +530,10 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_steady_diffusion_solve_2d(self):
+    def test_steady_diffusion_solve_2d(self, bkd):
         """Test numerical solution matches manufactured solution in 2D."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -599,12 +574,11 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-10)
 
-    def test_advection_diffusion_2d(self):
+    def test_advection_diffusion_2d(self, bkd):
         """Test residual for 2D advection-diffusion.
 
         Uses polynomial solution u = (1-x**2)*(1-y**2)*x (degree 3 in x, 2 in y).
         """
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -663,7 +637,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         )
 
 
-class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
+class TestManufacturedADRTransient:
     """Test transient ADR manufactured solutions.
 
     For transient tests, we use polynomial solutions in BOTH space and time:
@@ -672,18 +646,12 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
     This gives machine precision residuals.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_transient_diffusion_residual(self):
+    def test_transient_diffusion_residual(self, bkd):
         """Test transient manufactured solution residual equals du/dt.
 
         For transient problems, residual = L(u) + f = du/dt at exact solution.
         Uses polynomial solution in both space and time.
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -732,12 +700,11 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
         # Interior points only (BCs modify boundary residual)
         bkd.assert_allclose(residual[1:-1], expected_dudt[1:-1], atol=1e-12)
 
-    def test_transient_diffusion_solve(self):
+    def test_transient_diffusion_solve(self, bkd):
         """Test transient solve with manufactured solution.
 
         Uses polynomial solution for machine precision verification.
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -796,28 +763,13 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
 class TestManufacturedADR1DNumpy(TestManufacturedADR1D):
     """Numpy implementation of 1D ADR tests."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
 
 class TestManufacturedADR2DNumpy(TestManufacturedADR2D):
     """Numpy implementation of 2D ADR tests."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
 
 class TestManufacturedADRTransientNumpy(TestManufacturedADRTransient):
     """Numpy implementation of transient ADR tests."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
 
 
 # =============================================================================
@@ -825,7 +777,6 @@ class TestManufacturedADRTransientNumpy(TestManufacturedADRTransient):
 # =============================================================================
 # These tests cover parameter combinations matching legacy tests
 
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 # ADR 1D test cases matching legacy itertools.product combinations
 ADR_1D_STEADY_CASES = [
@@ -841,22 +792,17 @@ ADR_1D_STEADY_CASES = [
 ]
 
 
-class TestADR1DParameterized(ParametrizedTestCase):
+class TestADR1DParameterized:
     """Parameterized tests for 1D ADR covering legacy test combinations."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,diff,vel,react,npts,domain",
         ADR_1D_STEADY_CASES,
     )
     def test_steady_adr_1d_residual(
-        self, name, sol_str, diff, vel, react, npts, domain
+        self, bkd, name, sol_str, diff, vel, react, npts, domain
     ):
         """Test residual = 0 at manufactured solution for various configurations."""
-        bkd = self.bkd()
-
         # Create transform if domain != [-1, 1]
         lb, ub = domain
         if lb == -1.0 and ub == 1.0:
@@ -911,14 +857,12 @@ class TestADR1DParameterized(ParametrizedTestCase):
         # Interior residual should be near machine precision
         bkd.assert_allclose(residual_bc[1:-1], bkd.zeros((npts - 2,)), atol=1e-10)
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,diff,vel,react,npts,domain",
         ADR_1D_STEADY_CASES,
     )
-    def test_steady_adr_1d_solve(self, name, sol_str, diff, vel, react, npts, domain):
+    def test_steady_adr_1d_solve(self, bkd, name, sol_str, diff, vel, react, npts, domain):
         """Test numerical solution matches manufactured solution for various configs."""
-        bkd = self.bkd()
-
         # Create transform if domain != [-1, 1]
         lb, ub = domain
         if lb == -1.0 and ub == 1.0:
@@ -977,19 +921,15 @@ ADR_2D_STEADY_CASES = [
 ]
 
 
-class TestADR2DParameterized(ParametrizedTestCase):
+class TestADR2DParameterized:
     """Parameterized tests for 2D ADR."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,diff,vel,npts",
         ADR_2D_STEADY_CASES,
     )
-    def test_steady_adr_2d_residual(self, name, sol_str, diff, vel, npts):
+    def test_steady_adr_2d_residual(self, bkd, name, sol_str, diff, vel, npts):
         """Test 2D residual = 0 at manufactured solution."""
-        bkd = self.bkd()
         npts_x, npts_y = npts
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -1059,7 +999,7 @@ class TestADR2DParameterized(ParametrizedTestCase):
 # =============================================================================
 
 
-class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
+class TestManufacturedADR3D:
     """Test ADR manufactured solutions in 3D.
 
     For residual tests, we use polynomial solutions that can be exactly
@@ -1069,18 +1009,12 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
     With 6x6x6 or more points, these give machine precision residuals.
     """
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_steady_diffusion_residual_3d(self):
+    def test_steady_diffusion_residual_3d(self, bkd):
         """Test residual = 0 for 3D steady diffusion.
 
         Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2) (degree 2 in each
         direction).
         """
-        bkd = self.bkd()
         npts_x, npts_y, npts_z = 6, 6, 6
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
@@ -1138,9 +1072,8 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
         )
 
-    def test_steady_diffusion_jacobian_3d(self):
+    def test_steady_diffusion_jacobian_3d(self, bkd):
         """Test Jacobian for 3D diffusion."""
-        bkd = self.bkd()
         npts_x, npts_y, npts_z = 5, 5, 5
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
@@ -1156,15 +1089,14 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5)
+        assert min_error < 1e-5
 
-    def test_advection_diffusion_3d(self):
+    def test_advection_diffusion_3d(self, bkd):
         """Test residual for 3D advection-diffusion.
 
         Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2)*x (degree 3 in x, 2 in
         y,z).
         """
-        bkd = self.bkd()
         npts_x, npts_y, npts_z = 8, 6, 6
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
@@ -1225,11 +1157,6 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
 class TestManufacturedADR3DNumpy(TestManufacturedADR3D):
     """Numpy implementation of 3D ADR tests."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
 
 # ADR 3D test cases for parameterized tests
 ADR_3D_STEADY_CASES = [
@@ -1252,19 +1179,15 @@ ADR_3D_STEADY_CASES = [
 ]
 
 
-class TestADR3DParameterized(ParametrizedTestCase):
+class TestADR3DParameterized:
     """Parameterized tests for 3D ADR."""
 
-    def bkd(self):
-        return NumpyBkd()
-
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,sol_str,diff,vel,npts",
         ADR_3D_STEADY_CASES,
     )
-    def test_steady_adr_3d_residual(self, name, sol_str, diff, vel, npts):
+    def test_steady_adr_3d_residual(self, bkd, name, sol_str, diff, vel, npts):
         """Test 3D residual = 0 at manufactured solution."""
-        bkd = self.bkd()
         npts_x, npts_y, npts_z = npts
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
@@ -1327,7 +1250,3 @@ class TestADR3DParameterized(ParametrizedTestCase):
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

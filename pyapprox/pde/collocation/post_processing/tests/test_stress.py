@@ -1,8 +1,9 @@
 """Tests for 2D stress post-processing."""
 
+import pytest
+
 import math
-import unittest
-from typing import Any, Generic
+from typing import Any
 
 import torch
 from numpy.typing import NDArray
@@ -22,7 +23,7 @@ from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import slow_test
 
 # ======================================================================
 # Helpers
@@ -192,18 +193,9 @@ def _lame_stresses(bkd, pts, r_inner, r_outer, pressure):
 # ======================================================================
 
 
-class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def test_hoop_stress_lame(self):
+class TestStressPostProcessor2D:
+    def test_hoop_stress_lame(self, bkd):
         """Hoop stress matches analytical Lame solution."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd, npts_r=14, npts_theta=14)
         sigma_tt = setup["proc"].hoop_stress(setup["state"])
         pts = setup["mesh"].points()
@@ -216,9 +208,11 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(sigma_tt, sigma_tt_exact, rtol=1e-6)
 
-    def test_radial_stress_lame(self):
+
+    @pytest.mark.slow_on("TorchBkd")
+
+    def test_radial_stress_lame(self, bkd):
         """Radial stress matches analytical Lame solution."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd, npts_r=16, npts_theta=16)
         sigma_rr = setup["proc"].radial_stress(setup["state"])
         pts = setup["mesh"].points()
@@ -231,23 +225,21 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(sigma_rr, sigma_rr_exact, atol=1e-6)
 
-    def test_strain_energy_density_positive(self):
+    def test_strain_energy_density_positive(self, bkd):
         """Strain energy density is positive for the Lame solution."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd)
         psi = setup["proc"].strain_energy_density(setup["state"])
-        self.assertGreater(float(bkd.min(psi)), 0.0)
+        assert float(bkd.min(psi)) > 0.0
 
-    def test_hoop_stress_jacobian_fd(self):
+    def test_hoop_stress_jacobian_fd(self, bkd):
         """Hoop stress Jacobian matches finite differences."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
         proc = setup["proc"]
         state = setup["state"]
         npts = setup["npts"]
 
         jac = proc.hoop_stress_state_jacobian()  # (npts, 2*npts)
-        self.assertEqual(jac.shape, (npts, 2 * npts))
+        assert jac.shape == (npts, 2 * npts)
 
         # Finite difference check at a few DOFs
         eps = 1e-7
@@ -261,16 +253,15 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
             fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
-    def test_strain_energy_density_jacobian_fd(self):
+    def test_strain_energy_density_jacobian_fd(self, bkd):
         """Strain energy density Jacobian matches finite differences."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd, npts_r=8, npts_theta=8)
         proc = setup["proc"]
         state = setup["state"]
         npts = setup["npts"]
 
         jac = proc.strain_energy_density_state_jacobian(state)
-        self.assertEqual(jac.shape, (npts, 2 * npts))
+        assert jac.shape == (npts, 2 * npts)
 
         eps = 1e-7
         for dof in [0, npts // 2, npts, 3 * npts // 2]:
@@ -286,29 +277,26 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
             ) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-4, atol=1e-8)
 
-    def test_cartesian_stress_shapes(self):
+    def test_cartesian_stress_shapes(self, bkd):
         """Cartesian stresses have correct shapes."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd)
         sxx, sxy, syy = setup["proc"].cartesian_stress(setup["state"])
         npts = setup["npts"]
-        self.assertEqual(sxx.shape, (npts,))
-        self.assertEqual(sxy.shape, (npts,))
-        self.assertEqual(syy.shape, (npts,))
+        assert sxx.shape == (npts,)
+        assert sxy.shape == (npts,)
+        assert syy.shape == (npts,)
 
-    def test_cartesian_stress_jacobian_shapes(self):
+    def test_cartesian_stress_jacobian_shapes(self, bkd):
         """Cartesian stress Jacobians have correct shapes."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd)
         npts = setup["npts"]
         dsxx, dsxy, dsyy = setup["proc"].cartesian_stress_state_jacobian()
-        self.assertEqual(dsxx.shape, (npts, 2 * npts))
-        self.assertEqual(dsxy.shape, (npts, 2 * npts))
-        self.assertEqual(dsyy.shape, (npts, 2 * npts))
+        assert dsxx.shape == (npts, 2 * npts)
+        assert dsxy.shape == (npts, 2 * npts)
+        assert dsyy.shape == (npts, 2 * npts)
 
-    def test_no_curvilinear_basis_raises(self):
+    def test_no_curvilinear_basis_raises(self, bkd):
         """hoop_stress raises when curvilinear_basis not provided."""
-        bkd = self._bkd
         setup = _setup_lame_problem(bkd)
         proc_no_curv = StressPostProcessor2D(
             setup["D_matrices"][0],
@@ -317,24 +305,5 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
             get_mu=lambda: bkd.asarray([setup["mu"]] * setup["npts"]),
             bkd=bkd,
         )
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             proc_no_curv.hoop_stress(setup["state"])
-
-
-class TestStressPostProcessor2DNumpy(
-    TestStressPostProcessor2D[NDArray[Any]],
-):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestStressPostProcessor2DTorch(
-    TestStressPostProcessor2D[torch.Tensor],
-):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-    @slow_test
-    def test_radial_stress_lame(self):
-        super().test_radial_stress_lame()

@@ -5,10 +5,11 @@ correctness of the strain recovery, stress computation, and von Mises
 formula.
 """
 
-import unittest
 
+import pytest
 import numpy as np
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
 
 from pyapprox.pde.galerkin.postprocessing.elasticity import (
@@ -18,7 +19,7 @@ from pyapprox.pde.galerkin.postprocessing.elasticity import (
 )
 
 
-class TestStrainRecoveryQuad(unittest.TestCase):
+class TestStrainRecoveryQuad:
     """Test strain recovery on a single quad element."""
 
     def _single_quad(self):
@@ -28,8 +29,9 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         conn = np.array([[0, 1, 2, 3]])
         return coordx, coordy, conn
 
-    def test_uniform_x_extension(self):
+    def test_uniform_x_extension(self, numpy_bkd):
         """Uniform exx=0.1 from ux=0.1*x, uy=0."""
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         ux = 0.1 * coordx
         uy = np.zeros_like(coordy)
@@ -44,8 +46,9 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
-    def test_uniform_y_extension(self):
+    def test_uniform_y_extension(self, numpy_bkd):
         """Uniform eyy=0.2 from uy=0.2*y, ux=0."""
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         ux = np.zeros_like(coordx)
         uy = 0.2 * coordy
@@ -60,8 +63,9 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         np.testing.assert_allclose(eyy, [0.2], atol=1e-14)
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
-    def test_pure_shear(self):
+    def test_pure_shear(self, numpy_bkd):
         """Pure shear: ux=gamma*y, uy=0 gives exy=gamma/2."""
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         gamma = 0.05
         ux = gamma * coordy
@@ -77,8 +81,9 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
         np.testing.assert_allclose(exy, [gamma / 2], atol=1e-14)
 
-    def test_rigid_body_rotation(self):
+    def test_rigid_body_rotation(self, numpy_bkd):
         """Small rigid rotation: ux=-theta*y, uy=theta*x gives zero strain."""
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         theta = 0.01
         ux = -theta * coordy
@@ -94,8 +99,9 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
-    def test_non_unit_quad(self):
+    def test_non_unit_quad(self, numpy_bkd):
         """Strain recovery on a scaled/translated quad."""
+        bkd = numpy_bkd
         coordx = np.array([2.0, 5.0, 5.0, 2.0])
         coordy = np.array([1.0, 1.0, 4.0, 4.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -114,7 +120,7 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
 
-class TestStrainRecoveryTri(unittest.TestCase):
+class TestStrainRecoveryTri:
     """Test strain recovery on triangular elements."""
 
     def _single_tri(self):
@@ -123,7 +129,8 @@ class TestStrainRecoveryTri(unittest.TestCase):
         conn = np.array([[0, 1, 2]])
         return coordx, coordy, conn
 
-    def test_uniform_x_extension(self):
+    def test_uniform_x_extension(self, numpy_bkd):
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_tri()
         ux = 0.1 * coordx
         uy = np.zeros(3)
@@ -138,7 +145,8 @@ class TestStrainRecoveryTri(unittest.TestCase):
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
-    def test_pure_shear(self):
+    def test_pure_shear(self, numpy_bkd):
+        bkd = numpy_bkd
         coordx, coordy, conn = self._single_tri()
         gamma = 0.05
         ux = gamma * coordy
@@ -155,11 +163,12 @@ class TestStrainRecoveryTri(unittest.TestCase):
         np.testing.assert_allclose(exy, [gamma / 2], atol=1e-14)
 
 
-class TestStressFromStrain(unittest.TestCase):
+class TestStressFromStrain:
     """Test Hooke's law stress computation."""
 
-    def test_uniaxial_tension(self):
+    def test_uniaxial_tension(self, numpy_bkd):
         """Uniaxial tension: exx=e, eyy=exy=0."""
+        bkd = numpy_bkd
         e = 0.001
         E, nu = 1e4, 0.3
         lam = E * nu / ((1 + nu) * (1 - 2 * nu))
@@ -181,8 +190,9 @@ class TestStressFromStrain(unittest.TestCase):
         np.testing.assert_allclose(syy, [expected_syy], rtol=1e-14)
         np.testing.assert_allclose(sxy, [0.0], atol=1e-14)
 
-    def test_pure_shear_stress(self):
+    def test_pure_shear_stress(self, numpy_bkd):
         """Pure shear: only exy nonzero."""
+        bkd = numpy_bkd
         gamma_half = 0.01
         mu = 5000.0
         lam = 3000.0
@@ -200,8 +210,9 @@ class TestStressFromStrain(unittest.TestCase):
         np.testing.assert_allclose(syy, [0.0], atol=1e-14)
         np.testing.assert_allclose(sxy, [2 * mu * gamma_half], rtol=1e-14)
 
-    def test_multi_element(self):
+    def test_multi_element(self, numpy_bkd):
         """Vectorized stress over multiple elements."""
+        bkd = numpy_bkd
         nelems = 5
         exx = np.linspace(0.001, 0.005, nelems)
         eyy = np.zeros(nelems)
@@ -215,11 +226,12 @@ class TestStressFromStrain(unittest.TestCase):
         np.testing.assert_allclose(syy, expected_syy, rtol=1e-14)
 
 
-class TestVonMisesStress(unittest.TestCase):
+class TestVonMisesStress:
     """Test von Mises stress computation."""
 
-    def test_uniaxial_tension_vm(self):
+    def test_uniaxial_tension_vm(self, numpy_bkd):
         """Von Mises = |sigma_xx| for uniaxial tension."""
+        bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -248,8 +260,9 @@ class TestVonMisesStress(unittest.TestCase):
         expected_vm = np.sqrt(sxx**2 - sxx * syy + syy**2)
         np.testing.assert_allclose(vm, [expected_vm], rtol=1e-12)
 
-    def test_pure_shear_vm(self):
+    def test_pure_shear_vm(self, numpy_bkd):
         """Von Mises = sqrt(3)*|tau| for pure shear."""
+        bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -274,8 +287,9 @@ class TestVonMisesStress(unittest.TestCase):
         expected_vm = np.sqrt(3) * abs(tau)
         np.testing.assert_allclose(vm, [expected_vm], rtol=1e-12)
 
-    def test_zero_displacement_vm_zero(self):
+    def test_zero_displacement_vm_zero(self, numpy_bkd):
         """Von Mises = 0 when displacement is zero everywhere."""
+        bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -295,12 +309,13 @@ class TestVonMisesStress(unittest.TestCase):
         )
         np.testing.assert_allclose(vm, [0.0], atol=1e-14)
 
-    def test_equal_biaxial_tension_vm(self):
+    def test_equal_biaxial_tension_vm(self, numpy_bkd):
         """Equal biaxial tension: sxx=syy, sxy=0 gives known VM.
 
         In plane stress szz=0, so VM is not zero even for sxx=syy.
         VM = sqrt(sxx^2 - sxx*syy + syy^2) = |sxx| for sxx=syy.
         """
+        bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -323,8 +338,9 @@ class TestVonMisesStress(unittest.TestCase):
         sxx = 2.0 * 5000.0 * e
         np.testing.assert_allclose(vm, [sxx], rtol=1e-12)
 
-    def test_multi_element_mesh(self):
+    def test_multi_element_mesh(self, numpy_bkd):
         """Von Mises on a 2x1 mesh (two quad elements)."""
+        bkd = numpy_bkd
         # Two adjacent quads: [0,1,4,3] and [1,2,5,4]
         coordx = np.array([0.0, 1.0, 2.0, 0.0, 1.0, 2.0])
         coordy = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
@@ -355,12 +371,13 @@ class TestVonMisesStress(unittest.TestCase):
         expected = np.sqrt(sxx**2 - sxx * syy + syy**2)
         np.testing.assert_allclose(vm, [expected, expected], rtol=1e-12)
 
-    def test_unsupported_element_raises(self):
+    def test_unsupported_element_raises(self, numpy_bkd):
         """Elements with neither 3 nor 4 nodes raise ValueError."""
+        bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0, 0.5])
         coordy = np.array([0.0, 0.0, 1.0, 1.0, 0.5])
         conn = np.array([[0, 1, 2, 3, 4]])
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             von_mises_stress_2d(
                 coordx,
                 coordy,
@@ -372,12 +389,13 @@ class TestVonMisesStress(unittest.TestCase):
             )
 
 
-class TestVonMisesWithFEMSolve(unittest.TestCase):
+class TestVonMisesWithFEMSolve:
     """Integration test: von Mises from an actual FEM solve."""
 
     @slow_test
-    def test_cantilever_beam_stress_positive(self):
+    def test_cantilever_beam_stress_positive(self, numpy_bkd):
         """Von Mises stress is non-negative and nonzero for loaded beam."""
+        bkd = numpy_bkd
         from skfem.models.elasticity import lame_parameters
 
         from pyapprox.benchmarks.instances.pde.cantilever_beam import (
@@ -467,18 +485,10 @@ class TestVonMisesWithFEMSolve(unittest.TestCase):
         )
 
         # All non-negative
-        self.assertTrue(np.all(vm >= 0))
+        assert np.all(vm >= 0)
         # At least some nonzero (beam is loaded)
-        self.assertGreater(np.max(vm), 0)
+        assert np.max(vm) > 0
         # Max stress should be near the clamped end (left)
         elem_centers_x = np.mean(coordx[conn], axis=1)
         max_stress_elem = np.argmax(vm)
-        self.assertLess(
-            elem_centers_x[max_stress_elem],
-            L / 2,
-            "Max stress should be near the clamped end",
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert elem_centers_x[max_stress_elem] < L / 2

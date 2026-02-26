@@ -9,7 +9,6 @@ This module tests each component of the HVP computation:
 Uses DerivativeChecker with error_ratio tolerance 1e-6.
 """
 
-import unittest
 from typing import Generic
 
 import numpy as np
@@ -269,17 +268,11 @@ class ODEResidualParamHVPWrapper(Generic[Array]):
 # =============================================================================
 
 
-class TestODEResidualHVP(Generic[Array], unittest.TestCase):
+class TestODEResidualHVP:
     """Test ODE residual HVP methods."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_quadratic_ode_state_state_hvp(self) -> None:
+    def test_quadratic_ode_state_state_hvp(self, bkd) -> None:
         """Test state_state_hvp using DerivativeChecker."""
-        bkd = self.bkd()
         np.random.seed(42)
 
         nstates = 2
@@ -312,15 +305,10 @@ class TestODEResidualHVP(Generic[Array], unittest.TestCase):
         )
 
         jac_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(
-            jac_ratio,
-            1e-6,
-            f"ODE state_state_hvp Jacobian error ratio {jac_ratio:.2e} exceeds 1e-6",
-        )
+        assert jac_ratio < 1e-6
 
-    def test_quadratic_ode_param_state_hvp(self) -> None:
+    def test_quadratic_ode_param_state_hvp(self, bkd) -> None:
         """Test param_state_hvp using DerivativeChecker."""
-        bkd = self.bkd()
         np.random.seed(42)
 
         nstates = 2
@@ -353,24 +341,14 @@ class TestODEResidualHVP(Generic[Array], unittest.TestCase):
         )
 
         jac_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(
-            jac_ratio,
-            1e-6,
-            f"ODE param_state_hvp Jacobian error ratio {jac_ratio:.2e} exceeds 1e-6",
-        )
+        assert jac_ratio < 1e-6
 
 
-class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
+class TestAnalyticalSolutions:
     """Test numerical solutions against sympy analytical solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_backward_euler_forward_solve(self) -> None:
+    def test_backward_euler_forward_solve(self, bkd) -> None:
         """Test Backward Euler forward solve matches analytical solution."""
-        bkd = self.bkd()
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -405,16 +383,10 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
         # Compare
         for n in range(len(times)):
             error = abs(float(fwd_sols_num[0, n]) - fwd_sols_ana[n])
-            self.assertLess(
-                error,
-                1e-10,
-                f"BE forward solve error at "
-                f"t={float(times[n]):.2f}: {error:.2e}",
-            )
+            assert error < 1e-10
 
-    def test_backward_euler_adjoint_solve(self) -> None:
+    def test_backward_euler_adjoint_solve(self, bkd) -> None:
         """Test Backward Euler adjoint solve matches analytical solution."""
-        bkd = self.bkd()
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.integrator import (
@@ -464,16 +436,10 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
         # Compare
         for n in range(len(times)):
             error = abs(float(adj_sols_num[0, n]) - adj_sols_ana[n])
-            self.assertLess(
-                error,
-                1e-10,
-                f"BE adjoint solve error at "
-                f"t={float(times[n]):.2f}: {error:.2e}",
-            )
+            assert error < 1e-10
 
-    def test_forward_euler_forward_solve(self) -> None:
+    def test_forward_euler_forward_solve(self, bkd) -> None:
         """Test Forward Euler forward solve matches analytical solution."""
-        bkd = self.bkd()
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -508,12 +474,7 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
         # Compare
         for n in range(len(times)):
             error = abs(float(fwd_sols_num[0, n]) - fwd_sols_ana[n])
-            self.assertLess(
-                error,
-                1e-10,
-                f"FE forward solve error at "
-                f"t={float(times[n]):.2f}: {error:.2e}",
-            )
+            assert error < 1e-10
 
 
 # =============================================================================
@@ -633,17 +594,11 @@ class TimeResidualParamHVPWrapper(Generic[Array]):
         return result
 
 
-class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
+class TestTimeResidualHVP:
     """Test time stepping residual HVP methods."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_backward_euler_state_state_hvp(self) -> None:
+    def test_backward_euler_state_state_hvp(self, bkd) -> None:
         """Test BackwardEuler state_state_hvp using DerivativeChecker."""
-        bkd = self.bkd()
         np.random.seed(42)
 
         # Setup
@@ -686,15 +641,10 @@ class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
         )
 
         jac_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(
-            jac_ratio,
-            1e-6,
-            f"BackwardEuler state_state_hvp error ratio {jac_ratio:.2e} exceeds 1e-6",
-        )
+        assert jac_ratio < 1e-6
 
-    def test_backward_euler_param_state_hvp(self) -> None:
+    def test_backward_euler_param_state_hvp(self, bkd) -> None:
         """Test BackwardEuler param_state_hvp using DerivativeChecker."""
-        bkd = self.bkd()
         np.random.seed(42)
 
         # Setup
@@ -737,13 +687,9 @@ class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
         )
 
         jac_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(
-            jac_ratio,
-            1e-6,
-            f"BackwardEuler param_state_hvp error ratio {jac_ratio:.2e} exceeds 1e-6",
-        )
+        assert jac_ratio < 1e-6
 
-    def test_forward_euler_state_state_hvp(self) -> None:
+    def test_forward_euler_state_state_hvp(self, bkd) -> None:
         """Test ForwardEuler state_state_hvp using DerivativeChecker.
 
         For Forward Euler:
@@ -752,7 +698,6 @@ class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
         The HVP method computes d²R/dy_{n-1}² (not d²R/dy_n² which is 0).
         So we need to test the derivative w.r.t. y_{n-1}.
         """
-        bkd = self.bkd()
         np.random.seed(42)
 
         # Setup
@@ -806,11 +751,11 @@ class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
                 # d/dy_{n-1} [λ^T · dR/dy_{n-1}] = λ^T · d²R/dy_{n-1}²
                 y_nm1_flat = y_nm1.flatten()
                 self._time_residual.set_time(0.0, self._deltat, y_nm1_flat)
-                result = self._bkd.zeros((self.nqoi(), self.nvars()))
-                result = self._bkd.copy(result)
+                result = bkd.zeros((self.nqoi(), self.nvars()))
+                result = bkd.copy(result)
                 for j in range(self.nvars()):
-                    ej = self._bkd.zeros((self.nvars(),))
-                    ej = self._bkd.copy(ej)
+                    ej = bkd.zeros((self.nvars(),))
+                    ej = bkd.copy(ej)
                     ej[j] = 1.0
                     hvp_col = self._time_residual.state_state_hvp(
                         y_nm1_flat, self._fsol_n, self._adj_state.flatten(), ej
@@ -835,39 +780,4 @@ class TestTimeResidualHVP(Generic[Array], unittest.TestCase):
         )
 
         jac_ratio = float(checker.error_ratio(errors[0]))
-        self.assertLess(
-            jac_ratio,
-            1e-6,
-            f"ForwardEuler state_state_hvp error ratio {jac_ratio:.2e} exceeds 1e-6",
-        )
-
-
-class TestODEResidualHVPNumpy(TestODEResidualHVP):
-    """Test ODE residual HVP with NumPy backend."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend:
-        return NumpyBkd
-
-
-class TestAnalyticalSolutionsNumpy(TestAnalyticalSolutions):
-    """Test analytical solutions with NumPy backend."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend:
-        return NumpyBkd
-
-
-class TestTimeResidualHVPNumpy(TestTimeResidualHVP):
-    """Test time stepping residual HVP with NumPy backend."""
-
-    __test__ = True
-
-    def bkd(self) -> Backend:
-        return NumpyBkd
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert jac_ratio < 1e-6

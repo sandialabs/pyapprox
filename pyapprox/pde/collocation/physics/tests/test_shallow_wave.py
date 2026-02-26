@@ -1,7 +1,6 @@
 """Tests for Shallow Water equations physics implementation."""
 
 import math
-import unittest
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
@@ -23,21 +22,11 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class TestShallowWavePhysics(PhysicsTestBase):
     """Tests for ShallowWavePhysics."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker_flat_bed(self):
+    def test_jacobian_derivative_checker_flat_bed(self, bkd):
         """Test Jacobian matches finite differences with flat bed."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -55,11 +44,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         hu = 0.5 * h
         state = bkd.hstack([h, hu])
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_sloped_bed(self):
+    def test_jacobian_sloped_bed(self, bkd):
         """Test Jacobian with sloped bed."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -76,11 +64,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         hu = 0.3 * h
         state = bkd.hstack([h, hu])
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self):
+    def test_jacobian_with_forcing(self, bkd):
         """Test Jacobian with forcing on all components."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -101,11 +88,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         hu = 0.2 * h
         state = bkd.hstack([h, hu])
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_quiescent_state(self):
+    def test_residual_quiescent_state(self, bkd):
         """Test residual is zero for quiescent state (h+b=const, u=0)."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -131,11 +117,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         #          = -g*h*dh/dx - g*h*db/dx
         #          = -g*h*(dh/dx + db/dx)
         #          = -g*h*d(h+b)/dx = 0 (since h+b=const)
-        self.check_residual_zero(physics, state, atol=1e-10)
+        self.check_residual_zero(bkd, physics, state, atol=1e-10)
 
-    def test_residual_uniform_flow(self):
+    def test_residual_uniform_flow(self, bkd):
         """Test residual for uniform flow on flat bed."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -154,11 +139,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
         # dh/dt = -d(hu)/dx = 0 (since hu=const)
         # d(hu)/dt = -d(hu^2/h + 0.5*g*h^2)/dx - g*h*db/dx
         #          = 0 (since all terms are constant)
-        self.check_residual_zero(physics, state, atol=1e-10)
+        self.check_residual_zero(bkd, physics, state, atol=1e-10)
 
-    def test_ncomponents_1d(self):
+    def test_ncomponents_1d(self, bkd):
         """Test number of components for 1D case."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -168,12 +152,11 @@ class TestShallowWavePhysics(PhysicsTestBase):
         physics = ShallowWavePhysics(basis, bkd, bed=bed)
 
         # 1D: h and hu
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertEqual(physics.nstates(), 2 * npts)
+        assert physics.ncomponents() == 2
+        assert physics.nstates() == 2 * npts
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_shallow_wave factory function."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -182,12 +165,11 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         physics = create_shallow_wave(basis, bkd, bed=bed, g=10.0)
 
-        self.assertEqual(physics.ncomponents(), 2)
-        self.assertAlmostEqual(physics.g(), 10.0)
+        assert physics.ncomponents() == 2
+        assert abs(physics.g() - 10.0) < 1e-7
 
-    def test_accessors(self):
+    def test_accessors(self, bkd):
         """Test accessor methods."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -197,10 +179,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81)
 
-        self.assertAlmostEqual(physics.g(), 9.81)
+        assert abs(physics.g() - 9.81) < 1e-7
         bkd.assert_allclose(physics.bed(), bed)
 
-    def test_transient_small_perturbation(self):
+    def test_transient_small_perturbation(self, bkd):
         """Test transient evolution of small surface perturbation.
 
         For shallow water with small perturbation on quiescent state,
@@ -210,7 +192,6 @@ class TestShallowWavePhysics(PhysicsTestBase):
         spectral methods without proper upwinding/stabilization. This test
         uses a quiescent state (uniform depth, zero velocity) which is stable.
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -244,19 +225,18 @@ class TestShallowWavePhysics(PhysicsTestBase):
         final_state = solutions[:, -1]
         h_final = final_state[:npts]
 
-        self.assertTrue(bkd.isfinite(bkd.norm(final_state)))
-        self.assertGreater(float(bkd.min(h_final)), 0.0)
+        assert bkd.isfinite(bkd.norm(final_state))
+        assert float(bkd.min(h_final)) > 0.0
 
         # Quiescent state should remain nearly unchanged
         bkd.assert_allclose(h_final, h_init, rtol=1e-6, atol=1e-10)
 
-    def _setup_transient_shallow_wave(self):
+    def _setup_transient_shallow_wave(self, bkd):
         """Set up transient shallow wave with manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
         (exact for CN) manufactured solution with all-component forcing.
         """
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -308,9 +288,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_shallow_wave(self, method, atol):
+    def _run_transient_shallow_wave(self, bkd, method, atol) :
         """Run transient shallow wave test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_wave()
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_wave(bkd)
         model = CollocationModel(physics, bkd)
 
         sol0 = man_sol.functions["solution"](nodes[None, :], 0.0)
@@ -331,18 +311,14 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
 
-    def test_transient_manufactured_backward_euler(self):
+    def test_transient_manufactured_backward_euler(self, bkd):
         """Test transient shallow wave with backward Euler."""
-        self._run_transient_shallow_wave("backward_euler", atol=0.5)
+        self._run_transient_shallow_wave(bkd, "backward_euler", atol=0.5)
 
-    def test_transient_manufactured_crank_nicolson(self):
+    def test_transient_manufactured_crank_nicolson(self, bkd):
         """Test transient shallow wave with Crank-Nicolson.
 
         Uses polynomial-in-space and quadratic-in-time manufactured solution.
         CN integrates quadratic-in-time exactly, so only spatial error remains.
         """
-        self._run_transient_shallow_wave("crank_nicolson", atol=1e-8)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self._run_transient_shallow_wave(bkd, "crank_nicolson", atol=1e-8)

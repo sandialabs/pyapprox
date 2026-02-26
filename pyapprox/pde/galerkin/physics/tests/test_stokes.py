@@ -15,13 +15,12 @@ For transient tests, solutions linear in time are used so that both backward
 Euler (1st order) and Crank-Nicolson (2nd order) reproduce the exact solution.
 """
 
-import unittest
 from typing import Any, Callable, Dict, Generic, List, Tuple
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
-from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.pde.collocation.manufactured_solutions.stokes import (
     ManufacturedStokes,
@@ -199,90 +198,81 @@ def _build_stokes_from_manufactured(
 # ---------------------------------------------------------------------------
 
 
-class TestStokesBase(Generic[Array], unittest.TestCase):
+class TestStokesBase:
     """Base test class for Stokes physics."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self.bkd_inst = self.bkd()
-
-    def test_nstates_1d(self) -> None:
+    def test_nstates_1d(self, numpy_bkd) -> None:
         """Test nstates matches vel_ndofs + pres_ndofs in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
-        self.assertEqual(
-            physics.nstates(),
-            physics.vel_ndofs() + physics.pres_ndofs(),
-        )
+        assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
 
-    def test_nstates_2d(self) -> None:
+    def test_nstates_2d(self, numpy_bkd) -> None:
         """Test nstates matches vel_ndofs + pres_ndofs in 2D."""
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
-        self.assertEqual(
-            physics.nstates(),
-            physics.vel_ndofs() + physics.pres_ndofs(),
-        )
+        assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
 
-    def test_residual_shape_1d(self) -> None:
+    def test_residual_shape_1d(self, numpy_bkd) -> None:
         """Test residual has correct shape in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates(), dtype=np.float64))
+        u0 = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
         res = physics.residual(u0, 0.0)
-        self.assertEqual(res.shape, (physics.nstates(),))
+        assert res.shape == (physics.nstates(),)
 
-    def test_jacobian_shape_1d(self) -> None:
+    def test_jacobian_shape_1d(self, numpy_bkd) -> None:
         """Test Jacobian has correct shape in 1D."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
-        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates(), dtype=np.float64))
+        u0 = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
         jac = physics.jacobian(u0, 0.0)
-        self.assertEqual(jac.shape, (physics.nstates(), physics.nstates()))
+        assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_mass_matrix_shape_1d(self) -> None:
+    def test_mass_matrix_shape_1d(self, numpy_bkd) -> None:
         """Test mass matrix has correct shape."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
         M = physics.mass_matrix()
-        self.assertEqual(M.shape, (physics.nstates(), physics.nstates()))
+        assert M.shape == (physics.nstates(), physics.nstates())
 
-    def test_mass_matrix_block_structure(self) -> None:
+    def test_mass_matrix_block_structure(self, numpy_bkd) -> None:
         """Test mass matrix has [M_vel, 0; 0, 0] block structure."""
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
         physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
+            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
         )
         M = _to_dense(physics.mass_matrix())
         n_vel = physics.vel_ndofs()
@@ -295,61 +285,27 @@ class TestStokesBase(Generic[Array], unittest.TestCase):
         M_vel = M[:n_vel, :n_vel]
         np.testing.assert_array_almost_equal(M_vel, M_vel.T)
         eigenvalues = np.linalg.eigvalsh(M_vel)
-        self.assertTrue(np.all(eigenvalues > 0))
+        assert np.all(eigenvalues > 0)
 
-    def test_ndim(self) -> None:
+    def test_ndim(self, numpy_bkd) -> None:
         """Test ndim returns spatial dimension."""
-        mesh1d = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+        bkd = numpy_bkd
+        mesh1d = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         vel1d = VectorLagrangeBasis(mesh1d, degree=2)
         pres1d = LagrangeBasis(mesh1d, degree=1)
-        physics1d = StokesPhysics(vel_basis=vel1d, pres_basis=pres1d, bkd=self.bkd_inst)
-        self.assertEqual(physics1d.ndim(), 1)
+        physics1d = StokesPhysics(vel_basis=vel1d, pres_basis=pres1d, bkd=bkd)
+        assert physics1d.ndim() == 1
 
         mesh2d = StructuredMesh2D(
             nx=3,
             ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst,
+            bkd=bkd,
         )
         vel2d = VectorLagrangeBasis(mesh2d, degree=2)
         pres2d = LagrangeBasis(mesh2d, degree=1)
-        physics2d = StokesPhysics(vel_basis=vel2d, pres_basis=pres2d, bkd=self.bkd_inst)
-        self.assertEqual(physics2d.ndim(), 2)
-
-
-class TestStokesNumpy(TestStokesBase[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def setUp(self) -> None:
-        self._bkd = NumpyBkd()
-        super().setUp()
-
-    def bkd(self) -> NumpyBkd:
-        return self._bkd
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestStokesTorch(TestStokesBase[torch.Tensor]):
-        """PyTorch backend tests."""
-
-        __test__ = True
-
-        def setUp(self) -> None:
-            self._bkd = TorchBkd()
-            torch.set_default_dtype(torch.float64)
-            super().setUp()
-
-        def bkd(self) -> Backend[torch.Tensor]:
-            return self._bkd
-
-except ImportError:
-    pass
+        physics2d = StokesPhysics(vel_basis=vel2d, pres_basis=pres2d, bkd=bkd)
+        assert physics2d.ndim() == 2
 
 
 # ---------------------------------------------------------------------------
@@ -403,7 +359,7 @@ STOKES_STEADY_CASES: List[
 ]
 
 
-class TestParametrizedSteadyStokes(ParametrizedTestCase):
+class TestParametrizedSteadyStokes:
     """Parametrized steady-state Stokes manufactured solution tests.
 
     Replicates the 4 legacy test cases from
@@ -414,12 +370,13 @@ class TestParametrizedSteadyStokes(ParametrizedTestCase):
     round-off).
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,nrefine,vel_strs,pres_str,bndry_types,navier_stokes",
         STOKES_STEADY_CASES,
     )
     def test_manufactured_stokes(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         nrefine: int,
@@ -429,7 +386,7 @@ class TestParametrizedSteadyStokes(ParametrizedTestCase):
         navier_stokes: bool,
     ) -> None:
         """Test manufactured solution for Stokes/NS equations."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nvars = len(bounds) // 2
         sol_strs = vel_strs + [pres_str]
 
@@ -473,10 +430,9 @@ class TestParametrizedSteadyStokes(ParametrizedTestCase):
         else:
             result = solver.solve_linear()
 
-        self.assertTrue(
-            result.converged,
+        assert result.converged, (
             f"Test {name}: solver did not converge "
-            f"(residual={result.residual_norm:.2e})",
+            f"(residual={result.residual_norm:.2e})"
         )
 
         # Compare to exact solution
@@ -484,11 +440,7 @@ class TestParametrizedSteadyStokes(ParametrizedTestCase):
         u_exact = _get_exact_state(funcs, nvars, vel_basis, pres_basis, bkd)
 
         max_err = np.max(np.abs(u_num - u_exact))
-        self.assertLess(
-            max_err,
-            5e-7,
-            f"Test {name}: max_err={max_err:.2e} should be < 5e-7",
-        )
+        assert max_err < 5e-7
 
 
 # ---------------------------------------------------------------------------
@@ -542,7 +494,7 @@ STOKES_TRANSIENT_CASES: List[
 ]
 
 
-class TestParametrizedTransientStokes(ParametrizedTestCase):
+class TestParametrizedTransientStokes:
     """Parametrized transient Stokes manufactured solution tests.
 
     Uses time-linear solutions u(x,t) = u0(x)*(1+T) which are exactly
@@ -555,12 +507,13 @@ class TestParametrizedTransientStokes(ParametrizedTestCase):
     where f_full = du/dt - Lap(u) + grad(p).
     """
 
-    @parametrize(
+    @pytest.mark.parametrize(
         "name,bounds,nrefine,vel_strs,pres_str,bndry_types,method",
         STOKES_TRANSIENT_CASES,
     )
     def test_transient_stokes(
         self,
+        numpy_bkd,
         name: str,
         bounds: List[float],
         nrefine: int,
@@ -570,7 +523,7 @@ class TestParametrizedTransientStokes(ParametrizedTestCase):
         method: str,
     ) -> None:
         """Test transient manufactured solution for Stokes equations."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         nvars = len(bounds) // 2
         sol_strs = vel_strs + [pres_str]
 
@@ -641,14 +594,4 @@ class TestParametrizedTransientStokes(ParametrizedTestCase):
         )
         max_err = np.max(np.abs(bkd.to_numpy(y) - y_exact))
 
-        self.assertLess(
-            max_err,
-            5e-7,
-            f"Test {name}: max_err={max_err:.2e} should be < 5e-7",
-        )
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-if __name__ == "__main__":
-    unittest.main()
+        assert max_err < 5e-7

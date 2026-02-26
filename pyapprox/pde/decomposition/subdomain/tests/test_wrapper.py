@@ -1,7 +1,8 @@
 """Tests for SubdomainWrapper class."""
 
-import unittest
+import pytest
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -16,17 +17,13 @@ from pyapprox.pde.decomposition.subdomain.flux import (
 from pyapprox.pde.decomposition.subdomain.wrapper import (
     SubdomainWrapper,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestSubdomainWrapperBasic(unittest.TestCase):
+class TestSubdomainWrapperBasic:
     """Basic tests for SubdomainWrapper."""
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_initialization(self):
+    def test_initialization(self, bkd):
         """Test basic initialization."""
         bkd = self.bkd
         npts = 10
@@ -46,11 +43,11 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
             interfaces={0: interface},
         )
 
-        self.assertEqual(wrapper.subdomain_id(), 0)
-        self.assertEqual(wrapper.nstates(), npts)
-        self.assertEqual(wrapper.interface_ids(), [0])
+        assert wrapper.subdomain_id() == 0
+        assert wrapper.nstates() == npts
+        assert wrapper.interface_ids() == [0]
 
-    def test_set_interface_boundary_indices(self):
+    def test_set_interface_boundary_indices(self, bkd):
         """Test setting interface boundary indices."""
         bkd = self.bkd
         npts = 10
@@ -75,7 +72,7 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         interface.set_subdomain_boundary_points(0, bkd.asarray([0.5]))
         wrapper.set_interface_dirichlet(0, interface_coeffs)
 
-    def test_invalid_interface_id(self):
+    def test_invalid_interface_id(self, bkd):
         """Test error handling for invalid interface ID."""
         bkd = self.bkd
         npts = 10
@@ -91,17 +88,17 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
             bkd, subdomain_id=0, physics=physics, interfaces={0: interface}
         )
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             wrapper.set_interface_boundary_indices(999, bkd.asarray([0]))
 
 
-class TestFluxComputer(unittest.TestCase):
+class TestFluxComputer:
     """Tests for FluxComputer class."""
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_gradient_computation(self):
+    def test_gradient_computation(self, bkd):
         """Test gradient computation for polynomial."""
         bkd = self.bkd
         npts = 10
@@ -117,13 +114,13 @@ class TestFluxComputer(unittest.TestCase):
         grad = flux_computer.compute_gradient(u)
 
         # Should have 1 component for 1D
-        self.assertEqual(len(grad), 1)
+        assert len(grad) == 1
 
         # Check gradient: du/dx = 2x
         expected_grad = 2 * nodes
         bkd.assert_allclose(grad[0], expected_grad, atol=1e-10)
 
-    def test_flux_at_boundary(self):
+    def test_flux_at_boundary(self, bkd):
         """Test flux computation at boundary points."""
         bkd = self.bkd
         npts = 10
@@ -149,13 +146,13 @@ class TestFluxComputer(unittest.TestCase):
         bkd.assert_allclose(flux, expected_flux, atol=1e-10)
 
 
-class TestFluxMismatch(unittest.TestCase):
+class TestFluxMismatch:
     """Tests for flux mismatch functions."""
 
-    def setUp(self):
+    def setup_method(self):
         self.bkd = NumpyBkd()
 
-    def test_flux_mismatch_zero(self):
+    def test_flux_mismatch_zero(self, bkd):
         """Test flux mismatch when conservation is satisfied."""
         bkd = self.bkd
 
@@ -168,7 +165,7 @@ class TestFluxMismatch(unittest.TestCase):
         mismatch = compute_flux_mismatch(flux_left, flux_right, bkd)
         bkd.assert_allclose(mismatch, bkd.zeros((3,)), atol=1e-12)
 
-    def test_flux_mismatch_nonzero(self):
+    def test_flux_mismatch_nonzero(self, bkd):
         """Test flux mismatch when conservation is violated."""
         bkd = self.bkd
 
@@ -179,7 +176,7 @@ class TestFluxMismatch(unittest.TestCase):
         expected = bkd.asarray([1.5, 1.0])
         bkd.assert_allclose(mismatch, expected, atol=1e-12)
 
-    def test_flux_mismatch_norm(self):
+    def test_flux_mismatch_norm(self, bkd):
         """Test flux mismatch norm."""
         bkd = self.bkd
 
@@ -192,8 +189,4 @@ class TestFluxMismatch(unittest.TestCase):
         import numpy as np
 
         expected = np.sqrt(32)
-        self.assertAlmostEqual(norm, expected, places=10)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert abs(norm - expected) < 10**(-10)

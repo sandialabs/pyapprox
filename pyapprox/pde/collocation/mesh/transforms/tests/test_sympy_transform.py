@@ -1,12 +1,9 @@
 """Tests for user-defined SymPy transforms."""
 
 import math
-import unittest
-from typing import Any, Generic
 
+import pytest
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.mesh.transforms.elliptical import (
     EllipticalTransform,
@@ -16,24 +13,11 @@ from pyapprox.pde.collocation.mesh.transforms.sympy_transform import (
     SympyTransform2D,
     SympyTransform3D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestSympyTransform2D(Generic[Array], unittest.TestCase):
+class TestSympyTransform2D:
     """Tests for SympyTransform2D."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_polar_via_sympy_matches_native(self):
+    def test_polar_via_sympy_matches_native(self, bkd):
         """Verify SympyTransform2D matches PolarTransform."""
-        bkd = self.bkd()
-
         # Define polar via sympy with symbolic inverse
         sympy_tf = SympyTransform2D(
             x_expr="r * cos(theta)",
@@ -86,10 +70,8 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_polar_inverse_via_sympy(self):
+    def test_polar_inverse_via_sympy(self, bkd):
         """Test inverse mapping for polar coordinates."""
-        bkd = self.bkd()
-
         sympy_tf = SympyTransform2D(
             x_expr="r * cos(theta)",
             y_expr="r * sin(theta)",
@@ -107,9 +89,8 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(recovered, ref_pts, rtol=1e-12)
 
-    def test_elliptical_via_sympy_matches_native(self):
+    def test_elliptical_via_sympy_matches_native(self, bkd):
         """Verify SympyTransform2D can reproduce EllipticalTransform."""
-        bkd = self.bkd()
         a = 2.0
 
         # Elliptical via sympy (no inverse provided, relies on validation)
@@ -147,10 +128,8 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
             rtol=1e-12,
         )
 
-    def test_orthogonality_validation_passes_for_polar(self):
+    def test_orthogonality_validation_passes_for_polar(self, bkd):
         """Verify orthogonality validation passes for known orthogonal system."""
-        bkd = self.bkd()
-
         # This should not raise
         tf = SympyTransform2D(
             x_expr="r * cos(theta)",
@@ -161,16 +140,14 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
             bounds=((0.5, 2.0), (0.0, math.pi)),
             validate=True,
         )
-        self.assertEqual(tf.ndim(), 2)
+        assert tf.ndim() == 2
 
-    def test_orthogonality_validation_fails_for_nonorthogonal(self):
+    def test_orthogonality_validation_fails_for_nonorthogonal(self, bkd):
         """Verify orthogonality validation fails for non-orthogonal system."""
-        bkd = self.bkd()
-
         # A non-orthogonal coordinate system: x = u + v, y = v
         # Jacobian: [[1, 1], [0, 1]]
         # g = J^T @ J = [[1, 1], [1, 2]] -> off-diagonal != 0
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             SympyTransform2D(
                 x_expr="u + v",
                 y_expr="v",
@@ -180,12 +157,10 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
                 bounds=((0.0, 1.0), (0.0, 1.0)),
                 validate=True,
             )
-        self.assertIn("Non-orthogonal", str(ctx.exception))
+        assert "Non-orthogonal" in str(ctx.value)
 
-    def test_numerical_inverse(self):
+    def test_numerical_inverse(self, bkd):
         """Test numerical inverse when no symbolic inverse provided."""
-        bkd = self.bkd()
-
         # Elliptical without symbolic inverse
         a = 1.5
         tf = SympyTransform2D(
@@ -205,10 +180,8 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(recovered, ref_pt, rtol=1e-8)
 
-    def test_unit_basis_orthonormality(self):
+    def test_unit_basis_orthonormality(self, bkd):
         """Verify unit basis vectors are orthonormal."""
-        bkd = self.bkd()
-
         tf = SympyTransform2D(
             x_expr="r * cos(theta)",
             y_expr="r * sin(theta)",
@@ -237,18 +210,11 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(dot, bkd.zeros((npts,)), atol=1e-12)
 
 
-class TestSympyTransform3D(Generic[Array], unittest.TestCase):
+class TestSympyTransform3D:
     """Tests for SympyTransform3D."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_spherical_via_sympy_map_to_physical(self):
+    def test_spherical_via_sympy_map_to_physical(self, bkd):
         """Verify SympyTransform3D map_to_physical matches SphericalTransform."""
-        bkd = self.bkd()
-
         # Note: SphericalTransform uses (r, azimuth, elevation) convention
         # We define sympy with standard physics convention (r, theta, phi)
         # where theta is polar angle from z-axis, phi is azimuth
@@ -286,10 +252,8 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(phys_pts[1, :], bkd.asarray(y_expected), rtol=1e-12)
         bkd.assert_allclose(phys_pts[2, :], bkd.asarray(z_expected), rtol=1e-12)
 
-    def test_spherical_scale_factors(self):
+    def test_spherical_scale_factors(self, bkd):
         """Verify spherical coordinate scale factors."""
-        bkd = self.bkd()
-
         tf = SympyTransform3D(
             x_expr="r * sin(theta) * cos(phi)",
             y_expr="r * sin(theta) * sin(phi)",
@@ -318,9 +282,8 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(scales[0, 2], bkd.asarray([h_phi_expected])[0], rtol=1e-12)
 
-    def test_prolate_spheroidal_scale_factors(self):
+    def test_prolate_spheroidal_scale_factors(self, bkd):
         """Test prolate spheroidal coordinates scale factors."""
-        bkd = self.bkd()
         a = 2.0
 
         tf = SympyTransform3D(
@@ -349,10 +312,8 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(scales[0, 1], bkd.asarray([h_xi_eta])[0], rtol=1e-10)
         bkd.assert_allclose(scales[0, 2], bkd.asarray([h_phi])[0], rtol=1e-10)
 
-    def test_unit_basis_orthonormality_3d(self):
+    def test_unit_basis_orthonormality_3d(self, bkd):
         """Verify 3D unit basis vectors are orthonormal."""
-        bkd = self.bkd()
-
         tf = SympyTransform3D(
             x_expr="r * sin(theta) * cos(phi)",
             y_expr="r * sin(theta) * sin(phi)",
@@ -374,12 +335,10 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
                 e_j = basis[0, :, j]
                 dot = float(bkd.sum(e_i * e_j))
                 expected = 1.0 if i == j else 0.0
-                self.assertAlmostEqual(dot, expected, places=12)
+                assert abs(dot - expected) < 10**(-12)
 
-    def test_jacobian_determinant_3d(self):
+    def test_jacobian_determinant_3d(self, bkd):
         """Verify Jacobian determinant for spherical coords."""
-        bkd = self.bkd()
-
         tf = SympyTransform3D(
             x_expr="r * sin(theta) * cos(phi)",
             y_expr="r * sin(theta) * sin(phi)",
@@ -401,49 +360,3 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
         expected = r**2 * np.sin(theta)
 
         bkd.assert_allclose(det, bkd.asarray([expected]), rtol=1e-12)
-
-
-class TestSympyTransform2DNumpy(TestSympyTransform2D[NDArray[Any]]):
-    """NumPy backend tests for SympyTransform2D."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSympyTransform2DTorch(TestSympyTransform2D[torch.Tensor]):
-    """PyTorch backend tests for SympyTransform2D."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-class TestSympyTransform3DNumpy(TestSympyTransform3D[NDArray[Any]]):
-    """NumPy backend tests for SympyTransform3D."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSympyTransform3DTorch(TestSympyTransform3D[torch.Tensor]):
-    """PyTorch backend tests for SympyTransform3D."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-
-
-if __name__ == "__main__":
-    unittest.main()

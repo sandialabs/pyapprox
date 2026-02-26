@@ -11,13 +11,9 @@ represented by the tensor product Chebyshev basis, giving machine precision
 residuals for interior points.
 """
 
-import unittest
-from typing import Any, Generic
+import pytest
 
-import torch
-from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
-
+from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -32,13 +28,7 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class PhysicsDerivativeWrapper(Generic[Array]):
+class PhysicsDerivativeWrapper:
     """Wrapper to adapt physics interface for DerivativeChecker.
 
     DerivativeChecker expects:
@@ -83,17 +73,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         return self._physics.jacobian(sample, self._time)
 
 
-class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
+class TestManufacturedLinearElasticity2D:
     """Test 2D Linear Elasticity physics with manufactured solutions."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_residual_polynomial(self):
+    def test_residual_polynomial(self, bkd):
         """Test residual = 0 at exact polynomial solution."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -162,9 +146,8 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian correctness via DerivativeChecker."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -178,11 +161,10 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
 
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
+        assert checker.error_ratio(errors[0]) <= 1e-5
 
-    def test_different_lame_parameters(self):
+    def test_different_lame_parameters(self, bkd):
         """Test with different Lamé parameters."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -246,9 +228,8 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
         )
 
-    def test_numerical_solve(self):
+    def test_numerical_solve(self, bkd):
         """Test numerical solution matches manufactured solution."""
-        bkd = self.bkd()
         npts_x, npts_y = 10, 10
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -297,77 +278,100 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-8)
 
 
-class TestLinearElasticity2DParameterized(ParametrizedTestCase):
-    """Parameterized 2D Linear Elasticity residual tests."""
+_RESIDUAL_CASES = [
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "1.0",
+        "1.0",
+        10,
+        id="poly_basic",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)*x*y",
+        "(1 - x**2)*(1 - y**2)*x*y",
+        "1.0",
+        "1.0",
+        12,
+        id="poly_symmetric",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)*x**2",
+        "(1 - x**2)*(1 - y**2)*y**2",
+        "1.0",
+        "1.0",
+        14,
+        id="poly_higher_degree",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "10.0",
+        "1.0",
+        10,
+        id="high_lambda",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "1.0",
+        "10.0",
+        10,
+        id="high_mu",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "100.0",
+        "1.0",
+        10,
+        id="incompressible_like",
+    ),
+]
 
-    def bkd(self):
-        return NumpyBkd()
+_JACOBIAN_CASES = [
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "1.0",
+        "1.0",
+        6,
+        id="jacobian_basic",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "2.5",
+        "0.5",
+        6,
+        id="jacobian_high_lambda",
+    ),
+    pytest.param(
+        "(1 - x**2)*(1 - y**2)",
+        "(1 - x**2)*(1 - y**2)*x",
+        "0.5",
+        "2.5",
+        6,
+        id="jacobian_high_mu",
+    ),
+]
 
-    @parametrize(
-        "name,u_str,v_str,lambda_str,mu_str,npts_1d",
-        [
-            # Polynomial solutions (exact for Chebyshev)
-            (
-                "poly_basic",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "1.0",
-                "1.0",
-                10,
-            ),
-            (
-                "poly_symmetric",
-                "(1 - x**2)*(1 - y**2)*x*y",
-                "(1 - x**2)*(1 - y**2)*x*y",
-                "1.0",
-                "1.0",
-                12,
-            ),
-            (
-                "poly_higher_degree",
-                "(1 - x**2)*(1 - y**2)*x**2",
-                "(1 - x**2)*(1 - y**2)*y**2",
-                "1.0",
-                "1.0",
-                14,
-            ),
-            # Different Lamé parameters
-            (
-                "high_lambda",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "10.0",
-                "1.0",
-                10,
-            ),
-            (
-                "high_mu",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "1.0",
-                "10.0",
-                10,
-            ),
-            (
-                "incompressible_like",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "100.0",
-                "1.0",
-                10,
-            ),
-        ],
-    )
+
+class TestLinearElasticity2DParameterized:
+    """Parameterized 2D Linear Elasticity residual and Jacobian tests."""
+
+    @pytest.mark.parametrize("u_str,v_str,lambda_str,mu_str,npts_1d", _RESIDUAL_CASES)
     def test_linear_elasticity_2d_residual(
-        self, name, u_str, v_str, lambda_str, mu_str, npts_1d
+        self, bkd, u_str, v_str, lambda_str, mu_str, npts_1d
     ):
         """Test 2D Linear Elasticity residual for parameterized cases."""
-        bkd = self.bkd()
         npts_x, npts_y = npts_1d, npts_1d
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
+        mesh = create_uniform_mesh_2d(
+            (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
+        )
 
         man_sol = ManufacturedLinearElasticityEquations(
             sol_strs=[u_str, v_str],
@@ -419,47 +423,22 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
                 boundary_indices.add(idx)
                 boundary_indices.add(idx + npts)
 
-        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
-        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
+        interior_indices = [
+            i for i in range(2 * npts) if i not in boundary_indices
+        ]
+        interior_residual = bkd.asarray(
+            [residual_with_bc[i] for i in interior_indices]
+        )
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-9
         )
 
-    @parametrize(
-        "name,u_str,v_str,lambda_str,mu_str,npts_1d",
-        [
-            (
-                "jacobian_basic",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "1.0",
-                "1.0",
-                6,
-            ),
-            (
-                "jacobian_high_lambda",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "2.5",
-                "0.5",
-                6,
-            ),
-            (
-                "jacobian_high_mu",
-                "(1 - x**2)*(1 - y**2)",
-                "(1 - x**2)*(1 - y**2)*x",
-                "0.5",
-                "2.5",
-                6,
-            ),
-        ],
-    )
+    @pytest.mark.parametrize("u_str,v_str,lambda_str,mu_str,npts_1d", _JACOBIAN_CASES)
     def test_linear_elasticity_2d_jacobian(
-        self, name, u_str, v_str, lambda_str, mu_str, npts_1d
+        self, bkd, u_str, v_str, lambda_str, mu_str, npts_1d
     ):
         """Test 2D Linear Elasticity Jacobian via DerivativeChecker."""
-        bkd = self.bkd()
         npts_x, npts_y = npts_1d, npts_1d
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
@@ -476,35 +455,4 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
 
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, verbosity=0)
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
-
-
-# Concrete backend implementations
-class TestManufacturedLinearElasticity2DNumpy(
-    TestManufacturedLinearElasticity2D[NDArray[Any]]
-):
-    """NumPy backend tests for 2D Linear Elasticity."""
-
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-
-class TestManufacturedLinearElasticity2DTorch(
-    TestManufacturedLinearElasticity2D[torch.Tensor]
-):
-    """PyTorch backend tests for 2D Linear Elasticity."""
-
-    __test__ = True
-
-    def bkd(self):
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert checker.error_ratio(errors[0]) <= 1e-5

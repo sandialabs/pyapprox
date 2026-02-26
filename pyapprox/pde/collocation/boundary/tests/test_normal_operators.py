@@ -1,11 +1,7 @@
 """Tests for normal operators."""
 
-import unittest
-from typing import Any, Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -25,23 +21,11 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
-class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
+class TestGradientNormalOperator:
     """Base test class for GradientNormalOperator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_1d_left_boundary(self):
+    def test_1d_left_boundary(self, bkd):
         """Test grad(u).n at left boundary for u = x^2."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -60,9 +44,8 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
         result = normal_op(state)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_1d_right_boundary(self):
+    def test_1d_right_boundary(self, bkd):
         """Test grad(u).n at right boundary for u = x^2."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -81,9 +64,8 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
         result = normal_op(state)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_jacobian_is_constant(self):
+    def test_jacobian_is_constant(self, bkd):
         """Test that gradient normal operator Jacobian is state-independent."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -100,9 +82,8 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
         jac2 = normal_op.jacobian(state2)
         bkd.assert_allclose(jac1, jac2, atol=1e-14)
 
-    def test_jacobian_consistency(self):
+    def test_jacobian_consistency(self, bkd):
         """Test that jacobian @ state matches __call__(state)."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -120,9 +101,8 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
         result_from_jac = jac @ state
         bkd.assert_allclose(result, result_from_jac, atol=1e-12)
 
-    def test_2d_constant_normals(self):
+    def test_2d_constant_normals(self, bkd):
         """Test 2D gradient normal operator with constant normals."""
-        bkd = self.bkd()
         npts_x, npts_y = 8, 8
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -151,17 +131,11 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(result, expected, atol=1e-10)
 
 
-class TestFluxNormalOperator(Generic[Array], unittest.TestCase):
+class TestFluxNormalOperator:
     """Base test class for FluxNormalOperator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_flux_with_adr_physics_1d(self):
+    def test_flux_with_adr_physics_1d(self, bkd):
         """Test FluxNormalOperator with ADR physics as flux provider."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -182,9 +156,8 @@ class TestFluxNormalOperator(Generic[Array], unittest.TestCase):
         result = flux_op(state)
         bkd.assert_allclose(result, bkd.array([-4.0]), atol=1e-10)
 
-    def test_flux_with_velocity(self):
+    def test_flux_with_velocity(self, bkd):
         """Test FluxNormalOperator with ADR physics including velocity."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -209,9 +182,8 @@ class TestFluxNormalOperator(Generic[Array], unittest.TestCase):
         result = flux_op(state)
         bkd.assert_allclose(result, bkd.array([2.0]), atol=1e-10)
 
-    def test_flux_jacobian_consistency(self):
+    def test_flux_jacobian_consistency(self, bkd):
         """Test flux operator Jacobian via finite differences."""
-        bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -237,17 +209,11 @@ class TestFluxNormalOperator(Generic[Array], unittest.TestCase):
             bkd.assert_allclose(bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5)
 
 
-class TestLegacyNormalOperator(Generic[Array], unittest.TestCase):
+class TestLegacyNormalOperator:
     """Base test class for _LegacyNormalOperator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_matches_old_behavior(self):
+    def test_matches_old_behavior(self, bkd):
         """Test legacy operator matches old NeumannBC computation."""
-        bkd = self.bkd()
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -268,17 +234,11 @@ class TestLegacyNormalOperator(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jac, expected_jac, atol=1e-14)
 
 
-class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
+class TestTractionNormalOperator:
     """Base test class for TractionNormalOperator."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def test_traction_at_boundary(self):
+    def test_traction_at_boundary(self, bkd):
         """Test traction at left boundary for known polynomial displacement."""
-        bkd = self.bkd()
         npts_x, npts_y = 8, 8
         npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
@@ -326,9 +286,8 @@ class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(result_x, expected_x, atol=1e-10)
         bkd.assert_allclose(result_y, expected_y, atol=1e-10)
 
-    def test_jacobian_consistency(self):
+    def test_jacobian_consistency(self, bkd):
         """Test traction operator Jacobian via finite differences."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
         npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
@@ -365,9 +324,8 @@ class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
                     bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5
                 )
 
-    def test_jacobian_is_constant(self):
+    def test_jacobian_is_constant(self, bkd):
         """Test that traction Jacobian is state-independent."""
-        bkd = self.bkd()
         npts_x, npts_y = 6, 6
         npts = npts_x * npts_y
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
@@ -395,78 +353,4 @@ class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
 
 
 # NumPy backend
-class TestGradientNormalOperatorNumpy(TestGradientNormalOperator[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestFluxNormalOperatorNumpy(TestFluxNormalOperator[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTractionNormalOperatorNumpy(TestTractionNormalOperator[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestLegacyNormalOperatorNumpy(TestLegacyNormalOperator[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
 # Torch backend
-class TestGradientNormalOperatorTorch(TestGradientNormalOperator[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestFluxNormalOperatorTorch(TestFluxNormalOperator[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestTractionNormalOperatorTorch(TestTractionNormalOperator[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-class TestLegacyNormalOperatorTorch(TestLegacyNormalOperator[torch.Tensor]):
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = self.bkd()
-
-
-if __name__ == "__main__":
-    unittest.main()

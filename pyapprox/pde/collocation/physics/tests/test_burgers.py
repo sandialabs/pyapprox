@@ -1,7 +1,6 @@
 """Tests for Burgers physics implementation."""
 
 import math
-import unittest
 
 import numpy as np
 
@@ -29,21 +28,11 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-
 class TestBurgersPhysics(PhysicsTestBase):
     """Tests for BurgersPhysics1D."""
 
-    __test__ = True
-
-    def bkd(self):
-        return NumpyBkd()
-
-    def test_jacobian_derivative_checker(self):
+    def test_jacobian_derivative_checker(self, bkd):
         """Test Jacobian matches finite differences using DerivativeChecker."""
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -54,11 +43,10 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Random state (positive to avoid any issues)
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_non_conservative(self):
+    def test_jacobian_non_conservative(self, bkd):
         """Test Jacobian for non-conservative form."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -68,11 +56,10 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_jacobian_with_forcing(self):
+    def test_jacobian_with_forcing(self, bkd):
         """Test Jacobian with non-zero forcing."""
-        bkd = self.bkd()
         npts = 12
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -85,11 +72,10 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(physics, state, time=0.0)
+        self.check_jacobian(bkd, physics, state, time=0.0)
 
-    def test_residual_at_manufactured_solution(self):
+    def test_residual_at_manufactured_solution(self, bkd):
         """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
-        bkd = self.bkd()
         npts = 25
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -120,9 +106,9 @@ class TestBurgersPhysics(PhysicsTestBase):
             exact_solution = exact_solution[:, 0]
 
         # Check residual is near zero at manufactured solution
-        self.check_residual_zero(physics, exact_solution, atol=1e-8)
+        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-8)
 
-    def test_residual_polynomial(self):
+    def test_residual_polynomial(self, bkd):
         """Test residual with polynomial solution.
 
         For u(x) = x^2 on [-1, 1]:
@@ -131,7 +117,6 @@ class TestBurgersPhysics(PhysicsTestBase):
         u * du/dx = 2x^3
         Residual = nu*2 - 2*x^3 = 2*nu - 2*x^3
         """
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -150,9 +135,8 @@ class TestBurgersPhysics(PhysicsTestBase):
         expected = 2.0 * nu - 2.0 * nodes**3
         bkd.assert_allclose(residual, expected, atol=1e-10)
 
-    def test_solve_steady_from_wrong_initial_guess(self):
+    def test_solve_steady_from_wrong_initial_guess(self, bkd):
         """AFTER: Verify convergence to exact solution from wrong guess."""
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -200,9 +184,8 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solution, exact_solution, atol=1e-8)
 
-    def test_factory_function(self):
+    def test_factory_function(self, bkd):
         """Test create_burgers_1d factory function."""
-        bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -210,18 +193,17 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         physics = create_burgers_1d(basis, bkd, viscosity=0.1)
 
-        self.assertEqual(physics.ncomponents(), 1)
-        self.assertEqual(physics.nstates(), npts)
-        self.assertAlmostEqual(physics.viscosity(), 0.1)
+        assert physics.ncomponents() == 1
+        assert physics.nstates() == npts
+        assert abs(physics.viscosity() - 0.1) < 1e-7
 
-    def test_transient_manufactured_solution(self):
+    def test_transient_manufactured_solution(self, bkd):
         """Test transient evolution with time-dependent manufactured solution.
 
         For Burgers: du/dt = nu*d²u/dx² - u*du/dx + f
         Use manufactured solution u(x,t) = exp(-t)*sin(pi*x) which satisfies:
         du/dt = -exp(-t)*sin(pi*x)
         """
-        bkd = self.bkd()
         npts = 25
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -275,14 +257,13 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Use atol for boundary points near zero
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05, atol=1e-10)
 
-    def test_transient_manufactured_solution_crank_nicolson(self):
+    def test_transient_manufactured_solution_crank_nicolson(self, bkd):
         """Test transient Burgers with Crank-Nicolson and manufactured solution.
 
         Uses polynomial-in-space (exact for Chebyshev basis) and
         quadratic-in-time (exact for CN): u = (1-x^2)^2 * (1+T+T^2).
         With manufactured forcing, only spatial discretization error remains.
         """
-        bkd = self.bkd()
         npts = 15
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -329,13 +310,12 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], u_exact, atol=1e-8)
 
-    def test_transient_diffusion_dominated(self):
+    def test_transient_diffusion_dominated(self, bkd):
         """Test transient Burgers with high viscosity (diffusion dominated).
 
         When viscosity is large relative to convection, solution should
         behave like heat equation.
         """
-        bkd = self.bkd()
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
 
@@ -376,8 +356,4 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Check that solution has decayed
         initial_norm = float(bkd.norm(u0))
         final_norm = float(bkd.norm(solutions[:, -1]))
-        self.assertLess(final_norm / initial_norm, expected_decay * 1.5)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert final_norm / initial_norm < expected_decay * 1.5

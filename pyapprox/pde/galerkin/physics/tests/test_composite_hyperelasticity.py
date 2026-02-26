@@ -9,14 +9,10 @@ Tests:
 - Small-strain limit matches CompositeLinearElasticity
 """
 
-import unittest
-from typing import Any, Generic
-
+import pytest
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 from skfem.models.elasticity import lame_parameters
-
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
@@ -39,9 +35,6 @@ from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _to_dense(mat, bkd):
@@ -79,20 +72,11 @@ def _get_exact_displacement(funcs, basis, bkd):
 # =========================================================================
 
 
-class TestCompositeMatchesUniform(Generic[Array], unittest.TestCase):
+class TestCompositeMatchesUniform:
     """Verify CompositeHyperelasticityPhysics with one material matches
     HyperelasticityPhysics."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_1d_residual_matches(self) -> None:
-        bkd = self._bkd
+    def test_1d_residual_matches(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         E, nu = 2.0, 0.3
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
@@ -124,8 +108,8 @@ class TestCompositeMatchesUniform(Generic[Array], unittest.TestCase):
             atol=1e-12,
         )
 
-    def test_2d_residual_matches(self) -> None:
-        bkd = self._bkd
+    def test_2d_residual_matches(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         E, nu = 1.0, 0.25
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
@@ -162,8 +146,8 @@ class TestCompositeMatchesUniform(Generic[Array], unittest.TestCase):
             atol=1e-12,
         )
 
-    def test_2d_jacobian_matches(self) -> None:
-        bkd = self._bkd
+    def test_2d_jacobian_matches(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         E, nu = 1.0, 0.25
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
@@ -201,21 +185,6 @@ class TestCompositeMatchesUniform(Generic[Array], unittest.TestCase):
         )
 
 
-class TestCompositeMatchesUniformNumpy(TestCompositeMatchesUniform[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestCompositeMatchesUniformTorch(TestCompositeMatchesUniform[torch.Tensor]):
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-except ImportError:
-    pass
 
 
 # =========================================================================
@@ -223,17 +192,8 @@ except ImportError:
 # =========================================================================
 
 
-class TestCompositeHyperelasticity1D(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _setup_1d_problem(self, E=2.0, nu=0.3, nx=20, degree=2):
-        bkd = self._bkd
+class TestCompositeHyperelasticity1D:
+    def _setup_1d_problem(self, bkd, E=2.0, nu=0.3, nx=20, degree=2) :
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
         bounds = [0.0, 1.0]
@@ -266,74 +226,52 @@ class TestCompositeHyperelasticity1D(Generic[Array], unittest.TestCase):
         )
         return physics, functions, basis
 
-    def test_residual_at_exact_1d(self) -> None:
-        physics, functions, basis = self._setup_1d_problem(nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, self._bkd)
-        state = self._bkd.asarray(exact)
+    def test_residual_at_exact_1d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
         res = physics.residual(state, 0.0)
-        res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
-        self.assertLess(res_norm, 1e-4)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-4
 
-    def test_jacobian_fd_check_1d(self) -> None:
-        physics, functions, basis = self._setup_1d_problem(nx=10, degree=1)
+    def test_jacobian_fd_check_1d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_1d_problem(bkd, nx=10, degree=1)
         n = physics.nstates()
         np.random.seed(42)
-        state = self._bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(physics.jacobian(state, 0.0), self._bkd)
-        res0 = self._bkd.to_numpy(physics.residual(state, 0.0))
+        state = bkd.asarray(0.01 * np.random.randn(n))
+        jac = _to_dense(physics.jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(physics.residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
-        state_np = self._bkd.to_numpy(state)
+        state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = self._bkd.to_numpy(
-                physics.residual(self._bkd.asarray(state_pert), 0.0)
+            res_pert = bkd.to_numpy(
+                physics.residual(bkd.asarray(state_pert), 0.0)
             )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
-        self.assertLess(rel_err, 1e-4)
+        assert rel_err < 1e-4
 
-    def test_newton_solve_1d(self) -> None:
-        physics, functions, basis = self._setup_1d_problem(nx=40, degree=2)
-        exact = _get_exact_displacement(functions, basis, self._bkd)
+    def test_newton_solve_1d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
 
         solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
-        init_guess = self._bkd.asarray(exact + 0.01)
+        init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
-        self.assertTrue(result.converged)
-        u_num = self._bkd.to_numpy(result.solution)
+        assert result.converged
+        u_num = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_num - exact) / max(u_norm, 1e-10)
-        self.assertLess(rel_error, 1e-6)
+        assert rel_error < 1e-6
 
 
-class TestCompositeHyperelasticity1DNumpy(TestCompositeHyperelasticity1D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestCompositeHyperelasticity1DTorch(
-        TestCompositeHyperelasticity1D[torch.Tensor]
-    ):
-        __test__ = True
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_newton_solve_1d(self) -> None:
-            pass
-except ImportError:
-    pass
 
 
 # =========================================================================
@@ -341,17 +279,8 @@ except ImportError:
 # =========================================================================
 
 
-class TestCompositeHyperelasticity2D(Generic[Array], unittest.TestCase):
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def _setup_2d_problem(self, E=1.0, nu=0.25, nx=8, ny=8, degree=2):
-        bkd = self._bkd
+class TestCompositeHyperelasticity2D:
+    def _setup_2d_problem(self, bkd, E=1.0, nu=0.25, nx=8, ny=8, degree=2) :
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
         bounds = [0.0, 1.0, 0.0, 1.0]
@@ -393,74 +322,52 @@ class TestCompositeHyperelasticity2D(Generic[Array], unittest.TestCase):
         )
         return physics, functions, basis
 
-    def test_residual_at_exact_2d(self) -> None:
-        physics, functions, basis = self._setup_2d_problem(nx=8, ny=8, degree=2)
-        exact = _get_exact_displacement(functions, basis, self._bkd)
-        state = self._bkd.asarray(exact)
+    def test_residual_at_exact_2d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_2d_problem(bkd, nx=8, ny=8, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
         res = physics.residual(state, 0.0)
-        res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
-        self.assertLess(res_norm, 1e-4)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-4
 
-    def test_jacobian_fd_check_2d(self) -> None:
-        physics, functions, basis = self._setup_2d_problem(nx=3, ny=3, degree=1)
+    def test_jacobian_fd_check_2d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_2d_problem(bkd, nx=3, ny=3, degree=1)
         n = physics.nstates()
         np.random.seed(42)
-        state = self._bkd.asarray(0.01 * np.random.randn(n))
-        jac = _to_dense(physics.jacobian(state, 0.0), self._bkd)
-        res0 = self._bkd.to_numpy(physics.residual(state, 0.0))
+        state = bkd.asarray(0.01 * np.random.randn(n))
+        jac = _to_dense(physics.jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(physics.residual(state, 0.0))
         eps = 1e-7
         fd_jac = np.zeros((n, n))
-        state_np = self._bkd.to_numpy(state)
+        state_np = bkd.to_numpy(state)
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = self._bkd.to_numpy(
-                physics.residual(self._bkd.asarray(state_pert), 0.0)
+            res_pert = bkd.to_numpy(
+                physics.residual(bkd.asarray(state_pert), 0.0)
             )
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
-        self.assertLess(rel_err, 1e-4)
+        assert rel_err < 1e-4
 
-    def test_newton_solve_2d(self) -> None:
-        physics, functions, basis = self._setup_2d_problem(nx=12, ny=12, degree=2)
-        exact = _get_exact_displacement(functions, basis, self._bkd)
+    def test_newton_solve_2d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_2d_problem(bkd, nx=12, ny=12, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
 
         solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
-        init_guess = self._bkd.asarray(exact + 0.01)
+        init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
-        self.assertTrue(result.converged)
-        u_num = self._bkd.to_numpy(result.solution)
+        assert result.converged
+        u_num = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_num - exact) / max(u_norm, 1e-10)
-        self.assertLess(rel_error, 1e-4)
+        assert rel_error < 1e-4
 
 
-class TestCompositeHyperelasticity2DNumpy(TestCompositeHyperelasticity2D[NDArray[Any]]):
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-try:
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    class TestCompositeHyperelasticity2DTorch(
-        TestCompositeHyperelasticity2D[torch.Tensor]
-    ):
-        __test__ = True
-
-        def bkd(self) -> TorchBkd:
-            return TorchBkd()
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_newton_solve_2d(self) -> None:
-            pass
-except ImportError:
-    pass
 
 
 # =========================================================================
@@ -468,12 +375,12 @@ except ImportError:
 # =========================================================================
 
 
-class TestCompositeMultiMaterial(unittest.TestCase):
+class TestCompositeMultiMaterial:
     """Tests specific to multi-material composites."""
 
-    def test_two_material_differs_from_uniform(self) -> None:
+    def test_two_material_differs_from_uniform(self, numpy_bkd) -> None:
         """Two-material residual differs from single uniform material."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=4,
             ny=4,
@@ -514,14 +421,11 @@ class TestCompositeMultiMaterial(unittest.TestCase):
         res_uniform = bkd.to_numpy(uniform.residual(state, 0.0))
         res_composite = bkd.to_numpy(composite.residual(state, 0.0))
 
-        self.assertFalse(
-            np.allclose(res_uniform, res_composite),
-            "Two-material residual should differ from uniform",
-        )
+        assert not np.allclose(res_uniform, res_composite), "Two-material residual should differ from uniform"
 
-    def test_zero_state_zero_residual(self) -> None:
+    def test_zero_state_zero_residual(self, numpy_bkd) -> None:
         """With no body force, u=0 gives zero residual (F=I, P=0)."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
@@ -548,9 +452,9 @@ class TestCompositeMultiMaterial(unittest.TestCase):
         res = bkd.to_numpy(physics.residual(state, 0.0))
         np.testing.assert_array_almost_equal(res, 0.0)
 
-    def test_small_strain_matches_linear_elasticity(self) -> None:
+    def test_small_strain_matches_linear_elasticity(self, numpy_bkd) -> None:
         """For small strains, Neo-Hookean ≈ linear elasticity."""
-        bkd = NumpyBkd()
+        bkd = numpy_bkd
         E, nu = 10.0, 0.3
         mesh = StructuredMesh2D(
             nx=4,
@@ -588,8 +492,8 @@ class TestCompositeMultiMaterial(unittest.TestCase):
             rtol=2e-3,
         )
 
-    def test_nparams_via_parameterization(self) -> None:
-        bkd = NumpyBkd()
+    def test_nparams_via_parameterization(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = mesh.nelements()
@@ -604,10 +508,10 @@ class TestCompositeMultiMaterial(unittest.TestCase):
             bkd=bkd,
         )
         param = create_galerkin_lame_parameterization(physics, bkd)
-        self.assertEqual(param.nparams(), 4)
+        assert param.nparams() == 4
 
-    def test_apply_changes_residual(self) -> None:
-        bkd = NumpyBkd()
+    def test_apply_changes_residual(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
 
@@ -628,14 +532,14 @@ class TestCompositeMultiMaterial(unittest.TestCase):
         param.apply(physics, bkd.asarray(np.array([5.0, 0.2])))
         res2 = bkd.to_numpy(physics.residual(state, 0.0))
 
-        self.assertFalse(np.allclose(res1, res2))
+        assert not np.allclose(res1, res2)
 
-    def test_poisson_ratio_validation(self) -> None:
-        bkd = NumpyBkd()
+    def test_poisson_ratio_validation(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CompositeHyperelasticityPhysics.from_uniform(
                 basis=basis,
                 youngs_modulus=1.0,
@@ -643,8 +547,8 @@ class TestCompositeMultiMaterial(unittest.TestCase):
                 bkd=bkd,
             )
 
-    def test_mass_matrix_symmetric(self) -> None:
-        bkd = NumpyBkd()
+    def test_mass_matrix_symmetric(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
@@ -661,7 +565,3 @@ class TestCompositeMultiMaterial(unittest.TestCase):
         )
         M = _to_dense(physics.mass_matrix(), bkd)
         np.testing.assert_array_almost_equal(M, M.T)
-
-
-if __name__ == "__main__":
-    unittest.main()
