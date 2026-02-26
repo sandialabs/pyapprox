@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: sensitivity_analysis
 difficulty: advanced
 estimated_time: 15
+render_time: 7
 prerequisites:
   - sobol_sensitivity_analysis
   - functiontrain_moments_math

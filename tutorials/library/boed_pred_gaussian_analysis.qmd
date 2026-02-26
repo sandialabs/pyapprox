@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: experimental_design
 difficulty: advanced
 estimated_time: 25
+render_time: 7
 extended_time_reason: "The chain of distributions (prior → posterior mean → push-forward → risk measure) cannot be split without losing the derivation thread."
 prerequisites:
   - boed_pred_concept

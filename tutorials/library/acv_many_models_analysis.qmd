@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 20
+render_time: 264
 prerequisites:
   - acv_many_models_concept
   - mfmc_analysis
@@ -227,6 +228,7 @@ sizes at the given budget.
 #| label: fig-allocation-matrices
 
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
@@ -242,8 +244,8 @@ from pyapprox.statest.acv import (
 from pyapprox.optimization.minimize.scipy.diffevol import (
     ScipyDifferentialEvolutionOptimizer,
 )
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
+from pyapprox.optimization.minimize.scipy.slsqp import (
+    ScipySLSQPOptimizer,
 )
 from pyapprox.optimization.minimize.chained.chained_optimizer import (
     ChainedOptimizer,
@@ -264,8 +266,8 @@ target_cost = 100.0
 ri_zeros = bkd.zeros(M, dtype=int)
 
 optimizer = ChainedOptimizer(
-    ScipyDifferentialEvolutionOptimizer(maxiter=200, raise_on_failure=False),
-    ScipyTrustConstrOptimizer(maxiter=1000),
+    ScipyDifferentialEvolutionOptimizer(maxiter=20, seed=42, raise_on_failure=False),
+    ScipySLSQPOptimizer(maxiter=100),
 )
 
 estimators = {

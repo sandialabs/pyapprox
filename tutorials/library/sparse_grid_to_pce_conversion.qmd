@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: surrogate_modeling
 difficulty: advanced
 estimated_time: 20
+render_time: 11
 prerequisites:
   - isotropic_sparse_grids
   - polynomial_chaos_surrogates

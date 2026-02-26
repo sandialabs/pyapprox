@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: uncertainty_quantification
 difficulty: intermediate
 estimated_time: 10
+render_time: 38
 prerequisites:
   - polynomial_chaos_surrogates
 tags:

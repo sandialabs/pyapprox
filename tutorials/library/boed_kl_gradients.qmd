@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: experimental_design
 difficulty: advanced
 estimated_time: 15
+render_time: 10
 prerequisites:
   - boed_kl_concept
   - boed_kl_estimator

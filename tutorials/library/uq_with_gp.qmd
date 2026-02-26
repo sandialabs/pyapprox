@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: uncertainty_quantification
 difficulty: intermediate
 estimated_time: 10
+render_time: 29
 prerequisites:
   - gp_surrogate
 tags:

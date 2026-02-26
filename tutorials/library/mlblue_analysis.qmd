@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: advanced
 estimated_time: 20
+render_time: 8
 prerequisites:
   - mlblue_concept
   - acv_many_models_analysis

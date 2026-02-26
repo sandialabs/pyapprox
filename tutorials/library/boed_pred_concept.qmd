@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 10
+render_time: 9
 prerequisites:
   - experimental_design_intro
   - boed_kl_concept

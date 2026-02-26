@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: surrogate_modeling
 difficulty: intermediate
 estimated_time: 30
+render_time: 30
 prerequisites:
   - tensor_product_interpolation
 tags:

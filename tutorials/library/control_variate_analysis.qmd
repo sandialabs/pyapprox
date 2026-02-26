@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 15
+render_time: 11
 prerequisites:
   - control_variate_concept
   - estimator_accuracy_mse

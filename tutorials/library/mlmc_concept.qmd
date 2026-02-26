@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: multi_fidelity
 difficulty: beginner
 estimated_time: 7
+render_time: 10
 prerequisites:
   - acv_concept
 tags:

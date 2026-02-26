@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: random_fields
 difficulty: intermediate
 estimated_time: 12
+render_time: 33
 prerequisites:
   - kle_introduction
 tags:

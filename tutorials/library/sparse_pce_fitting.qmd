@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: uncertainty_quantification
 difficulty: intermediate
 estimated_time: 8
+render_time: 29
 prerequisites:
   - polynomial_chaos_surrogates
   - practical_pce_fitting

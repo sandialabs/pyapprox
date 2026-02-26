@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: uncertainty_quantification
 difficulty: intermediate
 estimated_time: 15
+render_time: 10
 prerequisites:
   - estimator_accuracy_mse
 tags:

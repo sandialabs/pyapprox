@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 15
+render_time: 14
 prerequisites:
   - acv_concept
   - control_variate_analysis

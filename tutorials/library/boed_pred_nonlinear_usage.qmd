@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 14
+render_time: 22
 prerequisites:
   - boed_pred_concept
   - boed_kl_nonlinear_usage

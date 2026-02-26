@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: surrogate_modeling
 difficulty: advanced
 estimated_time: 35
+render_time: 16
 prerequisites:
   - adaptive_sparse_grids
 tags:

@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: advanced
 estimated_time: 15
+render_time: 27
 prerequisites:
   - pilot_studies_concept
   - acv_many_models_analysis

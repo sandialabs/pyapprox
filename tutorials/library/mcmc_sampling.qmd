@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: uncertainty_quantification
 difficulty: beginner
 estimated_time: 10
+render_time: 38
 prerequisites:
   - bayesian_inference_intro
 tags:

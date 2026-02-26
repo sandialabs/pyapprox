@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: surrogate_modeling
 difficulty: advanced
 estimated_time: 12
+render_time: 16
 prerequisites:
   - gp_surrogate
 tags:

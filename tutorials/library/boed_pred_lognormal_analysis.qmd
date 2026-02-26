@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: experimental_design
 difficulty: advanced
 estimated_time: 15
+render_time: 6
 prerequisites:
   - boed_pred_gaussian_analysis
 tags:

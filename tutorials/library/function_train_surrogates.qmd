@@ -6,6 +6,7 @@ tutorial_type: conceptual
 topic: surrogate_modeling
 difficulty: beginner
 estimated_time: 10
+render_time: 16
 prerequisites:
   - setup_environment
 tags:

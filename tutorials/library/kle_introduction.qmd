@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: random_fields
 difficulty: beginner
 estimated_time: 10
+render_time: 10
 prerequisites:
   - setup_environment
 tags:

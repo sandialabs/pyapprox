@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: sensitivity_analysis
 difficulty: intermediate
 estimated_time: 10
+render_time: 48
 prerequisites:
   - sensitivity_analysis_concept
 tags:

@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: random_fields
 difficulty: advanced
 estimated_time: 15
+render_time: 11
 prerequisites:
   - kle_introduction
   - kle_mesh_and_data_driven

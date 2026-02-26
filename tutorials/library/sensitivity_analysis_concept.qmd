@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: sensitivity_analysis
 difficulty: beginner
 estimated_time: 8
+render_time: 10
 prerequisites:
   - forward_uq
 tags:

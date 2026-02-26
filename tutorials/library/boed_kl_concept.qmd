@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 8
+render_time: 10
 prerequisites:
   - experimental_design_intro
 tags:

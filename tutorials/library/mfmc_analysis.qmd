@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 15
+render_time: 50
 prerequisites:
   - mfmc_concept
   - mlmc_analysis

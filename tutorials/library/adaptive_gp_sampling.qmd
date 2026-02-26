@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: surrogate_modeling
 difficulty: advanced
 estimated_time: 20
+render_time: 34
 prerequisites:
   - gp_surrogate
   - uq_with_gp

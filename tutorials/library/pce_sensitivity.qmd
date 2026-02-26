@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: sensitivity_analysis
 difficulty: intermediate
 estimated_time: 8
+render_time: 11
 prerequisites:
   - sensitivity_analysis_concept
   - polynomial_chaos_surrogates

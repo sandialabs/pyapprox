@@ -6,6 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 20
+render_time: 87
 prerequisites:
   - mlmc_concept
   - acv_analysis

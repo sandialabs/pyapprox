@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 10
+render_time: 10
 prerequisites:
   - acv_concept
   - control_variate_usage

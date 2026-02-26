@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 7
+render_time: 9
 prerequisites:
   - acv_many_models_concept
 tags:

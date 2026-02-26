@@ -6,6 +6,7 @@ tutorial_type: reference
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 15
+render_time: 62
 prerequisites:
   - acv_many_models_concept
 tags:
@@ -211,8 +212,8 @@ from pyapprox.statest.acv import (
 from pyapprox.optimization.minimize.scipy.diffevol import (
     ScipyDifferentialEvolutionOptimizer,
 )
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
+from pyapprox.optimization.minimize.scipy.slsqp import (
+    ScipySLSQPOptimizer,
 )
 from pyapprox.optimization.minimize.chained.chained_optimizer import (
     ChainedOptimizer,
@@ -231,8 +232,8 @@ stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(bkd.asarray(cov_true))
 
 optimizer = ChainedOptimizer(
-    ScipyDifferentialEvolutionOptimizer(maxiter=200, raise_on_failure=False),
-    ScipyTrustConstrOptimizer(maxiter=1000),
+    ScipyDifferentialEvolutionOptimizer(maxiter=20, seed=42, raise_on_failure=False),
+    ScipySLSQPOptimizer(maxiter=100),
 )
 
 ri_zeros = bkd.zeros(M, dtype=int)

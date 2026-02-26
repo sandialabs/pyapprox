@@ -200,6 +200,64 @@ def _convert_result_to_backend(
     )
 
 
+def _build_allocation_result(
+    est: "ACVEstimator[Array]",
+    bkd: Backend[Array],
+    target_cost: float,
+    partition_ratios: Array,
+    objective_value: Array,
+) -> ACVAllocationResult[Array]:
+    """Convert continuous partition ratios to a discrete allocation result.
+
+    Uses rounding (not floor) and clamps HF samples to at least 1 so that
+    near-integer continuous values like 0.99 round up instead of down.
+    """
+    continuous = est._npartition_samples_from_partition_ratios(
+        target_cost, partition_ratios
+    )
+    nhf_continuous = float(bkd.to_numpy(continuous[0]))
+    if nhf_continuous < 1 - 1e-3:
+        nmodels = est._nmodels
+        npartitions = est._npartitions
+        return ACVAllocationResult(
+            partition_ratios=bkd.zeros((nmodels - 1,)),
+            continuous_npartition_samples=bkd.zeros((npartitions,)),
+            objective_value=bkd.array([float("inf")]),
+            npartition_samples=bkd.zeros((npartitions,), dtype=int),
+            nsamples_per_model=bkd.zeros((nmodels,), dtype=int),
+            target_cost=target_cost,
+            actual_cost=0.0,
+            success=False,
+            message=f"Would give {nhf_continuous:.2f} HF samples",
+        )
+
+    # Floor all partitions to stay within budget, but clamp HF (index 0)
+    # to at least 1 so near-integer values like 0.999 don't floor to 0.
+    npartition_samples = bkd.asarray(
+        bkd.floor(continuous + 1e-8), dtype=int
+    )
+    if int(bkd.to_numpy(npartition_samples[0])) < 1:
+        npartition_samples[0] = 1
+    nsamples_per_model = bkd.asarray(
+        est._compute_nsamples_per_model(npartition_samples), dtype=int
+    )
+    actual_cost = float(
+        bkd.to_numpy(bkd.sum(nsamples_per_model * est._costs))
+    )
+
+    return ACVAllocationResult(
+        partition_ratios=partition_ratios,
+        continuous_npartition_samples=continuous,
+        objective_value=objective_value,
+        npartition_samples=npartition_samples,
+        nsamples_per_model=nsamples_per_model,
+        target_cost=target_cost,
+        actual_cost=actual_cost,
+        success=True,
+        message="",
+    )
+
+
 class Allocator(ABC, Generic[Array]):
     """Abstract base for sample allocation strategies."""
 
@@ -410,36 +468,9 @@ class ACVAllocator(Allocator[Array]):
         partition_ratios: Array,
         objective_value: Array,
     ) -> ACVAllocationResult[Array]:
-        continuous = self._est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-
-        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
-            return self._failure_result(
-                target_cost,
-                f"Would give {float(continuous[0]):.2f} HF samples",
-            )
-
-        npartition_samples = self._bkd.asarray(
-            self._bkd.floor(continuous + 1e-8), dtype=int
-        )
-        nsamples_per_model = self._bkd.asarray(
-            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
-        )
-        actual_cost = float(
-            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
-        )
-
-        return ACVAllocationResult(
-            partition_ratios=partition_ratios,
-            continuous_npartition_samples=continuous,
-            objective_value=objective_value,
-            npartition_samples=npartition_samples,
-            nsamples_per_model=nsamples_per_model,
-            target_cost=target_cost,
-            actual_cost=actual_cost,
-            success=True,
-            message="",
+        return _build_allocation_result(
+            self._est, self._bkd, target_cost, partition_ratios,
+            objective_value,
         )
 
     def _failure_result(
@@ -509,36 +540,9 @@ class AnalyticalAllocator(Allocator[Array]):
         partition_ratios: Array,
         objective_value: Array,
     ) -> ACVAllocationResult[Array]:
-        continuous = self._est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-
-        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
-            return self._failure_result(
-                target_cost,
-                f"Would give {float(continuous[0]):.2f} HF samples",
-            )
-
-        npartition_samples = self._bkd.asarray(
-            self._bkd.floor(continuous + 1e-8), dtype=int
-        )
-        nsamples_per_model = self._bkd.asarray(
-            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
-        )
-        actual_cost = float(
-            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
-        )
-
-        return ACVAllocationResult(
-            partition_ratios=partition_ratios,
-            continuous_npartition_samples=continuous,
-            objective_value=objective_value,
-            npartition_samples=npartition_samples,
-            nsamples_per_model=nsamples_per_model,
-            target_cost=target_cost,
-            actual_cost=actual_cost,
-            success=True,
-            message="",
+        return _build_allocation_result(
+            self._est, self._bkd, target_cost, partition_ratios,
+            objective_value,
         )
 
     def _failure_result(
@@ -606,7 +610,10 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
         except Exception:
             return ACVAllocator(self._est).allocate(target_cost)
 
-        return self._build_result(target_cost, partition_ratios, objective_value)
+        result = self._build_result(target_cost, partition_ratios, objective_value)
+        if not result.success:
+            return ACVAllocator(self._est).allocate(target_cost)
+        return result
 
     def _allocate_analytical(self, target_cost: float):
         from pyapprox.statest.acv.variants import _allocate_samples_mfmc
@@ -630,33 +637,9 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
         partition_ratios: Array,
         objective_value: Array,
     ) -> ACVAllocationResult[Array]:
-        continuous = self._est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
-            return self._failure_result(
-                target_cost,
-                f"Would give {float(continuous[0]):.2f} HF samples",
-            )
-        npartition_samples = self._bkd.asarray(
-            self._bkd.floor(continuous + 1e-8), dtype=int
-        )
-        nsamples_per_model = self._bkd.asarray(
-            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
-        )
-        actual_cost = float(
-            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
-        )
-        return ACVAllocationResult(
-            partition_ratios=partition_ratios,
-            continuous_npartition_samples=continuous,
-            objective_value=objective_value,
-            npartition_samples=npartition_samples,
-            nsamples_per_model=nsamples_per_model,
-            target_cost=target_cost,
-            actual_cost=actual_cost,
-            success=True,
-            message="",
+        return _build_allocation_result(
+            self._est, self._bkd, target_cost, partition_ratios,
+            objective_value,
         )
 
     def _failure_result(
@@ -704,7 +687,10 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         except Exception:
             return ACVAllocator(self._est).allocate(target_cost)
 
-        return self._build_result(target_cost, partition_ratios, objective_value)
+        result = self._build_result(target_cost, partition_ratios, objective_value)
+        if not result.success:
+            return ACVAllocator(self._est).allocate(target_cost)
+        return result
 
     def _allocate_analytical(self, target_cost: float):
         from pyapprox.statest.acv.variants import _allocate_samples_mlmc
@@ -729,33 +715,9 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         partition_ratios: Array,
         objective_value: Array,
     ) -> ACVAllocationResult[Array]:
-        continuous = self._est._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
-            return self._failure_result(
-                target_cost,
-                f"Would give {float(continuous[0]):.2f} HF samples",
-            )
-        npartition_samples = self._bkd.asarray(
-            self._bkd.floor(continuous + 1e-8), dtype=int
-        )
-        nsamples_per_model = self._bkd.asarray(
-            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
-        )
-        actual_cost = float(
-            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
-        )
-        return ACVAllocationResult(
-            partition_ratios=partition_ratios,
-            continuous_npartition_samples=continuous,
-            objective_value=objective_value,
-            npartition_samples=npartition_samples,
-            nsamples_per_model=nsamples_per_model,
-            target_cost=target_cost,
-            actual_cost=actual_cost,
-            success=True,
-            message="",
+        return _build_allocation_result(
+            self._est, self._bkd, target_cost, partition_ratios,
+            objective_value,
         )
 
     def _failure_result(

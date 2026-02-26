@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: surrogate_modeling
 difficulty: intermediate
 estimated_time: 25
+render_time: 41
 prerequisites:
   - lagrange_interpolation
 tags:

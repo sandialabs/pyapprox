@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: surrogate_modeling
 difficulty: beginner
 estimated_time: 15
+render_time: 10
 prerequisites:
   - piecewise_quadrature
 tags:

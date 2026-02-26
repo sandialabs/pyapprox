@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 10
+render_time: 11
 prerequisites:
   - multioutput_acv_concept
   - acv_many_models_usage

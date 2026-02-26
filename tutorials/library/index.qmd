@@ -96,7 +96,6 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | Tutorial | Description |
 |----------|-------------|
 | [OED Data Workflow](boed_data_workflow_usage.qmd) | Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model |
-| [Surrogate-Accelerated OED](boed_surrogate_usage.qmd) | Building a sparse-grid surrogate to enable large-sample-budget OED infeasible with the original model |
 
 ## Approximation Theory
 

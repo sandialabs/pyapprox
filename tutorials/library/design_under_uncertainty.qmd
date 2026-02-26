@@ -6,6 +6,7 @@ tutorial_type: hands-on
 topic: optimization
 difficulty: intermediate
 estimated_time: 15
+render_time: 16
 prerequisites:
   - forward_uq
 tags:

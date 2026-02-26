@@ -6,6 +6,7 @@ tutorial_type: usage
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 12
+render_time: 41
 prerequisites:
   - boed_pred_concept
   - boed_pred_gaussian_analysis

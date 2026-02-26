@@ -6,6 +6,7 @@ tutorial_type: concept
 topic: uncertainty_quantification
 difficulty: beginner
 estimated_time: 20
+render_time: 10
 prerequisites:
   - models_decisions_uncertainty
   - forward_uq
