@@ -1,4 +1,3 @@
-import unittest  # Enable check_derivatives with good error messages
 from typing import Generic, Optional
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -673,8 +672,6 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         """
         validate_sample(self._state_eq.nstates(), init_state)
         validate_sample(self._state_eq.nparams(), param)
-        # Create an instance of TestCase for assertions
-        self._unittest = unittest.TestCase()
 
         # Check first-order derivatives of the state equation
         errors = self.check_state_equation_state_jacobian(
@@ -781,8 +778,9 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         if self._bkd.min(errors) == self._bkd.max(errors):
             assert self._bkd.min(errors) == 0.0
         else:
-            self._unittest.assertLessEqual(
-                self._bkd.min(errors) / self._bkd.max(errors), tol
+            ratio = self._bkd.min(errors) / self._bkd.max(errors)
+            assert ratio <= tol, (
+                f"Derivative error ratio {ratio} exceeds tolerance {tol}"
             )
 
     def get_derivative_tolerances(self, tol: float) -> Array:

@@ -564,8 +564,6 @@ class TestTransientPolarADR:
 # =============================================================================
 
 
-# Note: Full parameterized tests require unittest_parametrize.
-# For now, we add a few key configurations as explicit test methods.
 
 
 class TestTransformADRConfigurations:
