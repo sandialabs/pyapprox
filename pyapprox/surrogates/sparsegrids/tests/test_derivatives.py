@@ -5,6 +5,8 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 
 from typing import List
 
+import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -39,6 +41,7 @@ class TestSparseGridDerivatives:
         result = fitter.fit(values)
         return result.surrogate
 
+    @pytest.mark.slow_on("TorchBkd")
     def test_jacobian_linear_function(self, bkd) -> None:
         """Test Jacobian of linear function is constant."""
 

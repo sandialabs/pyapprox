@@ -778,10 +778,12 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_state, rtol=rtol)
 
+    @pytest.mark.slow_on("TorchBkd")
     def test_transient_coupled_backward_euler(self, bkd):
         """Test transient coupled depth+velocity with backward Euler."""
         self._run_transient_coupled_manufactured(bkd, "backward_euler", rtol=1e-5)
 
+    @pytest.mark.slow_on("TorchBkd")
     def test_transient_coupled_crank_nicolson(self, bkd):
         """Test transient coupled depth+velocity with Crank-Nicolson."""
         self._run_transient_coupled_manufactured(bkd, "crank_nicolson", rtol=1e-5)

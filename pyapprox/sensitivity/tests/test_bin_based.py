@@ -76,6 +76,7 @@ class TestBinBasedSensitivity:
         expected_main = bkd.asarray(gt.main_effects).reshape(-1, 1)
         bkd.assert_allclose(main_effects, expected_main, atol=0.15)
 
+    @pytest.mark.slow_on("TorchBkd")
     def test_second_order_indices_ishigami(self, bkd):
         """Test second-order Sobol indices on Ishigami."""
         benchmark = ishigami_3d(bkd)
