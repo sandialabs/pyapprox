@@ -267,6 +267,7 @@ $d\text{EIG}/dw_1 = \partial\text{EIG}/\partial w_1 - \partial\text{EIG}/\partia
 #| fig-cap: "Left: closed-form EIG(w₁) with arrows indicating the gradient direction toward the maximum. Right: gradient bar chart at five test points. The correct C1+C2+C3 estimator (green) closely tracks the analytic total derivative (blue); the incomplete C1+C2 estimator (orange) has the wrong sign at w₁=0.15, which would push optimisation away from the maximum."
 #| label: fig-eig-landscape
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.expdesign.benchmarks.linear_gaussian_model import (

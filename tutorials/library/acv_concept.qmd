@@ -76,6 +76,7 @@ small LF sample, (right) estimated from a large LF sample.
 #| label: fig-unknown-mean-problem
 
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (

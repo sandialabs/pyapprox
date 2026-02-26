@@ -58,6 +58,7 @@ where $\theta_1$ is the constant component and $\theta_2$ controls the slope. We
 ```{python}
 #| echo: false
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 

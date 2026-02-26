@@ -79,6 +79,7 @@ evaluated at the same $m_k$ sample points.
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
+np.random.seed(42)
 
 # Define subsets: each column is a subset with its member models
 subsets = [

@@ -68,6 +68,7 @@ Before the algebra, @fig-sample-structure makes the structural difference visual
 #| label: fig-sample-structure
 
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 

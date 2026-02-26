@@ -121,21 +121,21 @@ fi
 if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
     echo ""
     echo "Generating Jupyter notebooks..."
-    mkdir -p _site/library/notebooks
+    mkdir -p _site/notebooks
 
-    for f in library/*.qmd; do
+    for f in *.qmd; do
         if [ "$(basename "$f")" != "index.qmd" ]; then
             name=$(basename "${f%.qmd}")
             echo "  Converting: $name.qmd -> $name.ipynb"
-            quarto convert "$f" --output "_site/library/notebooks/${name}.ipynb" 2>/dev/null || true
+            quarto convert "$f" --output "_site/notebooks/${name}.ipynb" 2>/dev/null || true
         fi
     done
 
     # Expand LaTeX macros to standard LaTeX
     echo "Expanding LaTeX macros..."
-    python scripts/inject_notebook_macros.py _site/library/notebooks/
+    python "$SCRIPT_DIR/scripts/inject_notebook_macros.py" _site/notebooks/
 
-    echo "Notebooks saved to: _site/library/notebooks/"
+    echo "Notebooks saved to: $BUILD_DIR/_site/notebooks/"
 fi
 
 echo ""

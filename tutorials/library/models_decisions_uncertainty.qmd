@@ -51,6 +51,7 @@ This tutorial is the first in a series introducing core UQ concepts and the PyAp
 #| fig-cap: "Composite cantilever beam: three material layers with five circular holes. Clamped at the left edge, linearly increasing traction on the top surface."
 #| label: fig-beam-geometry
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 

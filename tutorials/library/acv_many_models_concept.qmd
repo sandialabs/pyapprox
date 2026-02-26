@@ -208,6 +208,7 @@ pairwise correlation with $f_1$.
 #| label: fig-acv-ceiling
 
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (

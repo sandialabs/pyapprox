@@ -66,6 +66,7 @@ $$
 #| fig-cap: "The forward UQ problem. An input distribution $p(\\boldsymbol{\\theta})$ over model parameters is propagated through the model $f$ to produce a push-forward distribution over the QoI $q = f(\\boldsymbol{\\theta})$."
 #| label: fig-forward-uq-schematic
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 from scipy.stats import norm

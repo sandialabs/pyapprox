@@ -134,7 +134,7 @@ print(f"Actual cost:  {n_hf * cost_hf + n_lf * cost_lf:.1f}")
 ## What `allocate_samples` optimises
 `allocate_samples` solves for $N$ and $r$ that minimise the predicted estimator variance
 subject to the budget constraint $N C_\alpha + r N C_\kappa \leq P$. The ratio $r$ is
-determined by @eq-r-star from the pilot covariance estimate.
+determined by the [optimal ratio formula](acv_analysis.qmd#eq-r-star) $r^* = \sqrt{(C_\alpha / C_\kappa)\,\rho^2/(1-\rho^2)}$ from the pilot covariance estimate.
 :::
 
 Inspect the predicted accuracy before running the experiment:
@@ -301,14 +301,14 @@ a very large $r$ that may be computationally infeasible. Always use realistic co
 ## Exercises
 
 1. Set `cost_lf = 5.0` (half the HF cost). Rerun `allocate_samples` and compare the new
-   $r^*$ and predicted variance reduction to the original. Explain the change using @eq-r-star.
+   $r^*$ and predicted variance reduction to the original. Explain the change using the [optimal ratio formula](acv_analysis.qmd#eq-r-star).
 
 2. Set `N_pilot = 10`. Does the predicted std still match the empirical std from 500 trials?
    What goes wrong with a very small pilot?
 
 3. Vary `theta1` from `0.1` (high correlation) to `np.pi/2 * 0.95` (moderate correlation).
    For each value, record the optimal $r^*$ returned by `allocate_samples`. Does the trend
-   match the formula in @eq-r-star?
+   match the [optimal ratio formula](acv_analysis.qmd#eq-r-star)?
 
 4. **(Challenge)** Replace `MultiOutputMean` with `MultiOutputMeanAndVariance`. How does
    the sample allocation change when we ask for both statistics simultaneously?

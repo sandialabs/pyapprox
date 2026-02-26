@@ -49,6 +49,7 @@ Complete [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) before this
 
 ```{python}
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.numpy import NumpyBkd

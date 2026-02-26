@@ -66,6 +66,7 @@ would have been better spent on the remaining models, pushing the estimator cova
 #| label: fig-bad-model
 
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks import tunable_ensemble_3model

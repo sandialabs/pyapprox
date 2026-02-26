@@ -48,6 +48,7 @@ This tutorial assumes familiarity with basic calculus (integrals, Taylor series)
 
 ```{python}
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from scipy import stats
 

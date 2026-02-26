@@ -272,6 +272,7 @@ $$
 
 ```{python}
 import numpy as np
+np.random.seed(42)
 from pyapprox.util.backends.numpy import NumpyBkd
 
 bkd = NumpyBkd()

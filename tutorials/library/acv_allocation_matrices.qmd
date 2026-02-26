@@ -197,6 +197,7 @@ We can visualise the allocation matrix by reading it from the estimator's intern
 
 ```{python}
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (

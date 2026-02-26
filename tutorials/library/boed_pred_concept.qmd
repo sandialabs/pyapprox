@@ -75,6 +75,7 @@ $\sin\tfrac{\pi}{2} = 1$). Both sensors generate identical EIG up to a scalar
 #| fig-cap: "Top row: 2D posterior ellipses (1σ and 2σ) in parameter space for each design. The green double-headed arrow marks the QoI direction θ₂. Design A (EIG-optimal) tightly constrains θ₁ but leaves the ellipse width in the θ₂ direction unchanged; Design B constrains θ₂ directly. Bottom row: the resulting 1D push-forward distributions p(q(θ)|y,w). Design A's push-forward is identical to the prior — the experiment gave zero benefit for prediction. Design B's push-forward is 30% narrower."
 #| label: fig-pushforward-intuition
 import numpy as np
+np.random.seed(42)
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy import stats
