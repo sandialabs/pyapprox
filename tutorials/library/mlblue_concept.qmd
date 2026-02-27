@@ -562,9 +562,13 @@ directly reduces variance for $Q_0$.
 
 - [MLBLUE Analysis](mlblue_analysis.qmd) — Formal derivation of
   $\boldsymbol{\Psi}$, the variance formula, and its connection to the CV-$M$ limit
-- [MLBLUE Usage](mlblue_usage.qmd) — Define subsets, run MLBLUE end-to-end,
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) — Define subsets, run MLBLUE end-to-end,
   compare to MLMC and PACV in PyApprox
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → MLBLUEEstimator](multifidelity_estimation_cookbook.qmd#estimator-quick-reference).
+:::
 
 ## References
 

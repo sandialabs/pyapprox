@@ -320,6 +320,10 @@ due to cancellation of correlated errors, not a reduction in work.
   [Approximate Control Variates](acv_concept.qmd)
 
 
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → CVEstimator](multifidelity_estimation_cookbook.qmd#estimator-quick-reference).
+:::
+
 ## Exercises
 
 1. If $\rho = 0.7$, by what factor does CVMC reduce the variance compared to plain MC?
@@ -336,6 +340,6 @@ due to cancellation of correlated errors, not a reduction in work.
 
 - [Control Variate Analysis](control_variate_analysis.qmd) --- Derive the optimal $\eta$ and
   the $1 - \rho^2$ result from first principles
-- [Control Variate Usage](control_variate_usage.qmd) --- Use the PyApprox CVMC API on a
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) --- Use the PyApprox CVMC API on a
   real model
 - [Approximate Control Variates](acv_concept.qmd) --- What to do when $\mu_\kappa$ is unknown

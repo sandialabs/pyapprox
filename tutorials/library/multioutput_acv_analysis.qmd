@@ -130,7 +130,7 @@ $$
 $$
 
 which depends on the sample-set intersection sizes and the population covariance
-$\boldsymbol{\Sigma}_{\alpha\beta}$ (see [ACV Covariances](acv_covariances.qmd)).
+$\boldsymbol{\Sigma}_{\alpha\beta}$ (see [ACV Covariances](acv_many_models_analysis.qmd#sec-covariance-formulas)).
 
 
 ## Optimal Weight Matrix

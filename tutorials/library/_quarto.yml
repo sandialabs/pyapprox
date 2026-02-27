@@ -4,13 +4,21 @@ project:
 
 website:
   title: "PyApprox UQ Tutorials"
+  site-url: https://sandialabs.github.io/pyapprox/
+  description: "80+ validated tutorials for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis with PyApprox."
+  favicon: assets/favicon.ico
+  open-graph: true
   navbar:
+    logo: assets/pyapprox-logo.png
     left:
       - text: "Home"
         href: index.qmd
     right:
       - icon: github
         href: https://github.com/sandialabs/pyapprox
+  page-footer:
+    left: "Copyright Sandia National Laboratories (NTESS). MIT License."
+    right: "[Repository](https://github.com/sandialabs/pyapprox)"
   sidebar:
     - title: "Tutorials"
       style: "docked"
@@ -31,34 +39,23 @@ website:
           contents:
             - control_variate_concept.qmd
             - control_variate_analysis.qmd
-            - control_variate_usage.qmd
             - acv_concept.qmd
-            - acv_analysis.qmd
-            - acv_usage.qmd
-            - acv_allocation_matrices.qmd
-            - acv_covariances.qmd
             - acv_many_models_concept.qmd
             - acv_many_models_analysis.qmd
             - mfmc_concept.qmd
             - mfmc_analysis.qmd
-            - mfmc_usage.qmd
             - mlmc_concept.qmd
             - mlmc_analysis.qmd
-            - mlmc_usage.qmd
             - multioutput_acv_concept.qmd
             - multioutput_acv_analysis.qmd
-            - multioutput_acv_usage.qmd
             - pacv_concept.qmd
             - pacv_analysis.qmd
-            - pacv_usage.qmd
             - mlblue_concept.qmd
             - mlblue_analysis.qmd
-            - mlblue_usage.qmd
             - pilot_studies_concept.qmd
-            - pilot_studies_usage.qmd
             - pilot_studies_analysis.qmd
             - ensemble_selection_concept.qmd
-            - ensemble_selection_usage.qmd
+            - multifidelity_estimation_cookbook.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd
@@ -91,7 +88,6 @@ website:
             - section: "OED Workflows"
               contents:
                 - boed_data_workflow_usage.qmd
-                - boed_surrogate_usage.qmd
         - section: "Approximation Theory"
           contents:
             - lagrange_interpolation.qmd

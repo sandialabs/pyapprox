@@ -194,7 +194,7 @@ $r N C_\kappa$ buys a more accurate estimate of $\mu_\kappa$, which tightens the
 
 ## Variance Reduction Depends on $r$
 
-With the optimal $\eta$ (derived in [ACV Analysis](acv_analysis.qmd)), the variance
+With the optimal $\eta$ (derived in [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model)), the variance
 reduction factor is
 
 $$
@@ -275,11 +275,15 @@ plt.show()
 
 ## Next Steps
 
-- [ACV Analysis](acv_analysis.qmd) --- Derive $\gamma = 1 - \frac{r-1}{r}\rho^2$, the
+- [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model) --- Derive $\gamma = 1 - \frac{r-1}{r}\rho^2$, the
   optimal $\eta$, and the optimal $r$ for a fixed budget
-- [ACV Usage](acv_usage.qmd) --- Use the PyApprox ACV API end-to-end
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#universal-workflow) --- Use the PyApprox ACV API end-to-end
 - [General ACV](acv_many_models_concept.qmd) --- Extend ACV to many low-fidelity models
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Universal Workflow](multifidelity_estimation_cookbook.qmd#universal-workflow).
+:::
 
 ## References
 

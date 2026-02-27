@@ -270,7 +270,7 @@ print(f"Maximum deviation from theory: {max_err:.4f}")
 In practice, the population moments $C_{\alpha\kappa}$ and $\sigma^2_\kappa$ are unknown and
 $\eta^*$ must be estimated from samples. Using a sample-based $\hat{\eta}$ introduces a
 small bias and slightly inflates the variance, but the effect vanishes as $N \to \infty$.
-The [Control Variate Usage](control_variate_usage.qmd) tutorial covers how PyApprox handles
+The [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) covers how PyApprox handles
 this in the API.
 
 ### Extension to other statistics
@@ -279,7 +279,7 @@ The derivation above treats the mean estimator. For variance estimation, the opt
 and the resulting variance reduction ratio depend not just on $\rho_{\alpha\kappa}$ but also
 on higher-order cross-moments of $f_\alpha$ and $f_\kappa$. The same general structure ---
 unbiasedness for free, optimality by differentiating a quadratic --- applies, but the algebra
-is more involved. See [ACV Covariances](acv_covariances.qmd) for the general formulas.
+is more involved. See [ACV Covariances](acv_many_models_analysis.qmd#sec-covariance-formulas) for the general formulas.
 
 ### Connection to regression
 

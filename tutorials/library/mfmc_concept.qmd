@@ -180,117 +180,12 @@ has mean zero. The weights are then chosen to minimise variance — see
 [MFMC Analysis](mfmc_analysis.qmd) for the full derivation.
 
 
-## Only $f_1$ Directly Reduces HF Variance
-
-The recursive construction reveals a subtle consequence: models $f_\alpha$ with
-$\alpha \geq 2$ reduce the variance of the correction for $f_{\alpha-1}$, not directly
-for $f_0$. The only model that **directly** corrects $\hat{\mu}_0(\mathcal{Z}_0)$ is $f_1$.
-
-This is also true of MLMC: deeper levels only affect $f_0$ indirectly through the
-telescoping chain. As a result, both estimators converge to the idealised one-model CV
-estimator — not to the optimal multi-model CV — as LF sample counts grow.
-@fig-mfmc-cv-limit shows this plateau for the five-level polynomial benchmark.
-
-```{python}
-#| echo: false
-#| fig-cap: "Variance relative to MC (with $N_0 = 1$ HF sample fixed) as LF sample counts grow, for MLMC and MFMC on the five-model polynomial benchmark. Both curves plateau at the CV-1 limit (green dashed), regardless of how many additional cheap samples are added. The CV-2 through CV-4 limits (dashed) are the reductions achievable if all LF means were known exactly — an upper bound neither estimator can reach."
-#| label: fig-mfmc-cv-limit
-
-import copy
-import numpy as np
-import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-)
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.acv import MLMCEstimator, MFMCEstimator
-
-bkd       = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-models    = benchmark.models()
-costs     = benchmark.costs()
-nqoi      = models[0].nqoi()
-cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())
-sigma2_hf = cov_true[0, 0]
-n_models  = len(models)
-
-# Idealised CV limits: 1 - R^2 for n_lf LF models with known means
-cv_limits = []
-for n_lf in range(1, n_models):
-    sub = cov_true[:n_lf + 1, :n_lf + 1]
-    c0l = sub[0, 1:]
-    Sl  = sub[1:, 1:]
-    r2  = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
-    cv_limits.append(1 - r2)
-
-stat = MultiOutputMean(nqoi, bkd)
-stat.set_pilot_quantities(bkd.asarray(cov_true))
-
-# Fix nhf=1 and manually grow LF partition sizes to show the CV-1 plateau.
-# This matches the legacy tutorial: only LF samples increase, HF stays at 1.
-nhf_samples = 1
-mc_var = sigma2_hf / nhf_samples
-npartition_ratio_base = np.array([2, 2, 2, 2])
-factors = np.arange(22)
-
-def compute_ratios(est_template):
-    est_costs, est_ratios = [], []
-    for factor in factors:
-        npartition_samples = bkd.asarray(
-            nhf_samples * np.hstack(
-                (1, npartition_ratio_base[:est_template._npartitions - 1]
-                 * 2**factor)),
-        )
-        est_copy = copy.deepcopy(est_template)
-        nsamples_per_model = est_copy._compute_nsamples_per_model(
-            npartition_samples)
-        est_copy._set_optimized_params_base(
-            npartition_samples, nsamples_per_model,
-            est_copy._estimator_cost(npartition_samples))
-        est_var = float(est_copy._optimized_covariance[0, 0])
-        est_costs.append(float(est_copy._estimator_cost(npartition_samples)))
-        est_ratios.append(est_var / mc_var)
-    return est_costs, est_ratios
-
-mlmc_costs, mlmc_ratio = compute_ratios(MLMCEstimator(stat, costs))
-mfmc_costs, mfmc_ratio = compute_ratios(MFMCEstimator(stat, costs))
-
-fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(mlmc_costs, mlmc_ratio, "-",  color="#2C7FB8", lw=2, label="MLMC")
-ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2, label="MFMC")
-
-cv_colors = ["#27AE60", "#8E44AD", "#E74C3C", "#16A085"]
-cv_ls     = ["--", "-.", ":", (0, (5, 1))]
-for i, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
-    ax.axhline(lim, color=col, ls=ls, lw=1.5,
-               label=f"CV-{i+1} limit ({i+1} LF)")
-
-ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
-ax.set_xlabel("Total cost", fontsize=11)
-ax.set_ylabel("Variance / MC variance", fontsize=11)
-ax.set_title("MFMC and MLMC plateau at the CV-1 ceiling", fontsize=11)
-ax.legend(fontsize=8, loc="lower left")
-ax.grid(True, alpha=0.2, which="both")
-plt.tight_layout()
-plt.show()
-```
-
-The ceiling is $1 - \rho_{0,1}^2$, set entirely by the correlation between $f_0$ and the
-single most informative LF model. The [General ACV](acv_many_models_concept.qmd)
-tutorial shows how to break this ceiling by directly correcting $\hat{\mu}_0$ with all
-LF models simultaneously.
-
-
 ## Key Takeaways
 
 - MFMC builds the estimator recursively: start from two-model ACV and replace each
   raw LF mean with an improved ACV estimate at the next level
 - The result is a sum of corrections with nested sample sets and optimised weights
-- Both MFMC and MLMC plateau at the one-model CV-1 variance floor
 - MFMC optimises weights; MLMC fixes them at $-1$
-- On typical benchmarks both perform similarly; the General ACV framework breaks the
-  CV-1 ceiling
 
 
 ## Exercises
@@ -298,10 +193,7 @@ LF models simultaneously.
 1. Write out the three-model MFMC estimator explicitly using the weight-product form from
    the recursive derivation. Verify that it matches @eq-mfmc.
 
-2. From @fig-mfmc-cv-limit, what variance ratio does MFMC approach as the LF sample
-   ratio grows large? Which parameter determines this floor?
-
-3. If $\rho_{0,1} = 0.99$ and $\rho_{0,2} = 0.50$, does adding $f_2$ significantly
+2. If $\rho_{0,1} = 0.99$ and $\rho_{0,2} = 0.50$, does adding $f_2$ significantly
    improve variance over using $f_1$ alone in MFMC? Why or why not?
 
 
@@ -309,10 +201,12 @@ LF models simultaneously.
 
 - [MFMC Analysis](mfmc_analysis.qmd) --- Derive the MFMC variance formula and optimal
   sample ratios $r_\alpha^*$
-- [MFMC Usage](mfmc_usage.qmd) --- Use the PyApprox MFMC API end-to-end
-- [General ACV](acv_many_models_concept.qmd) --- Break the CV-1 ceiling using all LF
-  models simultaneously
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) --- Use the PyApprox MFMC API end-to-end
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → MFMCEstimator](multifidelity_estimation_cookbook.qmd#estimator-quick-reference).
+:::
 
 ## References
 

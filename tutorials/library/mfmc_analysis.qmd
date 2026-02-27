@@ -114,7 +114,7 @@ $$
   \left(\frac{1}{r_{\alpha-1}} - \frac{1}{r_\alpha}\right).
 $$ {#eq-delta-var}
 
-This mirrors the two-model ACV correction variance from [ACV Analysis](acv_analysis.qmd),
+This mirrors the two-model ACV correction variance from [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model),
 with the pair $(r_{\alpha-1},\, r_\alpha)$ playing the roles of $(1,\, r)$.
 
 
@@ -359,7 +359,7 @@ for P_t, mp, me, mfp, mfe in zip(
 ## Exercises
 
 1. For $M = 1$, verify that @eq-r-star reduces to the two-model ACV optimal ratio
-   $r^* = \sqrt{C_0\rho_1^2 / (C_1(1-\rho_1^2))}$ from [ACV Analysis](acv_analysis.qmd).
+   $r^* = \sqrt{C_0\rho_1^2 / (C_1(1-\rho_1^2))}$ from [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model).
 
 2. Show algebraically that as $r_\alpha \to \infty$ for all $\alpha$, the variance
    @eq-mfmc-var approaches $\sigma_0^2(1-\rho_1^2)/N_0$ (the CV-1 limit).

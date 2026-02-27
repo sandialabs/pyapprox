@@ -331,10 +331,14 @@ the cost of extra model evaluations.
 
 - [MLMC Analysis](mlmc_analysis.qmd) --- Derive optimal sample allocation and the MLMC
   complexity theorem
-- [MLMC Usage](mlmc_usage.qmd) --- Run MLMC with the PyApprox API
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) --- Run MLMC with the PyApprox API
 - [Multi-Fidelity Monte Carlo](mfmc_concept.qmd) --- An alternative hierarchy estimator
   with a different sample-sharing structure
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → MLMCEstimator](multifidelity_estimation_cookbook.qmd#estimator-quick-reference).
+:::
 
 ## References
 

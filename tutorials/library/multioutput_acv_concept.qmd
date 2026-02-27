@@ -250,9 +250,13 @@ reduction is at least as large as SOACV.
 
 - [Multi-Output ACV Analysis](multioutput_acv_analysis.qmd) — Derive the MOACV
   optimal weight matrix $\mathbf{H}^*$ and the resulting minimum covariance
-- [Multi-Output ACV Usage](multioutput_acv_usage.qmd) — Run MOACV and SOACV
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#multi-output-estimation) — Run MOACV and SOACV
   end-to-end and confirm the improvement numerically
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Multi-Output Estimation](multifidelity_estimation_cookbook.qmd#multi-output-estimation).
+:::
 
 ## References
 

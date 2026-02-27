@@ -364,7 +364,11 @@ the estimator are needed to determine the right number of pilot samples.
    in favour of fewer models?
 
 
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Ensemble Selection](multifidelity_estimation_cookbook.qmd#ensemble-selection).
+:::
+
 ## Next Steps
 
-- [Ensemble Selection Usage](ensemble_selection_usage.qmd) — `AllSubsetsStrategy`,
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#ensemble-selection) — `AllSubsetsStrategy`,
   `ACVSearch`, and `plot_estimator_variance_reductions` in PyApprox

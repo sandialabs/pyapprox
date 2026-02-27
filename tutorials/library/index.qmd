@@ -3,6 +3,20 @@ title: "PyApprox Tutorial Library"
 subtitle: "Validated tutorials for uncertainty quantification"
 ---
 
+**PyApprox** is a Python toolkit for uncertainty quantification, surrogate modeling,
+sensitivity analysis, and Bayesian experimental design. Every tutorial below is
+executable, dual-backend tested (NumPy and PyTorch), and reproducible.
+
+::: {.callout-tip}
+## Start Here
+New to PyApprox? Follow this path:
+
+1. [Setup Environment](setup_environment.qmd) --- install and verify
+2. [From Models to Decisions Under Uncertainty](models_decisions_uncertainty.qmd) --- why UQ matters
+3. [Forward UQ](forward_uq.qmd) --- propagate uncertainty through a model
+4. Pick a topic below that matches your application
+:::
+
 ## Getting Started
 
 | Tutorial | Description |
@@ -26,34 +40,23 @@ subtitle: "Validated tutorials for uncertainty quantification"
 |----------|-------------|
 | [Control Variate Monte Carlo](control_variate_concept.qmd) | Reducing MC estimator variance using a correlated low-fidelity model with a known statistic |
 | [Control Variate Analysis](control_variate_analysis.qmd) | Deriving the optimal control variate weight, variance reduction formula, and unbiasedness |
-| [Control Variate Usage](control_variate_usage.qmd) | Using the PyApprox CVMC API to reduce estimator variance with a correlated low-fidelity model |
 | [ACV Concept](acv_concept.qmd) | Approximate control variates: extending CVMC to multiple low-fidelity models without known statistics |
-| [ACV Analysis](acv_analysis.qmd) | Deriving ACV variance reduction and comparing GMF, GIS, and GRD allocation strategies |
-| [ACV Usage](acv_usage.qmd) | Using the PyApprox ACV API to allocate samples and estimate statistics with multiple models |
 | [MFMC Concept](mfmc_concept.qmd) | Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction |
 | [MFMC Analysis](mfmc_analysis.qmd) | Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC |
-| [MFMC Usage](mfmc_usage.qmd) | Using the PyApprox MFMC and MLMC API to allocate samples, visualize allocations, and verify estimates |
 | [Multi-Level Monte Carlo](mlmc_concept.qmd) | Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels |
 | [MLMC Analysis](mlmc_analysis.qmd) | Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem |
-| [MLMC Usage](mlmc_usage.qmd) | Using the PyApprox MLMC API to set up a model hierarchy, allocate samples optimally, and compare variance reduction against MC |
 | [General ACV Concept](acv_many_models_concept.qmd) | How using all LF models as direct control variates breaks the CV-1 variance ceiling |
-| [General ACV Analysis](acv_many_models_analysis.qmd) | Deriving the optimal weight matrix and minimum covariance via Schur complement |
-| [ACV Allocation Matrices](acv_allocation_matrices.qmd) | How allocation matrices encode sample-set structure for all ACV estimators |
-| [ACV Covariances](acv_covariances.qmd) | Explicit formulas for the covariance blocks that determine ACV estimator variance |
+| [General ACV Analysis](acv_many_models_analysis.qmd) | Deriving the optimal weight matrix, minimum covariance, allocation matrices, and covariance formulas for all ACV estimators |
 | [Multi-Output ACV Concept](multioutput_acv_concept.qmd) | Why estimating several QoIs jointly with multi-fidelity corrections improves each individual estimate |
 | [Multi-Output ACV Analysis](multioutput_acv_analysis.qmd) | Deriving the MOACV optimal weight matrix and the condition under which joint estimation beats independent scalar ACVs |
-| [Multi-Output ACV Usage](multioutput_acv_usage.qmd) | Running MOACV and SOACV end-to-end, comparing variance reduction, and choosing between joint and per-QoI strategies |
 | [PACV Concept](pacv_concept.qmd) | How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family |
 | [PACV Analysis](pacv_analysis.qmd) | Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection |
-| [PACV Usage](pacv_usage.qmd) | Configuring PACV estimators, enumerating all valid structures, and selecting the best estimator for a given budget |
 | [MLBLUE Concept](mlblue_concept.qmd) | The multi-level best linear unbiased estimator: optimal weights from a single linear system |
 | [MLBLUE Analysis](mlblue_analysis.qmd) | Deriving the MLBLUE weight matrix, variance bound, and comparison with ACV families |
-| [MLBLUE Usage](mlblue_usage.qmd) | Using the PyApprox MLBLUE API to allocate samples and estimate statistics |
 | [Pilot Studies Concept](pilot_studies_concept.qmd) | Using small pilot samples to estimate the covariance structure needed by multi-fidelity estimators |
-| [Pilot Studies Usage](pilot_studies_usage.qmd) | Running pilot studies with the PyApprox API and feeding results into ACV allocation |
 | [Pilot Studies Analysis](pilot_studies_analysis.qmd) | Analyzing pilot study accuracy and its effect on downstream estimator performance |
 | [Ensemble Selection Concept](ensemble_selection_concept.qmd) | Choosing which subset of available models to include in a multi-fidelity estimator |
-| [Ensemble Selection Usage](ensemble_selection_usage.qmd) | Using the PyApprox ensemble selection API to find the best model subset for a given budget |
+| [API Cookbook](multifidelity_estimation_cookbook.qmd) | Unified API cookbook: one-stop reference for all multi-fidelity estimators |
 
 ## Inverse UQ
 

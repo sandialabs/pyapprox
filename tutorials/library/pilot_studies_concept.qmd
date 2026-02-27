@@ -8,7 +8,7 @@ difficulty: intermediate
 estimated_time: 7
 render_time: 42
 prerequisites:
-  - acv_many_models_usage
+  - multifidelity_estimation_cookbook
 tags:
   - multi-fidelity
   - pilot-study
@@ -45,8 +45,8 @@ After completing this tutorial, you will be able to:
 
 ## Prerequisites
 
-Complete any of the usage tutorials ([MFMC Usage](mfmc_usage.qmd),
-[General ACV Usage](acv_usage.qmd), etc.) before this tutorial. Pilot
+Complete any of the concept tutorials and review the
+[API Cookbook](multifidelity_estimation_cookbook.qmd#universal-workflow) before this tutorial. Pilot
 studies are the final practical ingredient needed to run the full multi-fidelity
 workflow on a real problem where population statistics are unknown.
 
@@ -189,6 +189,34 @@ estimate; too many leave nothing for the main estimator. The minimum is the opti
 pilot size.
 
 
+## The Full Two-Stage Workflow
+
+The pseudocode below summarises the two stages of a multi-fidelity estimation campaign.
+The key detail is that the pilot cost must be subtracted from the total budget before
+the main estimator allocates its samples.
+
+    Stage 1 — Pilot
+      1. Choose pilot size  Np  (rule of thumb: 2–5 × (M + 1))
+      2. Draw Np shared input samples
+      3. Evaluate every model at those samples → pilot outputs
+      4. Compute sample covariance  Σ̂  from pilot outputs
+      5. Record pilot cost  Pp = Np × Σ Cα
+
+    Stage 2 — Main Estimator
+      6. Subtract pilot cost from total budget:  P_main = P − Pp
+      7. Set pilot quantities:      stat.set_pilot_quantities(Σ̂)
+      8. Allocate main samples:     estimator.allocate_samples(P_main)
+      9. Generate sample sets:      estimator.generate_samples(variable)
+     10. Evaluate models:           estimator.evaluate_samples(models)
+     11. Compute estimate:          result = estimator(values)
+
+**Always subtract pilot cost** — allocating the full budget $P$ as if the pilot were
+free leads to an over-optimistic allocation and wastes the budget spent on the pilot.
+
+See the [API Cookbook → Universal Workflow](multifidelity_estimation_cookbook.qmd#universal-workflow)
+for a runnable code version of these steps.
+
+
 ## What the Pilot Provides
 
 The pilot study provides three things:
@@ -254,10 +282,14 @@ optimism bias.
    What fraction of $P$ does this represent?
 
 
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Universal Workflow](multifidelity_estimation_cookbook.qmd#universal-workflow).
+:::
+
 ## Next Steps
 
 - [Pilot Studies Analysis](pilot_studies_analysis.qmd) — MSE decomposition,
   sensitivity of optimal allocation to covariance estimation error, and how the
   U-shaped curve shifts with budget and correlation
-- [Pilot Studies Usage](pilot_studies_usage.qmd) — End-to-end two-stage workflow
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#universal-workflow) — End-to-end two-stage workflow
   in PyApprox: pilot → plan → run

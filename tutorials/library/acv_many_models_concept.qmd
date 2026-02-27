@@ -350,9 +350,11 @@ HF model.
 - [General ACV Analysis](acv_many_models_analysis.qmd) — Derive the optimal weight
   matrix $\mathbf{H}^*$, the minimum covariance formula, and visualise allocation
   matrices for MLMC, MFMC, ACVMF, and ACVIS
-- [ACV Allocation Matrices](acv_allocation_matrices.qmd) *(reference)* — How MFMC,
-  ACVMF, ACVIS, and MLMC differ in their allocation matrix structure
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → ACVSearch](multifidelity_estimation_cookbook.qmd#acvsearch-in-depth).
+:::
 
 ## References
 

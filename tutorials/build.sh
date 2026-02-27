@@ -13,6 +13,9 @@
 #                   Use -j auto to detect CPU count automatically
 #   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
+#   --timings       Render each tutorial individually, clear its freeze cache
+#                   first for accurate execution times, and log results to
+#                   render_timings.csv with a sorted summary at the end
 #   --skip=NAME     Skip rendering a tutorial (e.g. --skip=pacv_usage)
 #                   Can be repeated: --skip=pacv_usage --skip=foo
 #   --help          Show this help message
@@ -33,6 +36,7 @@ NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
 SERVE=""
+TIMINGS=""
 NJOBS=1
 SKIP_FILES=()
 
@@ -53,6 +57,9 @@ for arg in "$@"; do
         --notebooks)
             GEN_NOTEBOOKS="yes"
             ;;
+        --timings)
+            TIMINGS="yes"
+            ;;
         --serve)
             SERVE="yes"
             ;;
@@ -60,7 +67,7 @@ for arg in "$@"; do
             SKIP_FILES+=("${arg#--skip=}")
             ;;
         --help)
-            head -18 "$0" | tail -17
+            head -21 "$0" | tail -20
             exit 0
             ;;
         *)
@@ -130,9 +137,15 @@ echo "Rendering Quarto site..."
 if [ -n "$NO_EXECUTE" ]; then
     echo "  (skipping code execution)"
     quarto render --no-execute
-elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
-    # Parallel mode: execute each .qmd independently, then assemble
-    echo "  (parallel execution with $NJOBS jobs)"
+elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
+    # Per-tutorial mode: render each .qmd independently, then assemble
+    # Used for parallel builds (-j N) and timing builds (--timings)
+    if [ "$NJOBS" -gt 1 ] 2>/dev/null; then
+        echo "  (parallel execution with $NJOBS jobs)"
+    else
+        NJOBS=1
+        echo "  (sequential execution with per-tutorial timing)"
+    fi
 
     # Collect .qmd files to render (excluding index.qmd and skipped files)
     QMD_FILES=()
@@ -147,7 +160,13 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
     LOG_DIR="$BUILD_DIR/_build_logs"
     mkdir -p "$LOG_DIR"
 
-    # Render individual files in parallel using xargs
+    # Initialize timings file
+    TIMINGS_FILE="$BUILD_DIR/render_timings.csv"
+    if [ -n "$TIMINGS" ]; then
+        echo "tutorial,seconds,status" > "$TIMINGS_FILE"
+    fi
+
+    # Render individual files using xargs
     EXECUTE_FLAG=""
     [ -n "$FORCE_EXECUTE" ] && EXECUTE_FLAG="--execute"
 
@@ -156,17 +175,24 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
         name="${1%.qmd}"
         log_dir="$2"
         execute_flag="$3"
+        timings_file="$4"
+        # Clear freeze cache when timing for accurate execution times
+        if [ -n "$timings_file" ] && [ -d "_freeze/$name" ]; then
+            rm -rf "_freeze/$name"
+        fi
         echo "  [START] $name"
         start=$(date +%s)
         if quarto render "$1" $execute_flag > "$log_dir/${name}.log" 2>&1; then
             elapsed=$(( $(date +%s) - start ))
             echo "  [DONE]  $name (${elapsed}s)"
+            [ -n "$timings_file" ] && echo "$name,$elapsed,ok" >> "$timings_file"
         else
             elapsed=$(( $(date +%s) - start ))
             echo "  [FAIL]  $name (${elapsed}s) — see $log_dir/${name}.log"
+            [ -n "$timings_file" ] && echo "$name,$elapsed,FAIL" >> "$timings_file"
             exit 1
         fi
-    ' _ {} "$LOG_DIR" "$EXECUTE_FLAG" || FAIL_COUNT=$?
+    ' _ {} "$LOG_DIR" "$EXECUTE_FLAG" "${TIMINGS:+$TIMINGS_FILE}" || FAIL_COUNT=$?
 
     if [ "$FAIL_COUNT" -ne 0 ]; then
         echo ""
@@ -175,6 +201,10 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
         grep -l "ERROR\|error\|Error" "$LOG_DIR"/*.log 2>/dev/null | while read -r logf; do
             echo "  $logf"
         done
+        if [ -n "$TIMINGS" ]; then
+            echo ""
+            echo "Partial timings saved to: $TIMINGS_FILE"
+        fi
         exit 1
     fi
 
@@ -182,6 +212,17 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
     echo ""
     echo "  Assembling site..."
     quarto render --no-execute
+
+    if [ -n "$TIMINGS" ]; then
+        echo ""
+        echo "Timings saved to: $TIMINGS_FILE"
+        echo ""
+        # Print summary sorted by time (descending)
+        echo "=== Render Times (slowest first) ==="
+        tail -n +2 "$TIMINGS_FILE" | sort -t, -k2 -rn | while IFS=, read -r name secs status; do
+            printf "  %6ss  %-5s  %s\n" "$secs" "$status" "$name"
+        done
+    fi
 else
     if [ -n "$FORCE_EXECUTE" ]; then
         echo "  (forcing code execution)"

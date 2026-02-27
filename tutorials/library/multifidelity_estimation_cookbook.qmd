@@ -1,0 +1,515 @@
+---
+title: "Multi-Fidelity Estimation: API Cookbook"
+subtitle: "PyApprox Tutorial Library"
+description: "A single reference for every multi-fidelity estimator in PyApprox: the universal workflow, per-estimator quick reference, ACVSearch for automatic selection, multi-output estimation, and troubleshooting."
+tutorial_type: usage
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 15
+render_time: 45
+prerequisites:
+  - acv_concept
+tags:
+  - multi-fidelity
+  - api
+  - cookbook
+  - acv
+  - mlmc
+  - mfmc
+  - pacv
+  - mlblue
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multifidelity_estimation_cookbook.ipynb)
+:::
+
+
+## How to Use This Tutorial
+
+This is the **single code reference** for all multi-fidelity estimators in PyApprox.
+Every estimator follows the same workflow; the per-estimator sections show only what
+differs. Read the [Universal Workflow](#universal-workflow) once, then jump to the
+estimator you need.
+
+| I want to... | Go to |
+|---|---|
+| See the full workflow end-to-end | [Universal Workflow](#universal-workflow) |
+| Use a specific estimator | [Estimator Quick Reference](#estimator-quick-reference) |
+| Let PyApprox find the best estimator | [ACVSearch In Depth](#acvsearch-in-depth) |
+| Estimate multiple QoIs jointly | [Multi-Output Estimation](#multi-output-estimation) |
+| Choose which models to include | [Ensemble Selection](#ensemble-selection) |
+| Inspect allocations and DAGs | [Visualization](#visualization) |
+| Debug common problems | [Troubleshooting](#troubleshooting) |
+
+
+## Shared Setup {#shared-setup}
+
+All examples use the five-model polynomial benchmark. Replace `benchmark` with your own
+models and prior to apply any recipe to your problem.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest import (
+    MLMCEstimator, MFMCEstimator, GMFEstimator, GRDEstimator, GISEstimator,
+)
+from pyapprox.statest.acv import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.statest.acv.strategies import (
+    FixedRecursionStrategy, TreeDepthRecursionStrategy,
+)
+from pyapprox.statest.plotting import (
+    plot_allocation, plot_estimator_variance_reductions,
+)
+from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
+
+bkd = NumpyBkd()
+np.random.seed(42)
+
+# SLSQP is more robust than the default trust-constr optimizer for ACV allocation
+optimizer = ScipySLSQPOptimizer(maxiter=200)
+allocator_factory = lambda est: default_allocator_factory(est, optimizer=optimizer)
+
+benchmark = polynomial_ensemble_5model(bkd)
+models    = benchmark.models()        # f_0 (HF) ... f_4 (cheapest)
+variable  = benchmark.prior()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+nmodels   = len(models)
+
+costs_np = bkd.to_numpy(costs)
+print(f"{nmodels} models, {nqoi} QoI(s)")
+for a, c in enumerate(costs_np):
+    print(f"  model {a}: cost = {c:.5f}")
+```
+
+
+## Universal Workflow {#universal-workflow}
+
+Every multi-fidelity estimator in PyApprox follows five stages. This section walks
+through each stage once using `MFMCEstimator`. All other estimators substitute a
+different class at Stage 2 — everything else is identical.
+
+### Stage 1: Pilot study
+
+Evaluate all models at a shared set of pilot samples to estimate the cross-covariance.
+
+```{python}
+N_pilot = 50
+samples_pilot = variable.rvs(N_pilot)
+vals_pilot = [m(samples_pilot) for m in models]
+
+stat = MultiOutputMean(nqoi, bkd)
+cov_pilot, = stat.compute_pilot_quantities(vals_pilot)
+stat.set_pilot_quantities(cov_pilot)
+
+# Inspect pilot correlations with HF model
+cov_np = bkd.to_numpy(cov_pilot)
+for a in range(1, nmodels):
+    rho = cov_np[0, a] / np.sqrt(cov_np[0, 0] * cov_np[a, a])
+    print(f"  ρ(f0, f{a}) = {rho:.4f}")
+```
+
+::: {.callout-warning}
+## Always subtract the pilot cost
+The pilot uses real budget. Pass `total_budget - pilot_cost` to the allocator.
+:::
+
+```{python}
+total_budget = 500.0
+pilot_cost   = float(costs_np.sum()) * N_pilot
+remaining    = total_budget - pilot_cost
+print(f"Pilot cost: {pilot_cost:.1f}  |  Remaining: {remaining:.1f}")
+```
+
+
+### Stage 2: Build estimator and allocate
+
+```{python}
+est = MFMCEstimator(stat, costs)
+allocator = default_allocator_factory(est)
+result = allocator.allocate(remaining)
+est.set_allocation(result)
+
+print(f"Samples per model: {est.nsamples_per_model()}")
+print(f"Predicted std:     {float(est.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+
+### Stage 3: Generate samples
+
+```{python}
+samples_per_model = est.generate_samples_per_model(variable.rvs)
+print(f"Sample shapes: {[s.shape for s in samples_per_model]}")
+```
+
+
+### Stage 4: Evaluate models
+
+```{python}
+values_per_model = [models[a](samples_per_model[a]) for a in range(nmodels)]
+```
+
+
+### Stage 5: Compute estimate
+
+```{python}
+result = est(values_per_model)
+
+true_mean = float(bkd.to_numpy(benchmark.ensemble_means()[0, 0]))
+print(f"Estimate:  {float(result):.6f}")
+print(f"True mean: {true_mean:.6f}")
+print(f"Error:     {abs(float(result) - true_mean):.6f}")
+```
+
+
+### Compare against MC
+
+```{python}
+stat_mc = MultiOutputMean(nqoi, bkd)
+stat_mc.set_pilot_quantities(cov_pilot[:1, :1])
+mc_est = MCEstimator(stat_mc, costs[:1])
+mc_est.allocate_samples(remaining)
+
+mc_var  = float(mc_est.optimized_covariance()[0, 0])
+mf_var  = float(est.optimized_covariance()[0, 0])
+print(f"MC std:  {mc_var**0.5:.6f}")
+print(f"MF std:  {mf_var**0.5:.6f}")
+print(f"Variance reduction: {mc_var / mf_var:.1f}×")
+```
+
+
+## Estimator Quick Reference {#estimator-quick-reference}
+
+Each tab shows only what differs from the universal workflow. Replace the Stage 2
+block with the code below; Stages 1, 3–5 are unchanged.
+
+::: {.panel-tabset}
+
+### CVEstimator
+
+Classical control variate. Requires the **known** LF population mean — rare in practice.
+Use ACV instead when the LF mean is unknown.
+
+```{python}
+from pyapprox.statest import CVEstimator
+
+# Only works with known LF mean (set via benchmark here)
+lf_means = bkd.to_numpy(benchmark.ensemble_means())[1:]
+stat_cv = MultiOutputMean(nqoi, bkd)
+stat_cv.set_pilot_quantities(cov_pilot[:2, :2])
+
+est_cv = CVEstimator(stat_cv, costs[:2], lf_means[:1])
+est_cv.allocate_samples(remaining)
+print(f"CV predicted std: {float(est_cv.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+
+### MLMCEstimator
+
+Multi-Level Monte Carlo. Decomposes the HF mean into telescoping level corrections.
+Best when models form a natural refinement hierarchy (mesh levels).
+
+```{python}
+est_mlmc = MLMCEstimator(stat, costs)
+mlmc_allocator = default_allocator_factory(est_mlmc)
+mlmc_result = mlmc_allocator.allocate(remaining)
+est_mlmc.set_allocation(mlmc_result)
+
+N_alloc = est_mlmc.nsamples_per_model()
+print(f"MLMC samples per level: {[int(n) for n in N_alloc]}")
+print(f"MLMC predicted std: {float(est_mlmc.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+
+### MFMCEstimator
+
+Multi-Fidelity Monte Carlo. Nested sample structure with closed-form allocation.
+Fast and robust for well-correlated hierarchies.
+
+```{python}
+est_mfmc = MFMCEstimator(stat, costs)
+mfmc_allocator = default_allocator_factory(est_mfmc)
+mfmc_result = mfmc_allocator.allocate(remaining)
+est_mfmc.set_allocation(mfmc_result)
+
+print(f"MFMC samples per model: {[int(n) for n in est_mfmc.nsamples_per_model()]}")
+print(f"MFMC predicted std: {float(est_mfmc.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+::: {.callout-note}
+## Validity condition
+MFMC requires correlations and costs to satisfy a monotonicity condition. If violated,
+the allocator raises a `RuntimeError`. Remove the offending model and retry, or
+use ACVSearch to find a better structure.
+:::
+
+
+### MLBLUEEstimator
+
+Best Linear Unbiased Estimator via GLS. Solves an SDP for the optimal allocation.
+Especially powerful when models share subsets of inputs.
+
+```{python}
+from pyapprox.statest import MLBLUEEstimator
+from pyapprox.statest.groupacv import MLBLUESPDAllocationOptimizer
+
+# Define which model subsets share samples
+# Default: every model evaluated at its own set + HF shared
+model_subsets = [[0, 1], [0, 2], [0, 3], [0, 4]]
+
+est_mlblue = MLBLUEEstimator(stat, costs, model_subsets=model_subsets)
+mlblue_allocator = MLBLUESPDAllocationOptimizer(est_mlblue)
+mlblue_result = mlblue_allocator.optimize(remaining)
+est_mlblue.set_allocation(mlblue_result)
+
+print(f"MLBLUE predicted std: {float(est_mlblue.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+:::
+
+
+## ACVSearch In Depth {#acvsearch-in-depth}
+
+`ACVSearch` automatically selects the best estimator structure for a given problem and
+budget. **This is the recommended approach unless you have a specific reason to use a
+named estimator.**
+
+Reasons to use a named estimator instead: (a) you know from theory which estimator
+is best, (b) you have many models and cannot afford enumeration time, (c) you
+specifically need MLMC (which is not an ACV estimator).
+
+
+### Search all families (default)
+
+```{python}
+search_all = ACVSearch(stat, costs, allocator_factory=allocator_factory)
+result_all = search_all.search(remaining)
+best = result_all.estimator
+
+var_best = float(bkd.to_numpy(best.optimized_covariance())[0, 0])
+print(f"Best estimator: {best.__class__.__name__}")
+print(f"Predicted std:  {var_best**0.5:.6f}")
+```
+
+
+### Restrict to specific families
+
+```{python}
+search_gmf = ACVSearch(stat, costs, estimator_classes=[GMFEstimator, GRDEstimator],
+                       allocator_factory=allocator_factory)
+result_gmf = search_gmf.search(remaining)
+best_gmf = result_gmf.estimator
+
+print(f"Best (GMF+GRD): {best_gmf.__class__.__name__}")
+print(f"Predicted std:  {float(bkd.to_numpy(best_gmf.optimized_covariance())[0,0])**0.5:.6f}")
+```
+
+
+### Restrict search depth (fast for many models)
+
+```{python}
+search_shallow = ACVSearch(
+    stat, costs,
+    recursion_strategy=TreeDepthRecursionStrategy(max_depth=2),
+    allocator_factory=allocator_factory,
+)
+result_shallow = search_shallow.search(remaining)
+best_shallow = result_shallow.estimator
+
+print(f"Best (depth≤2): {best_shallow.__class__.__name__}")
+print(f"Predicted std:  {float(bkd.to_numpy(best_shallow.optimized_covariance())[0,0])**0.5:.6f}")
+```
+
+
+### Fix a specific recursion index
+
+```{python}
+# Star topology: every LF model corrects HF directly (= ACVMF)
+ri_star = tuple([0] * (nmodels - 1))
+
+search_fixed = ACVSearch(
+    stat, costs,
+    recursion_strategy=FixedRecursionStrategy(ri_star),
+    allocator_factory=allocator_factory,
+)
+result_fixed = search_fixed.search(remaining)
+
+print(f"Fixed γ={list(ri_star)}: {result_fixed.estimator.__class__.__name__}")
+print(f"Predicted std: "
+      f"{float(bkd.to_numpy(result_fixed.estimator.optimized_covariance())[0,0])**0.5:.6f}")
+```
+
+
+### Inspecting search results
+
+After any search, use the result to compare candidates.
+
+```{python}
+#| fig-cap: "Variance reduction of the best estimator found by ACVSearch vs MC at the same budget."
+#| label: fig-search-comparison
+
+fig, ax = plt.subplots(figsize=(6, 3.5))
+plot_estimator_variance_reductions([best], ["ACVSearch best"], ax)
+ax.set_title("Variance reduction vs MC", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Multi-Output Estimation {#multi-output-estimation}
+
+When the HF model produces multiple QoIs, estimating them jointly can reduce variance
+for each individual QoI compared to running separate scalar ACVs.
+
+```{python}
+from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    multioutput_ensemble_3x3,
+)
+
+bm_mo    = multioutput_ensemble_3x3(bkd)
+costs_mo = bm_mo.costs()
+nqoi_mo  = 2   # use first 2 of 3 QoIs
+nmod_mo  = bm_mo.nmodels()
+full_nqoi_mo = bm_mo.models()[0].nqoi()
+
+# Extract 2-QoI covariance subset
+cov_full = bm_mo.ensemble_covariance()
+idx = []
+for a in range(nmod_mo):
+    for q in range(nqoi_mo):
+        idx.append(a * full_nqoi_mo + q)
+cov_mo = cov_full[np.ix_(idx, idx)]
+
+# MOACV: joint estimation
+stat_mo = MultiOutputMean(nqoi_mo, bkd)
+stat_mo.set_pilot_quantities(cov_mo)
+search_mo = ACVSearch(stat_mo, costs_mo, allocator_factory=allocator_factory)
+result_mo = search_mo.search(100.0)
+cov_moacv = bkd.to_numpy(result_mo.estimator.optimized_covariance())
+
+# SOACV: independent scalar ACV per QoI
+for qi in range(nqoi_mo):
+    (cov_qi,) = stat_mo.get_pilot_quantities_subset(
+        nmod_mo, nqoi_mo, list(range(nmod_mo)), [qi]
+    )
+    stat_qi = MultiOutputMean(1, bkd)
+    stat_qi.set_pilot_quantities(cov_qi)
+    search_qi = ACVSearch(stat_qi, costs_mo, allocator_factory=allocator_factory)
+    result_qi = search_qi.search(100.0)
+    var_so = float(bkd.to_numpy(result_qi.estimator.optimized_covariance())[0, 0])
+    var_mo = cov_moacv[qi, qi]
+    gain = (var_so - var_mo) / var_so * 100
+    print(f"QoI {qi}: SOACV std={var_so**0.5:.5f}  MOACV std={var_mo**0.5:.5f}  gain={gain:.1f}%")
+```
+
+
+## Ensemble Selection {#ensemble-selection}
+
+When your model library contains models that may hurt rather than help, use
+`AllSubsetsStrategy` to search over model subsets.
+
+```{python}
+from pyapprox.statest import AllSubsetsStrategy
+
+search_ens = ACVSearch(
+    stat, costs,
+    estimator_classes=[GMFEstimator],
+    model_strategy=AllSubsetsStrategy(max_models=4),
+    allocator_factory=allocator_factory,
+)
+result_ens = search_ens.search(remaining, allow_failures=True)
+best_ens = result_ens.estimator
+
+print(f"Best subset estimator: {best_ens.__class__.__name__}")
+print(f"Predicted std: {float(bkd.to_numpy(best_ens.optimized_covariance())[0,0])**0.5:.6f}")
+print(f"Candidates evaluated: {result_ens.candidates_evaluated()}")
+print(f"Candidates successful: {result_ens.candidates_successful()}")
+```
+
+::: {.callout-tip}
+## Sizing `max_models`
+Start with `max_models = min(nmodels, 4)`. Increase if the variance-by-size curve is
+still decreasing at the cap.
+:::
+
+
+## Visualization {#visualization}
+
+### Allocation matrices
+
+```{python}
+#| fig-cap: "Allocation matrix for the best ACVSearch estimator. Each row is a partition; each column pair is a sample set. Numbers show partition sizes."
+#| label: fig-cookbook-alloc
+
+fig, ax = plt.subplots(figsize=(10, 5))
+plot_allocation(best, ax, show_partition_sizes=True)
+ax.set_title("Best estimator — allocation matrix", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Troubleshooting {#troubleshooting}
+
+### MFMC validity condition failure
+
+```
+ValueError: Validity condition violated for model 3
+```
+
+The MFMC allocation requires correlations and costs to satisfy a monotonicity condition.
+Fix: remove the offending model, or use `ACVSearch` which searches over all valid
+structures automatically.
+
+### Near-singular pilot covariance
+
+If the pilot covariance is nearly singular (small eigenvalues), the optimal weights
+become unstable. Fix: increase `N_pilot`, or remove highly collinear models.
+
+```{python}
+# Check pilot covariance condition number
+eigvals = np.linalg.eigvalsh(cov_np)
+print(f"Condition number: {eigvals.max() / eigvals.min():.1e}")
+print(f"Smallest eigenvalue: {eigvals.min():.2e}")
+```
+
+### Optimizer convergence (trust-constr vs SLSQP)
+
+The default `trust-constr` optimizer can stall when the optimal allocation sits on a
+constraint boundary. Fix: pass an SLSQP optimizer to `default_allocator_factory`.
+
+```{python}
+# Pass optimizer to default_allocator_factory
+slsqp = ScipySLSQPOptimizer(maxiter=200)
+slsqp_factory = lambda est: default_allocator_factory(est, optimizer=slsqp)
+
+# Use with ACVSearch
+search_slsqp = ACVSearch(stat, costs, allocator_factory=slsqp_factory)
+result_slsqp = search_slsqp.search(remaining)
+print(f"SLSQP result std: "
+      f"{float(bkd.to_numpy(result_slsqp.estimator.optimized_covariance())[0,0])**0.5:.6f}")
+```
+
+### Budget too small
+
+If the allocator returns all samples on the HF model (no LF models used), the
+budget is too small for multi-fidelity estimation to help. The pilot cost alone may
+consume most of the budget. Fix: increase the total budget or reduce `N_pilot`.

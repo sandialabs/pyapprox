@@ -1,0 +1,10 @@
+---
+title: "Page Not Found"
+search: false
+---
+
+The tutorial you are looking for does not exist or has been moved.
+
+- [Browse all tutorials](index.qmd)
+- [Search the sidebar](#) (use the search box on the left)
+- [Return to the repository](https://github.com/sandialabs/pyapprox)

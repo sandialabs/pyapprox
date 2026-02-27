@@ -51,7 +51,7 @@ After completing this tutorial, you will be able to:
 
 Complete [PACV Concept](pacv_concept.qmd) and
 [General ACV Analysis](acv_many_models_analysis.qmd) before this tutorial.
-The [ACV Allocation Matrices](acv_allocation_matrices.qmd) reference provides supporting
+The [ACV Allocation Matrices](acv_many_models_analysis.qmd#sec-allocation-matrix) reference provides supporting
 detail on the notation used throughout.
 
 
@@ -61,7 +61,7 @@ We follow the notation from [General ACV Analysis](acv_many_models_analysis.qmd)
 Models are $f_0$ (HF) through $f_M$ (cheapest LF). The recursion index is
 $\boldsymbol{\gamma} = [\gamma_1, \ldots, \gamma_M]^\top$ with $0 \leq \gamma_j < j$.
 
-Recall from [ACV Allocation Matrices](acv_allocation_matrices.qmd): the allocation
+Recall from [ACV Allocation Matrices](acv_many_models_analysis.qmd#sec-allocation-matrix): the allocation
 matrix $\mathbf{A} \in \{0,1\}^{(M+1)\times 2(M+1)}$ has entry $A_{ij} = 1$ if
 partition $\mathcal{P}_i$ is included in $\mathcal{Z}_\alpha^*$ (column $2\alpha-1$)
 or $\mathcal{Z}_\alpha$ (column $2\alpha$). The first column is always zero ($\mathcal{Z}_0^*$

@@ -533,11 +533,15 @@ recursion index — there is no need to guess whether the star (ACVMF) or chain
 
 - [PACV Analysis](pacv_analysis.qmd) — Formal definition of the three families,
   the recursive covariance formulas, and how PyApprox enumerates all valid indices
-- [PACV Usage](pacv_usage.qmd) — Configure, enumerate, and select the best PACV
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#acvsearch-in-depth) — Configure, enumerate, and select the best PACV
   estimator for a given problem using the PyApprox API
 - [Ensemble Selection](ensemble_selection_concept.qmd) — Once the best structure is
   known, choose which subset of models to include
 
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → ACVSearch](multifidelity_estimation_cookbook.qmd#acvsearch-in-depth).
+:::
 
 ## References
 

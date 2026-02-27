@@ -740,6 +740,7 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
 
 def default_allocator_factory(
     estimator: "ACVEstimator[Array]",
+    optimizer: Optional["BindableOptimizerProtocol[Array]"] = None,
 ) -> Allocator[Array]:
     """Create appropriate allocator for estimator type.
 
@@ -753,6 +754,10 @@ def default_allocator_factory(
     ----------
     estimator : ACVEstimator
         The estimator to create an allocator for.
+    optimizer : optional
+        Optimizer to use for optimization-based allocators (ACVAllocator).
+        If None, uses the default chained optimizer. Ignored when an
+        analytical allocator is selected.
 
     Returns
     -------
@@ -772,4 +777,4 @@ def default_allocator_factory(
         if _is_chain_recursion_index(estimator._recursion_index, estimator._bkd):
             return _MLMCAnalyticalProxyAllocator(estimator)
 
-    return ACVAllocator(estimator)
+    return ACVAllocator(estimator, optimizer=optimizer)
