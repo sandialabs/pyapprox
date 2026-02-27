@@ -26,18 +26,20 @@ test-all:  ## Run all tests including slowest
 	PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short
 
 KEEP_VENV ?= 0
+MINIMAL_ENV ?= pyapprox-minimal
+SOURCE_ENV ?= linalg
 
-test-minimal:  ## Run fast tests in a temp venv with no optional deps (KEEP_VENV=1 to keep)
-	python -m venv .venv-minimal
-	.venv-minimal/bin/pip install --upgrade pip --quiet
-	.venv-minimal/bin/pip install -e ".[test]" --quiet
-	.venv-minimal/bin/pytest pyapprox -v --tb=short -x
-	@if [ "$(KEEP_VENV)" = "0" ]; then rm -rf .venv-minimal; \
-		echo "Minimal tests passed — venv cleaned up"; \
-	else echo "Minimal tests passed — venv kept at .venv-minimal/"; fi
+test-minimal:  ## Run tests with optional deps removed (KEEP_VENV=1 to keep env)
+	@conda env remove -n $(MINIMAL_ENV) --yes --quiet 2>/dev/null || true
+	conda create -n $(MINIMAL_ENV) --clone $(SOURCE_ENV) --yes --quiet
+	conda run -n $(MINIMAL_ENV) pip uninstall -y scikit-fem cvxpy pyrol umbridge joblib mpire numba 2>/dev/null || true
+	conda run -n $(MINIMAL_ENV) pytest pyapprox -v --tb=short -x
+	@if [ "$(KEEP_VENV)" = "0" ]; then conda env remove -n $(MINIMAL_ENV) --yes --quiet; \
+		echo "Minimal tests passed — env cleaned up"; \
+	else echo "Minimal tests passed — env kept as $(MINIMAL_ENV)"; fi
 
-test-minimal-clean:  ## Remove leftover .venv-minimal
-	rm -rf .venv-minimal
+test-minimal-clean:  ## Remove leftover minimal env
+	conda env remove -n $(MINIMAL_ENV) --yes --quiet 2>/dev/null || true
 
 # ---------- Linting ----------
 

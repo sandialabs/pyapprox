@@ -11,10 +11,15 @@ The manufactured solution is created using the ADR machinery with D=1,
 no velocity, and reaction R(u) = -k^2*u so that the forcing matches.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any, Callable, Dict, Generic, List, Tuple
 
 import numpy as np
-import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 

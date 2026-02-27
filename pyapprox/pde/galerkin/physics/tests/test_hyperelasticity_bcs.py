@@ -4,6 +4,12 @@ Tests Neumann, Robin, and mixed BC combinations in 1D and 2D using
 manufactured solutions with non-zero boundary values.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any
 
 import numpy as np

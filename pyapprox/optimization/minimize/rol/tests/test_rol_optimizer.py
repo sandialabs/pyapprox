@@ -1,6 +1,11 @@
 import numpy as np
 import pytest
 
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("pyrol"):
+    pytest.skip("pyrol not installed", allow_module_level=True)
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -14,10 +19,7 @@ from pyapprox.optimization.minimize.benchmarks.evutushenko import (
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
-
-pyrol = pytest.importorskip("pyrol")
-
-from pyapprox.optimization.minimize.rol.rol_optimizer import (  # noqa: E402
+from pyapprox.optimization.minimize.rol.rol_optimizer import (
     ROLOptimizer,
 )
 

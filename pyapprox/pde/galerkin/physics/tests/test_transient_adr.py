@@ -12,10 +12,15 @@ Implicit cases use GalerkinModel.solve_transient() with backward Euler or
 Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import List, Tuple
 
 import numpy as np
-import pytest
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (

@@ -1,5 +1,11 @@
 """Tests for GalerkinBCMixin."""
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any, Generic
 
 import numpy as np

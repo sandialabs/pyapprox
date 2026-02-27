@@ -12,6 +12,12 @@ def _hide_pyrol(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(sys.modules, "pyrol", None)
     monkeypatch.setitem(sys.modules, "pyrol.vectors", None)
 
+    # Clear the package_available cache so import_optional_dependency
+    # re-evaluates pyrol availability.
+    from pyapprox.util.optional_deps import _package_cache
+
+    _cached = _package_cache.pop("pyrol", None)
+
     import pyapprox.optimization.minimize.rol.rol_wrappers as wmod
     import pyapprox.optimization.minimize.rol.rol_optimizer as omod
     import pyapprox.optimization.minimize.rol.rol_result as rmod
@@ -22,7 +28,9 @@ def _hide_pyrol(monkeypatch: pytest.MonkeyPatch):
 
     yield wmod, omod, rmod
 
-    # Reload so subsequent tests in the session see the real pyrol
+    # Restore cache and reload so subsequent tests in the session see the real pyrol
+    if _cached is not None:
+        _package_cache["pyrol"] = _cached
     importlib.reload(wmod)
     importlib.reload(omod)
 
@@ -38,13 +46,13 @@ class TestROLMissing:
     ) -> None:
         """ROLOptimizer() should raise ImportError with a helpful message."""
         _wmod, omod, _rmod = _hide_pyrol
-        with pytest.raises(ImportError, match="rol-python"):
+        with pytest.raises(ImportError, match="pyrol"):
             omod.ROLOptimizer(verbosity=0)
 
     def test_require_pyrol_message(
         self, _hide_pyrol,  # type: ignore[no-untyped-def]
     ) -> None:
-        """_require_pyrol should mention 'pip install rol-python'."""
+        """_require_pyrol should mention 'pip install pyrol'."""
         wmod, _omod, _rmod = _hide_pyrol
-        with pytest.raises(ImportError, match="pip install rol-python"):
+        with pytest.raises(ImportError, match="pip install pyrol"):
             wmod._require_pyrol()

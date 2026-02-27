@@ -9,10 +9,15 @@ Legacy test cases from test_finite_elements.py lines 1160-1240.
 The periodic case is skipped (known legacy bug).
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any, Generic, List, Tuple
 
 import numpy as np
-import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 

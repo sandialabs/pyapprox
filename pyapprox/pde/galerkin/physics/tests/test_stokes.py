@@ -15,10 +15,15 @@ For transient tests, solutions linear in time are used so that both backward
 Euler (1st order) and Crank-Nicolson (2nd order) reproduce the exact solution.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any, Callable, Dict, Generic, List, Tuple
 
 import numpy as np
-import pytest
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 

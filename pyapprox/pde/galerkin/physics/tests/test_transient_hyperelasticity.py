@@ -7,10 +7,15 @@ time-dependent displacement fields.
 NumPy only — skfem assembly at each nonlinear step is numpy-based.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import List, Tuple
 
 import numpy as np
-import pytest
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (

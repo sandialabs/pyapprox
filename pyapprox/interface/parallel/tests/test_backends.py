@@ -2,13 +2,10 @@
 
 import pytest
 
-# Check for optional dependencies
-try:
-    import mpire  # noqa: F401
+from pyapprox.util.optional_deps import package_available
 
-    HAS_MPIRE = True
-except ImportError:
-    HAS_MPIRE = False
+HAS_JOBLIB = package_available("joblib")
+HAS_MPIRE = package_available("mpire")
 
 
 def _square(x: int) -> int:
@@ -21,6 +18,7 @@ def _add(x: int, y: int) -> int:
     return x + y
 
 
+@pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
 class TestJoblibBackend:
     """Tests for JoblibBackend."""
 
@@ -141,6 +139,7 @@ class TestMpireBackend:
         assert list(result) == [1, 4, 9, 16]
 
 
+@pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
 class TestFuturesBackend:
     """Tests for FuturesBackend."""
 
@@ -203,6 +202,7 @@ class TestFuturesBackend:
 class TestProtocolCompliance:
     """Test that backends comply with ParallelBackendProtocol."""
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_joblib_protocol(self):
         """Test JoblibBackend implements protocol."""
         from pyapprox.interface.parallel.joblib_backend import (
@@ -228,6 +228,7 @@ class TestProtocolCompliance:
         backend = MpireBackend(n_jobs=2)
         assert isinstance(backend, ParallelBackendProtocol)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_futures_protocol(self):
         """Test FuturesBackend implements protocol."""
         from pyapprox.interface.parallel.futures_backend import (

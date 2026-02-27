@@ -4,6 +4,12 @@ Tests that the adapter correctly translates GalerkinPhysics to ODEResidualProtoc
 and works with the time steppers in typing.pde.time.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any
 
 import numpy as np

@@ -34,6 +34,10 @@ def _make_bo(
     convergence=None,
 ):
     """Helper to create a BayesianOptimizer for testing."""
+    from pyapprox.optimization.bayesian.acquisition_optimizer import (
+        SobolCandidateGenerator,
+    )
+
     if bounds_list is None:
         bounds_list = [[0.0, 1.0]] * nvars
     kernel = Matern52Kernel([1.0] * nvars, (0.1, 10.0), nvars, bkd)
@@ -43,7 +47,8 @@ def _make_bo(
     ei = ExpectedImprovement()
     scipy_opt = ScipySLSQPOptimizer(maxiter=100)
     acq_opt = AcquisitionOptimizer(
-        scipy_opt, bkd, n_restarts=5, n_raw_candidates=100
+        scipy_opt, bkd, n_restarts=5, n_raw_candidates=100,
+        candidate_generator=SobolCandidateGenerator(seed=42),
     )
     return BayesianOptimizer(
         domain=domain,

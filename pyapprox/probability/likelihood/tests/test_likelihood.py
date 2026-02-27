@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 from scipy import stats
 
+from pyapprox.util.optional_deps import package_available
+
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
@@ -347,6 +349,7 @@ class TestVectorizedLogLikelihood:
             assert bkd.allclose(logpdf_vec[:, j], logpdf_seq, rtol=1e-12)
 
 
+@pytest.mark.skipif(not package_available("mpire"), reason="mpire not installed")
 class TestParallelDiagonalGaussianLogLikelihood:
     """Tests for ParallelDiagonalGaussianLogLikelihood."""
 

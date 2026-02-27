@@ -5,6 +5,11 @@ Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 
 
 import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 import numpy as np
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (

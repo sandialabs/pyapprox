@@ -69,7 +69,6 @@ from pyapprox.pde.field_maps.kle_factory import (
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
-from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.surrogates.kernels.matern import (
@@ -77,15 +76,6 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.util.backends.protocols import Array, Backend
-
-try:
-    from skfem.models.elasticity import lame_parameters  # noqa: F401  # noqa: F401
-except ImportError:
-    raise ImportError(
-        "scikit-fem is required for cantilever beam benchmarks. "
-        "Install with: pip install scikit-fem"
-    )
-
 
 # =========================================================================
 # Utilities
@@ -318,6 +308,8 @@ def _create_subdomain_spde_kle_field_maps(
         n_nodes = len(global_nodes)
 
         # Build submesh and basis
+        from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+
         submesh_skfem = skfem_mesh.restrict(elem_idx)
         submesh = _SkfemSubmesh(submesh_skfem, bkd)
         basis = LagrangeBasis(submesh, degree=1)
@@ -1235,6 +1227,7 @@ def cantilever_beam_1d_spde(
     correlation_length : float
         Correlation length for the SPDE Matern field.
     """
+    from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.mesh.structured import StructuredMesh1D
 
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)

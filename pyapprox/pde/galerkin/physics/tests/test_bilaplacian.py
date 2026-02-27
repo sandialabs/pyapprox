@@ -1,8 +1,13 @@
 """Tests for BiLaplacianPrior."""
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any, Generic
 
-import pytest
 import numpy as np
 from scipy.sparse import issparse
 
@@ -15,11 +20,8 @@ from pyapprox.pde.galerkin.mesh.structured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-try:
-    from skfem import Basis, MeshQuad  # noqa: F401
-    from skfem.element import ElementQuad1  # noqa: F401
-except ImportError:
-    raise ImportError("scikit-fem required for tests")
+from skfem import Basis, MeshQuad  # noqa: F401
+from skfem.element import ElementQuad1  # noqa: F401
 
 
 class _SkfemMeshWrapper(Generic[Array]):

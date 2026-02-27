@@ -9,6 +9,11 @@ These tests live here (not in ``surrogates/kle/tests``) because the
 factory functions depend on skfem, which is a PDE-layer dependency.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
 from skfem import Basis, ElementLineP1, MeshLine, asm

@@ -12,37 +12,6 @@ the weak formulation with mass matrices: M*du/dt = F(u,t) instead of
 the strong form du/dt = f(u,t).
 """
 
-from pyapprox.pde.galerkin.basis import (
-    LagrangeBasis,
-    VectorLagrangeBasis,
-)
-from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-from pyapprox.pde.galerkin.boundary import (
-    CallableDirichletBC,
-    DirectDirichletBC,
-)
-from pyapprox.pde.galerkin.mesh import (
-    StructuredMesh1D,
-    StructuredMesh2D,
-    StructuredMesh3D,
-    UnstructuredMesh2D,
-)
-from pyapprox.pde.galerkin.physics import (
-    AdvectionDiffusionReaction,
-    BurgersPhysics,
-    CompositeHyperelasticityPhysics,
-    CompositeLinearElasticity,
-    EulerBernoulliBeamAnalytical,
-    EulerBernoulliBeamFEM,
-    GalerkinBCMixin,
-    GalerkinPhysicsBase,
-    Helmholtz,
-    HyperelasticityPhysics,
-    LinearAdvectionDiffusionReaction,
-    LinearElasticity,
-    ScalarMassAssembler,
-    StokesPhysics,
-)
 from pyapprox.pde.galerkin.postprocessing import (
     strain_from_displacement_2d,
     stress_from_strain_2d,
@@ -69,6 +38,7 @@ from pyapprox.pde.galerkin.solvers import (
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
 )
+from pyapprox.util.optional_deps import package_available
 
 __all__ = [
     # Mesh protocols
@@ -84,34 +54,6 @@ __all__ = [
     "DirichletBCProtocol",
     "NeumannBCProtocol",
     "RobinBCProtocol",
-    # Mesh implementations
-    "StructuredMesh1D",
-    "StructuredMesh2D",
-    "StructuredMesh3D",
-    "UnstructuredMesh2D",
-    # Basis implementations
-    "LagrangeBasis",
-    "VectorLagrangeBasis",
-    # Physics infrastructure
-    "GalerkinBCMixin",
-    "GalerkinPhysicsBase",
-    "ScalarMassAssembler",
-    # Physics implementations
-    "AdvectionDiffusionReaction",
-    "LinearAdvectionDiffusionReaction",
-    "BurgersPhysics",
-    "Helmholtz",
-    "CompositeLinearElasticity",
-    "LinearElasticity",
-    "HyperelasticityPhysics",
-    "CompositeHyperelasticityPhysics",
-    "EulerBernoulliBeamAnalytical",
-    "EulerBernoulliBeamFEM",
-    "StokesPhysics",
-    "BiLaplacianPrior",
-    # Boundary condition implementations
-    "DirectDirichletBC",
-    "CallableDirichletBC",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",
     # Solvers
@@ -121,3 +63,67 @@ __all__ = [
     "strain_from_displacement_2d",
     "stress_from_strain_2d",
 ]
+
+if package_available("skfem"):
+    from pyapprox.pde.galerkin.basis import (
+        LagrangeBasis,
+        VectorLagrangeBasis,
+    )
+    from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+    from pyapprox.pde.galerkin.boundary import (
+        CallableDirichletBC,
+        DirectDirichletBC,
+    )
+    from pyapprox.pde.galerkin.mesh import (
+        StructuredMesh1D,
+        StructuredMesh2D,
+        StructuredMesh3D,
+        UnstructuredMesh2D,
+    )
+    from pyapprox.pde.galerkin.physics import (
+        AdvectionDiffusionReaction,
+        BurgersPhysics,
+        CompositeHyperelasticityPhysics,
+        CompositeLinearElasticity,
+        EulerBernoulliBeamAnalytical,
+        EulerBernoulliBeamFEM,
+        GalerkinBCMixin,
+        GalerkinPhysicsBase,
+        Helmholtz,
+        HyperelasticityPhysics,
+        LinearAdvectionDiffusionReaction,
+        LinearElasticity,
+        ScalarMassAssembler,
+        StokesPhysics,
+    )
+
+    __all__ += [
+        # Mesh implementations
+        "StructuredMesh1D",
+        "StructuredMesh2D",
+        "StructuredMesh3D",
+        "UnstructuredMesh2D",
+        # Basis implementations
+        "LagrangeBasis",
+        "VectorLagrangeBasis",
+        # Physics infrastructure
+        "GalerkinBCMixin",
+        "GalerkinPhysicsBase",
+        "ScalarMassAssembler",
+        # Physics implementations
+        "AdvectionDiffusionReaction",
+        "LinearAdvectionDiffusionReaction",
+        "BurgersPhysics",
+        "Helmholtz",
+        "CompositeLinearElasticity",
+        "LinearElasticity",
+        "HyperelasticityPhysics",
+        "CompositeHyperelasticityPhysics",
+        "EulerBernoulliBeamAnalytical",
+        "EulerBernoulliBeamFEM",
+        "StokesPhysics",
+        "BiLaplacianPrior",
+        # Boundary condition implementations
+        "DirectDirichletBC",
+        "CallableDirichletBC",
+    ]

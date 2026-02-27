@@ -2,7 +2,13 @@
 
 from typing import Generic
 
+import pytest
+
+from pyapprox.util.optional_deps import package_available
 from pyapprox.util.backends.protocols import Array, Backend
+
+HAS_JOBLIB = package_available("joblib")
+HAS_MPIRE = package_available("mpire")
 
 
 class MockFunction(Generic[Array]):
@@ -223,10 +229,12 @@ class TestParallelFunctionWrapper:
         seq_func = make_parallel(func, backend="sequential")
         assert seq_func.parallel_backend() == "sequential"
 
-        joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
-        assert "joblib" in joblib_func.parallel_backend()
-        assert joblib_func.n_workers() == 4
+        if HAS_JOBLIB:
+            joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
+            assert "joblib" in joblib_func.parallel_backend()
+            assert joblib_func.n_workers() == 4
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_parallel_execution_joblib(self, bkd):
         """Test actual parallel execution with joblib."""
         from pyapprox.interface.parallel.factory import make_parallel
@@ -243,12 +251,9 @@ class TestParallelFunctionWrapper:
 
         assert bkd.allclose(jacobians, seq_jacobians)
 
+    @pytest.mark.skipif(not HAS_MPIRE, reason="mpire not installed")
     def test_parallel_execution_mpire(self, bkd):
         """Test actual parallel execution with mpire."""
-        try:
-            import mpire  # noqa: F401
-        except ImportError:
-            pytest.skip("mpire not installed")
 
         from pyapprox.interface.parallel.factory import make_parallel
 
@@ -264,6 +269,7 @@ class TestParallelFunctionWrapper:
 
         assert bkd.allclose(jacobians, seq_jacobians)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_parallel_call_matches_sequential(self, bkd):
         """Test that parallel __call__ matches sequential __call__."""
         from pyapprox.interface.parallel.factory import make_parallel
@@ -284,6 +290,7 @@ class TestParallelFunctionWrapper:
         assert par_result.shape == seq_result.shape
         bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_parallel_call_single_sample(self, bkd):
         """Test that single-sample call skips parallelism."""
         from pyapprox.interface.parallel.factory import make_parallel
@@ -310,6 +317,7 @@ class TestParallelFunctionWrapper:
 
         bkd.assert_allclose(result, expected)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_parallel_call_multi_output(self, bkd):
         """Test parallel __call__ with multi-output function."""
         from pyapprox.interface.parallel.factory import make_parallel

@@ -1,5 +1,11 @@
 """Integration tests for the cantilever beam benchmark instances."""
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 import numpy as np
 
 from pyapprox.benchmarks.instances.pde.cantilever_beam import (

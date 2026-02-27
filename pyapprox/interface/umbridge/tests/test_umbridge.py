@@ -3,15 +3,15 @@
 import os
 
 import pytest
+from pyapprox.util.optional_deps import package_available
 
-from pyapprox.interface.umbridge.client import (
-    UMBRIDGE_AVAILABLE,
-    UMBridgeModel,
-)
+if not package_available("umbridge"):
+    pytest.skip("umbridge not installed", allow_module_level=True)
+
+from pyapprox.interface.umbridge.client import UMBridgeModel
 from pyapprox.util.backends.numpy import NumpyBkd
 
 
-@pytest.mark.skipif(not UMBRIDGE_AVAILABLE, reason="umbridge package not installed")
 class TestUMBridgeModel:
     """Tests for UMBridgeModel client.
 
@@ -129,15 +129,3 @@ class TestUMBridgeModel:
         repr_str = repr(model)
         assert "UMBridgeModel" in repr_str
         assert "quadratic" in repr_str
-
-
-@pytest.mark.skipif(UMBRIDGE_AVAILABLE, reason="Testing import error when not installed")
-class TestUMBridgeNotInstalled:
-    """Test behavior when umbridge is not installed."""
-
-    def test_import_error(self) -> None:
-        """Test that appropriate error is raised when umbridge not installed."""
-        # This test only runs when umbridge is NOT installed
-        bkd = NumpyBkd()
-        with pytest.raises(ImportError):
-            UMBridgeModel("http://localhost:4242", "test", bkd)

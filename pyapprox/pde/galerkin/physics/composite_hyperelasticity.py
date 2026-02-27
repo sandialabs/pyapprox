@@ -37,10 +37,9 @@ try:
     from skfem import BilinearForm, LinearForm, asm
     from skfem.models.elasticity import lame_parameters
 except ImportError:
-    raise ImportError(
-        "scikit-fem is required for Galerkin module. "
-        "Install with: pip install scikit-fem"
-    )
+    from pyapprox.util.optional_deps import import_optional_dependency
+
+    import_optional_dependency("skfem", feature_name="Galerkin module", extra_name="fem")
 
 
 class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):

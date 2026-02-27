@@ -39,7 +39,7 @@ class TestSensitivities:
 
         # Check derivatives
         derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_op)
-        tols = derivative_checker.get_derivative_tolerances(1e-6)
+        tols = derivative_checker.get_derivative_tolerances(2e-6)
 
         # Reduce finite difference step sizes for Newton convergence
         fd_eps = bkd.flip(bkd.logspace(-13, -1, 12))

@@ -24,10 +24,9 @@ try:
     from skfem.helpers import dot, grad, mul
     from skfem.models.poisson import mass
 except ImportError:
-    raise ImportError(
-        "scikit-fem is required for Galerkin module. "
-        "Install with: pip install scikit-fem"
-    )
+    from pyapprox.util.optional_deps import import_optional_dependency
+
+    import_optional_dependency("skfem", feature_name="Galerkin module", extra_name="fem")
 
 
 class BiLaplacianPrior(Generic[Array]):

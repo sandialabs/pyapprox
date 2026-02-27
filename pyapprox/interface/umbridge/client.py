@@ -18,17 +18,9 @@ import time
 from typing import IO, Any, Dict, Generic, List, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
 
-# Try to import umbridge - it's an optional dependency
-try:
-    import requests  # type: ignore[import-untyped]
-    import umbridge
-
-    UMBRIDGE_AVAILABLE = True
-except ImportError:
-    UMBRIDGE_AVAILABLE = False
-    umbridge = None
-    requests = None
+UMBRIDGE_AVAILABLE = package_available("umbridge")
 
 
 class UMBridgeModel(Generic[Array]):
@@ -84,10 +76,12 @@ class UMBridgeModel(Generic[Array]):
         config : dict, optional
             Configuration dictionary for the UMBridge model.
         """
-        if not UMBRIDGE_AVAILABLE:
-            raise ImportError(
-                "umbridge package required. Install with: pip install umbridge"
-            )
+        from pyapprox.util.optional_deps import import_optional_dependency
+
+        import_optional_dependency(
+            "umbridge", feature_name="UMBridgeModel", extra_name="umbridge"
+        )
+        import umbridge
 
         self._bkd = bkd
         self._url = url
@@ -353,10 +347,12 @@ class UMBridgeModel(Generic[Array]):
         RuntimeError
             If the server does not start within max_wait_time.
         """
-        if not UMBRIDGE_AVAILABLE:
-            raise ImportError(
-                "umbridge package required. Install with: pip install umbridge"
-            )
+        from pyapprox.util.optional_deps import import_optional_dependency
+
+        import_optional_dependency(
+            "umbridge", feature_name="UMBridgeModel", extra_name="umbridge"
+        )
+        import requests  # type: ignore[import-untyped]
 
         if out is None:
             out = open(os.devnull, "w")

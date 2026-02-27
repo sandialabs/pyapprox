@@ -5,6 +5,10 @@ from typing import Generic
 import pytest
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
+
+HAS_JOBLIB = package_available("joblib")
+HAS_MPIRE = package_available("mpire")
 
 
 class JacobianMixinFunction(Generic[Array]):
@@ -137,6 +141,7 @@ class TestParallelMixins:
             expected = func.jacobian(sample)
             assert bkd.allclose(jacobians[i], expected, rtol=1e-10)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_jacobian_mixin_parallel(self, bkd):
         """Test jacobian mixin with parallel config."""
         from pyapprox.interface.parallel.config import ParallelConfig
@@ -169,6 +174,7 @@ class TestParallelMixins:
         expected = bkd.asarray([[2.0, 0.0], [0.0, 2.0]])
         assert bkd.allclose(hvps, expected)
 
+    @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
     def test_hvp_mixin_parallel(self, bkd):
         """Test HVP mixin with parallel config."""
         from pyapprox.interface.parallel.config import ParallelConfig
@@ -186,12 +192,9 @@ class TestParallelMixins:
 
         assert bkd.allclose(hvps, seq_hvps)
 
+    @pytest.mark.skipif(not HAS_MPIRE, reason="mpire not installed")
     def test_jacobian_mixin_with_mpire(self, bkd):
         """Test jacobian mixin with mpire backend."""
-        try:
-            import mpire  # noqa: F401
-        except ImportError:
-            pytest.skip("mpire not installed")
 
         from pyapprox.interface.parallel.config import ParallelConfig
 

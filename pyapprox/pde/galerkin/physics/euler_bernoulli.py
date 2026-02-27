@@ -30,10 +30,9 @@ try:
     from skfem.utils import condense
     from skfem.utils import solve as skfem_solve
 except ImportError:
-    raise ImportError(
-        "scikit-fem is required for Galerkin module. "
-        "Install with: pip install scikit-fem"
-    )
+    from pyapprox.util.optional_deps import import_optional_dependency
+
+    import_optional_dependency("skfem", feature_name="Galerkin module", extra_name="fem")
 
 
 class EulerBernoulliBeamAnalytical(Generic[Array]):

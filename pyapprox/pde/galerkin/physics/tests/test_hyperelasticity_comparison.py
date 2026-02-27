@@ -6,6 +6,12 @@ is compared to the exact manufactured solution. If both recover
 the exact solution to high accuracy, they implicitly agree.
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 import numpy as np
 
 # -- Collocation imports --

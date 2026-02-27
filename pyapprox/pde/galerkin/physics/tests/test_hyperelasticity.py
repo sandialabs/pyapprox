@@ -6,9 +6,14 @@ Tests:
 - Newton solve recovers exact solution (1D, 2D)
 """
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from typing import Any
 
-import pytest
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse

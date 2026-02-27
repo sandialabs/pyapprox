@@ -1,9 +1,14 @@
 """Tests for UnstructuredMesh2D."""
 
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 import os
 from typing import Any
 
-import pytest
 import numpy as np
 import torch
 from numpy.typing import NDArray

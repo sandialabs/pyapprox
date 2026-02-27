@@ -14,13 +14,9 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 def _require_pyrol() -> None:
     """Raise ImportError with a helpful message if pyrol is not installed."""
-    try:
-        import pyrol  # noqa: F401
-    except ImportError:
-        raise ImportError(
-            "pyrol is required for the ROL optimizer. "
-            "Install it with: pip install rol-python"
-        ) from None
+    from pyapprox.util.optional_deps import import_optional_dependency
+
+    import_optional_dependency("pyrol", feature_name="ROL optimizer", extra_name="rol")
 
 
 class ROLObjectiveAdapter(Generic[Array]):
