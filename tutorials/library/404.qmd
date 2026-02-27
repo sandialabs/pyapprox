@@ -1,9 +1,17 @@
 ---
 title: "Page Not Found"
 search: false
+sidebar: false
+toc: false
 ---
 
-The tutorial you are looking for does not exist or has been moved.
+::: {.hero-section style="text-align: center; padding: 3rem 2rem;"}
+
+# 404
+
+[The tutorial you are looking for does not exist or has been moved.]{.subtitle}
+
+:::
 
 - [Browse all tutorials](index.qmd)
 - [Search the sidebar](#) (use the search box on the left)

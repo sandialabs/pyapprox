@@ -3,9 +3,9 @@ project:
   output-dir: _site
 
 website:
-  title: "PyApprox UQ Tutorials"
+  title: "PyApprox"
   site-url: https://sandialabs.github.io/pyapprox/
-  description: "80+ validated tutorials for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis with PyApprox."
+  description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis. 80+ validated tutorials backed by Sandia National Laboratories."
   favicon: assets/favicon.ico
   open-graph: true
   navbar:
@@ -13,12 +13,31 @@ website:
     left:
       - text: "Home"
         href: index.qmd
+      - text: "Tutorials"
+        href: tutorials.qmd
+      - text: "Topics"
+        menu:
+          - text: "Tutorial Index"
+            href: tutorials.qmd
+          - text: "Forward UQ"
+            href: tutorials.qmd#forward-uq
+          - text: "Multifidelity Estimation"
+            href: tutorials.qmd#multifidelity-estimation
+          - text: "Inverse UQ"
+            href: tutorials.qmd#inverse-uq
+          - text: "Experimental Design"
+            href: tutorials.qmd#experimental-design
+          - text: "Surrogate Modeling"
+            href: tutorials.qmd#surrogate-modeling
+          - text: "Sensitivity Analysis"
+            href: tutorials.qmd#sensitivity-analysis
     right:
       - icon: github
         href: https://github.com/sandialabs/pyapprox
   page-footer:
     left: "Copyright Sandia National Laboratories (NTESS). MIT License."
-    right: "[Repository](https://github.com/sandialabs/pyapprox)"
+    center: "Built with [Quarto](https://quarto.org)"
+    right: "[Repository](https://github.com/sandialabs/pyapprox) | [PyPI](https://pypi.org/project/pyapprox/)"
   sidebar:
     - title: "Tutorials"
       style: "docked"
@@ -142,8 +161,10 @@ website:
 
 format:
   html:
-    theme: cosmo
-    css: styles.css
+    theme:
+      - cosmo
+      - custom.scss
+    highlight-style: github
     toc: true
     toc-depth: 3
     code-fold: false

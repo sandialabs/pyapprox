@@ -1,176 +1,332 @@
 ---
-title: "PyApprox Tutorial Library"
-subtitle: "Validated tutorials for uncertainty quantification"
+title: "PyApprox — Uncertainty Quantification for Real-World Decisions"
+pagetitle: "PyApprox | Uncertainty Quantification, Surrogate Modeling & Bayesian Design"
+description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, sensitivity analysis, and experimental design. 80+ validated tutorials. Backed by Sandia National Laboratories."
+sidebar: false
+toc: false
+page-layout: full
 ---
 
-**PyApprox** is a Python toolkit for uncertainty quantification, surrogate modeling,
-sensitivity analysis, and Bayesian experimental design. Every tutorial below is
-executable, dual-backend tested (NumPy and PyTorch), and reproducible.
+::: {.hero-section}
+::: {.hero-inner}
 
-::: {.callout-tip}
-## Start Here
-New to PyApprox? Follow this path:
+::: {.hero-text}
 
-1. [Setup Environment](setup_environment.qmd) --- install and verify
-2. [From Models to Decisions Under Uncertainty](models_decisions_uncertainty.qmd) --- why UQ matters
-3. [Forward UQ](forward_uq.qmd) --- propagate uncertainty through a model
-4. Pick a topic below that matches your application
+::: {.hero-eyebrow}
+Open-Source · Sandia National Laboratories
 :::
 
-## Getting Started
+[Every simulation has uncertainty.]{.hero-headline}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Setup Environment](setup_environment.qmd) | Install PyApprox and verify your setup |
-| [From Models to Decisions Under Uncertainty](models_decisions_uncertainty.qmd) | Why computational models need UQ, grounded in a composite cantilever beam |
+[Make it work for you.]{.hero-accent-line}
 
-## Forward UQ
+Complex engineering models are expensive. Uncertain inputs make confident
+decisions harder. **PyApprox** gives you the mathematical tools to quantify,
+reduce, and exploit that uncertainty — so you can make better decisions with
+fewer simulations.
 
-| Tutorial | Description |
-|----------|-------------|
-| [Forward Uncertainty Quantification](forward_uq.qmd) | The forward UQ problem: propagating input uncertainty through a model to characterize output uncertainty |
-| [Random Variables and Distributions](random_variables_distributions.qmd) | Specifying parameter uncertainty with independent and copula-based distributions |
-| [Monte Carlo Sampling](monte_carlo_sampling.qmd) | Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance |
-| [Estimator Accuracy and MSE](estimator_accuracy_mse.qmd) | Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics |
-| [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) | Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy |
+:::
 
-## Multifidelity Estimation
+::: {.hero-logo}
+![](assets/pyapprox-logo.png)
+:::
 
-| Tutorial | Description |
-|----------|-------------|
-| [Control Variate Monte Carlo](control_variate_concept.qmd) | Reducing MC estimator variance using a correlated low-fidelity model with a known statistic |
-| [Control Variate Analysis](control_variate_analysis.qmd) | Deriving the optimal control variate weight, variance reduction formula, and unbiasedness |
-| [ACV Concept](acv_concept.qmd) | Approximate control variates: extending CVMC to multiple low-fidelity models without known statistics |
-| [MFMC Concept](mfmc_concept.qmd) | Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction |
-| [MFMC Analysis](mfmc_analysis.qmd) | Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC |
-| [Multi-Level Monte Carlo](mlmc_concept.qmd) | Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels |
-| [MLMC Analysis](mlmc_analysis.qmd) | Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem |
-| [General ACV Concept](acv_many_models_concept.qmd) | How using all LF models as direct control variates breaks the CV-1 variance ceiling |
-| [General ACV Analysis](acv_many_models_analysis.qmd) | Deriving the optimal weight matrix, minimum covariance, allocation matrices, and covariance formulas for all ACV estimators |
-| [Multi-Output ACV Concept](multioutput_acv_concept.qmd) | Why estimating several QoIs jointly with multi-fidelity corrections improves each individual estimate |
-| [Multi-Output ACV Analysis](multioutput_acv_analysis.qmd) | Deriving the MOACV optimal weight matrix and the condition under which joint estimation beats independent scalar ACVs |
-| [PACV Concept](pacv_concept.qmd) | How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family |
-| [PACV Analysis](pacv_analysis.qmd) | Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection |
-| [MLBLUE Concept](mlblue_concept.qmd) | The multi-level best linear unbiased estimator: optimal weights from a single linear system |
-| [MLBLUE Analysis](mlblue_analysis.qmd) | Deriving the MLBLUE weight matrix, variance bound, and comparison with ACV families |
-| [Pilot Studies Concept](pilot_studies_concept.qmd) | Using small pilot samples to estimate the covariance structure needed by multi-fidelity estimators |
-| [Pilot Studies Analysis](pilot_studies_analysis.qmd) | Analyzing pilot study accuracy and its effect on downstream estimator performance |
-| [Ensemble Selection Concept](ensemble_selection_concept.qmd) | Choosing which subset of available models to include in a multi-fidelity estimator |
-| [API Cookbook](multifidelity_estimation_cookbook.qmd) | Unified API cookbook: one-stop reference for all multi-fidelity estimators |
+:::
+:::
 
-## Inverse UQ
 
-| Tutorial | Description |
-|----------|-------------|
-| [Introduction to Bayesian Inference](bayesian_inference_intro.qmd) | From data to parameters: updating beliefs using Bayes' theorem |
-| [Sampling the Posterior with MCMC](mcmc_sampling.qmd) | Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible |
-| [Practical MCMC: MH and DRAM](dram_mcmc.qmd) | Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC |
+::: {.section-bridge}
 
-## Experimental Design
+::: {.stats-bar}
+::: {.stat-item}
+[80+]{.stat-number}
+[Tutorials]{.stat-label}
+:::
+::: {.stat-item}
+[11]{.stat-number}
+[Topics]{.stat-label}
+:::
+::: {.stat-item}
+[2]{.stat-number}
+[Backends]{.stat-label}
+:::
+:::
 
-| Tutorial | Description |
-|----------|-------------|
-| [Introduction to Experimental Design](experimental_design_intro.qmd) | Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain |
+::: {.hero-buttons}
+[Get Started](setup_environment.qmd){.btn-hero-primary}
+[Browse Tutorials](tutorials.qmd){.btn-hero-secondary}
+[GitHub](https://github.com/sandialabs/pyapprox){.btn-hero-secondary}
+:::
 
-### KL-Based OED
+:::
 
-| Tutorial | Description |
-|----------|-------------|
-| [Bayesian OED: KL Concept](boed_kl_concept.qmd) | What Expected Information Gain measures and why it is the right objective for choosing experiments |
-| [Bayesian OED: Double-Loop Estimator](boed_kl_estimator.qmd) | How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average |
-| [Bayesian OED: Gradients](boed_kl_gradients.qmd) | The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian |
-| [Bayesian OED: Convergence](boed_kl_usage.qmd) | Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence |
-| [Bayesian OED: MC vs Halton](boed_kl_qmc.qmd) | Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator |
-| [Bayesian OED: Nonlinear Usage](boed_kl_nonlinear_usage.qmd) | Applying EIG-based OED to a Lotka-Volterra predator-prey system --- a nonlinear model with no analytic EIG |
-| [Bayesian OED: Design Stability](boed_kl_design_stability.qmd) | Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows |
 
-### Goal-Oriented OED
+::: {.section-dark}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Goal-Oriented OED: Concept](boed_pred_concept.qmd) | Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal |
-| [Goal-Oriented OED: Gaussian Analysis](boed_pred_gaussian_analysis.qmd) | Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards |
-| [Goal-Oriented OED: Log-Normal Analysis](boed_pred_lognormal_analysis.qmd) | Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI |
-| [Goal-Oriented OED: Convergence](boed_pred_usage.qmd) | Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton |
-| [Goal-Oriented OED: Nonlinear Usage](boed_pred_nonlinear_usage.qmd) | Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra |
+[Where Simulation Meets Reality]{.section-heading}
 
-### OED Workflows
+[Every engineering domain has expensive simulations, uncertain parameters, and high-stakes decisions. PyApprox provides a unified mathematical framework to tackle them all.]{.section-subtitle}
 
-| Tutorial | Description |
-|----------|-------------|
-| [OED Data Workflow](boed_data_workflow_usage.qmd) | Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model |
+::: {.driver-grid}
 
-## Approximation Theory
+::: {.driver-card}
+![](assets/energy-systems.jpeg){.driver-img}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Lagrange Interpolation](lagrange_interpolation.qmd) | Lagrange basis polynomials, Runge phenomenon, and optimal node placement |
-| [Piecewise Interpolation](piecewise_interpolation.qmd) | Local basis functions for smooth and discontinuous functions |
-| [Tensor Product Interpolation](tensor_product_interpolation.qmd) | Multivariate approximation via Cartesian products of 1D bases |
-| [Gauss Quadrature](gauss_quadrature.qmd) | Optimal nodes from orthogonal polynomials with exponential convergence |
-| [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) | Rectangle, trapezoid, and Simpson's rules with error derivations |
-| [Leja Sequences](leja_sequences.qmd) | Nested points for adaptive interpolation via greedy determinant maximisation |
+[Energy Systems]{.driver-title}
 
-## Surrogate Modeling
+[Reactor safety margins and grid reliability]{.driver-desc}
+:::
 
-### Polynomial Chaos
+::: {.driver-card}
+![](assets/earth-science.jpeg){.driver-img}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) | Approximate an expensive model with a polynomial chaos expansion |
-| [Overfitting and Cross-Validation](practical_pce_fitting.qmd) | Choose the polynomial degree using LOO cross-validation |
-| [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
-| [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |
+[Earth Science]{.driver-title}
 
-### Function Trains
+[Ice-sheet projections and national security impact assessment]{.driver-desc}
+:::
 
-| Tutorial | Description |
-|----------|-------------|
-| [Function Train Surrogates](function_train_surrogates.qmd) | Build intuition for low-rank functions and the function train decomposition |
-| [UQ with Function Trains](uq_with_functiontrain.qmd) | Extract analytical moments, marginal densities, and input marginals from a fitted function train |
+::: {.driver-card}
+![](assets/aerospace-defense.jpeg){.driver-img}
 
-### Sparse Grids
+[Aerospace & Defense]{.driver-title}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) | Smolyak combination technique for breaking the curse of dimensionality |
-| [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) | Data-driven refinement for anisotropic functions |
-| [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) | Multi-index collocation for model hierarchies with varying cost and accuracy |
-| [Sparse Grid to PCE Conversion](sparse_grid_to_pce_conversion.qmd) | Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions |
-| [UQ with Sparse Grids](uq_with_sparse_grids.qmd) | Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC |
+[Vehicle reliability and mission-critical predictions]{.driver-desc}
+:::
 
-### Gaussian Processes
+::: {.driver-card}
+![](assets/oil-gas.jpeg){.driver-img}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Building a GP Surrogate](gp_surrogate.qmd) | Approximate an expensive model with a Gaussian process and quantify prediction uncertainty |
-| [UQ with Gaussian Processes](uq_with_gp.qmd) | Compute analytical moments, marginal densities, and main effects from a fitted GP --- without additional model evaluations |
-| [Adaptive GP Sampling](adaptive_gp_sampling.qmd) | Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies |
-| [Multi-Fidelity Gaussian Processes](multioutput_gp.qmd) | Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget |
+[Oil & Gas]{.driver-title}
 
-## Sensitivity Analysis
+[Reservoir characterization and subsurface uncertainty]{.driver-desc}
+:::
 
-| Tutorial | Description |
-|----------|-------------|
-| [Sensitivity Analysis Concept](sensitivity_analysis_concept.qmd) | Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability |
-| [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) | Variance-based sensitivity indices for identifying important parameters |
-| [PCE-Based Sensitivity](pce_sensitivity.qmd) | Computing Sobol indices analytically from polynomial chaos expansion coefficients |
-| [GP-Based Sensitivity](gp_sensitivity.qmd) | Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates |
-| [Morris Screening](morris_screening.qmd) | One-at-a-time elementary effects for cheap parameter screening |
-| [Bin-Based Sensitivity](bin_based_sensitivity.qmd) | Variance-based sensitivity indices via binning estimation |
-| [FT Sensitivity: Math](functiontrain_sensitivity_math.qmd) | Deriving Sobol indices analytically from PCE FunctionTrain structure |
-| [FT Sensitivity: Usage](functiontrain_sensitivity.qmd) | Computing Sobol indices analytically with FunctionTrainSensitivity |
+::: {.driver-card}
+![](assets/mining-heavy-industry.jpeg){.driver-img}
 
-## Random Fields
+[Mining & Heavy Industry]{.driver-title}
 
-| Tutorial | Description |
-|----------|-------------|
-| [KLE Introduction](kle_introduction.qmd) | Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series |
-| [KLE: Mesh and Data-Driven](kle_mesh_and_data_driven.qmd) | Building KLE from mesh-based covariance or data-driven empirical covariance |
-| [KLE: SPDE Approach](kle_spde.qmd) | Stochastic PDE approach to efficient random field generation |
+[Equipment fatigue prediction and operational risk]{.driver-desc}
+:::
 
-## Optimization Under Uncertainty
+::: {.driver-card}
+![](assets/robotics-autonomous.jpeg){.driver-img}
 
-| Tutorial | Description |
-|----------|-------------|
-| [Design Under Uncertainty](design_under_uncertainty.qmd) | Optimizing system design when model inputs are uncertain |
+[Robotics & Autonomous Systems]{.driver-title}
+
+[Digital twin calibration, sensor fusion, and sim-to-real transfer]{.driver-desc}
+:::
+
+::: {.driver-card}
+![](assets/motorsport-automotive.jpeg){.driver-img}
+
+[Motorsport & Automotive]{.driver-title}
+
+[Aerodynamic optimization and CFD surrogate construction]{.driver-desc}
+:::
+
+::: {.driver-card}
+![](assets/precision-manufacturing.jpg){.driver-img}
+
+[Precision Manufacturing]{.driver-title}
+
+[Model calibration, stress prediction, and process optimization]{.driver-desc}
+:::
+
+:::
+:::
+
+
+::: {.section-light}
+
+[What PyApprox Does]{.section-heading .section-heading-dark}
+
+[A complete toolkit for the uncertainty quantification workflow — from propagating input uncertainty through expensive simulations to making optimal decisions.]{.section-subtitle .section-subtitle-dark}
+
+::: {.capability-grid}
+
+::: {.capability-card}
+::: {.capability-icon}
+⟶
+:::
+
+#### Forward UQ
+
+Propagate input distributions through your model to characterize output
+variability, estimate failure probabilities, and quantify prediction confidence.
+
+[Explore tutorials →](tutorials.qmd#forward-uq)
+:::
+
+::: {.capability-card}
+::: {.capability-icon}
+⧉
+:::
+
+#### Multifidelity Estimation
+
+Combine cheap low-fidelity models with expensive high-fidelity simulations
+to achieve the same accuracy at a fraction of the computational cost.
+
+[Explore tutorials →](tutorials.qmd#multifidelity-estimation)
+:::
+
+::: {.capability-card}
+::: {.capability-icon}
+⟵
+:::
+
+#### Inverse UQ & Bayesian Inference
+
+Calibrate model parameters from observed data using MCMC, variational
+inference, and amortized methods.
+
+[Explore tutorials →](tutorials.qmd#inverse-uq)
+:::
+
+::: {.capability-card}
+::: {.capability-icon}
+◎
+:::
+
+#### Experimental Design
+
+Decide where to place sensors, which experiments to run, and how to allocate
+resources to maximize information gain.
+
+[Explore tutorials →](tutorials.qmd#experimental-design)
+:::
+
+::: {.capability-card}
+::: {.capability-icon}
+≈
+:::
+
+#### Surrogate Modeling
+
+Replace expensive simulations with polynomial chaos, sparse grid,
+Gaussian process, or operator learning approximations.
+
+[Explore tutorials →](tutorials.qmd#surrogate-modeling)
+:::
+
+::: {.capability-card}
+::: {.capability-icon}
+∂
+:::
+
+#### Sensitivity Analysis
+
+Identify which input parameters drive your output variance using Sobol
+indices, Morris screening, and analytical methods.
+
+[Explore tutorials →](tutorials.qmd#sensitivity-analysis)
+:::
+
+:::
+:::
+
+
+::: {.section-dark}
+
+[Why PyApprox?]{.section-heading}
+
+::: {.why-grid}
+
+::: {.why-item}
+[80+ Validated Tutorials]{.why-title}
+
+Every tutorial is executable, tested against analytical solutions where
+available, and designed to build intuition before diving into code.
+:::
+
+::: {.why-item}
+[Dual Backend: NumPy & PyTorch]{.why-title}
+
+Switch between NumPy for prototyping and PyTorch for GPU acceleration
+and automatic differentiation — same API, same results.
+:::
+
+::: {.why-item}
+[Sandia National Laboratories]{.why-title}
+
+Developed and maintained by computational scientists at Sandia, with
+decades of experience in UQ for high-consequence engineering.
+:::
+
+::: {.why-item}
+[Open Source & Extensible]{.why-title}
+
+MIT licensed. Designed for researchers and engineers who need to
+customize, extend, and integrate UQ into their own workflows.
+:::
+
+:::
+:::
+
+
+::: {.section-light}
+
+[Created By]{.section-heading .section-heading-dark}
+
+::: {.creator-card}
+
+::: {.creator-photo}
+![](assets/jakeman-headshot.jpg){.creator-img}
+:::
+
+::: {.creator-info}
+
+[John D. Jakeman]{.creator-name}
+
+[Principal Member of Technical Staff · Sandia National Laboratories]{.creator-role}
+
+John is a computational scientist specializing in uncertainty quantification,
+surrogate modeling, and optimal experimental design. He created and maintains
+PyApprox as part of his research at Sandia National Laboratories, where he
+develops methods for simulation-aided knowledge discovery, prediction, and
+design under uncertainty.
+
+His work has been funded by DARPA, the U.S. Department of Energy Office of
+Science (ASCR), and Sandia's Laboratory Directed Research and Development
+(LDRD) program.
+
+::: {.creator-links}
+[Published Paper (DOI)](https://doi.org/10.1016/j.envsoft.2023.105825){.creator-link}
+[GitHub](https://github.com/sandialabs/pyapprox){.creator-link}
+:::
+
+:::
+:::
+:::
+
+
+::: {.section-dark}
+
+[Cite This Work]{.section-heading}
+
+[If you use PyApprox in your research, please cite the following paper.]{.section-subtitle}
+
+::: {.cite-block}
+J.D. Jakeman, "PyApprox: A software package for sensitivity analysis, Bayesian
+inference, optimal experimental design, and multi-fidelity uncertainty
+quantification and surrogate modeling," *Environmental Modelling & Software*,
+vol. 170, p. 105825, 2023.
+
+[View Paper (DOI: 10.1016/j.envsoft.2023.105825) →](https://doi.org/10.1016/j.envsoft.2023.105825){.cite-doi-link}
+:::
+:::
+
+
+::: {.section-cta}
+
+[Ready to quantify your uncertainty?]{.cta-heading}
+
+::: {.cta-buttons}
+[Get Started](setup_environment.qmd){.btn-cta-primary}
+[Browse All Tutorials](tutorials.qmd){.btn-cta-secondary}
+[View on GitHub](https://github.com/sandialabs/pyapprox){.btn-cta-secondary}
+[Install from PyPI](https://pypi.org/project/pyapprox/){.btn-cta-secondary}
+:::
+
+:::

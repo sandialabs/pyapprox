@@ -1,0 +1,1045 @@
+/*-- scss:defaults --*/
+
+// === Brand Colors (from PyApprox logo + wireframe images) ===
+$cyan-primary:   #00b4d8;
+$cyan-light:     #48cae4;
+$cyan-glow:      #90e0ef;
+$dark-deep:      #000000;       // matches logo background exactly
+$dark-bg:        #0a0e17;
+$dark-surface:   #1a1a1a;
+$dark-card:      #242424;
+$silver:         #94a3b8;
+$silver-light:   #cbd5e1;
+$off-white:      #f1f5f9;
+$white:          #ffffff;
+
+// === Bootstrap Variable Overrides ===
+$primary:       $cyan-primary;
+$link-color:    $cyan-primary;
+$link-hover-color: $cyan-light;
+
+// Navbar
+$navbar-bg:     $dark-deep;
+$navbar-fg:     $white;
+
+// Footer
+$footer-bg:     $dark-deep;
+$footer-fg:     $silver;
+
+// Sidebar
+$sidebar-bg:    #f0f4f8;
+
+// Typography
+$font-family-sans-serif: "DM Sans", -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif;
+$font-family-monospace:  "JetBrains Mono", "Fira Code", "Source Code Pro",
+  monospace;
+$headings-font-weight:   700;
+
+// Code blocks
+$code-bg:       #f6f8fa;
+$code-color:    #0a0e17;
+
+
+/*-- scss:rules --*/
+
+// === Font Import ===
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+// Heading font
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Sora", sans-serif;
+}
+
+
+// =========================================================================
+//  NAVBAR
+// =========================================================================
+.navbar {
+  border-bottom: 1px solid rgba($cyan-primary, 0.3);
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.4);
+}
+
+.navbar-brand img {
+  max-height: 36px;
+}
+
+
+// =========================================================================
+//  FOOTER
+// =========================================================================
+.nav-footer {
+  border-top: 1px solid rgba($cyan-primary, 0.25);
+}
+
+
+// =========================================================================
+//  SIDEBAR (tutorials)
+// =========================================================================
+.sidebar nav[role=doc-toc] ul > li > a.active {
+  border-left: 3px solid $cyan-primary;
+  font-weight: 600;
+  color: $cyan-primary;
+}
+
+
+// =========================================================================
+//  CODE BLOCKS
+// =========================================================================
+pre code {
+  font-size: 0.88em;
+}
+
+div.sourceCode {
+  border-left: 3px solid $cyan-primary;
+  border-radius: 6px;
+}
+
+
+// =========================================================================
+//  CALLOUTS
+// =========================================================================
+.callout-tip {
+  border-left-color: #22c55e;
+}
+.callout-important {
+  border-left-color: #ef4444;
+}
+
+
+// =========================================================================
+//  SHARED: Section heading & subtitle (span-based, no <section> issues)
+// =========================================================================
+.section-heading {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  color: $white;
+  margin-bottom: 0.75rem;
+}
+
+// Quarto wraps heading/subtitle spans in <p> — remove extra margins
+.section-dark > p:has(.section-heading),
+.section-dark > p:has(.section-subtitle),
+.section-light > p:has(.section-heading),
+.section-light > p:has(.section-subtitle) {
+  margin: 0;
+}
+
+.section-heading-dark {
+  color: $dark-bg;
+}
+
+.section-subtitle {
+  display: block;
+  text-align: center;
+  color: $silver;
+  max-width: 640px;
+  margin: 0 auto 2.5rem;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.section-subtitle-dark {
+  color: #64748b;
+}
+
+
+// =========================================================================
+//  HERO SECTION
+// =========================================================================
+.hero-section {
+  background: $dark-deep;     // pure black — matches logo bg
+  color: $white;
+  padding: 3.5rem 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+// Full-bleed hero on full-layout pages
+.page-layout-full .hero-section {
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+}
+
+// subtle grid overlay
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba($cyan-primary, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba($cyan-primary, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+.hero-inner {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-logo {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.hero-logo img,
+.hero-logo p img {
+  max-height: 260px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 30px rgba($cyan-primary, 0.15));
+}
+
+// remove Quarto's wrapping <p> margin inside hero-logo
+.hero-logo p {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-inner {
+    flex-direction: column;
+    text-align: center;
+  }
+  .hero-logo {
+    order: -1;
+    align-self: center;
+  }
+  .hero-logo img,
+  .hero-logo p img {
+    max-height: unset;
+    width: 160px;
+  }
+  .hero-section {
+    padding: 2rem 1.25rem;
+  }
+  .stats-bar { justify-content: center; }
+  .hero-buttons { justify-content: center; }
+}
+
+.hero-eyebrow {
+  font-family: "Sora", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $cyan-primary;
+  margin-bottom: 1rem;
+}
+
+// Quarto wraps eyebrow text in <p>
+.hero-eyebrow p {
+  margin: 0;
+}
+
+// Quarto wraps headline/accent spans in <p> — remove extra margins
+.hero-text > p:has(.hero-headline),
+.hero-text > p:has(.hero-accent-line) {
+  margin: 0;
+}
+
+// hero heading — span-based to avoid Quarto <section> wrapping
+.hero-headline {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  color: $white;
+  font-size: 2.25rem;
+  line-height: 1.25;
+  margin-bottom: 0.25rem;
+}
+
+.hero-accent-line {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, $cyan-primary, $cyan-light);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-section p {
+  color: $silver-light;
+  max-width: 620px;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+
+// === Hero Buttons ===
+.hero-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.75rem;
+}
+
+.hero-buttons a,
+.hero-buttons p a {
+  display: inline-block;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+// Remove Quarto's <p> spacing inside hero-buttons
+.hero-buttons p {
+  margin: 0;
+  display: contents;
+}
+
+.btn-hero-primary {
+  background: $cyan-primary;
+  color: $white !important;
+  box-shadow: 0 0 20px rgba($cyan-primary, 0.25);
+}
+
+.btn-hero-primary:hover {
+  background: $cyan-light;
+  color: $white !important;
+  box-shadow: 0 0 30px rgba($cyan-primary, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-hero-secondary {
+  background: transparent;
+  color: $silver-light !important;
+  border: 1px solid rgba($silver, 0.4);
+}
+
+.btn-hero-secondary:hover {
+  color: $white !important;
+  border-color: $cyan-primary;
+  box-shadow: 0 0 12px rgba($cyan-primary, 0.15);
+}
+
+
+// === Stats Bar ===
+.stats-bar {
+  display: flex;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  margin: 2rem 0 0.5rem;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+// Quarto wraps stat spans in <p>
+.stat-item p {
+  margin: 0;
+}
+
+.stat-number {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  color: $cyan-primary;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  color: $silver;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+}
+
+
+// =========================================================================
+//  BRIDGE SECTION (gray strip between hero and first dark section)
+// =========================================================================
+.section-bridge {
+  background: $off-white;
+  text-align: center;
+  padding: 2rem 2rem 2.25rem;
+}
+
+.section-bridge .stats-bar {
+  justify-content: center;
+  margin: 0 0 1.25rem;
+}
+
+.section-bridge .stat-number {
+  color: $dark-bg;
+}
+
+.section-bridge .stat-label {
+  color: #64748b;
+}
+
+.section-bridge .hero-buttons {
+  justify-content: center;
+  margin-top: 0;
+}
+
+.section-bridge .btn-hero-secondary {
+  color: #475569 !important;
+  border-color: #cbd5e1;
+}
+
+.section-bridge .btn-hero-secondary:hover {
+  color: $cyan-primary !important;
+  border-color: $cyan-primary;
+}
+
+
+// =========================================================================
+//  DARK SECTIONS
+// =========================================================================
+.section-dark {
+  background: $dark-surface;
+  color: $white;
+  padding: 4rem 2rem;
+}
+
+// full-bleed on full-layout pages
+.page-layout-full .section-bridge,
+.page-layout-full .section-dark,
+.page-layout-full .section-light,
+.page-layout-full .section-cta {
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+
+// =========================================================================
+//  LIGHT SECTIONS
+// =========================================================================
+.section-light {
+  background: $off-white;
+  padding: 4rem 2rem;
+}
+
+
+// =========================================================================
+//  DRIVER CARDS (card pattern — image on top, text below)
+// =========================================================================
+.driver-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+@media (max-width: 992px) {
+  .driver-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 576px) {
+  .driver-grid { grid-template-columns: 1fr; }
+}
+
+.driver-card {
+  background: rgba($white, 0.04);
+  border: 1px solid rgba($cyan-primary, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.driver-card:hover {
+  border-color: rgba($cyan-primary, 0.5);
+  box-shadow: 0 0 25px rgba($cyan-primary, 0.12);
+  transform: translateY(-3px);
+}
+
+// image — fill top of card
+.driver-card .driver-img,
+.driver-card p img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.driver-card:hover .driver-img,
+.driver-card:hover p img {
+  transform: scale(1.04);
+}
+
+// Remove <p> wrapper margins that Quarto adds around images
+.driver-card > p {
+  margin: 0;
+  overflow: hidden;      // contain scaled image
+}
+
+// text area below image
+.driver-title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: $white;
+  padding: 0.9rem 1rem 0;
+}
+
+.driver-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: $silver;
+  line-height: 1.45;
+  padding: 0.25rem 1rem 1rem;
+}
+
+// Quarto wraps spans in <p> — remove extra margins
+.driver-card > p:has(.driver-title),
+.driver-card > p:has(.driver-desc) {
+  margin: 0;
+}
+
+
+// =========================================================================
+//  CAPABILITY CARDS
+// =========================================================================
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+@media (max-width: 992px) {
+  .capability-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 576px) {
+  .capability-grid { grid-template-columns: 1fr; }
+}
+
+.capability-card {
+  background: $white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.75rem;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.capability-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, $cyan-primary, $cyan-light);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.capability-card:hover {
+  border-color: rgba($cyan-primary, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+
+.capability-card:hover::after {
+  opacity: 1;
+}
+
+.capability-icon {
+  font-size: 1.5rem;
+  color: $cyan-primary;
+  margin-bottom: 0.75rem;
+}
+
+// Quarto wraps the icon text in <p>
+.capability-icon p {
+  margin: 0;
+}
+
+.capability-card h4,
+.capability-card .anchored {
+  font-family: "Sora", sans-serif;
+  font-size: 1.05rem;
+  color: $dark-bg;
+  margin-bottom: 0.5rem;
+}
+
+.capability-card p {
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.55;
+  margin-bottom: 0.75rem;
+}
+
+.capability-card a {
+  font-family: "Sora", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: $cyan-primary;
+  text-decoration: none;
+}
+
+.capability-card a:hover {
+  color: darken($cyan-primary, 8%);
+}
+
+
+// =========================================================================
+//  WHY GRID
+// =========================================================================
+.why-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+@media (max-width: 576px) {
+  .why-grid { grid-template-columns: 1fr; }
+}
+
+.why-item {
+  padding-left: 1.25rem;
+  border-left: 2px solid rgba($cyan-primary, 0.4);
+}
+
+.why-title {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: $white;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+// Quarto wraps title span in <p>
+.why-item > p:has(.why-title) {
+  margin: 0;
+}
+
+.why-item p {
+  font-size: 0.9rem;
+  color: $silver;
+  line-height: 1.6;
+}
+
+
+// =========================================================================
+//  CREATOR SECTION
+// =========================================================================
+.creator-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: $white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+@media (max-width: 640px) {
+  .creator-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .creator-links {
+    justify-content: center;
+  }
+}
+
+.creator-photo {
+  flex-shrink: 0;
+}
+
+.creator-img,
+.creator-photo p img {
+  width: 160px;
+  height: 160px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba($cyan-primary, 0.2);
+}
+
+.creator-photo p {
+  margin: 0;
+}
+
+.creator-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.creator-name {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: $dark-bg;
+  margin-bottom: 0.25rem;
+}
+
+.creator-role {
+  font-size: 0.88rem;
+  color: $cyan-primary;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+// Quarto wraps name/role spans in <p>
+.creator-info > p:has(.creator-name),
+.creator-info > p:has(.creator-role) {
+  margin: 0;
+}
+
+.creator-info p {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.65;
+  margin-bottom: 0.75rem;
+}
+
+.creator-links {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+// Quarto wraps links in <p>
+.creator-links p {
+  margin: 0;
+  display: contents;
+}
+
+.creator-link {
+  font-family: "Sora", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: $cyan-primary;
+  text-decoration: none;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid rgba($cyan-primary, 0.3);
+  border-radius: 5px;
+  transition: all 0.2s ease;
+}
+
+.creator-link:hover {
+  background: rgba($cyan-primary, 0.08);
+  border-color: $cyan-primary;
+}
+
+
+// =========================================================================
+//  CITATION SECTION
+// =========================================================================
+.cite-block {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.75rem 2rem;
+  background: rgba($cyan-primary, 0.04);
+  border: 1px solid rgba($cyan-primary, 0.15);
+  border-left: 3px solid $cyan-primary;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: $silver-light;
+  line-height: 1.65;
+}
+
+.cite-block em {
+  color: $white;
+  font-style: italic;
+}
+
+.cite-doi-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-family: "Sora", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: $cyan-primary;
+  text-decoration: none;
+}
+
+.cite-doi-link:hover {
+  color: $cyan-light;
+}
+
+
+// =========================================================================
+//  CTA SECTION
+// =========================================================================
+.section-cta {
+  background: linear-gradient(135deg, $dark-bg, $dark-deep);
+  text-align: center;
+  padding: 3.5rem 2rem;
+  border-top: 1px solid rgba($cyan-primary, 0.15);
+}
+
+.cta-heading {
+  display: block;
+  font-family: "Sora", sans-serif;
+  color: $white;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+// Quarto wraps heading span in <p>
+.section-cta > p:has(.cta-heading) {
+  margin: 0;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+// Quarto wraps links in <p>
+.cta-buttons p {
+  margin: 0;
+  display: contents;
+}
+
+.btn-cta-primary {
+  display: inline-block;
+  padding: 0.65rem 1.75rem;
+  border-radius: 6px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  background: $cyan-primary;
+  color: $white !important;
+  box-shadow: 0 0 20px rgba($cyan-primary, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-cta-primary:hover {
+  background: $cyan-light;
+  color: $white !important;
+  box-shadow: 0 0 30px rgba($cyan-primary, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-cta-secondary {
+  display: inline-block;
+  padding: 0.65rem 1.75rem;
+  border-radius: 6px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  background: transparent;
+  color: $silver-light !important;
+  border: 1px solid rgba($silver, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-cta-secondary:hover {
+  color: $white !important;
+  border-color: $cyan-primary;
+  box-shadow: 0 0 12px rgba($cyan-primary, 0.15);
+}
+
+
+// =========================================================================
+//  TUTORIALS PAGE
+// =========================================================================
+.tutorials-header {
+  background: $dark-bg;
+  color: $white;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.tutorials-title-text {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: $white;
+  margin-bottom: 0.75rem;
+}
+
+.tutorials-subtitle {
+  display: block;
+  color: $silver;
+  max-width: 640px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+
+// =========================================================================
+//  START HERE CARDS
+// =========================================================================
+.start-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.25rem;
+  height: 100%;
+  transition: all 0.2s ease;
+  background: $white;
+}
+
+.start-card:hover {
+  border-color: $cyan-primary;
+  box-shadow: 0 4px 16px rgba($cyan-primary, 0.1);
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: $cyan-primary;
+  color: $white;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.step-title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.35rem;
+  color: $dark-bg;
+}
+
+
+// =========================================================================
+//  TOPIC HEADINGS & TUTORIAL CARDS
+// =========================================================================
+.topic-heading {
+  font-family: "Sora", sans-serif;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba($cyan-primary, 0.25);
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.section-desc {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.tutorial-card {
+  display: block;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: $white;
+  transition: all 0.2s ease;
+}
+
+.tutorial-card:hover {
+  border-color: rgba($cyan-primary, 0.4);
+  box-shadow: 0 2px 12px rgba($cyan-primary, 0.08);
+}
+
+.tutorial-title {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: $dark-bg;
+  text-decoration: none;
+}
+
+.tutorial-title:hover {
+  color: $cyan-primary;
+}
+
+.tutorial-desc {
+  display: block;
+  font-size: 0.84rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+
+// =========================================================================
+//  BADGES
+// =========================================================================
+@mixin badge-base {
+  display: inline-block;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.2em 0.55em;
+  border-radius: 4px;
+  margin-right: 0.3rem;
+  letter-spacing: 0.02em;
+}
+
+.badge-concept  { @include badge-base; background: #e8e9f3; color: #4a4f7a; }
+.badge-analysis { @include badge-base; background: #d9f0f4; color: #0d5c68; }
+.badge-hands-on { @include badge-base; background: #d6f0db; color: #166b2e; }
+.badge-cookbook  { @include badge-base; background: #fef3cd; color: #7a5e06; }
+
+
+// === Sub-section Headings ===
+.sub-heading {
+  font-family: "Sora", sans-serif;
+  font-size: 1.1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #334155;
+}
+
+
+// =========================================================================
+//  GLOBAL
+// =========================================================================
+html {
+  scroll-behavior: smooth;
+}
+
+// Wider content on full-layout landing page
+.page-layout-full .content {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+// Selection highlight
+::selection {
+  background: rgba($cyan-primary, 0.25);
+  color: inherit;
+}
