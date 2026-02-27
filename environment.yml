@@ -18,10 +18,11 @@ dependencies:
   - pip:
     - scikit-fem>=9.0
     - umbridge>=0.7
-    - unittest-parametrize
     - pytest-timeout>=2.2
     - ruff>=0.3
     - hatch
     - hatch-vcs
     - jupyter-cache>=1.0
     - quartodoc>=0.6
+    # Heavy optional deps not included here (compile from source):
+    #   pip install -e ".[rol]"    # ROL optimizer (rol-python)

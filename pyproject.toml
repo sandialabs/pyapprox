@@ -43,10 +43,11 @@ umbridge = ["umbridge>=0.7"]
 numba = ["numba>=0.58", "numpy<2.3"]
 parallel = ["joblib>=1.3", "mpire>=2.8"]
 cvxpy = ["cvxpy>=1.4"]
+rol = ["rol-python"]
 test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2"]
 lint = ["mypy>=1.8", "ruff>=0.3"]
 docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
-all = ["pyapprox[fem,umbridge,numba,parallel,cvxpy,test,lint,docs]"]
+all = ["pyapprox[fem,umbridge,numba,parallel,cvxpy,rol,test,lint,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/sandialabs/pyapprox"

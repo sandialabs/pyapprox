@@ -5,8 +5,8 @@ from typing import Generic, Optional, Protocol, Self, runtime_checkable
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
+from pyapprox.optimization.minimize.result_protocol import (
+    OptimizerResultProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -74,7 +74,7 @@ class BindableOptimizerProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> OptimizerResultProtocol[Array]:
         """Run optimization starting from the initial guess.
 
         Parameters
@@ -84,7 +84,7 @@ class BindableOptimizerProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        ScipyOptimizerResultWrapper[Array]
+        OptimizerResultProtocol[Array]
             Wrapped optimization result.
 
         Raises
