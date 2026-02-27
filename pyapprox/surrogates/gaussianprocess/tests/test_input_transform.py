@@ -18,6 +18,7 @@ import math
 from typing import Any, List
 
 import numpy as np
+import pytest
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess

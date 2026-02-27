@@ -5,31 +5,25 @@ This module provides mean function implementations for GP regression.
 Mean functions represent the prior mean m(x) before observing data.
 """
 
-from abc import ABC, abstractmethod
-from typing import Generic, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
-class MeanFunction(ABC, Generic[Array]):
+@runtime_checkable
+class MeanFunction(Protocol, Generic[Array]):
     """
-    Abstract base class for GP mean functions.
+    Protocol for GP mean functions.
 
     A mean function defines the prior mean m(x) of the Gaussian Process
     before observing any data. After observing data, the posterior mean
     becomes: μ*(x) = m(x) + k(x, X)[K + σ²I]^{-1}(y - m(X))
 
-    Parameters
-    ----------
-    bkd : Backend[Array]
-        Backend for numerical operations.
+    Any class implementing ``__call__``, ``hyp_list``,
+    ``jacobian_wrt_params``, and ``bkd`` satisfies this protocol.
     """
 
-    def __init__(self, bkd: Backend[Array]):
-        self._bkd = bkd
-
-    @abstractmethod
     def __call__(self, X: Array) -> Array:
         """
         Evaluate the mean function at input locations.
@@ -46,7 +40,6 @@ class MeanFunction(ABC, Generic[Array]):
         """
         ...
 
-    @abstractmethod
     def hyp_list(self) -> HyperParameterList:
         """
         Return the list of hyperparameters.
@@ -58,7 +51,6 @@ class MeanFunction(ABC, Generic[Array]):
         """
         ...
 
-    @abstractmethod
     def jacobian_wrt_params(self, X: Array) -> Array:
         """
         Compute Jacobian of mean function w.r.t. hyperparameters.
@@ -86,10 +78,10 @@ class MeanFunction(ABC, Generic[Array]):
         Backend[Array]
             The backend instance.
         """
-        return self._bkd
+        ...
 
 
-class ZeroMean(MeanFunction[Array]):
+class ZeroMean(Generic[Array]):
     """
     Zero mean function: m(x) = 0 for all x.
 
@@ -117,7 +109,7 @@ class ZeroMean(MeanFunction[Array]):
     """
 
     def __init__(self, bkd: Backend[Array]):
-        super().__init__(bkd)
+        self._bkd = bkd
         # No hyperparameters
         self._hyp_list = HyperParameterList([], bkd=bkd)
 
@@ -168,12 +160,23 @@ class ZeroMean(MeanFunction[Array]):
         n_points = X.shape[1]
         return self._bkd.zeros((0, 1, n_points))
 
+    def bkd(self) -> Backend[Array]:
+        """
+        Return the backend.
+
+        Returns
+        -------
+        Backend[Array]
+            The backend instance.
+        """
+        return self._bkd
+
     def __repr__(self) -> str:
         """Return string representation."""
         return "ZeroMean()"
 
 
-class ConstantMean(MeanFunction[Array]):
+class ConstantMean(Generic[Array]):
     """
     Constant mean function: m(x) = c for all x.
 
@@ -213,7 +216,7 @@ class ConstantMean(MeanFunction[Array]):
         bkd: Backend[Array],
         fixed: bool = False,
     ):
-        super().__init__(bkd)
+        self._bkd = bkd
 
         # Use regular HyperParameter (not log) for constant
         self._constant = HyperParameter(
@@ -274,6 +277,17 @@ class ConstantMean(MeanFunction[Array]):
         """
         n_points = X.shape[1]
         return self._bkd.ones((1, 1, n_points))
+
+    def bkd(self) -> Backend[Array]:
+        """
+        Return the backend.
+
+        Returns
+        -------
+        Backend[Array]
+            The backend instance.
+        """
+        return self._bkd
 
     def __repr__(self) -> str:
         """Return string representation."""
