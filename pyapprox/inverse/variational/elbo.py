@@ -5,8 +5,9 @@ Provides ELBOObjective that uses conditional distributions directly,
 plus convenience constructors for common VI setups.
 """
 
-from typing import Any, Callable, Generic, List
+from typing import Any, Callable, Generic, List, Optional, Tuple
 
+from pyapprox.inverse.variational.summary import SummaryStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -209,20 +210,68 @@ def make_single_problem_elbo(
     )
 
 
+def _compute_normalized_labels(
+    observations: List[Array],
+    summary: SummaryStatistic,
+    bkd: Backend,
+) -> Tuple[Array, Array, Array]:
+    """Compute labels from observations via summary and normalize to [-1, 1].
+
+    Parameters
+    ----------
+    observations : list of Array
+        Raw observations per group, each shape ``(nobs_dim, n_obs_k)``.
+    summary : SummaryStatistic
+        Maps observations to fixed-size labels.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    labels : Array
+        Normalized labels, shape ``(nlabel_dims, K)``.
+    label_mid : Array
+        Per-dimension midpoint, shape ``(nlabel_dims, 1)``.
+    label_scale : Array
+        Per-dimension half-range, shape ``(nlabel_dims, 1)``.
+    """
+    K = len(observations)
+    raw_labels = [summary(observations[k]) for k in range(K)]
+    raw_labels_all = bkd.hstack(raw_labels)  # (nlabel_dims, K)
+    nlabel_dims = raw_labels_all.shape[0]
+
+    label_min = bkd.min(raw_labels_all, axis=1, keepdims=True)
+    label_max = bkd.max(raw_labels_all, axis=1, keepdims=True)
+    label_mid = 0.5 * (label_min + label_max)
+    label_scale = 0.5 * (label_max - label_min)
+    label_scale = bkd.where(
+        label_scale > 1e-12,
+        label_scale,
+        bkd.ones((nlabel_dims, 1)),
+    )
+    labels = (raw_labels_all - label_mid) / label_scale
+    return labels, label_mid, label_scale
+
+
 def make_discrete_group_elbo(
     var_distribution: Any,
     log_likelihood_fns: List[Callable],
     prior: Any,
-    labels: Array,
     base_nodes: Array,
     base_weights: Array,
     bkd: Backend,
+    *,
+    observations: Optional[List[Array]] = None,
+    summary: Optional[SummaryStatistic] = None,
+    labels: Optional[Array] = None,
 ) -> ELBOObjective:
     """Create ELBO for discrete-group amortized VI.
 
-    Builds joint quadrature as a product of point-mass over groups and
-    base quadrature. Each group is identified by a column of ``labels``
-    and has its own log-likelihood callable.
+    Computes per-group labels by applying ``summary`` to each group's
+    observations and normalizing to [-1, 1]. Alternatively, accepts
+    pre-computed ``labels`` directly.
+
+    Provide either (``observations`` + ``summary``) or ``labels``.
 
     The joint nodes are laid out as K contiguous blocks of M points:
     ``[group_0 x M, group_1 x M, ..., group_{K-1} x M]``, so the
@@ -239,27 +288,48 @@ def make_discrete_group_elbo(
         ``log_lik_fn(z) -> (1, N)`` where z is ``(nqoi, N)``.
     prior : object
         Prior distribution.
-    labels : Array
-        Group label coordinates, shape ``(nlabel_dims, K)``.
     base_nodes : Array
         Base quadrature nodes, shape ``(nbase, M)``.
     base_weights : Array
         Base quadrature weights, shape ``(1, M)``.
     bkd : Backend
         Computational backend.
+    observations : list of Array, optional
+        Raw observations per group, each shape ``(nobs_dim, n_obs_k)``.
+        Required when ``labels`` is not provided.
+    summary : SummaryStatistic, optional
+        Summary statistic mapping observations to fixed-size labels.
+        Required when ``labels`` is not provided.
+    labels : Array, optional
+        Pre-computed normalized labels, shape ``(nlabel_dims, K)``.
+        If provided, ``observations`` and ``summary`` are not used.
 
     Returns
     -------
     ELBOObjective
     """
-    K = labels.shape[1]
+    K = len(log_likelihood_fns)
+
+    if labels is None:
+        if observations is None or summary is None:
+            raise ValueError(
+                "Either 'labels' or both 'observations' and 'summary' "
+                "must be provided"
+            )
+        if len(observations) != K:
+            raise ValueError(
+                f"Expected {K} observation arrays (one per group), "
+                f"got {len(observations)}"
+            )
+        labels, _, _ = _compute_normalized_labels(observations, summary, bkd)
+
     M = base_nodes.shape[1]
     nlabel_dims = labels.shape[0]
 
-    if len(log_likelihood_fns) != K:
+    if labels.shape[1] != K:
         raise ValueError(
-            f"Expected {K} log-likelihood functions (one per group), "
-            f"got {len(log_likelihood_fns)}"
+            f"Expected {K} label columns (one per group), "
+            f"got {labels.shape[1]}"
         )
 
     # Build joint nodes: tile labels M times and base_nodes K times

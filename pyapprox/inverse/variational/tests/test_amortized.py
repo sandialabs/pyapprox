@@ -24,9 +24,15 @@ from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
 from pyapprox.inverse.variational.elbo import (
+    _compute_normalized_labels,
     make_discrete_group_elbo,
 )
 from pyapprox.inverse.variational.fitter import VariationalFitter
+from pyapprox.inverse.variational.summary import (
+    IdentityTransform,
+    MeanAggregation,
+    TransformAggregateSummary,
+)
 from pyapprox.probability.conditional.gaussian import (
     ConditionalGaussian,
 )
@@ -233,10 +239,10 @@ class TestAmortizedBase:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         # nvars = nterms_mean + nterms_logstdev = (degree+1)*2 = 6
@@ -273,10 +279,10 @@ class TestAmortizedBase:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         # K*M = 4*10 = 40 joint quadrature points
@@ -315,10 +321,10 @@ class TestAmortizedBase:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
         params = bkd.zeros((elbo.nvars(), 1))
         v1 = elbo(params)
@@ -411,29 +417,15 @@ class TestAmortizedTorchOnly:
             obs_k = bkd.tile(mean_k, (1, n_obs)) + eps
             all_obs.append(obs_k)
 
-        # --- Compute observation means and map to labels ---
-        bar_y_list = []
-        for obs_k in all_obs:
-            bar_y_k = bkd.reshape(bkd.sum(obs_k, axis=1) / n_obs, (nobs_dim, 1))
-            bar_y_list.append(bar_y_k)
-        bar_y_all = bkd.hstack(bar_y_list)
-
-        bar_y_min = bkd.reshape(
-            bkd.asarray([float(bar_y_all[d, :].min()) for d in range(nobs_dim)]),
-            (nobs_dim, 1),
+        # --- Compute labels via summary protocol ---
+        summary = TransformAggregateSummary(
+            IdentityTransform(nobs_dim),
+            MeanAggregation(nobs_dim, bkd),
+            bkd,
         )
-        bar_y_max = bkd.reshape(
-            bkd.asarray([float(bar_y_all[d, :].max()) for d in range(nobs_dim)]),
-            (nobs_dim, 1),
+        train_labels, bar_y_mid, bar_y_scale = _compute_normalized_labels(
+            all_obs, summary, bkd,
         )
-        bar_y_mid = 0.5 * (bar_y_min + bar_y_max)
-        bar_y_scale = 0.5 * (bar_y_max - bar_y_min)
-        bar_y_scale = bkd.where(
-            bar_y_scale > 1e-12,
-            bar_y_scale,
-            bkd.ones_like(bar_y_scale),
-        )
-        train_labels = (bar_y_all - bar_y_mid) / bar_y_scale
 
         # --- Build per-group likelihoods ---
         noise_cov_op = DenseCholeskyCovarianceOperator(noise_cov, bkd)
@@ -475,10 +467,11 @@ class TestAmortizedTorchOnly:
             var_dist,
             log_lik_fns,
             prior,
-            train_labels,
             base_nodes,
             base_weights,
             bkd,
+            observations=all_obs,
+            summary=summary,
         )
 
         # --- Optimize ---
@@ -514,8 +507,8 @@ class TestAmortizedTorchOnly:
             eps = bkd.asarray(eps_np)
             obs_test = bkd.tile(mean_t, (1, n_obs)) + eps
 
-            bar_y_t = bkd.reshape(bkd.sum(obs_test, axis=1) / n_obs, (nobs_dim, 1))
-            test_label = (bar_y_t - bar_y_mid) / bar_y_scale
+            raw_label_t = summary(obs_test)  # (nobs_dim, 1)
+            test_label = (raw_label_t - bar_y_mid) / bar_y_scale
 
             max_abs = float(bkd.max(bkd.abs(test_label)))
             if max_abs > 1.0:
@@ -655,10 +648,10 @@ class TestAmortizedTorchOnly:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         assert hasattr(elbo, "jacobian")
@@ -710,10 +703,10 @@ class TestAmortizedTorchOnly:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         assert hasattr(elbo, "jacobian")
@@ -772,10 +765,10 @@ class TestAmortizedTorchOnly:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         assert hasattr(elbo, "jacobian")
@@ -810,10 +803,10 @@ class TestAmortizedTorchOnly:
             var_dist,
             log_lik_fns,
             prior,
-            labels,
             base_nodes,
             base_weights,
             bkd,
+            labels=labels,
         )
 
         assert hasattr(elbo, "jacobian")
