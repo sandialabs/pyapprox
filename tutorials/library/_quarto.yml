@@ -64,6 +64,11 @@ website:
             - bayesian_inference_intro.qmd
             - mcmc_sampling.qmd
             - dram_mcmc.qmd
+            - vi_intro.qmd
+            - vi_objective.qmd
+            - vi_optimization.qmd
+            - vi_families.qmd
+            - vi_amortized.qmd
         - section: "Experimental Design"
           contents:
             - experimental_design_intro.qmd

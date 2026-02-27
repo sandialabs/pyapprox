@@ -1,0 +1,670 @@
+---
+title: "Approximating the Posterior: Introduction to Variational Inference"
+subtitle: "PyApprox Tutorial Library"
+description: "Turning Bayesian inference into an optimization problem by fitting a simple distribution to the posterior."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: beginner
+estimated_time: 12
+render_time: 60
+prerequisites:
+  - bayesian_inference_intro
+tags:
+  - uq
+  - beam
+  - bayesian-inference
+  - variational-inference
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/vi_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the idea behind variational inference: approximate the posterior by finding the closest simple distribution
+- Visualize how VI searches over candidate distributions to find the best fit
+- Run VI on a 1D problem and verify it recovers the exact posterior
+- Compare VI and MCMC results on the same problem
+- Recognize when a simple variational family is insufficient
+
+
+## Prerequisites
+
+Complete [From Data to Parameters: Introduction to Bayesian Inference](bayesian_inference_intro.qmd) before this tutorial.
+
+
+## A Different Strategy
+
+The [Bayesian inference tutorial](bayesian_inference_intro.qmd) computed the posterior exactly on a grid. The [MCMC tutorials](mcmc_sampling.qmd) generated samples from the posterior via a random walk. Both approaches answer the same question --- what is the posterior? --- but in different ways.
+
+Variational inference (VI) takes a third approach. Instead of evaluating the posterior everywhere (grid) or wandering through it (MCMC), we **pick a simple family of distributions** --- say, all possible Gaussians --- and find the one that best matches the true posterior. @fig-two-strategies contrasts this with MCMC.
+
+```{python}
+#| echo: false
+#| fig-cap: "Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve."
+#| label: fig-two-strategies
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+from pyapprox.surrogates.affine.univariate.piecewisepoly import PiecewiseLinear
+from pyapprox.util.backends.numpy import NumpyBkd
+
+_bkd = NumpyBkd()
+
+
+def _grid_integrate(values, grid):
+    """Integrate values on a 1D grid using piecewise-linear (trapezoid) quadrature."""
+    pw = PiecewiseLinear(_bkd.asarray(grid), _bkd)
+    _, weights = pw.quadrature_rule()
+    return float(_bkd.sum(_bkd.asarray(values) * weights))
+
+
+rng = np.random.default_rng(42)
+
+# A mildly skewed "true posterior" for illustration
+theta_grid = np.linspace(-4, 6, 500)
+true_post = 0.6 * norm.pdf(theta_grid, 1.0, 0.8) + 0.4 * norm.pdf(theta_grid, 2.5, 0.6)
+true_post /= _grid_integrate(true_post, theta_grid)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+# --- Left: MCMC ---
+chain = np.empty(300)
+chain[0] = 0.0
+for t in range(1, 300):
+    prop = chain[t-1] + rng.normal(0, 0.6)
+    p_curr = np.interp(chain[t-1], theta_grid, true_post)
+    p_prop = np.interp(prop, theta_grid, true_post)
+    if rng.uniform() < min(1, p_prop / max(p_curr, 1e-30)):
+        chain[t] = prop
+    else:
+        chain[t] = chain[t-1]
+
+ax1.fill_between(theta_grid, true_post, alpha=0.15, color="#E67E22")
+ax1.plot(theta_grid, true_post, color="#E67E22", lw=2, label="True posterior")
+ax1.hist(chain[50:], bins=30, density=True, color="#2C7FB8", alpha=0.5,
+         edgecolor="k", lw=0.3, label="MCMC samples")
+ax1.set_xlabel(r"$\theta$", fontsize=12)
+ax1.set_ylabel("Density", fontsize=12)
+ax1.set_title("MCMC: sample the posterior", fontsize=11)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.15)
+
+# --- Right: VI ---
+candidates = [(0.5, 1.2, "#CCCCCC"), (2.5, 0.5, "#CCCCCC"),
+              (0.8, 0.6, "#CCCCCC"), (1.5, 0.9, "#2C7FB8")]
+ax2.fill_between(theta_grid, true_post, alpha=0.15, color="#E67E22")
+ax2.plot(theta_grid, true_post, color="#E67E22", lw=2, label="True posterior")
+for ii, (mu, sig, c) in enumerate(candidates[:-1]):
+    q = norm.pdf(theta_grid, mu, sig)
+    ax2.plot(theta_grid, q, color=c, lw=1.2, ls="--", alpha=0.6,
+             label="Other candidates" if ii == 0 else None)
+mu_best, sig_best, c_best = candidates[-1]
+q_best = norm.pdf(theta_grid, mu_best, sig_best)
+ax2.plot(theta_grid, q_best, color=c_best, lw=2.5,
+         label="Best fit (VI result)")
+ax2.fill_between(theta_grid, q_best, alpha=0.1, color=c_best)
+
+ax2.set_xlabel(r"$\theta$", fontsize=12)
+ax2.set_ylabel("Density", fontsize=12)
+ax2.set_title("VI: fit the best simple distribution", fontsize=11)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.15)
+
+plt.tight_layout()
+plt.show()
+```
+
+The idea is simple: if we can parameterize a family of distributions (e.g., all Gaussians are parameterized by their mean $\mu$ and standard deviation $\sigma$), then finding the best approximation is an **optimization problem** --- search over $(\mu, \sigma)$ to minimize the mismatch with the true posterior. This is the core insight of variational inference.
+
+
+## Setup: The Beam Problem
+
+We return to the cantilever beam from the [Bayesian inference tutorial](bayesian_inference_intro.qmd): tip deflection under a linearly increasing load with an uncertain Young's modulus $E$. The analytical formula is:
+
+$$
+\delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
+$$
+
+We place a Gaussian prior on $E$ and observe tip deflection with Gaussian noise.
+
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+```
+
+```{python}
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+    HomogeneousBeam1DAnalytical,
+)
+from pyapprox.probability.likelihood import (
+    DiagonalGaussianLogLikelihood,
+    ModelBasedLogLikelihood,
+)
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+
+bkd = NumpyBkd()
+
+# Beam parameters (matching Bayesian inference tutorial)
+L, H, q0 = 100.0, 30.0, 10.0
+
+beam_model = HomogeneousBeam1DAnalytical(
+    length=L, height=H, q0=q0, bkd=bkd,
+)
+
+# Prior on Young's modulus
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+
+mu_prior = 12_000
+sigma_prior = 2_000
+prior = GaussianMarginal(mean=mu_prior, stdev=sigma_prior, bkd=bkd)
+
+# Wrap beam model to output only tip deflection (1 QoI out of 3)
+tip_model = FunctionFromCallable(
+    nqoi=1, nvars=1,
+    fun=lambda E: beam_model(E)[0:1, :],
+    bkd=bkd,
+)
+
+# Standardized model: work in z = (E - mu_prior) / sigma_prior so the
+# prior becomes N(0, 1) and all variational parameters are order-1.
+std_tip_model = FunctionFromCallable(
+    nqoi=1, nvars=1,
+    fun=lambda z: tip_model(mu_prior + sigma_prior * z),
+    bkd=bkd,
+)
+
+# True parameter and synthetic observation
+E_true = 10_000
+delta_true = float(tip_model(bkd.asarray([[E_true]]))[0, 0])
+sigma_noise = 0.4
+noise_variances = bkd.asarray([sigma_noise**2])
+noise_likelihood = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+model_likelihood = ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)
+
+np.random.seed(42)
+y_obs = float(model_likelihood.rvs(bkd.asarray([[E_true]]))[0, 0])
+noise_likelihood.set_observations(bkd.asarray([[y_obs]]))
+
+print(f"True E:         {E_true}")
+print(f"Observed y:     {y_obs:.6f}")
+print(f"Noise std:      {sigma_noise}")
+```
+
+We also compute the exact posterior on a grid (as in the [Bayesian inference tutorial](bayesian_inference_intro.qmd)) so we can check our work.
+
+```{python}
+#| echo: false
+# Exact posterior on a grid via Gauss-Hermite quadrature
+from pyapprox.surrogates.affine.univariate import (
+    HermitePolynomial1D,
+    GaussQuadratureRule,
+)
+
+hermite_poly = HermitePolynomial1D(_bkd)
+hermite_rule = GaussQuadratureRule(hermite_poly)
+nquad = 100
+quad_pts, quad_wts = hermite_rule(nquad)
+# quad_pts shape: (1, nquad), quad_wts shape: (nquad, 1)
+# Gauss-Hermite nodes are for N(0,1); transform to N(mu_prior, sigma_prior^2)
+zq = bkd.to_numpy(quad_pts[0])              # standard normal nodes
+wq = bkd.to_numpy(quad_wts[:, 0])           # weights
+Eq = mu_prior + sigma_prior * zq             # transform to prior scale
+
+# Likelihood at quadrature points
+tip_preds_q = bkd.to_numpy(tip_model(bkd.asarray(Eq[np.newaxis, :])))[0, :]
+lik_vals_q = norm.pdf(y_obs, tip_preds_q, sigma_noise)
+
+# Posterior moments via E_prior[f(E)] = sum(w_i * f(E_i))
+Z = wq @ lik_vals_q                               # normalizing constant
+exact_mean = (wq @ (Eq * lik_vals_q)) / Z
+exact_var = (wq @ ((Eq - exact_mean)**2 * lik_vals_q)) / Z
+exact_std = np.sqrt(exact_var)
+
+# Dense uniform grid for plotting only
+E_grid = np.linspace(4_000, 20_000, 500)
+prior_vals = norm.pdf(E_grid, mu_prior, sigma_prior)
+tip_preds = bkd.to_numpy(tip_model(bkd.asarray(E_grid[np.newaxis, :])))[0, :]
+lik_vals = norm.pdf(y_obs, tip_preds, sigma_noise)
+post_exact = lik_vals * prior_vals
+post_exact = post_exact / _grid_integrate(post_exact, E_grid)
+```
+
+
+## Some Gaussians Fit Better Than Others
+
+The posterior is a curve. A Gaussian is also a curve, controlled by two knobs: the mean $\mu$ (where it is centered) and the standard deviation $\sigma$ (how wide it is). Different settings of $(\mu, \sigma)$ give different approximations, and some are clearly better than others.
+
+@fig-candidate-gallery shows five candidate Gaussians overlaid on the exact posterior. The worst candidates are centered in the wrong place or have the wrong width. The best one --- the one VI would find --- closely tracks the true posterior.
+
+```{python}
+#| echo: false
+#| fig-cap: "Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically."
+#| label: fig-candidate-gallery
+
+candidates = [
+    (8_000, 2_000, "Too far left"),
+    (10_500, 500, "Too narrow"),
+    (10_000, 4_000, "Too wide"),
+    (14_000, 1_500, "Shifted right"),
+    (exact_mean, exact_std, "Best fit"),
+]
+
+# Color gradient from gray (poor) to blue (best)
+gray = "#BBBBBB"
+colors = [gray, gray, gray, gray, "#2C7FB8"]
+lws = [1.2, 1.2, 1.2, 1.2, 2.5]
+lss = ["--", "--", "--", "--", "-"]
+
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# True posterior
+ax.plot(E_grid, post_exact, color="#E67E22", lw=2.5, label="Exact posterior",
+        zorder=10)
+ax.fill_between(E_grid, post_exact, alpha=0.12, color="#E67E22")
+
+# Candidates
+for (mu, sig, label), c, lw, ls in zip(candidates, colors, lws, lss):
+    q = norm.pdf(E_grid, mu, sig)
+    is_best = label == "Best fit"
+    ax.plot(E_grid, q, color=c, lw=lw, ls=ls,
+            label=f"$\\mu={mu:.0f},\\; \\sigma={sig:.0f}$ — {label}",
+            zorder=11 if is_best else 5,
+            alpha=1.0 if is_best else 0.7)
+
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.6,
+           label=f"True $E$ = {E_true}")
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Which Gaussian best approximates the posterior?", fontsize=11)
+ax.legend(fontsize=9, loc="upper right")
+ax.grid(True, alpha=0.15)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Watching VI Search
+
+VI does not try every possible Gaussian. It starts from an initial guess and iteratively improves, adjusting $\mu$ and $\sigma$ to better match the posterior at each step. @fig-optimization-snapshots shows four snapshots of this process: the Gaussian approximation starts as the prior ($\mu = 12{,}000, \sigma = 2{,}000$) and converges to the posterior in just a few optimizer steps.
+
+```{python}
+#| echo: false
+#| fig-cap: "VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged."
+#| label: fig-optimization-snapshots
+import math
+from pyapprox.probability.conditional.gaussian import ConditionalGaussian
+from pyapprox.probability.conditional.joint import ConditionalIndependentJoint
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.likelihood.gaussian import (
+    MultiExperimentLogLikelihood,
+)
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.inverse.variational.elbo import make_single_problem_elbo
+from pyapprox.inverse.variational.fitter import VariationalFitter
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+
+
+def _make_degree0_expansion(bkd, coeff=0.0):
+    """Degree-0 expansion: a single tunable constant."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, 0, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    exp = BasisExpansion(basis, bkd, nqoi=1)
+    exp.set_coefficients(bkd.asarray([[coeff]]))
+    return exp
+
+
+def run_vi_with_maxiter(maxiter, seed=42):
+    """Run VI in standardized space, return (mu_E, sigma_E) in physical units."""
+    mf = _make_degree0_expansion(bkd, 0.0)       # z_mean starts at 0 (= prior mean)
+    lsf = _make_degree0_expansion(bkd, 0.0)       # log(z_std)=0 -> z_std=1 (= prior std)
+    cond = ConditionalGaussian(mf, lsf, bkd)
+    vd = ConditionalIndependentJoint([cond], bkd)
+    vp = IndependentJoint([GaussianMarginal(0.0, 1.0, bkd)], bkd)
+
+    base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+    multi_lik = MultiExperimentLogLikelihood(
+        base_lik, bkd.asarray([[y_obs]]), bkd,
+    )
+
+    def log_lik_fn(z):
+        return multi_lik.logpdf(std_tip_model(z))
+
+    np.random.seed(seed)
+    bs = bkd.asarray(np.random.normal(0, 1, (1, 1000)))
+    wt = bkd.full((1, 1000), 1.0 / 1000)
+    elbo = make_single_problem_elbo(vd, log_lik_fn, vp, bs, wt, bkd)
+
+    opt = ScipyTrustConstrOptimizer(maxiter=maxiter, gtol=1e-8, verbosity=0)
+    fitter = VariationalFitter(bkd, optimizer=opt)
+    result = fitter.fit(elbo)
+
+    dummy = bkd.zeros((cond.nvars(), 1))
+    z_mu = float(cond._mean_func(dummy)[0, 0])
+    z_sig = math.exp(float(cond._log_stdev_func(dummy)[0, 0]))
+    # Transform back to physical E space
+    return mu_prior + sigma_prior * z_mu, sigma_prior * z_sig, result.neg_elbo()
+
+
+snapshots = [
+    (0, float(mu_prior), float(sigma_prior), None),  # Initial: prior
+]
+for mi in [2, 4, 200]:
+    mu_i, sig_i, ne_i = run_vi_with_maxiter(mi)
+    snapshots.append((mi, mu_i, sig_i, ne_i))
+
+fig, axes = plt.subplots(1, 4, figsize=(16, 3.5), sharey=True)
+
+for ax, (mi, mu_i, sig_i, ne_i) in zip(axes, snapshots):
+    ax.plot(E_grid, post_exact, color="#E67E22", lw=2)
+    ax.fill_between(E_grid, post_exact, alpha=0.12, color="#E67E22")
+    q_i = norm.pdf(E_grid, mu_i, sig_i)
+    ax.plot(E_grid, q_i, color="#2C7FB8", lw=2.5, ls="--")
+    ax.fill_between(E_grid, q_i, alpha=0.08, color="#2C7FB8")
+
+    if mi == 0:
+        ax.set_title("Initial (prior)", fontsize=10, fontweight="bold")
+    else:
+        ax.set_title(f"After {mi} iterations", fontsize=10, fontweight="bold")
+
+    # Annotate current parameters
+    ax.text(0.97, 0.95,
+            f"$\\mu = {mu_i:.0f}$\n$\\sigma = {sig_i:.0f}$",
+            transform=ax.transAxes, ha="right", va="top", fontsize=9,
+            bbox=dict(fc="white", ec="gray", lw=0.5, alpha=0.85))
+
+    ax.set_xlabel(r"$E$", fontsize=10)
+    ax.grid(True, alpha=0.15)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.legend(["Exact posterior", "", "VI approximation"],
+           fontsize=9, loc="upper center", ncol=2,
+           bbox_to_anchor=(0.5, 1.07))
+plt.tight_layout()
+plt.show()
+```
+
+
+## Running VI on the Beam
+
+The code to run VI in PyApprox has three steps:
+
+1. **Define the variational distribution**: a Gaussian whose mean and standard deviation are tunable parameters.
+2. **Build the objective**: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.
+3. **Optimize**: adjust the parameters to improve the fit.
+
+```{python}
+# Step 1: Variational distribution q(z) = N(mu_z, sigma_z^2)
+# We work in standardized space z = (E - mu_prior) / sigma_prior
+# so the prior is N(0, 1) and all parameters are order-1.
+mean_func = _make_degree0_expansion(bkd, coeff=0.0)      # mu_z starts at 0
+log_stdev_func = _make_degree0_expansion(bkd, coeff=0.0)  # log(sigma_z)=0 -> sigma_z=1
+cond_gaussian = ConditionalGaussian(mean_func, log_stdev_func, bkd)
+var_dist = ConditionalIndependentJoint([cond_gaussian], bkd)
+
+# Prior in standardized space
+vi_prior = IndependentJoint([GaussianMarginal(0.0, 1.0, bkd)], bkd)
+
+# Step 2: Build the objective
+base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+multi_lik = MultiExperimentLogLikelihood(
+    base_lik, bkd.asarray([[y_obs]]), bkd,
+)
+
+def log_likelihood_fn(z):
+    """Log-likelihood: how well does z explain the observation?"""
+    return multi_lik.logpdf(std_tip_model(z))
+
+# Base samples: random draws used to approximate expectations
+nsamples = 1000
+np.random.seed(42)
+base_samples = bkd.asarray(np.random.normal(0, 1, (1, nsamples)))
+weights = bkd.full((1, nsamples), 1.0 / nsamples)
+
+elbo = make_single_problem_elbo(
+    var_dist, log_likelihood_fn, vi_prior,
+    base_samples, weights, bkd,
+)
+
+print(f"Variational parameters to optimize: {elbo.nvars()}")
+```
+
+```{python}
+# Step 3: Optimize
+fitter = VariationalFitter(bkd)
+result = fitter.fit(elbo)
+
+# Extract fitted parameters and transform back to physical E space
+dummy_x = bkd.zeros((cond_gaussian.nvars(), 1))
+z_mean = float(cond_gaussian._mean_func(dummy_x)[0, 0])
+z_stdev = math.exp(float(cond_gaussian._log_stdev_func(dummy_x)[0, 0]))
+vi_mean = mu_prior + sigma_prior * z_mean
+vi_stdev = sigma_prior * z_stdev
+
+print(f"VI result:       N({vi_mean:.0f}, {vi_stdev:.0f}^2)")
+print(f"Exact posterior: N({exact_mean:.0f}, {exact_std:.0f}^2)")
+print(result)
+```
+
+::: {.callout-note}
+## What is the optimizer actually minimizing?
+The objective function (called the **ELBO**) measures how well the variational distribution balances two goals: explaining the data and staying close to the prior. The [next tutorial](vi_objective.qmd) derives this objective in detail. For now, the important thing is that minimizing it finds the best Gaussian fit to the posterior.
+:::
+
+
+## VI Recovers the Posterior
+
+@fig-vi-result overlays the VI approximation on the exact grid posterior. Because the true posterior is nearly Gaussian in this problem, the fit is excellent. It is not *exactly* Gaussian, however: the beam model $\delta_{\text{tip}} \propto 1/E$ is nonlinear, so the posterior inherits a slight skew (as the [forward UQ tutorial](forward_uq.qmd) demonstrated for the push-forward distribution). The Gaussian VI approximation captures the mean and width accurately but cannot represent this asymmetry --- a fundamental limitation of the variational family, not the optimizer.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width."
+#| label: fig-vi-result
+
+vi_pdf = norm.pdf(E_grid, vi_mean, vi_stdev)
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(E_grid, post_exact, color="#E67E22", lw=2.5, label="Exact posterior (grid)")
+ax.fill_between(E_grid, post_exact, alpha=0.15, color="#E67E22")
+ax.plot(E_grid, vi_pdf, color="#2C7FB8", lw=2.5, ls="--",
+        label=f"VI: $\\mathcal{{N}}({vi_mean:.0f},\\, {vi_stdev:.0f}^2)$")
+ax.fill_between(E_grid, vi_pdf, alpha=0.1, color="#2C7FB8")
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.8,
+           label=f"True $E$ = {E_true}")
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Variational inference vs. exact posterior", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Comparing VI and MCMC
+
+Both MCMC and VI should produce the same answer on this problem. @fig-vi-vs-mcmc puts all three representations on the same axes: the exact grid posterior, the MCMC histogram, and the VI curve. They agree --- confirming that VI is working correctly.
+
+```{python}
+#| echo: false
+#| fig-cap: "Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve."
+#| label: fig-vi-vs-mcmc
+from pyapprox.inverse.posterior.log_unnormalized import (
+    LogUnNormalizedPosterior,
+)
+from pyapprox.inverse.sampling.metropolis import (
+    MetropolisHastingsSampler,
+)
+
+# Run MCMC for comparison
+posterior_fn = LogUnNormalizedPosterior(
+    model_fn=tip_model, likelihood=noise_likelihood, prior=prior, bkd=bkd,
+)
+
+n_steps = 2000
+proposal_cov = bkd.asarray([[800.0**2]])
+sampler = MetropolisHastingsSampler(
+    log_posterior_fn=posterior_fn, nvars=1, bkd=bkd,
+    proposal_cov=proposal_cov,
+)
+
+np.random.seed(0)
+mcmc_result = sampler.sample(
+    nsamples=n_steps, burn=0,
+    initial_state=bkd.asarray([[float(mu_prior)]]),
+    bounds=bkd.asarray([[4_000.0, 20_000.0]]),
+)
+chain = bkd.to_numpy(mcmc_result.samples)[0, :]
+burnin = 200
+chain_post = chain[burnin:]
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+
+# Exact
+ax.plot(E_grid, post_exact, color="#E67E22", lw=2.5, label="Exact (grid)",
+        zorder=10)
+ax.fill_between(E_grid, post_exact, alpha=0.08, color="#E67E22")
+
+# MCMC
+ax.hist(chain_post, bins=50, density=True, color="#2C7FB8", alpha=0.35,
+        edgecolor="k", lw=0.3, label=f"MCMC ({n_steps - burnin} samples)",
+        zorder=5)
+
+# VI
+ax.plot(E_grid, vi_pdf, color="#2C7FB8", lw=2.5, ls="--",
+        label=f"VI: $\\mathcal{{N}}({vi_mean:.0f},\\, {vi_stdev:.0f}^2)$",
+        zorder=11)
+
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.6)
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Exact vs. MCMC vs. VI", fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.15)
+plt.tight_layout()
+plt.show()
+```
+
+The two methods produce consistent results, but notice the difference in what they return. MCMC gives a collection of samples --- useful for computing any summary statistic, but noisy. VI gives a smooth, parametric density --- easy to evaluate, store, and differentiate, but limited to the shapes the chosen family can represent.
+
+
+## When VI Struggles
+
+A Gaussian can approximate any unimodal, roughly symmetric posterior. But what if the posterior has two well-separated modes? @fig-bimodal shows a bimodal posterior: the best Gaussian has to compromise, placing mass in the gap between the modes where the true posterior has almost no density.
+
+```{python}
+#| echo: false
+#| fig-cap: "A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory."
+#| label: fig-bimodal
+
+bimodal_grid = np.linspace(-4, 6, 500)
+bimodal = 0.5 * norm.pdf(bimodal_grid, -1.5, 0.4) + 0.5 * norm.pdf(bimodal_grid, 1.5, 0.4)
+bimodal /= _grid_integrate(bimodal, bimodal_grid)
+
+bm_mean = _grid_integrate(bimodal_grid * bimodal, bimodal_grid)
+bm_var = _grid_integrate((bimodal_grid - bm_mean)**2 * bimodal, bimodal_grid)
+bm_std = np.sqrt(bm_var)
+gauss_approx = norm.pdf(bimodal_grid, bm_mean, bm_std)
+
+# Also show a mode-collapsed alternative
+mode_collapsed = norm.pdf(bimodal_grid, 1.5, 0.4)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+# Left: moment-matched
+ax1.plot(bimodal_grid, bimodal, color="#E67E22", lw=2.5, label="True posterior")
+ax1.fill_between(bimodal_grid, bimodal, alpha=0.12, color="#E67E22")
+ax1.plot(bimodal_grid, gauss_approx, color="#2C7FB8", lw=2.5, ls="--",
+         label=f"Best Gaussian (covers both)")
+ax1.fill_between(bimodal_grid, gauss_approx, alpha=0.08, color="#2C7FB8")
+ax1.set_xlabel(r"$\theta$", fontsize=12)
+ax1.set_ylabel("Density", fontsize=12)
+ax1.set_title("Option A: spread across both modes", fontsize=10)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.15)
+
+# Right: mode-collapsed
+ax2.plot(bimodal_grid, bimodal, color="#E67E22", lw=2.5, label="True posterior")
+ax2.fill_between(bimodal_grid, bimodal, alpha=0.12, color="#E67E22")
+ax2.plot(bimodal_grid, mode_collapsed, color="#8E44AD", lw=2.5, ls="--",
+         label="Alternative: lock onto one mode")
+ax2.fill_between(bimodal_grid, mode_collapsed, alpha=0.08, color="#8E44AD")
+ax2.set_xlabel(r"$\theta$", fontsize=12)
+ax2.set_ylabel("Density", fontsize=12)
+ax2.set_title("Option B: collapse onto one mode", fontsize=10)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.15)
+
+plt.tight_layout()
+plt.show()
+```
+
+Neither option is satisfactory. Option A places mass between the modes. Option B captures one mode but ignores the other entirely. In practice, VI with a unimodal Gaussian tends toward Option B --- it locks onto a single mode. This is not a failure of the optimizer; it is a fundamental limitation of the variational family. MCMC, by contrast, can explore both modes given enough time.
+
+::: {.callout-tip}
+## When does this matter in practice?
+Many engineering posteriors (including the beam problems in this tutorial series) are unimodal and approximately Gaussian, so this limitation rarely bites. Multimodality tends to arise with discrete model choices, symmetry-breaking, or wildly non-informative priors. If you suspect multimodality, MCMC is the safer choice.
+:::
+
+
+## What We Defer
+
+This tutorial showed **what** VI does --- find the best simple distribution --- but not **how** the optimizer measures "best" or computes gradients. The subsequent tutorials fill in the details:
+
+- [What Variational Inference Optimizes](vi_objective.qmd) derives the KL divergence and the ELBO --- the objective function that VI minimizes.
+- [Optimizing the ELBO](vi_optimization.qmd) introduces the reparameterization trick that makes gradient-based optimization possible.
+- [Choosing the Variational Family](vi_families.qmd) addresses the limitations we saw: families that capture correlations, handle bounded parameters, and scale to higher dimensions.
+- [Amortized Variational Inference](vi_amortized.qmd) shows how to learn a single model that maps any dataset to its approximate posterior.
+
+
+## Key Takeaways
+
+- **Variational inference** approximates the posterior by searching over a family of simple distributions and finding the closest one
+- The search is an **optimization problem**: adjust the distribution's parameters to improve the fit
+- For **unimodal, near-Gaussian** posteriors (like the beam problem), a Gaussian VI approximation recovers the posterior accurately
+- VI gives an **analytical density** (easy to evaluate and store), while MCMC gives **samples** (more flexible but noisier)
+- A unimodal variational family **cannot represent multimodal posteriors** --- this is the main limitation of standard VI
+
+
+## Exercises
+
+1. Change the true parameter to $E_{\text{true}} = 8{,}000$ (further from the prior mean). Does VI still recover the posterior? Compare to the grid posterior.
+
+2. Increase the noise standard deviation to $\sigma_{\text{noise}} = 2.0$ (5x larger). How does the VI result change? Is the posterior wider? Does VI or MCMC require more work?
+
+3. Initialize the variational mean at $\mu = 18{,}000$ (far from the true value). Does the optimizer still find the correct posterior?
+
+4. **(Challenge)** Replace the single Young's modulus with a composite beam using `CantileverBeam1DAnalytical` (2 moduli: $E_1, E_2$). Use a diagonal Gaussian for VI. Compare the 2D marginal posteriors from VI and MCMC. Where do they agree? Where do they disagree? (Hint: look at the correlation between $E_1$ and $E_2$.)
+
+
+## Next Steps
+
+Continue with:
+
+- [What Variational Inference Optimizes](vi_objective.qmd) --- The KL divergence, the evidence problem, and the ELBO

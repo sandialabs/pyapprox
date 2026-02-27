@@ -1,0 +1,416 @@
+---
+title: "What Variational Inference Optimizes"
+subtitle: "PyApprox Tutorial Library"
+description: "The KL divergence, the evidence problem, and the ELBO — the objective function behind VI."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 10
+render_time: 25
+prerequisites:
+  - vi_intro
+tags:
+  - uq
+  - beam
+  - variational-inference
+  - kl-divergence
+  - elbo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/vi_objective.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Interpret the KL divergence as a measure of mismatch between two distributions
+- Explain why the KL divergence cannot be computed directly for posterior inference
+- Derive the ELBO from the KL divergence using Bayes' theorem
+- Decompose the ELBO into its two competing terms and explain what each one does
+- Visualize the ELBO landscape and identify how it balances data fit against prior regularization
+
+
+## Prerequisites
+
+Complete [Approximating the Posterior: Introduction to Variational Inference](vi_intro.qmd) before this tutorial.
+
+
+## How Does VI Know Which Distribution Is Best?
+
+The [previous tutorial](vi_intro.qmd) showed the optimizer improving a Gaussian fit to the posterior, but treated the objective as a black box. This tutorial opens the box. The central question: given two candidate Gaussians, how do we score which one is closer to the true posterior?
+
+
+## Measuring Mismatch Visually
+
+Before writing any formulas, consider what "closeness" should mean. @fig-overlap-intuition shows three candidate Gaussians overlaid on the exact beam posterior. The shaded regions highlight where each candidate disagrees with the posterior: the candidate places mass where the posterior is low, or misses mass where the posterior is high.
+
+```{python}
+#| echo: false
+#| fig-cap: "Three Gaussian candidates and their mismatch with the exact posterior. Shaded pink regions show where candidate and posterior disagree. Left: shifted too far left — large mismatch on the right. Center: too wide — wastes mass in the tails. Right: well-fit — minimal mismatch."
+#| label: fig-overlap-intuition
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+from pyapprox.surrogates.affine.univariate.piecewisepoly import PiecewiseLinear
+from pyapprox.util.backends.numpy import NumpyBkd
+
+_bkd = NumpyBkd()
+
+
+def _grid_integrate(values, grid):
+    """Integrate values on a 1D grid using piecewise-linear (trapezoid) quadrature."""
+    pw = PiecewiseLinear(_bkd.asarray(grid), _bkd)
+    _, weights = pw.quadrature_rule()
+    return float(_bkd.sum(_bkd.asarray(values) * weights))
+
+
+# Exact posterior for the analytical beam (matching vi_intro setup)
+from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+    HomogeneousBeam1DAnalytical,
+)
+from pyapprox.probability.likelihood import (
+    DiagonalGaussianLogLikelihood,
+    ModelBasedLogLikelihood,
+)
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.affine.univariate import (
+    HermitePolynomial1D,
+    GaussQuadratureRule,
+)
+
+bkd = _bkd
+
+# Beam parameters (matching vi_intro / bayesian_inference_intro)
+L, H, q0 = 100.0, 30.0, 10.0
+beam_model = HomogeneousBeam1DAnalytical(length=L, height=H, q0=q0, bkd=bkd)
+
+mu_prior = 12_000
+sigma_prior = 2_000
+prior = GaussianMarginal(mean=mu_prior, stdev=sigma_prior, bkd=bkd)
+
+tip_model = FunctionFromCallable(
+    nqoi=1, nvars=1,
+    fun=lambda E: beam_model(E)[0:1, :],
+    bkd=bkd,
+)
+
+# True parameter and synthetic observation (matching vi_intro)
+E_true = 10_000
+sigma_noise = 0.4
+noise_variances = bkd.asarray([sigma_noise**2])
+noise_likelihood = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+model_likelihood = ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)
+
+np.random.seed(42)
+y_obs = float(model_likelihood.rvs(bkd.asarray([[E_true]]))[0, 0])
+noise_likelihood.set_observations(bkd.asarray([[y_obs]]))
+
+# Exact posterior moments via Gauss-Hermite quadrature
+hermite_poly = HermitePolynomial1D(_bkd)
+hermite_rule = GaussQuadratureRule(hermite_poly)
+nquad = 100
+quad_pts, quad_wts = hermite_rule(nquad)
+zq = bkd.to_numpy(quad_pts[0])
+wq = bkd.to_numpy(quad_wts[:, 0])
+Eq = mu_prior + sigma_prior * zq
+
+tip_preds_q = bkd.to_numpy(tip_model(bkd.asarray(Eq[np.newaxis, :])))[0, :]
+lik_vals_q = norm.pdf(y_obs, tip_preds_q, sigma_noise)
+
+Z = wq @ lik_vals_q
+exact_mean = (wq @ (Eq * lik_vals_q)) / Z
+exact_var = (wq @ ((Eq - exact_mean)**2 * lik_vals_q)) / Z
+exact_std = np.sqrt(exact_var)
+
+# Dense grid for plotting
+E_grid = np.linspace(4_000, 20_000, 500)
+prior_vals = norm.pdf(E_grid, mu_prior, sigma_prior)
+tip_preds = bkd.to_numpy(tip_model(bkd.asarray(E_grid[np.newaxis, :])))[0, :]
+lik_vals = norm.pdf(y_obs, tip_preds, sigma_noise)
+post_exact = lik_vals * prior_vals
+post_exact = post_exact / _grid_integrate(post_exact, E_grid)
+
+# --- Figure: mismatch ---
+candidates = [
+    (8_000, 1_000, "Shifted left"),
+    (exact_mean, 3_500, "Too wide"),
+    (exact_mean, exact_std, "Well-fit"),
+]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+
+for ax, (mu, sig, title) in zip(axes, candidates):
+    q = norm.pdf(E_grid, mu, sig)
+
+    ax.plot(E_grid, post_exact, color="#E67E22", lw=2.5,
+            label="Exact posterior")
+    ax.plot(E_grid, q, color="#2C7FB8", lw=2, ls="--",
+            label=f"$q$: $\\mu={mu:.0f},\\; \\sigma={sig:.0f}$")
+
+    mismatch = np.abs(q - post_exact)
+    ax.fill_between(E_grid, 0, mismatch, alpha=0.25, color="#C0392B",
+                    label="Mismatch")
+
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    ax.set_xlabel(r"$E$", fontsize=11)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(True, alpha=0.15)
+
+axes[0].set_ylabel("Density", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+A good approximation places mass where the posterior has mass, and avoids placing mass where it does not. We need a single number that captures this.
+
+
+## The KL Divergence
+
+The standard measure of mismatch in VI is the **Kullback-Leibler (KL) divergence**:
+
+$$
+\mathrm{KL}\!\big(q(\theta) \,\|\, p(\theta \mid y)\big) = \int q(\theta) \log \frac{q(\theta)}{p(\theta \mid y)} \, d\theta
+$$
+
+Three properties make this a natural choice:
+
+- It is always $\geq 0$.
+- It equals zero only when $q$ and $p$ match exactly.
+- It penalizes $q$ for placing mass where $p(\theta \mid y)$ is small --- exactly the pink-shaded mismatch in @fig-overlap-intuition.
+
+To make this concrete, @fig-kl-landscape evaluates the KL divergence for every possible Gaussian $q_{\mu, \sigma}$ on the 1D beam problem. The result is a surface over $(\mu, \sigma)$, and VI is searching for its minimum.
+
+```{python}
+#| echo: false
+#| fig-cap: "The KL divergence between $q = \\mathcal{N}(\\mu, \\sigma^2)$ and the exact beam posterior, evaluated over a grid of $(\\mu, \\sigma)$. Dark red means high mismatch; dark blue means low. The white star marks the minimum — the best Gaussian approximation. Labeled circles show candidates: poorly-fit candidates sit high on the surface; the best sits at the bottom."
+#| label: fig-kl-landscape
+
+# Compute KL(q || p) over a grid of (mu, sigma)
+mu_range = np.linspace(6_000, 16_000, 120)
+sig_range = np.linspace(300, 4_000, 100)
+mu_mesh, sig_mesh = np.meshgrid(mu_range, sig_range)
+kl_surface = np.full_like(mu_mesh, np.nan)
+
+for i in range(len(sig_range)):
+    for j in range(len(mu_range)):
+        q_vals = norm.pdf(E_grid, mu_mesh[i, j], sig_mesh[i, j])
+        q_safe = np.clip(q_vals, 1e-30, None)
+        p_safe = np.clip(post_exact, 1e-30, None)
+        integrand = q_safe * (np.log(q_safe) - np.log(p_safe))
+        kl_surface[i, j] = _grid_integrate(integrand, E_grid)
+
+kl_surface = np.clip(kl_surface, 0, 8)
+
+fig, ax = plt.subplots(figsize=(9, 6))
+cf = ax.contourf(mu_mesh, sig_mesh, kl_surface, levels=25, cmap="YlOrRd")
+ax.contour(mu_mesh, sig_mesh, kl_surface, levels=12, colors="k",
+           linewidths=0.3, alpha=0.3)
+cbar = fig.colorbar(cf, ax=ax, shrink=0.85, label="KL divergence")
+
+# Mark the minimum
+min_idx = np.unravel_index(np.nanargmin(kl_surface), kl_surface.shape)
+ax.plot(mu_mesh[min_idx], sig_mesh[min_idx], "*", ms=18,
+        color="white", markeredgecolor="k", markeredgewidth=1.5,
+        zorder=10, label="Optimum")
+
+# Mark candidates
+cand_pts = [
+    (8_000, 2_000, "Too far left"),
+    (10_500, 500, "Too narrow"),
+    (10_000, 4_000, "Too wide"),
+    (14_000, 1_500, "Shifted right"),
+]
+for mu_c, sig_c, lbl in cand_pts:
+    ax.plot(mu_c, sig_c, "o", ms=8, color="#2C7FB8",
+            markeredgecolor="k", markeredgewidth=1, zorder=9)
+    ax.annotate(lbl, (mu_c, sig_c), textcoords="offset points",
+                xytext=(8, 6), fontsize=8, color="#2C7FB8",
+                fontweight="bold")
+
+ax.set_xlabel(r"$\mu$", fontsize=12)
+ax.set_ylabel(r"$\sigma$", fontsize=12)
+ax.set_title("KL divergence landscape: which Gaussian is closest?",
+             fontsize=11)
+ax.legend(fontsize=10, loc="upper right")
+plt.tight_layout()
+plt.show()
+```
+
+The poorly-fit candidates sit high on the KL surface. The optimal Gaussian sits at the bottom. VI's optimizer descends this surface to find the minimum.
+
+::: {.callout-important}
+## The KL divergence is not symmetric
+$\mathrm{KL}(q \| p) \neq \mathrm{KL}(p \| q)$ in general. VI uses $\mathrm{KL}(q \| p)$, which penalizes $q$ for placing mass where $p$ is small. This means VI with a unimodal $q$ tends to **concentrate on a single mode** of the posterior rather than spreading across all modes --- the "mode-seeking" behavior we saw in Tutorial 1's bimodal example.
+:::
+
+
+## The Evidence Problem
+
+There is an immediate obstacle to minimizing the KL divergence. The posterior $p(\theta \mid y)$ in the formula involves the **evidence** (also called the marginal likelihood):
+
+$$
+p(\theta \mid y) = \frac{\mathcal{L}(\theta)\, p(\theta)}{p(y)}, \qquad p(y) = \int \mathcal{L}(\theta)\, p(\theta) \, d\theta
+$$
+
+This integral is exactly the quantity that makes Bayesian inference hard in the first place. If we could compute $p(y)$, we would already have the posterior and would not need VI. We need a way to optimize the KL divergence *without* computing $p(y)$.
+
+
+## The ELBO
+
+The solution is an algebraic trick. Substitute $p(\theta \mid y) = \mathcal{L}(\theta) p(\theta) / p(y)$ into the KL divergence and rearrange:
+
+$$
+\mathrm{KL}(q \| p) = -\left[\mathbb{E}_{q}\!\big[\log \mathcal{L}(\theta)\big] - \mathrm{KL}\!\big(q(\theta) \,\|\, p(\theta)\big)\right] + \log p(y)
+$$
+
+The evidence $\log p(y)$ is a constant with respect to $q$ --- it does not depend on our choice of approximation. So minimizing the KL divergence is equivalent to **maximizing the expression in brackets**, which is called the **Evidence Lower Bound (ELBO)**:
+
+$$
+\text{ELBO}(q) = \underbrace{\mathbb{E}_{q}\!\big[\log \mathcal{L}(\theta)\big]}_{\text{fit the data}} - \underbrace{\mathrm{KL}\!\big(q(\theta) \,\|\, p(\theta)\big)}_{\text{stay close to prior}}
+$$ {#eq-elbo}
+
+
+## Two Competing Terms
+
+The ELBO has two terms that pull in opposite directions:
+
+- The **expected log-likelihood** pushes $q$ toward regions where the model predictions match the observations. On its own, this would collapse $q$ onto the maximum likelihood estimate.
+- The **KL from prior** penalizes $q$ for straying from the prior. On its own, this would keep $q$ equal to the prior regardless of the data.
+
+The ELBO balances these forces --- just as Bayes' theorem balances the likelihood and the prior. @fig-elbo-two-terms shows each term separately, and their combination, as a function of the variational mean $\mu$.
+
+```{python}
+#| echo: false
+#| fig-cap: "The two terms of the ELBO, evaluated as functions of $\\mu$ (with $\\sigma$ fixed at the optimal value). Left: the expected log-likelihood peaks near the data-consistent region. Center: the KL penalty from the prior is a bowl centered at the prior mean ($\\mu = 12{,}000$). Right: the negative ELBO (their combination) has a single minimum between the prior mean and the MLE — exactly where the posterior sits."
+#| label: fig-elbo-two-terms
+
+import math
+
+# Compute each ELBO term as a function of mu (sigma fixed at optimal)
+# Work in standardized space z = (E - mu_prior) / sigma_prior
+sigma_z_fixed = exact_std / sigma_prior  # optimal z-sigma
+mu_E_scan = np.linspace(6_000, 16_000, 200)
+mu_z_scan = (mu_E_scan - mu_prior) / sigma_prior  # standardized
+
+np.random.seed(42)
+n_mc = 5000
+eps_mc = np.random.normal(0, 1, n_mc)
+
+ell_term = np.empty_like(mu_z_scan)
+kl_prior_term = np.empty_like(mu_z_scan)
+
+for i, mu_z_i in enumerate(mu_z_scan):
+    # Samples in standardized space
+    z_samples = mu_z_i + sigma_z_fixed * eps_mc
+    # Transform to physical E space for model evaluation
+    E_samples = mu_prior + sigma_prior * z_samples
+    tip_at_samples = bkd.to_numpy(
+        tip_model(bkd.asarray(E_samples[np.newaxis, :]))
+    )[0, :]
+    log_lik_samples = -0.5 * ((y_obs - tip_at_samples) / sigma_noise)**2
+    ell_term[i] = np.mean(log_lik_samples)
+
+    # KL(N(mu_z, sigma_z^2) || N(0, 1)) -- closed form
+    kl_prior_term[i] = 0.5 * (sigma_z_fixed**2 + mu_z_i**2 - 1.0
+                               - 2.0 * np.log(sigma_z_fixed))
+
+neg_elbo_scan = -ell_term + kl_prior_term
+
+mu_mle_E = mu_E_scan[np.argmax(ell_term)]
+mu_elbo_opt_E = mu_E_scan[np.argmin(neg_elbo_scan)]
+
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
+
+# Expected log-likelihood
+ax1.plot(mu_E_scan, ell_term, color="#C0392B", lw=2.5)
+ax1.axvline(mu_mle_E, color="#C0392B", ls=":", lw=1.5, alpha=0.6)
+ax1.set_xlabel(r"$\mu$", fontsize=12)
+ax1.set_ylabel("Expected log-likelihood", fontsize=11)
+ax1.set_title(r"$\mathbb{E}_q[\log \mathcal{L}(\theta)]$ — fit the data",
+              fontsize=10)
+ax1.grid(True, alpha=0.15)
+
+# KL from prior
+ax2.plot(mu_E_scan, kl_prior_term, color="#2C7FB8", lw=2.5)
+ax2.axvline(mu_prior, color="#2C7FB8", ls=":", lw=1.5, alpha=0.6,
+            label=f"Prior mean ({mu_prior:,})")
+ax2.set_xlabel(r"$\mu$", fontsize=12)
+ax2.set_ylabel("KL from prior", fontsize=11)
+ax2.set_title(r"$\mathrm{KL}(q \,\|\, p(\theta))$ — stay close to prior",
+              fontsize=10)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.15)
+
+# Negative ELBO
+ax3.plot(mu_E_scan, neg_elbo_scan, color="#8E44AD", lw=2.5)
+ax3.axvline(mu_prior, color="#2C7FB8", ls=":", lw=1, alpha=0.4,
+            label=f"Prior mean ({mu_prior:,})")
+ax3.axvline(mu_mle_E, color="#C0392B", ls=":", lw=1, alpha=0.4,
+            label="MLE")
+ax3.axvline(mu_elbo_opt_E, color="#8E44AD", ls="--", lw=2, alpha=0.8,
+            label="ELBO optimum")
+ax3.scatter(mu_elbo_opt_E, neg_elbo_scan[np.argmin(neg_elbo_scan)],
+            s=100, color="#8E44AD", edgecolors="k", lw=1.5, zorder=5)
+ax3.set_xlabel(r"$\mu$", fontsize=12)
+ax3.set_ylabel("Negative ELBO", fontsize=11)
+ax3.set_title("$-$ELBO — the objective VI minimizes", fontsize=10)
+ax3.legend(fontsize=9)
+ax3.grid(True, alpha=0.15)
+
+plt.tight_layout()
+plt.show()
+```
+
+The ELBO optimum sits between the prior mean and the MLE --- right where we expect the posterior to be. This is not a coincidence: the ELBO is a direct expression of the same prior-versus-data compromise that defines the posterior.
+
+::: {.callout-note}
+## Why "Evidence Lower Bound"?
+Since $\mathrm{KL}(q \| p) \geq 0$, the rearrangement gives $\text{ELBO}(q) \leq \log p(y)$ for any $q$. The ELBO is a lower bound on the log-evidence, and the bound is tight when $q$ equals the true posterior.
+:::
+
+
+## What We Defer
+
+This tutorial derived the objective that VI optimizes. But we have not yet addressed *how* to compute gradients of the ELBO --- the expected log-likelihood involves an integral over $q$, which itself depends on the parameters we are tuning. The [next tutorial](vi_optimization.qmd) introduces the **reparameterization trick** that makes this possible, and shows the optimization in action.
+
+
+## Key Takeaways
+
+- The **KL divergence** measures how well $q$ approximates the posterior: it penalizes $q$ for placing mass where the posterior is low
+- The KL divergence **cannot be computed directly** because it involves the intractable evidence $p(y)$
+- The **ELBO** sidesteps this: maximizing the ELBO is equivalent to minimizing the KL divergence, and the ELBO only requires the likelihood and the prior
+- The ELBO is a sum of two competing terms: **fit the data** (expected log-likelihood) and **stay close to the prior** (KL penalty)
+- The ELBO's minimum balances these forces in the same way that the posterior balances the likelihood and the prior
+
+
+## Exercises
+
+1. In @fig-kl-landscape, the KL surface appears to have a single minimum. Why must this be the case when the posterior is unimodal and the variational family is Gaussian? *Hint:* think about when $\mathrm{KL}(q \| p) = 0$.
+
+2. In @fig-elbo-two-terms, increase the noise standard deviation to $5 \times$ its current value (making the data less informative). How does the expected log-likelihood curve change? Does the ELBO optimum move closer to the prior mean or the MLE?
+
+3. Decrease the prior standard deviation to $500$ (a very informative prior). How does the KL-from-prior term change? What happens to the ELBO optimum when the prior is much more confident than the data?
+
+4. **(Challenge)** For the special case where both the prior and the likelihood are Gaussian (so the true posterior is also Gaussian), derive the ELBO in closed form as a function of $(\mu, \sigma)$ using the known expression for the KL divergence between two Gaussians. Verify that the optimal $(\mu, \sigma)$ match the exact posterior parameters.
+
+
+## Next Steps
+
+Continue with:
+
+- [Optimizing the ELBO](vi_optimization.qmd) --- The reparameterization trick, convergence monitoring, and practical VI
