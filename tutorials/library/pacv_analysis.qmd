@@ -6,7 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: advanced
 estimated_time: 20
-render_time: 446
+render_time: 77
 prerequisites:
   - pacv_concept
   - acv_many_models_analysis
@@ -125,10 +125,12 @@ from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.acv import GMFEstimator, GRDEstimator, GISEstimator
 from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.statest.acv.allocation import ACVAllocator, default_allocator_factory
 from pyapprox.statest.acv.strategies import (
     FixedRecursionStrategy, TreeDepthRecursionStrategy,
 )
 from pyapprox.statest.plotting import plot_allocation
+from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 
 bkd = NumpyBkd()
 np.random.seed(1)
@@ -141,6 +143,16 @@ nqoi      = benchmark.models()[0].nqoi()
 stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(cov)
 
+# Use SLSQP-only allocator for fast search (no DE global search needed for
+# this small problem with M=3 LF models)
+_slsqp = ScipySLSQPOptimizer(maxiter=200)
+def fast_allocator(est):
+    """Route analytical cases to closed-form, others to SLSQP."""
+    alloc = default_allocator_factory(est)
+    if isinstance(alloc, ACVAllocator):
+        return ACVAllocator(est, optimizer=_slsqp)
+    return alloc
+
 # MFMC (chain) and ACVMF (star) as GMF estimators
 ri_chain = (0, 1, 2)   # M=3 LF models
 ri_star  = (0, 0, 0)
@@ -152,7 +164,8 @@ for ax, ri, title in zip(
     [r"GMF with $\boldsymbol{\gamma}=[0,1,2]$ (= MFMC)",
      r"GMF with $\boldsymbol{\gamma}=[0,0,0]$ (= ACVMF)"],
 ):
-    search = ACVSearch(stat, costs, recursion_strategy=FixedRecursionStrategy(ri))
+    search = ACVSearch(stat, costs, recursion_strategy=FixedRecursionStrategy(ri),
+                       allocator_factory=fast_allocator)
     try:
         result = search.search(500.0)
         plot_allocation(result.estimator, ax, show_partition_sizes=True)
@@ -187,6 +200,7 @@ search_grd = ACVSearch(
     stat, costs,
     estimator_classes=[GRDEstimator],
     recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
+    allocator_factory=fast_allocator,
 )
 result_grd = search_grd.search(500.0, allow_failures=True)
 
@@ -237,6 +251,7 @@ search_gis = ACVSearch(
     stat, costs,
     estimator_classes=[GISEstimator],
     recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
+    allocator_factory=fast_allocator,
 )
 result_gis = search_gis.search(500.0, allow_failures=True)
 
@@ -325,7 +340,6 @@ for every valid recursion index at a fixed budget.
 #| fig-cap: "Predicted variance (relative to MC) for every valid recursion index across all three PACV families on the four-model polynomial benchmark at $P = 500$. The best overall estimator is highlighted. Families differ by their base allocation structure; the recursion index shifts the optimum within each family."
 #| label: fig-cross-family
 
-fam_classes = {"gmf": GMFEstimator, "grd": GRDEstimator, "gis": GISEstimator}
 fam_cols    = {"gmf": "#8E44AD", "grd": "#2C7FB8", "gis": "#27AE60"}
 fam_names   = {"gmf": "GMF", "grd": "GRD", "gis": "GIS"}
 
@@ -333,17 +347,19 @@ mc_est = MCEstimator(stat, costs[:1])
 mc_est.allocate_samples(500.0)
 mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
 
-# Search each family independently to track per-index variances
-rec_strategy = TreeDepthRecursionStrategy(max_depth=nmodels - 1)
+# GMF search (GRD and GIS reuse result_grd, result_gis from above)
+search_gmf = ACVSearch(
+    stat, costs,
+    estimator_classes=[GMFEstimator],
+    recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
+    allocator_factory=fast_allocator,
+)
+result_gmf = search_gmf.search(500.0, allow_failures=True)
+
+# Extract per-index variances from each family's cached results
 results = {}
 ri_list = None
-for fam, cls in fam_classes.items():
-    search_fam = ACVSearch(
-        stat, costs,
-        estimator_classes=[cls],
-        recursion_strategy=rec_strategy,
-    )
-    result_fam = search_fam.search(500.0, allow_failures=True)
+for fam, result_fam in [("gmf", result_gmf), ("grd", result_grd), ("gis", result_gis)]:
     fam_vars = []
     fam_ri = []
     for est, alloc in result_fam.all_allocations:
@@ -363,16 +379,16 @@ x     = np.arange(len(ri_list))
 width = 0.28
 fig, ax = plt.subplots(figsize=(11, 5))
 offsets = [-1, 0, 1]
-for offset, fam in zip(offsets, fam_classes):
+for offset, fam in zip(offsets, fam_names):
     vals = results[fam]
     ax.bar(x + offset * width, vals, width * 0.92, color=fam_cols[fam],
            alpha=0.85, edgecolor="k", lw=0.4, label=fam_names[fam])
 
 # Mark the global best
 all_vals = [(v, fam, i)
-            for fam in fam_classes for i, v in enumerate(results[fam])]
+            for fam in fam_names for i, v in enumerate(results[fam])]
 best_v, best_fam, best_i = min(all_vals)
-best_offset = offsets[list(fam_classes).index(best_fam)]
+best_offset = offsets[list(fam_names).index(best_fam)]
 ax.scatter(best_i + best_offset * width, best_v,
            s=140, marker="*", color="gold", edgecolors="k", lw=0.8,
            zorder=5, label=f"Best: {fam_names[best_fam]} γ={list(ri_list[best_i])}")
@@ -446,9 +462,9 @@ matrices, rather than considering only the four classical designs.
 
 ## References
 
-- [BLWLJCP2022] D. Schaden, E. Ullmann. *On the optimization of approximate control
-  variates with parametrically defined estimators.* Journal of Computational Physics,
-  451:110882, 2022.
+- [BLWLJCP2022] G.F. Bomarito, P.E. Leser, J.E. Warner, W.P. Leser. *On the optimization
+  of approximate control variates with parametrically defined estimators.* Journal of
+  Computational Physics, 451:110882, 2022.
   [DOI](https://doi.org/10.1016/j.jcp.2021.110882)
 
 - [GGEJJCP2020] A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized

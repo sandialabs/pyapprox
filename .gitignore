@@ -17,6 +17,7 @@ __pycache__/
 pyapprox/cython/*.pyd
 pyapprox/cython/*.c
 .vscode/
+.venv*/
 
 # Hatch-vcs generated version file
 pyapprox/_version.py

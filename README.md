@@ -1,15 +1,13 @@
 [![Tests](https://github.com/sandialabs/pyapprox/actions/workflows/tests.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/tests.yml)
 [![Lint](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 # PyApprox
 
-## Documentation
-
-Online documentation can be found at [PyApprox](https://sandialabs.github.io/pyapprox/).
-
-## Description
-
 PyApprox provides flexible and efficient tools for high-dimensional approximation, uncertainty quantification, and decision-making under uncertainty. It implements methods addressing various issues surrounding high-dimensional parameter spaces and limited evaluations of expensive simulation models, with the goal of facilitating simulation-aided knowledge discovery, prediction, and design.
+
+**[Documentation](https://sandialabs.github.io/pyapprox/)** | **[Tutorials](https://sandialabs.github.io/pyapprox/)** | **[Paper](https://doi.org/10.1016/j.envsoft.2023.105825)**
 
 Tools are provided for:
 
@@ -23,6 +21,49 @@ Tools are provided for:
 8. **Optimization** — implicit function differentiation, adjoint methods, and design under uncertainty
 
 All code is fully typed, supports dual backends (NumPy and PyTorch), and preserves PyTorch autograd computation graphs for automatic differentiation.
+
+## Quick Start
+
+```python
+import numpy as np
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
+from pyapprox.probability import UniformMarginal, IndependentJoint
+from pyapprox.surrogates.sparsegrids import create_basis_factories
+from pyapprox.surrogates.sparsegrids.isotropic_fitter import IsotropicSparseGridFitter
+from pyapprox.surrogates.sparsegrids.subspace_factory import TensorProductSubspaceFactory
+from pyapprox.surrogates.affine.indices import LinearGrowthRule
+
+bkd = NumpyBkd()
+
+# Define a 2D function using the FunctionProtocol
+def target(samples):
+    x, y = samples[0], samples[1]
+    return bkd.reshape(x**3 + x*y + y**2, (1, -1))
+
+func = FunctionFromCallable(1, 2, target, bkd)
+
+# Build a sparse grid surrogate
+marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+joint = IndependentJoint(marginals, bkd)
+factories = create_basis_factories(joint.marginals(), bkd, "gauss")
+growth = LinearGrowthRule(scale=1, shift=1)
+tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=3)
+samples = fitter.get_samples()
+result = fitter.fit(func(samples))
+surrogate = result.surrogate
+
+# Evaluate surrogate at new points
+test_pts = joint.rvs(100)
+approx_values = surrogate(test_pts)
+```
+
+## Requirements
+
+- Python >= 3.10
+- NumPy >= 2.0, SciPy >= 1.11, PyTorch >= 2.5
+- matplotlib, sympy, networkx
 
 ## Installation
 
@@ -79,6 +120,69 @@ PYAPPROX_RUN_SLOW=1 pytest pyapprox -v --tb=short -m slow       # only @slow_tes
 PYAPPROX_RUN_SLOWER=1 pytest pyapprox -v --tb=short -m slower    # only @slower_test
 PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short -m slowest  # only @slowest_test
 ```
+
+To run tests in parallel (requires `pytest-xdist`):
+
+```bash
+pytest pyapprox -v --tb=short -n auto    # use all CPUs
+pytest pyapprox -v --tb=short -n 4       # use 4 workers
+```
+
+## Building Documentation
+
+The tutorial site is built with [Quarto](https://quarto.org/). Install it, then:
+
+```bash
+cd tutorials
+./build.sh                    # build with cached results (freeze)
+./build.sh --execute          # force re-execute all code
+./build.sh --no-execute       # skip execution, use cache only
+./build.sh -j auto            # parallel execution (auto-detect CPUs)
+./build.sh -j 4               # parallel execution with 4 workers
+./build.sh --notebooks        # also generate downloadable .ipynb files
+./build.sh --serve            # start local server after build
+./build.sh --skip=pacv_usage  # skip a specific tutorial
+```
+
+Output is written to `tutorials/library/_site/`.
+
+## Linting
+
+```bash
+ruff check pyapprox/          # style and import checks
+mypy pyapprox/                # static type checking
+```
+
+## Contributing
+
+Contributions are welcome. Please:
+
+1. Fork the repository and create a feature branch
+2. Ensure all tests pass (including slow): `PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short`
+3. Ensure no lint errors: `ruff check pyapprox/`
+4. Submit a pull request
+
+## Citation
+
+If you use PyApprox in your research, please cite:
+
+```bibtex
+@article{JAKEMAN2023105825,
+  title = {PyApprox: A software package for sensitivity analysis, Bayesian inference,
+           optimal experimental design, and multi-fidelity uncertainty quantification
+           and surrogate modeling},
+  author = {J.D. Jakeman},
+  journal = {Environmental Modelling \& Software},
+  volume = {170},
+  pages = {105825},
+  year = {2023},
+  doi = {10.1016/j.envsoft.2023.105825}
+}
+```
+
+## License
+
+PyApprox is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgements
 

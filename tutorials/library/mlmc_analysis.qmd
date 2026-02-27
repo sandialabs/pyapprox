@@ -6,7 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 20
-render_time: 87
+render_time: 76
 prerequisites:
   - mlmc_concept
   - acv_analysis
@@ -290,14 +290,9 @@ MLMC-OPT — can outperform standard MLMC.
 #| label: fig-mlmc-vs-opt
 
 from pyapprox.statest import GRDEstimator
-from pyapprox.optimization.minimize.scipy.direct import (
-    ScipyDirectOptimizer,
-)
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
-from pyapprox.optimization.minimize.chained.chained_optimizer import (
-    ChainedOptimizer,
+from pyapprox.statest.acv.allocation import ACVAllocator
+from pyapprox.optimization.minimize.scipy.slsqp import (
+    ScipySLSQPOptimizer,
 )
 
 stat_true = MultiOutputMean(nqoi, bkd)
@@ -308,14 +303,11 @@ mlmc_est = MLMCEstimator(stat_true, bkd.asarray(costs))
 mlmc_est.allocate_samples(P_cmp)
 mlmc_var = float(mlmc_est.optimized_covariance()[0, 0])
 
-acv_optimizer = ChainedOptimizer(
-    ScipyDirectOptimizer(raise_on_failure=False),
-    ScipyTrustConstrOptimizer(maxiter=5000),
-)
+acv_optimizer = ScipySLSQPOptimizer(maxiter=200)
 ri_mlmc = bkd.asarray(np.arange(M), dtype=int)  # [0, 1, 2, 3]
 acv_est = GRDEstimator(stat_true, bkd.asarray(costs), recursion_index=ri_mlmc)
-acv_est.set_optimizer(acv_optimizer)
-acv_est.allocate_samples(P_cmp)
+acv_allocator = ACVAllocator(acv_est, optimizer=acv_optimizer)
+acv_est.set_allocation(acv_allocator.allocate(P_cmp))
 acv_var = float(acv_est.optimized_covariance()[0, 0])
 
 mc_stat_cmp = MultiOutputMean(nqoi, bkd)

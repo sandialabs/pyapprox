@@ -6,7 +6,7 @@ tutorial_type: concept
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 7
-render_time: 74
+render_time: 22
 prerequisites:
   - acv_many_models_concept
 tags:
@@ -289,7 +289,9 @@ from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.acv import GMFEstimator
 from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.statest.acv.allocation import ACVAllocator, default_allocator_factory
 from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 
 bkd = NumpyBkd()
 np.random.seed(1)
@@ -307,10 +309,18 @@ mc_est = MCEstimator(stat, costs[:1])
 mc_est.allocate_samples(100.0)
 mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
 
+_slsqp = ScipySLSQPOptimizer(maxiter=200)
+def _fast_allocator(est):
+    alloc = default_allocator_factory(est)
+    if isinstance(alloc, ACVAllocator):
+        return ACVAllocator(est, optimizer=_slsqp)
+    return alloc
+
 # Enumerate all GMF recursion indices via ACVSearch
 search = ACVSearch(
     stat, costs,
     recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
+    allocator_factory=_fast_allocator,
 )
 result = search.search(100.0, allow_failures=True)
 

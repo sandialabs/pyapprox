@@ -27,7 +27,7 @@ jobs:
           pip install ipykernel
           python -m ipykernel install --user
       - name: Render tutorials
-        run: cd tutorials/library && quarto render
+        run: cd tutorials && ./build.sh -j auto
       - name: Deploy to GitHub Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4

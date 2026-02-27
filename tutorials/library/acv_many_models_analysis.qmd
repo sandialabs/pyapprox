@@ -6,7 +6,7 @@ tutorial_type: analysis
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 20
-render_time: 264
+render_time: 196
 prerequisites:
   - acv_many_models_concept
   - mfmc_analysis
@@ -241,14 +241,8 @@ from pyapprox.statest import (
 from pyapprox.statest.acv import (
     ACVAllocator, default_allocator_factory,
 )
-from pyapprox.optimization.minimize.scipy.diffevol import (
-    ScipyDifferentialEvolutionOptimizer,
-)
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
-)
-from pyapprox.optimization.minimize.chained.chained_optimizer import (
-    ChainedOptimizer,
 )
 
 bkd       = NumpyBkd()
@@ -265,10 +259,7 @@ stat.set_pilot_quantities(bkd.asarray(bkd.to_numpy(benchmark.ensemble_covariance
 target_cost = 100.0
 ri_zeros = bkd.zeros(M, dtype=int)
 
-optimizer = ChainedOptimizer(
-    ScipyDifferentialEvolutionOptimizer(maxiter=20, seed=42, raise_on_failure=False),
-    ScipySLSQPOptimizer(maxiter=100),
-)
+optimizer = ScipySLSQPOptimizer(maxiter=200)
 
 estimators = {
     "MLMC":  MLMCEstimator(stat, costs),
@@ -326,19 +317,17 @@ against empirical variance from independent trials, across several budgets. This
 the same pattern used in [MFMC Analysis](mfmc_analysis.qmd).
 
 ```{python}
-#| fig-cap: "MC, MFMC, and ACVMF variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms @eq-acv-min-cov for both estimator types."
+#| fig-cap: "MC, MFMC, and ACVMF variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 200 independent trials (markers). Close agreement confirms @eq-acv-min-cov for both estimator types."
 #| label: fig-variance-verify
 
 variable  = benchmark.prior()
-cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())
 
-stat_v = MultiOutputMean(nqoi, bkd)
-stat_v.set_pilot_quantities(bkd.asarray(cov_true))
-
-ri_zeros_v = bkd.zeros(M, dtype=int)
+# Reuse stat and optimizer from Cell 1; use SLSQP only (faster, DE unnecessary
+# for verification since we only need valid allocations, not globally optimal ones)
+opt_verify = ScipySLSQPOptimizer(maxiter=200)
 
 target_costs_sweep = [10, 100, 1000, 10000]
-n_trials = 500
+n_trials = 200
 
 mc_vars_pred, mfmc_vars_pred, acvmf_vars_pred = [], [], []
 mc_vars_emp, mfmc_vars_emp, acvmf_vars_emp = [], [], []
@@ -348,17 +337,17 @@ def rvs_int(n):
 
 for P_t in target_costs_sweep:
     # --- Predicted variance ---
-    mc_e = MCEstimator(stat_v, costs)
+    mc_e = MCEstimator(stat, costs)
     mc_e.allocate_samples(float(P_t))
     mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
 
-    mf_e = MFMCEstimator(stat_v, costs)
+    mf_e = MFMCEstimator(stat, costs)
     mf_allocator = default_allocator_factory(mf_e)
     mf_e.set_allocation(mf_allocator.allocate(float(P_t)))
     mfmc_vars_pred.append(float(mf_e.optimized_covariance()[0, 0]))
 
-    acv_e = GMFEstimator(stat_v, costs, recursion_index=ri_zeros_v)
-    acv_allocator = ACVAllocator(acv_e, optimizer=optimizer)
+    acv_e = GMFEstimator(stat, costs, recursion_index=ri_zeros)
+    acv_allocator = ACVAllocator(acv_e, optimizer=opt_verify)
     acv_e.set_allocation(acv_allocator.allocate(float(P_t)))
     acvmf_vars_pred.append(float(acv_e.optimized_covariance()[0, 0]))
 

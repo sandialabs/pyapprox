@@ -6,7 +6,7 @@ tutorial_type: usage
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 10
-render_time: 103
+render_time: 114
 prerequisites:
   - pacv_concept
   - acv_many_models_usage
@@ -128,20 +128,11 @@ search to provide the initial guess.
 from pyapprox.statest.acv.allocation import (
     ACVAllocator, default_allocator_factory,
 )
-from pyapprox.optimization.minimize.scipy.diffevol import (
-    ScipyDifferentialEvolutionOptimizer,
-)
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
-from pyapprox.optimization.minimize.chained.chained_optimizer import (
-    ChainedOptimizer,
-)
 
-_optimizer = ChainedOptimizer(
-    ScipyDifferentialEvolutionOptimizer(maxiter=3, raise_on_failure=False),
-    ScipySLSQPOptimizer(maxiter=100),
-)
+_optimizer = ScipySLSQPOptimizer(maxiter=200)
 
 def allocator_factory(estimator):
     """Use analytical/proxy allocators when available, else optimize with SLSQP."""
@@ -328,17 +319,17 @@ Allocate each estimator at a list of target budgets and compare predicted varian
 ::: {.callout-warning}
 ## Optimizer robustness artifacts
 
-The ACV allocation objective is **multimodal**: the differential-evolution
-global search (`maxiter=3`) provides an initial guess, and the local optimizer
-(SLSQP) refines it. With a limited DE budget the initial guess may land in the
-basin of a suboptimal local minimum. This can cause the variance--cost curves
-to deviate from the expected linear trend on a log-log scale — for example, an
-estimator may appear to have higher variance at a large budget than a linear
-extrapolation from smaller budgets would predict. The effect is most visible for
-ACVMF (star recursion index) where the allocation landscape has many local
-optima.  Increasing the DE population size or iteration count improves the
-global search at the cost of longer run times. Some recursion indices may also
-fail to converge entirely and are excluded from the search.
+The ACV allocation objective can be **multimodal** for some recursion indices.
+The SLSQP optimizer may converge to a local minimum rather than the global one.
+This can cause the variance--cost curves to deviate from the expected linear
+trend on a log-log scale — for example, an estimator may appear to have higher
+variance at a large budget than a linear extrapolation from smaller budgets
+would predict. The effect is most visible for ACVMF (star recursion index) where
+the allocation landscape has many local optima. For small problems (few models),
+SLSQP typically finds the global optimum; for larger problems, a global search
+(e.g. differential evolution) before the local refinement may be warranted.
+Some recursion indices may also fail to converge entirely and are excluded from
+the search.
 :::
 
 ```{python}

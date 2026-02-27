@@ -6,7 +6,7 @@ tutorial_type: usage
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 12
-render_time: 102
+render_time: 51
 prerequisites:
   - boed_kl_concept
   - boed_kl_usage
@@ -110,14 +110,14 @@ print(f"Total OED design dimension: {obs_model.nqoi()}")
 
 ```{python}
 #| echo: false
-#| fig-cap: "Lotka-Volterra ODE trajectories for 100 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."
+#| fig-cap: "Lotka-Volterra ODE trajectories for 30 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."
 #| label: fig-lv-trajectories
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=False)
 titles = ["State 1 (prey)", "State 2", "State 3 (predator)"]
 
 # 100 random trajectories
-for samp in prior.rvs(100).T:
+for samp in prior.rvs(30).T:
     sol = obs_model.solve_trajectory(samp[:, None])[0]
     for ii in range(3):
         axes[ii].plot(
@@ -176,7 +176,7 @@ data_gen = OEDDataGenerator(bkd)
 
 # Outer loop: joint samples from (theta, epsilon) — used to generate
 # synthetic observations y^(m) = f(theta^(m)) + epsilon^(m)
-nouter = 10_000
+nouter = 3_000
 noise_cov_diag = bkd.full((nobs,), noise_std**2)
 outerloop_samples, outerloop_weights = data_gen.setup_quadrature_data(
     quadrature_type="MC",

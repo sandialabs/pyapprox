@@ -6,7 +6,7 @@ tutorial_type: analysis
 topic: experimental_design
 difficulty: intermediate
 estimated_time: 10
-render_time: 189
+render_time: 132
 prerequisites:
   - boed_kl_concept
   - boed_kl_usage
@@ -133,12 +133,12 @@ def solve_oed(M, seed):
 
 ## Design Variability at Fixed Budget
 
-We solve the OED problem three times at $M = 2{,}000$ with different random
+We solve the OED problem three times at $M = 1{,}000$ with different random
 seeds. At this moderate budget the EIG estimate is noisy, so the optimal
 designs should differ visibly between runs.
 
 ```{python}
-M_fixed = 2000
+M_fixed = 1000
 n_seeds = 3
 
 designs_fixed = []
@@ -152,7 +152,7 @@ for seed in range(n_seeds):
 
 ```{python}
 #| echo: false
-#| fig-cap: "Optimal design weights from 3 independent MC realizations at M=2,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."
+#| fig-cap: "Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."
 #| label: fig-variability
 
 state_labels = ["State 1 (prey)", "State 3 (predator)"]
@@ -200,11 +200,14 @@ your design is trustworthy.
 :::
 
 ```{python}
-budgets = [2000, 5000, 10000]
+budgets = [1000, 2000, 4000]
 n_seeds = 3
 
-all_designs = {}
+# Reuse M=1000 results from fixed-budget cell above
+all_designs = {M_fixed: designs_fixed}
 for M in budgets:
+    if M in all_designs:
+        continue
     designs_at_M = []
     for seed in range(n_seeds):
         w, e = solve_oed(M, seed=seed * 1000)
@@ -215,7 +218,7 @@ for M in budgets:
 
 ```{python}
 #| echo: false
-#| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=2,000 the designs scatter visibly. By M=10,000 the curves nearly overlap, confirming that the design has stabilized."
+#| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized."
 #| label: fig-design-convergence
 
 fig, axes = plt.subplots(len(budgets), 2, figsize=(13, 3.0 * len(budgets)),

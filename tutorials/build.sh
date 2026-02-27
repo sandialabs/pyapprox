@@ -9,6 +9,8 @@
 # Options:
 #   --no-execute    Skip code execution (use cached results)
 #   --execute       Force re-execute all code
+#   -j N            Parallel execution: render N tutorials concurrently (default: 1)
+#                   Use -j auto to detect CPU count automatically
 #   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
 #   --skip=NAME     Skip rendering a tutorial (e.g. --skip=pacv_usage)
@@ -31,6 +33,7 @@ NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
 SERVE=""
+NJOBS=1
 SKIP_FILES=()
 
 for arg in "$@"; do
@@ -40,6 +43,12 @@ for arg in "$@"; do
             ;;
         --execute)
             FORCE_EXECUTE="--execute"
+            ;;
+        -j)
+            # Next arg is the job count; handled below
+            ;;
+        -j[0-9a-z]*)
+            NJOBS="${arg#-j}"
             ;;
         --notebooks)
             GEN_NOTEBOOKS="yes"
@@ -51,14 +60,20 @@ for arg in "$@"; do
             SKIP_FILES+=("${arg#--skip=}")
             ;;
         --help)
-            head -17 "$0" | tail -16
+            head -18 "$0" | tail -17
             exit 0
             ;;
         *)
-            echo "Unknown option: $arg"
-            exit 1
+            # Handle "-j N" as two separate args
+            if [ "$prev_arg" = "-j" ]; then
+                NJOBS="$arg"
+            else
+                echo "Unknown option: $arg"
+                exit 1
+            fi
             ;;
     esac
+    prev_arg="$arg"
 done
 
 if [ "$SITE" = "library" ]; then
@@ -104,17 +119,77 @@ restore_skipped() {
 }
 trap restore_skipped EXIT
 
+# Resolve -j auto to CPU count
+if [ "$NJOBS" = "auto" ]; then
+    NJOBS=$(python3 -c "import os; print(os.cpu_count() or 1)")
+    echo "Detected $NJOBS CPUs"
+fi
+
 # Build site
 echo "Rendering Quarto site..."
 if [ -n "$NO_EXECUTE" ]; then
     echo "  (skipping code execution)"
     quarto render --no-execute
-elif [ -n "$FORCE_EXECUTE" ]; then
-    echo "  (forcing code execution)"
-    quarto render --execute
+elif [ "$NJOBS" -gt 1 ] 2>/dev/null; then
+    # Parallel mode: execute each .qmd independently, then assemble
+    echo "  (parallel execution with $NJOBS jobs)"
+
+    # Collect .qmd files to render (excluding index.qmd and skipped files)
+    QMD_FILES=()
+    for f in *.qmd; do
+        [ "$(basename "$f")" = "index.qmd" ] && continue
+        QMD_FILES+=("$f")
+    done
+
+    echo "  ${#QMD_FILES[@]} tutorials to render"
+
+    # Create log directory
+    LOG_DIR="$BUILD_DIR/_build_logs"
+    mkdir -p "$LOG_DIR"
+
+    # Render individual files in parallel using xargs
+    EXECUTE_FLAG=""
+    [ -n "$FORCE_EXECUTE" ] && EXECUTE_FLAG="--execute"
+
+    FAIL_COUNT=0
+    printf '%s\n' "${QMD_FILES[@]}" | xargs -P "$NJOBS" -I {} bash -c '
+        name="${1%.qmd}"
+        log_dir="$2"
+        execute_flag="$3"
+        echo "  [START] $name"
+        start=$(date +%s)
+        if quarto render "$1" $execute_flag > "$log_dir/${name}.log" 2>&1; then
+            elapsed=$(( $(date +%s) - start ))
+            echo "  [DONE]  $name (${elapsed}s)"
+        else
+            elapsed=$(( $(date +%s) - start ))
+            echo "  [FAIL]  $name (${elapsed}s) — see $log_dir/${name}.log"
+            exit 1
+        fi
+    ' _ {} "$LOG_DIR" "$EXECUTE_FLAG" || FAIL_COUNT=$?
+
+    if [ "$FAIL_COUNT" -ne 0 ]; then
+        echo ""
+        echo "ERROR: Some tutorials failed to render. Check logs in $LOG_DIR/"
+        echo "Failed logs:"
+        grep -l "ERROR\|error\|Error" "$LOG_DIR"/*.log 2>/dev/null | while read -r logf; do
+            echo "  $logf"
+        done
+        exit 1
+    fi
+
+    # Assemble full site (no execution needed, _freeze/ is populated)
+    echo ""
+    echo "  Assembling site..."
+    quarto render --no-execute
 else
-    echo "  (using freeze cache)"
-    quarto render
+    if [ -n "$FORCE_EXECUTE" ]; then
+        echo "  (forcing code execution)"
+        quarto render --execute
+    else
+        echo "  (using freeze cache)"
+        quarto render
+    fi
 fi
 
 # Generate notebooks (library only)
