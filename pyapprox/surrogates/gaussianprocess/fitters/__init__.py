@@ -18,6 +18,9 @@ internally and fitted parameters are stored on the copy (immutable pattern).
 from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (
     GPFixedHyperparameterFitter,
 )
+from pyapprox.surrogates.gaussianprocess.fitters.incremental_fitter import (
+    GPIncrementalFitter,
+)
 from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
     GPMaximumLikelihoodFitter,
 )
@@ -38,6 +41,7 @@ __all__ = [
     "GPFitResult",
     "GPOptimizedFitResult",
     "GPFixedHyperparameterFitter",
+    "GPIncrementalFitter",
     "GPMaximumLikelihoodFitter",
     "VariationalGPFixedHyperparameterFitter",
     "VariationalGPMaximumLikelihoodFitter",

@@ -635,6 +635,99 @@ class ExactGaussianProcess(Generic[Array]):
 
         return std
 
+    def predict_std_jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the GP posterior std w.r.t. inputs (single sample).
+
+        For var(x) = k(x,x) - k(x,X) K^{-1} k(X,x), the derivative is:
+            d_var/dx = dk(x,x)/dx - 2 * [L^{-1} dk(x,X)^T/dx]^T v
+        where v = L^{-1} k(x,X)^T.
+
+        For stationary kernels, dk(x,x)/dx = 0 (diagonal is constant).
+
+        Then d_sigma/dx = d_var/dx / (2 * sigma).
+
+        Parameters
+        ----------
+        sample : Array
+            Single input location, shape (nvars, 1).
+
+        Returns
+        -------
+        Array
+            Jacobian of std, shape (1, nvars).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        ValueError
+            If sample is not a single sample.
+        """
+        if not self.is_fitted():
+            raise RuntimeError(
+                "GP must be fitted before computing predict_std Jacobian"
+            )
+        if sample.shape[1] != 1:
+            raise ValueError(
+                f"predict_std_jacobian() expects single sample (nvars, 1), "
+                f"got {sample.shape}."
+            )
+
+        # Transform input to scaled space
+        sample_scaled = self._input_transform.transform(sample)
+
+        # Compute k(x*, X_train) shape (1, n_train)
+        K_star = self._kernel(sample_scaled, self._data.X())
+
+        # v = L^{-1} k(X_train, x*)  where k(X_train, x*) = K_star^T
+        # v shape: (n_train, 1)
+        L = self._cholesky.factor()
+        v = self._bkd.solve_triangular(L, K_star.T, lower=True)
+
+        # Posterior variance (scalar, but keep as array)
+        K_diag = self._kernel.diag(sample_scaled)  # (1,)
+        var_post = K_diag - self._bkd.einsum("ij,ij->j", v, v)  # (1,)
+        var_post = var_post * (var_post >= 0.0)
+        sigma = self._bkd.sqrt(var_post)  # (1,)
+
+        # Kernel jacobian: dk(x*, X_train)/dx  shape (1, n_train, nvars)
+        K_jac = self._kernel.jacobian(sample_scaled, self._data.X())
+        # Squeeze to (n_train, nvars)
+        dK_star_dx = K_jac[0]  # (n_train, nvars)
+
+        # L^{-1} @ dK_star^T/dx  shape (n_train, nvars)
+        dv_dx = self._bkd.solve_triangular(L, dK_star_dx, lower=True)
+
+        # d_var/dx = -2 * v^T @ dv_dx  shape (1, nvars)
+        # For stationary kernels, dk(x,x)/dx = 0, so only cross-term remains
+        # v shape: (n_train, 1), dv_dx shape: (n_train, nvars)
+        d_var_dx = -2.0 * self._bkd.einsum(
+            "ij,ik->jk", v, dv_dx
+        )  # (1, nvars)
+
+        # d_sigma/dx = d_var/dx / (2 * sigma)
+        # Guard against sigma = 0
+        safe_sigma = self._bkd.where(
+            sigma > 1e-12, sigma, self._bkd.ones_like(sigma)
+        )
+        d_sigma_dx = d_var_dx / (2.0 * self._bkd.reshape(safe_sigma, (1, 1)))
+
+        # Zero out where sigma was effectively zero
+        mask = sigma > 1e-12  # (1,)
+        d_sigma_dx = d_sigma_dx * self._bkd.reshape(mask, (1, 1))
+
+        # Apply input transform chain rule
+        jac_factor = self._input_transform.jacobian_factor()  # (nvars,)
+        d_sigma_dx = d_sigma_dx * jac_factor[None, :]
+
+        # Scale to original space if output transform is set
+        if self._output_transform is not None:
+            scale = self._output_transform.scale()  # (nqoi,)
+            d_sigma_dx = scale[0] * d_sigma_dx
+
+        return d_sigma_dx
+
     def jacobian(self, sample: Array) -> Array:
         """
         Compute the Jacobian of the GP mean with respect to inputs (single sample).
