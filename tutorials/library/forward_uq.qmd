@@ -467,8 +467,8 @@ plt.show()
 
 Each statistic answers a different question:
 
-- **Mean** $\E_\params[q]$: What is the average prediction? Useful for design targets and expected performance.
-- **Variance** $\Var_\params[q]$ (or standard deviation $\sigma$): How spread out are the predictions? Quantifies overall uncertainty.
+- **Mean** $\E_{\params}[q]$: What is the average prediction? Useful for design targets and expected performance.
+- **Variance** $\Var_{\params}[q]$ (or standard deviation $\sigma$): How spread out are the predictions? Quantifies overall uncertainty.
 - **Quantile interval** (e.g., 5th to 95th percentile): What range contains 90% of plausible outcomes? Useful for confidence bounds and safety margins.
 - **Failure probability** $P(q > q_{\text{crit}})$: How likely is it that the QoI exceeds a critical threshold? Directly relevant to certification and risk assessment.
 
@@ -483,7 +483,7 @@ The push-forward PDF contains all the information --- every summary statistic ca
 - **Forward UQ** propagates a known input distribution $\pdf(\params)$ through a model $f$ to produce a **push-forward distribution** over the QoI
 - A **linear model** preserves the shape of the input distribution; a **nonlinear model** distorts it, so the output distribution must be computed rather than assumed
 - The push-forward depends on **both** the input distribution and the model --- changing either one changes the conclusions
-- The push-forward PDF $\pdf_q(q)$ is the complete characterization of output uncertainty, but decision makers typically extract **summary statistics**: $\E_\params[q]$, $\Var_\params[q]$, quantile intervals, and failure probabilities
+- The push-forward PDF $\pdf_q(q)$ is the complete characterization of output uncertainty, but decision makers typically extract **summary statistics**: $\E_{\params}[q]$, $\Var_{\params}[q]$, quantile intervals, and failure probabilities
 - Computing these statistics for expensive models is the central computational challenge of UQ --- the subsequent tutorials introduce methods for doing so efficiently
 
 
@@ -491,18 +491,17 @@ The push-forward PDF contains all the information --- every summary statistic ca
 
 | Symbol | Meaning |
 |--------|---------|
-| $\params$ | Parameter vector $(\theta_1, \ldots, \theta_\dparams)$ |
+| $\params$ | Parameter vector $(\theta_1, \ldots, \theta_{\dparams})$ |
 | $\dparams$ | Number of uncertain parameters |
 | $f(\params)$ | Forward model (maps parameters to QoI) |
 | $q = f(\params)$ | Quantity of Interest (scalar output) |
 | $\pdf(\params)$ | Input probability density function |
 | $\pdf_q(q)$ | Push-forward (output) density |
-| $\E_\params[\cdot]$ | Expected value with respect to $\params$ |
-| $\Var_\params[\cdot]$ | Variance with respect to $\params$ |
+| $\E_{\params}[\cdot]$ | Expected value with respect to $\params$ |
+| $\Var_{\params}[\cdot]$ | Variance with respect to $\params$ |
 | $\normal(\mu, \sigma^2)$ | Gaussian distribution |
 | $P(q > q_{\text{crit}})$ | Failure probability |
 
-See [CONVENTIONS.md](../CONVENTIONS.md) for the complete notation guide.
 
 
 ## Next Steps

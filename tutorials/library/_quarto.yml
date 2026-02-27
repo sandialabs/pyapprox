@@ -1,6 +1,9 @@
 project:
   type: website
   output-dir: _site
+  render:
+    - "*.qmd"
+    - "!in_progress/"
 
 website:
   title: "PyApprox"
@@ -35,7 +38,7 @@ website:
       - icon: github
         href: https://github.com/sandialabs/pyapprox
   page-footer:
-    left: "Copyright Sandia National Laboratories (NTESS). MIT License."
+    left: "Copyright 2019 National Technology & Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software."
     center: "Built with [Quarto](https://quarto.org)"
     right: "[Repository](https://github.com/sandialabs/pyapprox) | [PyPI](https://pypi.org/project/pyapprox/)"
   sidebar:

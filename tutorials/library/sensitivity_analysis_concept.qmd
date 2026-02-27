@@ -110,7 +110,7 @@ total_effects = bkd.to_numpy(sa.total_effects())  # (nvars, nqoi)
 The key idea behind variance-based sensitivity analysis is **Analysis of Variance (ANOVA)**. The total output variance can be decomposed into contributions from individual inputs and their interactions:
 
 $$
-\Var_\params[q] = \sum_{i} V_i + \sum_{i<j} V_{ij} + \cdots + V_{1,2,\ldots,\dparams}
+\Var_{\params}[q] = \sum_{i} V_i + \sum_{i<j} V_{ij} + \cdots + V_{1,2,\ldots,\dparams}
 $$
 
 where:
@@ -164,7 +164,7 @@ The ANOVA decomposition motivates two key measures of input importance.
 The **first-order Sobol index** $\Sobol{i}$ measures the fraction of output variance explained by input $\theta_i$ acting alone:
 
 $$
-\Sobol{i} = \frac{V_i}{\Var_\params[q]} = \frac{\Var_{\theta_i}[\E_{\theta_{\sim i}}[q | \theta_i]]}{\Var_\params[q]}
+\Sobol{i} = \frac{V_i}{\Var_{\params}[q]} = \frac{\Var_{\theta_i}[\E_{\theta_{\sim i}}[q | \theta_i]]}{\Var_{\params}[q]}
 $$
 
 - $\Sobol{i} \approx 1$: input $i$ explains nearly all variance by itself
@@ -175,7 +175,7 @@ $$
 The **total-order Sobol index** $\SobolT{i}$ captures the total contribution of input $\theta_i$, including all interactions with other inputs:
 
 $$
-\SobolT{i} = 1 - \frac{\Var_{\theta_{\sim i}}[\E_{\theta_i}[q | \theta_{\sim i}]]}{\Var_\params[q]}
+\SobolT{i} = 1 - \frac{\Var_{\theta_{\sim i}}[\E_{\theta_i}[q | \theta_{\sim i}]]}{\Var_{\params}[q]}
 $$
 
 where $\theta_{\sim i}$ denotes all inputs except $\theta_i$.

@@ -1,0 +1,172 @@
+# PDF profile overlay for PyApprox User Manual
+# Usage: quarto render --profile pdf
+# This overlays the base _quarto.yml, changing project type to book for PDF assembly.
+
+project:
+  type: book
+  output-dir: _book
+  render:
+    - "*.qmd"
+    - "!in_progress/"
+
+book:
+  title: "PyApprox User Manual"
+  subtitle: "Uncertainty Quantification for Real-World Decisions"
+  author: "John D. Jakeman"
+  date: today
+  output-file: pyapprox-user-manual
+  chapters:
+    - index.qmd
+
+    # Getting Started
+    - part: "Getting Started"
+      chapters:
+        - setup_environment.qmd
+        - models_decisions_uncertainty.qmd
+
+    # Forward UQ
+    - part: "Forward UQ"
+      chapters:
+        - forward_uq.qmd
+        - random_variables_distributions.qmd
+        - monte_carlo_sampling.qmd
+        - estimator_accuracy_mse.qmd
+        - mc_budget_estimation.qmd
+
+    # Multifidelity Estimation
+    - part: "Multifidelity Estimation"
+      chapters:
+        - control_variate_concept.qmd
+        - control_variate_analysis.qmd
+        - acv_concept.qmd
+        - acv_many_models_concept.qmd
+        - acv_many_models_analysis.qmd
+        - mfmc_concept.qmd
+        - mfmc_analysis.qmd
+        - mlmc_concept.qmd
+        - mlmc_analysis.qmd
+        - multioutput_acv_concept.qmd
+        - multioutput_acv_analysis.qmd
+        - pacv_concept.qmd
+        - pacv_analysis.qmd
+        - mlblue_concept.qmd
+        - mlblue_analysis.qmd
+        - pilot_studies_concept.qmd
+        - pilot_studies_analysis.qmd
+        - ensemble_selection_concept.qmd
+        - multifidelity_estimation_cookbook.qmd
+
+    # Inverse UQ
+    - part: "Inverse UQ"
+      chapters:
+        - bayesian_inference_intro.qmd
+        - mcmc_sampling.qmd
+        - dram_mcmc.qmd
+        - vi_intro.qmd
+        - vi_objective.qmd
+        - vi_optimization.qmd
+        - vi_families.qmd
+        - vi_amortized.qmd
+
+    # Experimental Design
+    - part: "Experimental Design"
+      chapters:
+        - experimental_design_intro.qmd
+        - boed_kl_concept.qmd
+        - boed_kl_estimator.qmd
+        - boed_kl_gradients.qmd
+        - boed_kl_usage.qmd
+        - boed_kl_qmc.qmd
+        - boed_kl_nonlinear_usage.qmd
+        - boed_kl_design_stability.qmd
+        - boed_pred_concept.qmd
+        - boed_pred_gaussian_analysis.qmd
+        - boed_pred_lognormal_analysis.qmd
+        - boed_pred_usage.qmd
+        - boed_pred_nonlinear_usage.qmd
+        - boed_data_workflow_usage.qmd
+
+    # Approximation Theory
+    - part: "Approximation Theory"
+      chapters:
+        - lagrange_interpolation.qmd
+        - piecewise_interpolation.qmd
+        - tensor_product_interpolation.qmd
+        - gauss_quadrature.qmd
+        - piecewise_quadrature.qmd
+        - leja_sequences.qmd
+
+    # Surrogate Modeling
+    - part: "Surrogate Modeling"
+      chapters:
+        - polynomial_chaos_surrogates.qmd
+        - practical_pce_fitting.qmd
+        - sparse_pce_fitting.qmd
+        - uq_with_pce.qmd
+        - function_train_surrogates.qmd
+        - uq_with_functiontrain.qmd
+        - isotropic_sparse_grids.qmd
+        - adaptive_sparse_grids.qmd
+        - multifidelity_sparse_grids.qmd
+        - sparse_grid_to_pce_conversion.qmd
+        - uq_with_sparse_grids.qmd
+        - gp_surrogate.qmd
+        - uq_with_gp.qmd
+        - adaptive_gp_sampling.qmd
+        - multioutput_gp.qmd
+
+    # Sensitivity Analysis
+    - part: "Sensitivity Analysis"
+      chapters:
+        - sensitivity_analysis_concept.qmd
+        - sobol_sensitivity_analysis.qmd
+        - pce_sensitivity.qmd
+        - gp_sensitivity.qmd
+        - morris_screening.qmd
+        - bin_based_sensitivity.qmd
+        - functiontrain_sensitivity_math.qmd
+        - functiontrain_sensitivity.qmd
+
+    # Random Fields
+    - part: "Random Fields"
+      chapters:
+        - kle_introduction.qmd
+        - kle_mesh_and_data_driven.qmd
+        - kle_spde.qmd
+
+    # Optimization Under Uncertainty
+    - part: "Optimization Under Uncertainty"
+      chapters:
+        - design_under_uncertainty.qmd
+
+format:
+  pdf:
+    documentclass: scrreprt
+    classoption:
+      - open=any
+    include-in-header: ../_macros.tex
+    include-before-body: cover.tex
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    colorlinks: true
+    linkcolor: "cyan"
+    urlcolor: "cyan"
+    citecolor: "cyan"
+    geometry:
+      - margin=1in
+    fig-pos: "H"
+    code-block-bg: "#f5f5f5"
+    code-block-border-left: "#cccccc"
+    mainfont: "Latin Modern Roman"
+    sansfont: "Latin Modern Sans"
+    monofont: "DejaVu Sans Mono"
+    monofontoptions:
+      - Scale=0.8
+
+execute:
+  echo: true
+  warning: false
+  freeze: auto
+
+jupyter: python3

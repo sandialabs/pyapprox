@@ -1015,6 +1015,149 @@ div.sourceCode {
 .badge-cookbook  { @include badge-base; background: #fef3cd; color: #7a5e06; }
 
 
+// =========================================================================
+//  COLAB BANNER (tutorials page)
+// =========================================================================
+.colab-banner {
+  background: linear-gradient(135deg, $dark-bg, darken($dark-bg, 3%));
+  border: 1px solid rgba($cyan-primary, 0.2);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+.colab-inner {
+  padding: 2rem 2rem 1.75rem;
+}
+
+.colab-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.colab-title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: $white;
+  margin-bottom: 0.4rem;
+}
+
+.colab-subtitle {
+  display: block;
+  font-size: 0.9rem;
+  color: $silver;
+  line-height: 1.5;
+}
+
+// Quarto wraps spans in <p>
+.colab-header > p {
+  margin: 0;
+}
+
+.colab-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .colab-steps { grid-template-columns: 1fr; }
+}
+
+.colab-step {
+  background: rgba($white, 0.04);
+  border: 1px solid rgba($cyan-primary, 0.12);
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+  transition: border-color 0.2s ease;
+}
+
+.colab-step:hover {
+  border-color: rgba($cyan-primary, 0.4);
+}
+
+.colab-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: $cyan-primary;
+  color: $white;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.colab-step-title {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: $white;
+  margin-bottom: 0.35rem;
+}
+
+// Quarto wraps spans in <p>
+.colab-step > p {
+  margin: 0;
+}
+
+.colab-step p {
+  font-size: 0.82rem;
+  color: $silver;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+.colab-step a {
+  color: $cyan-primary;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.colab-step a:hover {
+  color: $cyan-light;
+}
+
+.colab-links {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+// Quarto wraps links in <p>
+.colab-links p {
+  margin: 0;
+  display: contents;
+}
+
+.colab-link {
+  font-family: "Sora", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: $cyan-primary;
+  text-decoration: none;
+  padding: 0.4rem 1rem;
+  border: 1px solid rgba($cyan-primary, 0.3);
+  border-radius: 5px;
+  transition: all 0.2s ease;
+}
+
+.colab-link:hover {
+  background: rgba($cyan-primary, 0.1);
+  border-color: $cyan-primary;
+  color: $cyan-light;
+}
+
+
 // === Sub-section Headings ===
 .sub-heading {
   font-family: "Sora", sans-serif;
@@ -1042,4 +1185,24 @@ html {
 ::selection {
   background: rgba($cyan-primary, 0.25);
   color: inherit;
+}
+
+
+// =========================================================================
+//  COPYRIGHT NOTICE
+// =========================================================================
+.copyright-notice {
+  text-align: center;
+  padding: 1.5rem 2rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  background: $off-white;
+  border-top: 1px solid #e2e8f0;
+}
+
+.page-layout-full .copyright-notice {
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+  padding-left: 2rem;
+  padding-right: 2rem;
 }

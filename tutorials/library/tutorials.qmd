@@ -64,6 +64,56 @@ Choose a topic below that matches your application
 
 ---
 
+::: {.colab-banner}
+
+::: {.colab-inner}
+
+::: {.colab-header}
+[Run Tutorials in Google Colab]{.colab-title}
+
+[Every tutorial is available as a Jupyter notebook — download, upload, and run in three steps.]{.colab-subtitle}
+:::
+
+::: {.colab-steps}
+
+::: {.colab-step}
+[1]{.colab-step-num}
+
+[Download]{.colab-step-title}
+
+Download any `.ipynb` from the [notebooks folder](notebooks/)
+:::
+
+::: {.colab-step}
+[2]{.colab-step-num}
+
+[Upload]{.colab-step-title}
+
+Open [Google Colab](https://colab.research.google.com) and upload the notebook (File &rarr; Upload)
+:::
+
+::: {.colab-step}
+[3]{.colab-step-num}
+
+[Run]{.colab-step-title}
+
+Run the first cell to install PyApprox, then run all remaining cells
+:::
+
+:::
+
+::: {.colab-links}
+[Google Colab](https://colab.research.google.com){.colab-link}
+[PyApprox Docs](https://sandialabs.github.io/pyapprox/){.colab-link}
+[GitHub Repository](https://github.com/sandialabs/pyapprox){.colab-link}
+:::
+
+:::
+
+:::
+
+---
+
 ## Forward UQ {.topic-heading}
 
 [Propagate input uncertainty through computational models to characterize output variability.]{.section-desc}

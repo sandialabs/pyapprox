@@ -7,10 +7,13 @@
 #   in_progress     Build the in-progress tutorial site
 #
 # Options:
-#   --no-execute    Skip code execution (use cached results)
-#   --execute       Force re-execute all code
+#   --no-execute    Skip code execution AND freeze cache (text only, no outputs)
+#   --execute       Force re-execute all code (ignores freeze cache)
 #   -j N            Parallel execution: render N tutorials concurrently (default: 1)
 #                   Use -j auto to detect CPU count automatically
+#   --html-fast     Build HTML site from freeze cache only (skips all execution)
+#   --pdf           Generate PDF user manual (uses freeze cache, executes if needed)
+#   --pdf-fast      Generate PDF from freeze cache only (skips all execution)
 #   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
 #   --timings       Render each tutorial individually, clear its freeze cache
@@ -35,6 +38,9 @@ fi
 NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
+GEN_PDF=""
+PDF_FAST=""
+HTML_FAST=""
 SERVE=""
 TIMINGS=""
 NJOBS=1
@@ -54,8 +60,18 @@ for arg in "$@"; do
         -j[0-9a-z]*)
             NJOBS="${arg#-j}"
             ;;
+        --html-fast)
+            HTML_FAST="yes"
+            ;;
         --notebooks)
             GEN_NOTEBOOKS="yes"
+            ;;
+        --pdf)
+            GEN_PDF="yes"
+            ;;
+        --pdf-fast)
+            GEN_PDF="yes"
+            PDF_FAST="yes"
             ;;
         --timings)
             TIMINGS="yes"
@@ -67,7 +83,7 @@ for arg in "$@"; do
             SKIP_FILES+=("${arg#--skip=}")
             ;;
         --help)
-            head -21 "$0" | tail -20
+            head -24 "$0" | tail -22
             exit 0
             ;;
         *)
@@ -97,8 +113,15 @@ echo ""
 
 cd "$BUILD_DIR"
 
-# Clean old build
-if [ -d "_site" ]; then
+# Determine if we need the HTML site build
+# PDF-only mode: skip HTML render, _site cleanup, and notebook generation
+PDF_ONLY=""
+if [ -n "$GEN_PDF" ] && [ -z "$GEN_NOTEBOOKS" ] && [ -z "$SERVE" ]; then
+    PDF_ONLY="yes"
+fi
+
+# Clean old build (only when building HTML site)
+if [ -z "$PDF_ONLY" ] && [ -d "_site" ]; then
     echo "Cleaning old build..."
     rm -rf _site
 fi
@@ -132,10 +155,16 @@ if [ "$NJOBS" = "auto" ]; then
     echo "Detected $NJOBS CPUs"
 fi
 
-# Build site
+# Build HTML site (skip when only generating PDF)
+if [ -n "$PDF_ONLY" ]; then
+    echo "Skipping HTML site build (PDF only)"
+else
 echo "Rendering Quarto site..."
-if [ -n "$NO_EXECUTE" ]; then
-    echo "  (skipping code execution)"
+if [ -n "$HTML_FAST" ]; then
+    echo "  (using frozen outputs only)"
+    quarto render --use-freezer
+elif [ -n "$NO_EXECUTE" ]; then
+    echo "  (skipping code execution and freeze cache)"
     quarto render --no-execute
 elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
     # Per-tutorial mode: render each .qmd independently, then assemble
@@ -232,6 +261,7 @@ else
         quarto render
     fi
 fi
+fi  # end PDF_ONLY check
 
 # Generate notebooks (library only)
 if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
@@ -251,15 +281,37 @@ if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
     echo "Expanding LaTeX macros..."
     python "$SCRIPT_DIR/scripts/inject_notebook_macros.py" _site/notebooks/
 
+    # Add pip install cell for Colab/standalone use
+    echo "Injecting install cells..."
+    python "$SCRIPT_DIR/scripts/inject_notebook_install.py" _site/notebooks/
+
     echo "Notebooks saved to: $BUILD_DIR/_site/notebooks/"
+fi
+
+# Generate PDF user manual (library only)
+if [ -n "$GEN_PDF" ] && [ "$SITE" = "library" ]; then
+    echo ""
+    echo "Generating PDF user manual..."
+    if [ -n "$PDF_FAST" ]; then
+        echo "  (using frozen outputs only)"
+        quarto render --profile pdf --use-freezer
+    else
+        echo "  (using freeze cache, executing if needed)"
+        quarto render --profile pdf
+    fi
+    echo "PDF saved to: $BUILD_DIR/_book/pyapprox-user-manual.pdf"
 fi
 
 echo ""
 echo "=== Build complete ==="
-echo "Output: $BUILD_DIR/_site/"
-echo ""
-echo "To view locally:"
-echo "  open $BUILD_DIR/_site/index.html"
+if [ -n "$PDF_ONLY" ]; then
+    echo "Output: $BUILD_DIR/_book/"
+else
+    echo "Output: $BUILD_DIR/_site/"
+    echo ""
+    echo "To view locally:"
+    echo "  open $BUILD_DIR/_site/index.html"
+fi
 echo ""
 
 # Start server if requested
