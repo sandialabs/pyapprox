@@ -46,7 +46,7 @@ This tutorial assumes you have:
 Create a dedicated environment for PyApprox:
 
 ```bash
-conda create -n pyapprox python=3.11
+conda create -n pyapprox python=3.12
 conda activate pyapprox
 pip install pyapprox
 ```
@@ -57,14 +57,32 @@ pip install pyapprox
 pip install pyapprox
 ```
 
+### Install Latest from GitHub
+
+To install the latest version directly from the repository:
+
+```bash
+pip install "pyapprox[all] @ git+https://github.com/sandialabs/pyapprox.git"
+```
+
 ### Development Installation
 
-For the latest features or to contribute:
+To clone the repository for local development or contributing:
 
 ```bash
 git clone https://github.com/sandialabs/pyapprox.git
 cd pyapprox
-pip install -e ".[dev]"
+pip install -e ".[all]"
+```
+
+Alternatively, use the provided `environment.yml` to create a fully configured conda environment with all dependencies:
+
+```bash
+git clone https://github.com/sandialabs/pyapprox.git
+cd pyapprox
+conda env create -f environment.yml
+conda activate pyapprox
+pip install -e ".[all]"
 ```
 
 ## Verifying Installation
@@ -91,7 +109,7 @@ PyApprox uses a backend-agnostic design that allows the same code to run with ei
 - **NumPy backend**: Standard numerical computing, CPU-based
 - **PyTorch backend**: GPU acceleration, automatic differentiation
 
-For these tutorials, we use the NumPy backend exclusively. A separate tutorial covers PyTorch integration.
+For these tutorials, we use the NumPy backend exclusively.
 
 ### Creating a Backend
 
@@ -177,7 +195,7 @@ print(f"First sample (column): {samples[:, 0]}")
 
 1. **(Easy)** Create a 4x10 array of random numbers using the backend and compute its column-wise mean.
 
-2. **(Medium)** Load the `ishigami_3d` benchmark and print its name, number of variables, and domain bounds.
+2. **(Medium)** Load the `ishigami_3d` benchmark and print its name, domain bounds (`benchmark.domain().bounds()`), and number of variables (`benchmark.domain().nvars()`).
 
 3. **(Challenge)** Explore the backend's linear algebra capabilities by solving a 5x5 random linear system $Ax = b$.
 

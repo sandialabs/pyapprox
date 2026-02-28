@@ -1,7 +1,7 @@
 ---
-title: "PyApprox — Uncertainty Quantification for Real-World Decisions"
+title: "PyApprox | Faster, Defensible Delivery via Simulation & Data"
 pagetitle: "PyApprox | Uncertainty Quantification, Surrogate Modeling & Bayesian Design"
-description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, sensitivity analysis, and experimental design. 80+ validated tutorials. Backed by Sandia National Laboratories."
+description: "Open-source Python toolkit for reliable, simulation- and data-driven engineering under uncertainty. Surrogate modeling, sensitivity analysis, Bayesian inference, and optimal experimental design. 80+ tutorials."
 sidebar: false
 toc: false
 page-layout: full
@@ -13,17 +13,14 @@ page-layout: full
 ::: {.hero-text}
 
 ::: {.hero-eyebrow}
-Open-Source · Sandia National Laboratories
+Open-Source Python Toolkit
 :::
 
-[Every simulation has uncertainty.]{.hero-headline}
+[Accelerating Reliable Delivery Through Simulation and Data — Under Uncertainty]{.hero-headline}
 
-[Make it work for you.]{.hero-accent-line}
+[Predictions you can defend. Delivered faster.]{.hero-accent-line}
 
-Complex engineering models are expensive. Uncertain inputs make confident
-decisions harder. **PyApprox** gives you the mathematical tools to quantify,
-reduce, and exploit that uncertainty — so you can make better decisions with
-fewer simulations.
+Pushing performance while guaranteeing reliability demands expensive simulations and observational data. **PyApprox** gives engineers and scientists the mathematical tools to quantify uncertainty, focus resources where they matter most, and close the gap between ambitious targets and defensible results — faster.
 
 :::
 
@@ -65,7 +62,7 @@ fewer simulations.
 
 [Where Simulation Meets Reality]{.section-heading}
 
-[Every engineering domain has expensive simulations, uncertain parameters, and high-stakes decisions. PyApprox provides a unified mathematical framework to tackle them all.]{.section-subtitle}
+[Many engineering domains have expensive simulations, uncertain parameters, and high-stakes decisions. PyApprox provides a unified mathematical framework to tackle them all.]{.section-subtitle}
 
 ::: {.driver-grid}
 
@@ -78,17 +75,17 @@ fewer simulations.
 :::
 
 ::: {.driver-card}
-![](assets/earth-science.jpeg){.driver-img}
+![](assets/precision-manufacturing.jpg){.driver-img}
 
-[Earth Science]{.driver-title}
+[Precision Manufacturing]{.driver-title}
 
-[Ice-sheet projections and national security impact assessment]{.driver-desc}
+[Model calibration, stress prediction, and process optimization]{.driver-desc}
 :::
 
 ::: {.driver-card}
 ![](assets/aerospace-defense.jpeg){.driver-img}
 
-[Aerospace & Defense]{.driver-title}
+[Aerospace]{.driver-title}
 
 [Vehicle reliability and mission-critical predictions]{.driver-desc}
 :::
@@ -96,15 +93,15 @@ fewer simulations.
 ::: {.driver-card}
 ![](assets/oil-gas.jpeg){.driver-img}
 
-[Oil & Gas]{.driver-title}
+[Energy & Subsurface]{.driver-title}
 
-[Reservoir characterization and subsurface uncertainty]{.driver-desc}
+[Reservoir characterization, geothermal resource assessment, and subsurface uncertainty]{.driver-desc}
 :::
 
 ::: {.driver-card}
 ![](assets/mining-heavy-industry.jpeg){.driver-img}
 
-[Mining & Heavy Industry]{.driver-title}
+[Heavy Industry]{.driver-title}
 
 [Equipment fatigue prediction and operational risk]{.driver-desc}
 :::
@@ -120,17 +117,17 @@ fewer simulations.
 ::: {.driver-card}
 ![](assets/motorsport-automotive.jpeg){.driver-img}
 
-[Motorsport & Automotive]{.driver-title}
+[Aerothermal]{.driver-title}
 
-[Aerodynamic optimization and CFD surrogate construction]{.driver-desc}
+[Surrogate-accelerated CFD for aerothermal and reentry simulations]{.driver-desc}
 :::
 
 ::: {.driver-card}
-![](assets/precision-manufacturing.jpg){.driver-img}
+![](assets/earth-science.jpeg){.driver-img}
 
-[Precision Manufacturing]{.driver-title}
+[Earth Science]{.driver-title}
 
-[Model calibration, stress prediction, and process optimization]{.driver-desc}
+[Ice-sheet projections and national security impact assessment]{.driver-desc}
 :::
 
 :::
@@ -141,7 +138,7 @@ fewer simulations.
 
 [What PyApprox Does]{.section-heading .section-heading-dark}
 
-[A complete toolkit for the uncertainty quantification workflow — from propagating input uncertainty through expensive simulations to making optimal decisions.]{.section-subtitle .section-subtitle-dark}
+[Accelerate design, certification, and delivery — with the confidence that comes from quantifying uncertainty.]{.section-subtitle .section-subtitle-dark}
 
 ::: {.capability-grid}
 
@@ -248,10 +245,9 @@ and automatic differentiation — same API, same results.
 :::
 
 ::: {.why-item}
-[Sandia National Laboratories]{.why-title}
+[Use What You Need]{.why-title}
 
-Developed and maintained by computational scientists at Sandia, with
-decades of experience in UQ for high-consequence engineering.
+Modular by design. Use a single capability — like surrogate modeling or sensitivity analysis — as a surgical fix, or connect the full pipeline from forward UQ through experimental design. Every module works standalone. Every module works together.
 :::
 
 ::: {.why-item}
@@ -320,7 +316,7 @@ vol. 170, p. 105825, 2023.
 
 ::: {.section-cta}
 
-[Ready to quantify your uncertainty?]{.cta-heading}
+[Ready to deliver faster — with uncertainty quantified?]{.cta-heading}
 
 ::: {.cta-buttons}
 [Get Started](setup_environment.qmd){.btn-cta-primary}

@@ -74,36 +74,159 @@ h1, h2, h3, h4, h5, h6 {
 
 
 // =========================================================================
-//  SIDEBAR (tutorials)
+//  SIDEBAR (tutorials) — docked nav
 // =========================================================================
-.sidebar nav[role=doc-toc] ul > li > a.active {
+#quarto-sidebar {
+  border-right: 1px solid #e2e8f0;
+}
+
+.sidebar-title {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: $dark-bg;
+}
+
+.sidebar-navigation .sidebar-section .sidebar-item .sidebar-item-text {
+  font-size: 0.84rem;
+}
+
+.sidebar nav[role=doc-toc] ul > li > a.active,
+.sidebar-item-container .active {
   border-left: 3px solid $cyan-primary;
   font-weight: 600;
+  color: $cyan-primary;
+  background: rgba($cyan-primary, 0.04);
+}
+
+.sidebar-item-container:hover .sidebar-item-text {
+  color: $cyan-primary;
+}
+
+.sidebar-search {
+  border-color: #d1d5db;
+  border-radius: 6px;
+}
+
+.sidebar-search:focus {
+  border-color: $cyan-primary;
+  box-shadow: 0 0 0 2px rgba($cyan-primary, 0.15);
+}
+
+
+// =========================================================================
+//  CODE BLOCKS — branded
+// =========================================================================
+pre code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.84em;
+  line-height: 1.6;
+}
+
+div.sourceCode {
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid $cyan-primary;
+  border-radius: 6px;
+  background: #fafbfc;
+  margin: 1.25rem 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+// Code output cells
+.cell-output pre {
+  border: 1px solid #e8ecf0;
+  border-left: 3px solid #94a3b8;
+  border-radius: 6px;
+  background: #f8f9fb;
+  font-size: 0.82em;
+}
+
+// Inline code
+code:not(.sourceCode) {
+  background: rgba($cyan-primary, 0.06);
+  color: #1e293b;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+// Code fold button
+.code-tools-button {
+  font-family: "Sora", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: $cyan-primary;
+  border: 1px solid rgba($cyan-primary, 0.3);
+  border-radius: 4px;
+  padding: 0.2em 0.6em;
+  transition: all 0.2s;
+}
+
+.code-tools-button:hover {
+  background: rgba($cyan-primary, 0.08);
+  border-color: $cyan-primary;
+}
+
+// Copy button
+.code-copy-button {
+  color: $silver;
+  transition: color 0.15s;
+}
+
+.code-copy-button:hover {
   color: $cyan-primary;
 }
 
 
 // =========================================================================
-//  CODE BLOCKS
+//  CALLOUTS — branded
 // =========================================================================
-pre code {
-  font-size: 0.88em;
+div.callout {
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  border-width: 0;
+  border-left-width: 4px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
 }
 
-div.sourceCode {
-  border-left: 3px solid $cyan-primary;
-  border-radius: 6px;
+.callout-header {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
+.callout-body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
 
-// =========================================================================
-//  CALLOUTS
-// =========================================================================
+.callout-note {
+  border-left-color: $cyan-primary;
+  background: rgba($cyan-primary, 0.03);
+}
+
+.callout-note .callout-icon::before {
+  color: $cyan-primary;
+}
+
 .callout-tip {
   border-left-color: #22c55e;
+  background: rgba(34, 197, 94, 0.03);
 }
+
+.callout-warning {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.03);
+}
+
 .callout-important {
   border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.callout-caution {
+  border-left-color: #f97316;
+  background: rgba(249, 115, 22, 0.03);
 }
 
 
@@ -135,7 +258,7 @@ div.sourceCode {
 .section-subtitle {
   display: block;
   text-align: center;
-  color: $silver;
+  color: $silver-light;
   max-width: 640px;
   margin: 0 auto 2.5rem;
   font-size: 1rem;
@@ -279,7 +402,7 @@ div.sourceCode {
 }
 
 .hero-section p {
-  color: $silver-light;
+  color: #e2e8f0 !important;
   max-width: 620px;
   font-size: 1.05rem;
   line-height: 1.65;
@@ -504,10 +627,10 @@ div.sourceCode {
   padding: 0.9rem 1rem 0;
 }
 
-.driver-desc {
+.section-dark .driver-desc {
   display: block;
   font-size: 0.8rem;
-  color: $silver;
+  color: $silver-light;
   line-height: 1.45;
   padding: 0.25rem 1rem 1rem;
 }
@@ -640,9 +763,9 @@ div.sourceCode {
   margin: 0;
 }
 
-.why-item p {
+.section-dark .why-item p {
   font-size: 0.9rem;
-  color: $silver;
+  color: $silver-light;
   line-height: 1.6;
 }
 
@@ -770,6 +893,10 @@ div.sourceCode {
   font-size: 0.92rem;
   color: $silver-light;
   line-height: 1.65;
+}
+
+.section-dark .cite-block p {
+  color: $silver-light;
 }
 
 .cite-block em {
@@ -1044,10 +1171,10 @@ div.sourceCode {
   margin-bottom: 0.4rem;
 }
 
-.colab-subtitle {
+.colab-banner .colab-subtitle {
   display: block;
   font-size: 0.9rem;
-  color: $silver;
+  color: $silver-light;
   line-height: 1.5;
 }
 
@@ -1109,9 +1236,9 @@ div.sourceCode {
   margin: 0;
 }
 
-.colab-step p {
+.colab-banner .colab-step p {
   font-size: 0.82rem;
-  color: $silver;
+  color: $silver-light;
   line-height: 1.5;
   margin-bottom: 0;
 }
@@ -1155,6 +1282,414 @@ div.sourceCode {
   background: rgba($cyan-primary, 0.1);
   border-color: $cyan-primary;
   color: $cyan-light;
+}
+
+
+// =========================================================================
+//  TUTORIAL PAGE — title block
+// =========================================================================
+.quarto-title-block {
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid rgba($cyan-primary, 0.15);
+}
+
+.quarto-title .title {
+  font-family: "Sora", sans-serif;
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: $dark-bg;
+  line-height: 1.25;
+}
+
+.quarto-title .subtitle {
+  font-family: "Sora", sans-serif;
+  font-weight: 400;
+  font-size: 0.88rem;
+  color: $silver;
+  letter-spacing: 0.03em;
+}
+
+.quarto-title .description {
+  font-size: 1rem;
+  color: #475569;
+  line-height: 1.6;
+  margin-top: 0.5rem;
+}
+
+.quarto-title-meta {
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.quarto-title-meta-heading {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: $silver;
+}
+
+
+// =========================================================================
+//  TUTORIAL — section headings
+// =========================================================================
+.content h2 {
+  font-family: "Sora", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: $dark-bg;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid rgba($cyan-primary, 0.2);
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.content h3 {
+  font-family: "Sora", sans-serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.content h4 {
+  font-family: "Sora", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+
+// =========================================================================
+//  TUTORIAL — body text
+// =========================================================================
+.content p {
+  font-size: 0.95rem;
+  line-height: 1.72;
+  color: #334155;
+}
+
+.content li {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #334155;
+  margin-bottom: 0.3rem;
+}
+
+.content strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.hero-section strong {
+  color: $white !important;
+}
+
+.section-dark strong {
+  color: $white !important;
+}
+
+
+// =========================================================================
+//  FIGURES — refined captions + framing
+// =========================================================================
+.cell-output-display {
+  margin: 1.5rem 0;
+}
+
+.cell-output-display img,
+.quarto-figure img {
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.figure-caption,
+figcaption {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid rgba($cyan-primary, 0.3);
+  background: rgba($cyan-primary, 0.02);
+  border-radius: 0 4px 4px 0;
+}
+
+.figure-caption strong,
+figcaption strong {
+  color: $dark-bg;
+}
+
+
+// =========================================================================
+//  MATH — refined display
+// =========================================================================
+.math.display {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+
+
+// =========================================================================
+//  TABLES — branded
+// =========================================================================
+.content table {
+  width: 100%;
+  margin: 1.5rem 0;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.content table thead {
+  background: $dark-bg;
+  color: $white;
+}
+
+.content table thead th {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  padding: 0.65rem 1rem;
+  text-align: left;
+  border: none;
+}
+
+.content table tbody td {
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  vertical-align: top;
+}
+
+.content table tbody tr:hover {
+  background: rgba($cyan-primary, 0.03);
+}
+
+.content table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.content table tbody tr:nth-child(even):hover {
+  background: rgba($cyan-primary, 0.05);
+}
+
+.content table td .math {
+  font-size: 0.92em;
+}
+
+
+// =========================================================================
+//  LEARNING OBJECTIVES — branded box (auto-styled via section id)
+// =========================================================================
+#learning-objectives {
+  background: linear-gradient(135deg, rgba($cyan-primary, 0.04), rgba($cyan-primary, 0.01));
+  border: 1px solid rgba($cyan-primary, 0.15);
+  border-left: 4px solid $cyan-primary;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0 2rem;
+}
+
+#learning-objectives h2 {
+  font-size: 1.05rem;
+  color: $cyan-primary;
+  border-bottom: none;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0;
+}
+
+#learning-objectives ul {
+  margin-bottom: 0;
+}
+
+#learning-objectives li {
+  font-size: 0.9rem;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+
+// =========================================================================
+//  KEY TAKEAWAYS — branded box (auto-styled via section id)
+// =========================================================================
+#key-takeaways {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.04), rgba(34, 197, 94, 0.01));
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  border-left: 4px solid #22c55e;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 2rem 0 1.5rem;
+}
+
+#key-takeaways h2 {
+  font-size: 1.05rem;
+  color: #16a34a;
+  border-bottom: none;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0;
+}
+
+#key-takeaways ul {
+  margin-bottom: 0;
+}
+
+#key-takeaways li {
+  font-size: 0.9rem;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+
+// =========================================================================
+//  PREREQUISITES — subtle box (auto-styled via section id)
+// =========================================================================
+#prerequisites {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid $silver;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+#prerequisites h2 {
+  font-size: 1rem;
+  color: #64748b;
+  border-bottom: none;
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0;
+}
+
+#prerequisites p {
+  font-size: 0.88rem;
+  margin-bottom: 0;
+}
+
+
+// =========================================================================
+//  NOTATION SUMMARY — refined
+// =========================================================================
+#notation-summary + table,
+#notation-summary table {
+  font-size: 0.88rem;
+}
+
+#notation-summary + table thead,
+#notation-summary table thead {
+  background: $dark-bg;
+}
+
+
+// =========================================================================
+//  NEXT STEPS — card-like links (auto-styled via section id)
+// =========================================================================
+#next-steps {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid rgba($cyan-primary, 0.15);
+}
+
+#next-steps h2 {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 1rem;
+}
+
+#next-steps ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+#next-steps li {
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+#next-steps li:hover {
+  border-color: rgba($cyan-primary, 0.4);
+  box-shadow: 0 2px 8px rgba($cyan-primary, 0.08);
+  transform: translateX(3px);
+}
+
+#next-steps li a {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: $dark-bg;
+  text-decoration: none;
+}
+
+#next-steps li a:hover {
+  color: $cyan-primary;
+}
+
+
+// =========================================================================
+//  DOWNLOAD NOTEBOOK CALLOUT — compact
+// =========================================================================
+.callout-tip[data-collapse="true"]:first-of-type {
+  margin-top: 0;
+}
+
+
+// =========================================================================
+//  TOC (right margin) — refined
+// =========================================================================
+#TOC {
+  font-size: 0.82rem;
+}
+
+#TOC .nav-link {
+  padding: 0.25rem 0.5rem;
+  color: #64748b;
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+#TOC .nav-link:hover {
+  color: $cyan-primary;
+}
+
+#TOC .nav-link.active {
+  color: $cyan-primary;
+  font-weight: 600;
+  border-left-color: $cyan-primary;
+  background: rgba($cyan-primary, 0.04);
+}
+
+#toc-title {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: $silver;
+  margin-bottom: 0.5rem;
+}
+
+
+// =========================================================================
+//  HORIZONTAL RULES — subtle
+// =========================================================================
+.content hr {
+  border: none;
+  border-top: 1px solid rgba($cyan-primary, 0.12);
+  margin: 2rem 0;
 }
 
 
