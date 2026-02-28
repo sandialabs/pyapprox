@@ -242,6 +242,39 @@ class IsotropicSparseGridFitter(Generic[Array]):
             return values
         return {(): values}
 
+    def get_quadrature_weights(self) -> Array:
+        """Return combined quadrature weights at unique sample positions.
+
+        Combines tensor product quadrature weights from each subspace using
+        Smolyak coefficients and scatters them to the unique sample indices.
+        The result is aligned with ``get_samples()`` — weight ``i``
+        corresponds to sample column ``i``.
+
+        Only supported for single-fidelity grids (nconfig_vars=0).
+
+        Returns
+        -------
+        Array
+            Combined weights, shape ``(n_unique,)``.
+        """
+        if self._nconfig_vars != 0:
+            raise NotImplementedError(
+                "get_quadrature_weights() only supports single-fidelity grids"
+            )
+        tracker = self._trackers[()]
+        n_unique = tracker.n_unique_samples()
+        weights = self._bkd.zeros((n_unique,))
+
+        for j, subspace in enumerate(self._subspaces):
+            c_j = self._smolyak_coefs[j]
+            tp_weights = subspace.get_quadrature_weights()
+            global_idx = tracker.get_subspace_value_indices(j)
+            for k in range(len(tp_weights)):
+                idx = int(global_idx[k])
+                weights[idx] = weights[idx] + c_j * tp_weights[k]
+
+        return weights
+
     def level(self) -> int:
         """Return the sparse grid level."""
         return self._level

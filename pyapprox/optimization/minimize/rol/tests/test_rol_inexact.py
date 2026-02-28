@@ -438,6 +438,236 @@ class TestROLInexactConstraint:
         assert float(bkd.to_numpy(con_val[0, 0])) >= 0.5 - 1e-5
 
 
+class _ExpObjectiveModel:
+    """f(z, x) = exp(z) + (x - 1)^2. z random on U(-1,1), x design. nqoi=1.
+
+    E_z[f] = sinh(1) + (x - 1)^2 on U(-1,1). Minimizer: x* = 1.
+    exp(z) is not polynomial, so it requires higher quadrature levels.
+    """
+
+    def __init__(self, bkd):
+        self._bkd = bkd
+
+    def bkd(self):
+        return self._bkd
+
+    def nvars(self):
+        return 2
+
+    def nqoi(self):
+        return 1
+
+    def __call__(self, samples):
+        z = samples[0:1, :]
+        x = samples[1:2, :]
+        return self._bkd.exp(z) + (x - 1.0) ** 2
+
+    def jacobian(self, sample):
+        z = sample[0, 0]
+        x = sample[1, 0]
+        return self._bkd.asarray([[self._bkd.exp(z), 2.0 * (x - 1.0) + 0.0 * z]])
+
+
+def _make_tp_rule(bkd):
+    """Create TP quadrature rule for 1D Uniform(-1,1)."""
+    from pyapprox.probability.univariate import UniformMarginal
+    from pyapprox.surrogates.affine.indices import LinearGrowthRule
+    from pyapprox.surrogates.quadrature import gauss_quadrature_rule
+    from pyapprox.surrogates.quadrature.tensor_product import (
+        ParameterizedTensorProductQuadratureRule,
+    )
+
+    marginal = UniformMarginal(-1.0, 1.0, bkd)
+    growth = LinearGrowthRule(scale=1, shift=1)
+
+    def univar_rule(npts):
+        return gauss_quadrature_rule(marginal, npts, bkd)
+
+    return ParameterizedTensorProductQuadratureRule(
+        bkd, [univar_rule], growth,
+    )
+
+
+def _make_sg_rule(bkd):
+    """Create sparse grid quadrature rule for 1D Uniform(-1,1)."""
+    from pyapprox.probability.univariate import UniformMarginal
+    from pyapprox.surrogates.affine.indices import LinearGrowthRule
+    from pyapprox.surrogates.sparsegrids import (
+        GaussLagrangeFactory,
+        ParameterizedIsotropicSparseGridQuadratureRule,
+        TensorProductSubspaceFactory,
+    )
+
+    marginal = UniformMarginal(-1.0, 1.0, bkd)
+    factories = [GaussLagrangeFactory(marginal, bkd)]
+    growth = LinearGrowthRule(scale=1, shift=1)
+    tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+    return ParameterizedIsotropicSparseGridQuadratureRule(bkd, tp_factory)
+
+
+class TestROLInexactQuadrature:
+    """Test ROL optimization with QuadratureStrategy (TP and SG)."""
+
+    def _solve_with_strategy(self, bkd, model, strategy, inexact=True):
+        """Solve optimization with a given strategy."""
+        from pyapprox.optimization.minimize.inexact.quadrature import (
+            QuadratureStrategy,
+        )
+
+        stat = SampleAverageMean(bkd)
+        wrapper = InexactWrapper(
+            model=model,
+            stat=stat,
+            strategy=strategy,
+            design_indices=[1],
+            bkd=bkd,
+        )
+
+        bounds = bkd.array([[-5.0, 5.0]])
+        init_guess = bkd.asarray([[3.0]])
+
+        if inexact:
+            params = ROLOptimizer.inexact_gradient_parameters(tol_scaling=0.1)
+        else:
+            params = None
+
+        optimizer = ROLOptimizer(
+            objective=wrapper,
+            bounds=bounds,
+            verbosity=0,
+            parameters=params,
+        )
+        return optimizer.minimize(init_guess)
+
+    def _solve_exact_baseline(self, bkd, model, rule, level=5):
+        """Solve with fixed high-level quadrature (non-inexact baseline)."""
+        samples, weights = rule(level)
+        strategy = FixedSampleStrategy(samples, weights, bkd)
+        return self._solve_with_strategy(bkd, model, strategy, inexact=False)
+
+    def _solve_inexact(self, bkd, model, rule, min_level=1, max_level=5):
+        """Solve with QuadratureStrategy (inexact)."""
+        from pyapprox.optimization.minimize.inexact.quadrature import (
+            QuadratureStrategy,
+        )
+
+        strategy = QuadratureStrategy(
+            rule, bkd, min_level=min_level, max_level=max_level,
+        )
+        return self._solve_with_strategy(bkd, model, strategy, inexact=True)
+
+    def test_tp_quadrature_strategy_easy(self, bkd) -> None:
+        """TP QuadratureStrategy solves easy (quadratic) problem correctly."""
+        model = _QuadraticObjectiveModel(bkd)
+        tp_rule = _make_tp_rule(bkd)
+
+        # Exact baseline
+        result_exact = self._solve_exact_baseline(bkd, model, tp_rule)
+        assert result_exact.success()
+        bkd.assert_allclose(
+            result_exact.optima(), bkd.array([[1.0]]), atol=1e-4,
+        )
+
+        # Inexact
+        result_inexact = self._solve_inexact(bkd, model, tp_rule)
+        assert result_inexact.success()
+        bkd.assert_allclose(
+            result_inexact.optima(), bkd.array([[1.0]]), atol=1e-4,
+        )
+
+        # Agreement
+        bkd.assert_allclose(
+            result_inexact.optima(), result_exact.optima(), atol=1e-3,
+        )
+
+    def test_sg_quadrature_strategy_easy(self, bkd) -> None:
+        """SG QuadratureStrategy solves easy (quadratic) problem correctly."""
+        model = _QuadraticObjectiveModel(bkd)
+        sg_rule = _make_sg_rule(bkd)
+
+        # Exact baseline
+        result_exact = self._solve_exact_baseline(bkd, model, sg_rule)
+        assert result_exact.success()
+        bkd.assert_allclose(
+            result_exact.optima(), bkd.array([[1.0]]), atol=1e-4,
+        )
+
+        # Inexact
+        result_inexact = self._solve_inexact(bkd, model, sg_rule)
+        assert result_inexact.success()
+        bkd.assert_allclose(
+            result_inexact.optima(), bkd.array([[1.0]]), atol=1e-4,
+        )
+
+    def test_sg_vs_tp_same_result_easy(self, bkd) -> None:
+        """SG and TP strategies produce same optimum on easy problem."""
+        model = _QuadraticObjectiveModel(bkd)
+        tp_rule = _make_tp_rule(bkd)
+        sg_rule = _make_sg_rule(bkd)
+
+        result_tp = self._solve_inexact(bkd, model, tp_rule)
+        result_sg = self._solve_inexact(bkd, model, sg_rule)
+
+        assert result_tp.success()
+        assert result_sg.success()
+        bkd.assert_allclose(
+            result_tp.optima(), result_sg.optima(), atol=1e-3,
+        )
+        # Both match x*=1
+        bkd.assert_allclose(
+            result_tp.optima(), bkd.array([[1.0]]), atol=1e-4,
+        )
+
+    def test_tp_convergence_hard(self, bkd) -> None:
+        """TP QuadratureStrategy converges on hard (exp) problem."""
+        model = _ExpObjectiveModel(bkd)
+        tp_rule = _make_tp_rule(bkd)
+
+        # Exact baseline at high level
+        result_exact = self._solve_exact_baseline(bkd, model, tp_rule, level=5)
+        assert result_exact.success()
+        x_exact = float(bkd.to_numpy(result_exact.optima())[0, 0])
+
+        # Convergence: collect errors at increasing max_level
+        errors = []
+        for max_level in [2, 3, 4, 5]:
+            result = self._solve_inexact(
+                bkd, model, tp_rule, min_level=1, max_level=max_level,
+            )
+            assert result.success()
+            x_val = float(bkd.to_numpy(result.optima())[0, 0])
+            errors.append(abs(x_val - 1.0))
+
+        # Final level should be accurate
+        assert errors[-1] < 1e-4
+        # Error should decrease overall (final < initial)
+        assert errors[-1] < 0.1 * errors[0] + 1e-10
+
+    def test_sg_convergence_hard(self, bkd) -> None:
+        """SG QuadratureStrategy converges on hard (exp) problem."""
+        model = _ExpObjectiveModel(bkd)
+        sg_rule = _make_sg_rule(bkd)
+
+        # Exact baseline
+        result_exact = self._solve_exact_baseline(bkd, model, sg_rule, level=5)
+        assert result_exact.success()
+
+        # Convergence at increasing max_level
+        errors = []
+        for max_level in [2, 3, 4, 5]:
+            result = self._solve_inexact(
+                bkd, model, sg_rule, min_level=1, max_level=max_level,
+            )
+            assert result.success()
+            x_val = float(bkd.to_numpy(result.optima())[0, 0])
+            errors.append(abs(x_val - 1.0))
+
+        # Final level should be accurate
+        assert errors[-1] < 1e-4
+        # Error should decrease overall
+        assert errors[-1] < 0.1 * errors[0] + 1e-10
+
+
 class TestROLExistingTestsRegression:
     """Verify existing ROL tests still pass with modified wrappers."""
 

@@ -64,6 +64,7 @@ from .model_factory import (
     TimedModelFactory,
 )
 from .plot import plot_sparse_grid_points
+from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
 from .sample_tracker import SampleTracker
 from .smolyak import (
     check_admissibility,
@@ -112,6 +113,8 @@ __all__ = [
     "SubspaceFactoryProtocol",
     "TensorProductSubspaceFactory",
     "SampleTracker",
+    # Quadrature rule
+    "ParameterizedIsotropicSparseGridQuadratureRule",
     # Plotting
     "plot_sparse_grid_points",
     # Converters

@@ -135,6 +135,22 @@ class SampleTracker(Generic[Array]):
         else:
             self._values = self._bkd.hstack((self._values, values))
 
+    def get_subspace_value_indices(self, pos: int) -> Array:
+        """Return global value indices for all samples in a subspace.
+
+        Parameters
+        ----------
+        pos : int
+            Subspace position from register().
+
+        Returns
+        -------
+        Array
+            Array mapping local sample index to global value index.
+            Shape: (nsamples_in_subspace,)
+        """
+        return self._basis_gen.get_subspace_value_indices(pos)
+
     def get_subspace_values(self, pos: int) -> Array:
         """Return values for a specific subspace using dedup mappings.
 

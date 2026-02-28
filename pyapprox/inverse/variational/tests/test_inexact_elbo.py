@@ -368,6 +368,98 @@ class TestInexactELBOConjugateRecovery:
         )
 
 
+    @slow_test
+    def test_gaussian_2d_conjugate_sparse_grid_strategy(self, bkd) -> None:
+        """2D Gaussian conjugate recovery via sparse grid QuadratureStrategy."""
+        from pyapprox.inverse.conjugate.gaussian import (
+            DenseGaussianConjugatePosterior,
+        )
+        from pyapprox.inverse.variational.fitter import VariationalFitter
+        from pyapprox.optimization.minimize.inexact.quadrature import (
+            QuadratureStrategy,
+        )
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.probability.likelihood.gaussian import (
+            DiagonalGaussianLogLikelihood,
+            MultiExperimentLogLikelihood,
+        )
+        from pyapprox.surrogates.affine.indices import LinearGrowthRule
+        from pyapprox.surrogates.sparsegrids import (
+            GaussLagrangeFactory,
+            ParameterizedIsotropicSparseGridQuadratureRule,
+            TensorProductSubspaceFactory,
+        )
+
+        nlatent = 2
+        obs_matrix = bkd.eye(nlatent)
+        observations = bkd.asarray([[2.0], [1.0]])
+        noise_var = 0.5
+
+        # Exact conjugate posterior
+        prior_mean = bkd.zeros((nlatent, 1))
+        prior_cov = bkd.eye(nlatent)
+        noise_cov = noise_var * bkd.eye(nlatent)
+        conjugate = DenseGaussianConjugatePosterior(
+            obs_matrix, prior_mean, prior_cov, noise_cov, bkd,
+        )
+        conjugate.compute(observations)
+        exact_mean = bkd.flatten(conjugate.posterior_mean())
+        exact_var = bkd.diag(conjugate.posterior_covariance())
+
+        # VI setup — mean-field: 2 independent ConditionalGaussians
+        conditionals = [_make_cond_gaussian(bkd) for _ in range(nlatent)]
+        var_dist = ConditionalIndependentJoint(conditionals, bkd)
+        prior = IndependentJoint(
+            [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nlatent)],
+            bkd,
+        )
+
+        noise_variances = bkd.full((nlatent,), noise_var)
+        base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+        multi_lik = MultiExperimentLogLikelihood(base_lik, observations, bkd)
+
+        def log_likelihood_fn(z):
+            return multi_lik.logpdf(obs_matrix @ z)
+
+        # Sparse grid strategy: 2D Gauss-Hermite (standard normal)
+        std_normal = GaussianMarginal(0.0, 1.0, bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+        sg_factories = [GaussLagrangeFactory(std_normal, bkd)] * nlatent
+        sg_tp_factory = TensorProductSubspaceFactory(bkd, sg_factories, growth)
+        sg_rule = ParameterizedIsotropicSparseGridQuadratureRule(
+            bkd, sg_tp_factory,
+        )
+        sg_strategy = QuadratureStrategy(
+            sg_rule, bkd, min_level=1, max_level=4,
+        )
+
+        elbo_sg = make_inexact_single_problem_elbo(
+            var_dist, log_likelihood_fn, prior, sg_strategy, bkd,
+        )
+
+        optimizer = ScipyTrustConstrOptimizer(maxiter=300, gtol=1e-8)
+        fitter = VariationalFitter(bkd, optimizer=optimizer)
+        fitter.fit(elbo_sg)
+
+        # Extract recovered params for each component
+        vi_means = []
+        vi_vars = []
+        for cond in conditionals:
+            m, s = _extract_gaussian_params(cond, bkd)
+            vi_means.append(m)
+            vi_vars.append(s ** 2)
+
+        bkd.assert_allclose(
+            bkd.asarray(vi_means), exact_mean, atol=0.15,
+        )
+        bkd.assert_allclose(
+            bkd.asarray(vi_vars), exact_var, rtol=0.3,
+        )
+
+
+
 class TestInexactELBOTorch:
     """Torch-specific tests for autograd jacobian."""
 
