@@ -21,6 +21,11 @@ from pyapprox.inverse.variational.fitter import (
     VariationalFitter,
     VIFitResult,
 )
+from pyapprox.inverse.variational.inexact_elbo import (
+    InexactELBOObjective,
+    make_inexact_discrete_group_elbo,
+    make_inexact_single_problem_elbo,
+)
 from pyapprox.inverse.variational.summary import (
     Aggregation,
     FlattenAggregation,
@@ -35,8 +40,11 @@ from pyapprox.inverse.variational.summary import (
 
 __all__ = [
     "ELBOObjective",
+    "InexactELBOObjective",
     "make_single_problem_elbo",
     "make_discrete_group_elbo",
+    "make_inexact_single_problem_elbo",
+    "make_inexact_discrete_group_elbo",
     "VIFitResult",
     "VariationalFitter",
     "Aggregation",
