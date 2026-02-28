@@ -132,6 +132,43 @@ class ROLOptimizer(Generic[Array]):
         params["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
         return params
 
+    @staticmethod
+    def inexact_gradient_parameters(
+        tol_scaling: float = 0.1,
+    ) -> object:
+        """Return a pyrol.ParameterList configured for inexact gradients.
+
+        Enables ROL's trust-region inexact gradient mode per Kouri et al.
+        (2013). ROL will pass an adaptive tolerance ``tol`` to
+        ``gradient(g, x, tol)`` and ``value(x, tol)`` callbacks,
+        starting large and tightening as convergence progresses.
+
+        Parameters
+        ----------
+        tol_scaling : float, optional
+            Tolerance scaling factor (κ₁ in Kouri et al.).
+            Controls how aggressively ROL tightens the tolerance.
+            Default ``0.1``.
+        """
+        import pyrol
+
+        params = pyrol.ParameterList()
+        params["General"] = pyrol.ParameterList()
+        params["General"]["Output Level"] = 1
+        params["General"]["Inexact Gradient"] = True
+        params["General"]["Inexact Objective Function"] = True
+        params["Step"] = pyrol.ParameterList()
+        params["Step"]["Trust Region"] = pyrol.ParameterList()
+        params["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
+        params["Step"]["Trust Region"]["Inexact"] = pyrol.ParameterList()
+        params["Step"]["Trust Region"]["Inexact"]["Gradient"] = (
+            pyrol.ParameterList()
+        )
+        params["Step"]["Trust Region"]["Inexact"]["Gradient"][
+            "Tolerance Scaling"
+        ] = tol_scaling
+        return params
+
     def minimize(self, init_guess: Array) -> ROLOptimizerResult[Array]:
         """Run optimization starting from the initial guess.
 

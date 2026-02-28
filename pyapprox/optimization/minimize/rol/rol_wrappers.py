@@ -58,35 +58,70 @@ class ROLObjectiveAdapter(Generic[Array]):
         hv[:] = self._bkd.to_numpy(hvp[:, 0])
 
 
+def _is_inexact_evaluable(obj: object) -> bool:
+    """Check if obj supports tolerance-dependent evaluation."""
+    from pyapprox.optimization.minimize.inexact.protocols import (
+        InexactEvaluable,
+    )
+
+    return isinstance(obj, InexactEvaluable)
+
+
+def _is_inexact_differentiable(obj: object) -> bool:
+    """Check if obj supports tolerance-dependent jacobian."""
+    from pyapprox.optimization.minimize.inexact.protocols import (
+        InexactDifferentiable,
+    )
+
+    return isinstance(obj, InexactDifferentiable)
+
+
 def make_rol_objective(
     objective: object, bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.Objective wrapping the given objective.
 
     Dynamically selects whether to include gradient and hessVec methods
-    based on what the objective provides.
+    based on what the objective provides. When the objective satisfies
+    ``InexactEvaluable`` or ``InexactDifferentiable``, the adapter
+    passes ROL's ``tol`` parameter through to ``inexact_value`` or
+    ``inexact_jacobian``.
     """
     _require_pyrol()
     import pyrol
 
     has_jacobian = hasattr(objective, "jacobian")
     has_hvp = hasattr(objective, "hvp")
+    inexact_eval = _is_inexact_evaluable(objective)
+    inexact_diff = _is_inexact_differentiable(objective)
 
     class _Adapter(pyrol.Objective):
         def __init__(self) -> None:
             self._objective = objective
             self._bkd = bkd
+            self._inexact_eval = inexact_eval
+            self._inexact_diff = inexact_diff
             super().__init__()
 
         def value(self, x, tol):  # type: ignore[no-untyped-def, override]
             x_col = self._bkd.asarray(x.array)[:, None]
-            val = self._objective(x_col)
+            if self._inexact_eval:
+                val = self._objective.inexact_value(  # type: ignore[attr-defined]
+                    x_col, float(tol),
+                )
+            else:
+                val = self._objective(x_col)
             return self._bkd.to_numpy(val)[0, 0]
 
-    if has_jacobian:
+    if has_jacobian or inexact_diff:
         def _gradient(self, g, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
-            jac = self._objective.jacobian(x_col)
+            if self._inexact_diff:
+                jac = self._objective.inexact_jacobian(  # type: ignore[attr-defined]
+                    x_col, float(tol),
+                )
+            else:
+                jac = self._objective.jacobian(x_col)
             g[:] = self._bkd.to_numpy(jac[0, :])
             return g
         _Adapter.gradient = _gradient  # type: ignore[attr-defined]
@@ -114,38 +149,56 @@ def make_rol_nonlinear_constraint(
     """Create a pyrol.Constraint wrapping the given nonlinear constraint.
 
     Dynamically selects methods based on what the constraint provides.
+    When the constraint satisfies ``InexactEvaluable`` or
+    ``InexactDifferentiable``, the adapter passes ROL's ``tol``
+    parameter through to the inexact methods.
     """
     _require_pyrol()
     import pyrol
 
     has_jacobian = hasattr(constraint, "jacobian")
     has_whvp = hasattr(constraint, "whvp")
+    inexact_eval = _is_inexact_evaluable(constraint)
+    inexact_diff = _is_inexact_differentiable(constraint)
 
     class _Adapter(pyrol.Constraint):
         def __init__(self) -> None:
             self._constraint = constraint
             self._bkd = bkd
+            self._inexact_eval = inexact_eval
+            self._inexact_diff = inexact_diff
             super().__init__()
 
         def value(self, c, x, tol):  # type: ignore[no-untyped-def, override]
             x_col = self._bkd.asarray(x.array)[:, None]
-            vals = self._constraint(x_col)
+            if self._inexact_eval:
+                vals = self._constraint.inexact_value(  # type: ignore[attr-defined]
+                    x_col, float(tol),
+                )
+            else:
+                vals = self._constraint(x_col)
             c[:] = self._bkd.to_numpy(vals[:, 0])
 
-    if has_jacobian:
+    if has_jacobian or inexact_diff:
         def _applyJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
-            jac = self._bkd.to_numpy(
-                self._constraint.jacobian(x_col)
-            )
+            if self._inexact_diff:
+                jac = self._bkd.to_numpy(
+                    self._constraint.inexact_jacobian(x_col, float(tol))
+                )
+            else:
+                jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
             jv[:] = jac @ v[:]
         _Adapter.applyJacobian = _applyJacobian  # type: ignore[attr-defined]
 
         def _applyAdjointJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
-            jac = self._bkd.to_numpy(
-                self._constraint.jacobian(x_col)
-            )
+            if self._inexact_diff:
+                jac = self._bkd.to_numpy(
+                    self._constraint.inexact_jacobian(x_col, float(tol))
+                )
+            else:
+                jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
             jv[:] = jac.T @ v[:]
         _Adapter.applyAdjointJacobian = _applyAdjointJacobian  # type: ignore[attr-defined]
 
