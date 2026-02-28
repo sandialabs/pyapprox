@@ -11,6 +11,7 @@ stat classes in a future consolidation.
 
 from typing import Generic, List
 
+from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -122,14 +123,14 @@ class SampleAverageConstraint(Generic[Array]):
         Array
             Shape ``(nvars_full, n_quad_pts)``.
         """
-        bkd = self._bkd
-        n_quad = self._n_quad_pts
-        full = bkd.zeros((self._nvars_full, n_quad))
-        for kk, idx in enumerate(self._design_indices):
-            full[idx] = bkd.repeat(design_sample[kk], n_quad, axis=0)
-        for kk, idx in enumerate(self._random_indices):
-            full[idx] = self._quad_samples[kk]
-        return full
+        return assemble_full_samples(
+            design_sample,
+            self._quad_samples,
+            self._design_indices,
+            self._random_indices,
+            self._nvars_full,
+            self._bkd,
+        )
 
     def __call__(self, sample: Array) -> Array:
         """Evaluate the statistical constraint.

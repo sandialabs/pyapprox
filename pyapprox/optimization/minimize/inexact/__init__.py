@@ -22,12 +22,16 @@ from pyapprox.optimization.minimize.inexact.qmc import (
 from pyapprox.optimization.minimize.inexact.quadrature import (
     QuadratureStrategy,
 )
+from pyapprox.optimization.minimize.inexact.wrapper import (
+    InexactWrapper,
+)
 
 __all__ = [
     "FixedSampleStrategy",
     "InexactDifferentiable",
     "InexactEvaluable",
     "InexactGradientStrategyProtocol",
+    "InexactWrapper",
     "MonteCarloSAAStrategy",
     "QMCSAAStrategy",
     "QuadratureStrategy",
