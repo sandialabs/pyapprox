@@ -81,6 +81,13 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from _figures._quadrature import (
+    plot_smolyak_combo,
+    plot_sg_points,
+    plot_point_counts,
+    plot_4d_convergence,
+    plot_growth_rules,
+)
 
 bkd = NumpyBkd()
 np.random.seed(42)
@@ -129,8 +136,8 @@ indices_invalid = bkd.asarray(
     [[0, 0, 2], [0, 2, 2]]
 )
 
-print("Valid (downward closed)  :", is_downward_closed(indices_valid, bkd))
-print("Invalid (missing parents):", is_downward_closed(indices_invalid, bkd))
+is_downward_closed(indices_valid, bkd)
+is_downward_closed(indices_invalid, bkd)
 ```
 
 ### Smolyak Coefficients
@@ -145,13 +152,6 @@ For the **isotropic** index set $\mathcal{I}(l) = \{\beta : \lVert \beta \rVert_
 
 ```{python}
 coefs = compute_smolyak_coefficients(indices_valid, bkd)
-
-print("Index | Coefficient")
-print("------|------------")
-for j in range(indices_valid.shape[1]):
-    k1, k2 = int(indices_valid[0, j]), int(indices_valid[1, j])
-    print(f"({k1},{k2})  |  {float(coefs[j]):+.0f}")
-print(f"\nSum of coefficients = {float(bkd.sum(coefs)):.0f}  (should be 1)")
 ```
 
 
@@ -175,13 +175,6 @@ def target_2d(samples):
 max_level = 2
 growth = ClenshawCurtisGrowthRule()
 
-# Build each tensor product subspace and plot it
-fig, axs = plt.subplots(
-    max_level + 1, max_level + 1,
-    figsize=((max_level + 1) * 4, (max_level + 1) * 3.5),
-)
-text_props = dict(boxstyle="round", facecolor="white", alpha=0.6)
-
 # Indices and coefficients for the isotropic set
 iso_indices = indices_valid  # already level=2 set
 iso_coefs = compute_smolyak_coefficients(iso_indices, bkd)
@@ -191,14 +184,12 @@ x_plot = np.linspace(-1, 1, 41)
 X_plot, Y_plot = np.meshgrid(x_plot, x_plot)
 eval_pts = bkd.asarray(np.vstack([X_plot.ravel(), Y_plot.ravel()]))
 
+# Pre-compute tensor product interpolants for each sub-grid
+tp_interpolants = {}
 for ii in range(max_level + 1):
     for jj in range(max_level + 1):
-        ax = axs[max_level - jj][ii]
         if ii + jj > max_level:
-            ax.axis("off")
             continue
-
-        # Build TP interpolant at levels [ii, jj] using Leja nodes
         npts = [growth(ii), growth(jj)]
         bases_1d = [
             LagrangeBasis1D(bkd, leja_seq.quadrature_rule),
@@ -207,28 +198,17 @@ for ii in range(max_level + 1):
         tp = TensorProductInterpolant(bkd, bases_1d, npts)
         tp_samples = tp.get_samples()
         tp.set_values(target_2d(tp_samples))
-
-        # Evaluate on plot grid
         Z = bkd.to_numpy(tp(eval_pts)).reshape(X_plot.shape)
-        ax.contourf(X_plot, Y_plot, Z, levels=20, cmap="coolwarm")
         sg = bkd.to_numpy(tp_samples)
-        ax.plot(sg[0], sg[1], "ko", ms=3)
+        tp_interpolants[(ii, jj)] = (Z, sg)
 
-        # Find Smolyak coefficient
-        for idx in range(iso_indices.shape[1]):
-            if int(iso_indices[0, idx]) == ii and int(iso_indices[1, idx]) == jj:
-                coef = int(iso_coefs[idx])
-                break
-        ax.text(
-            0.05, 0.95, f"${coef:+d}$",
-            transform=ax.transAxes, fontsize=16,
-            verticalalignment="top", bbox=text_props,
-        )
-        ax.set_title(f"$\\beta = [{ii},{jj}]$", fontsize=10)
-
-plt.suptitle(
-    f"Isotropic sparse grid components: $D=2$, $l={max_level}$",
-    fontsize=13, y=1.01,
+fig, axs = plt.subplots(
+    max_level + 1, max_level + 1,
+    figsize=((max_level + 1) * 4, (max_level + 1) * 3.5),
+)
+plot_smolyak_combo(
+    fig, axs, max_level, iso_indices, iso_coefs,
+    eval_pts, X_plot, Y_plot, tp_interpolants,
 )
 plt.tight_layout()
 plt.show()
@@ -261,10 +241,6 @@ for level in range(5):
     # Fit with dummy values to get subspace count
     values = bkd.ones((1, nsamples))
     result = fitter.fit(values)
-    print(
-        f"Level {level}: {result.surrogate.nsubspaces():>3} subspaces, "
-        f"{nsamples:>4} samples"
-    )
 ```
 
 ### Visualizing Sparse Grid Points
@@ -273,25 +249,18 @@ for level in range(5):
 #| fig-cap: "Isotropic sparse grid points in 2D at levels 0–3 using Leja nodes with Clenshaw-Curtis growth. The nested structure emerges from the combination of tensor product sub-grids."
 #| label: fig-sg-points
 
-fig, axes = plt.subplots(1, 4, figsize=(14, 3.5))
-
-for i, level in enumerate([0, 1, 2, 3]):
+levels_list = [0, 1, 2, 3]
+sample_arrays = []
+nsamples_list = []
+for level in levels_list:
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
     samples = bkd.to_numpy(fitter.get_samples())
-    nsamples = samples.shape[1]
+    sample_arrays.append(samples)
+    nsamples_list.append(samples.shape[1])
 
-    ax = axes[i]
-    ax.scatter(samples[0], samples[1], s=40, c="steelblue", alpha=0.7)
-    ax.set_xlim(-1.1, 1.1)
-    ax.set_ylim(-1.1, 1.1)
-    ax.set_aspect("equal")
-    ax.set_title(f"Level {level}: {nsamples} points")
-    ax.set_xlabel("$z_1$")
-    if i == 0:
-        ax.set_ylabel("$z_2$")
-    ax.grid(True, alpha=0.3)
-
+fig, axes = plt.subplots(1, 4, figsize=(14, 3.5))
+plot_sg_points(axes, levels_list, sample_arrays, nsamples_list)
 plt.tight_layout()
 plt.show()
 ```
@@ -318,12 +287,7 @@ result = fitter.fit(values)
 surrogate = result.surrogate
 
 # Compare point counts with tensor product at same level
-M_tp = growth(level) ** nvars
 nsamples = samples.shape[1]
-print(f"Sparse grid (level {level}, D={nvars}): {nsamples} points")
-print(f"Tensor product (level {level}, D={nvars}): {M_tp} points")
-print(f"Note: in 2D the sparse grid has more points than the TP at low levels;")
-print(f"the savings emerge in higher dimensions (see point count table below).")
 
 # Wrap true function for plotting
 true_func = FunctionFromCallable(
@@ -380,33 +344,22 @@ The sparse grid's main advantage is dramatically fewer points than tensor produc
 dims_compare = [2, 5, 10]
 max_levels = {2: 5, 5: 5, 10: 4}
 
-fig, axs = plt.subplots(1, 3, figsize=(14, 5), sharey=False)
-
-for ax, d in zip(axs, dims_compare):
+levels_data, sg_counts_data, tp_counts_data = [], [], []
+for d in dims_compare:
     levels_range = np.arange(0, max_levels[d] + 1)
-    sg_counts = []
-    tp_counts = []
+    sg_counts, tp_counts = [], []
     for ell in levels_range:
         facs_d = [leja_factory] * d
         tp_fac = TensorProductSubspaceFactory(bkd, facs_d, growth)
         fitter = IsotropicSparseGridFitter(bkd, tp_fac, int(ell))
         sg_counts.append(fitter.get_samples().shape[1])
         tp_counts.append(growth(int(ell)) ** d)
+    levels_data.append(levels_range)
+    sg_counts_data.append(sg_counts)
+    tp_counts_data.append(tp_counts)
 
-    ax.semilogy(
-        levels_range, tp_counts, "-o", color="#E67E22", lw=2, ms=6,
-        label="Tensor product",
-    )
-    ax.semilogy(
-        levels_range, sg_counts, "--s", color="#2C7FB8", lw=2, ms=6,
-        label="Isotropic SG",
-    )
-    ax.set_title(f"$D = {d}$", fontsize=12)
-    ax.set_xlabel("Level $l$", fontsize=12)
-    ax.set_ylabel("Number of points", fontsize=12)
-    ax.legend(fontsize=10)
-    ax.grid(True, which="both", alpha=0.3)
-
+fig, axs = plt.subplots(1, 3, figsize=(14, 5), sharey=False)
+plot_point_counts(axs, dims_compare, levels_data, sg_counts_data, tp_counts_data)
 plt.suptitle(
     "Sparse grid vs. tensor product: point count scaling", fontsize=13
 )
@@ -417,25 +370,8 @@ plt.show()
 The table below shows the exact counts.  Tensor product counts are computed analytically as $M_\ell^D$; sparse grid counts are measured from actual grid construction.
 
 ```{python}
-max_ell = 5
-print(f"{'Level':<7} {'D=2 TP':>10} {'D=2 SG':>10}  {'D=5 TP':>12} {'D=5 SG':>10}  {'D=10 TP':>14} {'D=10 SG':>10}")
-print("-" * 85)
-
-for ell in range(max_ell + 1):
-    tp_2d = growth(ell) ** 2
-    fac2 = TensorProductSubspaceFactory(bkd, [leja_factory] * 2, growth)
-    sg_2d = IsotropicSparseGridFitter(bkd, fac2, ell).get_samples().shape[1]
-    tp_5d = growth(ell) ** 5
-    fac5 = TensorProductSubspaceFactory(bkd, [leja_factory] * 5, growth)
-    sg_5d = IsotropicSparseGridFitter(bkd, fac5, ell).get_samples().shape[1]
-    tp_10d = growth(ell) ** 10
-    fac10 = TensorProductSubspaceFactory(bkd, [leja_factory] * 10, growth)
-    sg_10d = IsotropicSparseGridFitter(bkd, fac10, ell).get_samples().shape[1]
-    print(
-        f"{ell:<7} {tp_2d:>10,} {sg_2d:>10,}  "
-        f"{tp_5d:>12,} {sg_5d:>10,}  "
-        f"{tp_10d:>14,} {sg_10d:>10,}"
-    )
+#| echo: false
+# Point count table data already shown in figure above
 ```
 
 
@@ -482,7 +418,6 @@ for level in range(5):
     )
     sg_npts.append(samples.shape[1])
     sg_errors.append(err)
-    print(f"SG level {level}: {samples.shape[1]:>5} pts, error = {err:.2e}")
 
 # Tensor product convergence (only small levels feasible)
 tp_npts, tp_errors = [], []
@@ -507,22 +442,9 @@ for level in range(4):
     )
     tp_npts.append(n_tp)
     tp_errors.append(err)
-    print(f"TP level {level}: {n_tp:>5} pts, error = {err:.2e}")
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.loglog(
-    sg_npts, sg_errors, "--s", color="#2C7FB8", lw=2, ms=6,
-    label="Isotropic sparse grid",
-)
-ax.loglog(
-    tp_npts, tp_errors, "-o", color="#E67E22", lw=2, ms=6,
-    label="Tensor product",
-)
-ax.set_xlabel("Number of points $N$", fontsize=12)
-ax.set_ylabel("RMS error", fontsize=12)
-ax.set_title("4D convergence: SG vs. TP (Leja nodes)", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_4d_convergence(ax, sg_npts, sg_errors, tp_npts, tp_errors)
 plt.tight_layout()
 plt.show()
 ```
@@ -545,22 +467,13 @@ linear = LinearGrowthRule(scale=2, shift=1)
 cc = ClenshawCurtisGrowthRule()
 
 levels_gr = np.arange(0, 11)
+rules_data = [
+    ("Linear ($2\\ell+1$)", [linear(int(ell)) for ell in levels_gr]),
+    ("CC ($2^\\ell+1$)", [cc(int(ell)) for ell in levels_gr]),
+]
 
 fig, ax = plt.subplots(figsize=(8, 4))
-styles = [("o-", "#2C7FB8"), ("s-", "#E67E22")]
-rules = [
-    ("Linear ($2\\ell+1$)", linear),
-    ("CC ($2^\\ell+1$)", cc),
-]
-for (label, rule), (sty, col) in zip(rules, styles):
-    counts = [rule(int(ell)) for ell in levels_gr]
-    ax.semilogy(levels_gr, counts, sty, color=col, lw=2, ms=6, label=label)
-
-ax.set_xlabel("Level $\\ell$", fontsize=12)
-ax.set_ylabel("Nodes $M_\\ell$", fontsize=12)
-ax.set_title("Univariate growth rules", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+plot_growth_rules(ax, levels_gr, rules_data)
 plt.tight_layout()
 plt.show()
 ```
@@ -584,10 +497,6 @@ result_quad = fitter_quad.fit(values_quad)
 nsamples_quad = samples_quad.shape[1]
 
 sg_mean = float(result_quad.surrogate.mean()[0])
-
-print(f"Exact mean (by symmetry):                      {exact_mean:.8f}")
-print(f"Sparse grid mean (level 4, {nsamples_quad} pts): {sg_mean:.8f}")
-print(f"|Error|: {abs(sg_mean - exact_mean):.2e}")
 ```
 
 

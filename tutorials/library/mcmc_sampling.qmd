@@ -80,57 +80,10 @@ If the walker always accepts moves to higher density and *sometimes* accepts mov
 #| label: fig-random-walk-concept
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import multivariate_normal
-
-rng = np.random.default_rng(42)
-
-# 2D Gaussian posterior (for illustration)
-mu_post = np.array([0.5, -0.3])
-cov_post = np.array([[0.15, 0.06],
-                      [0.06, 0.10]])
-rv_post = multivariate_normal(mu_post, cov_post)
-
-# Run a simple MH chain for visualization
-n_vis = 150
-chain_vis = np.empty((n_vis, 2))
-chain_vis[0] = mu_post + rng.normal(0, 0.2, size=2)
-sigma_prop_vis = 0.3
-
-for t in range(1, n_vis):
-    proposal = chain_vis[t-1] + rng.normal(0, sigma_prop_vis, size=2)
-    log_alpha = rv_post.logpdf(proposal) - rv_post.logpdf(chain_vis[t-1])
-    if np.log(rng.uniform()) < log_alpha:
-        chain_vis[t] = proposal
-    else:
-        chain_vis[t] = chain_vis[t-1]
-
-# Plot
-g1 = np.linspace(-1.0, 2.0, 200)
-g2 = np.linspace(-1.5, 1.0, 200)
-G1, G2 = np.meshgrid(g1, g2)
-pos = np.dstack((G1, G2))
-Z = rv_post.pdf(pos)
+from _figures._bayesian import plot_random_walk_concept
 
 fig, ax = plt.subplots(figsize=(8, 6))
-ax.contourf(G1, G2, Z, levels=12, cmap="Blues", alpha=0.6)
-ax.contour(G1, G2, Z, levels=8, colors="steelblue",
-           linewidths=0.5, alpha=0.5)
-
-# Chain trajectory
-colors = np.arange(n_vis)
-ax.plot(chain_vis[:, 0], chain_vis[:, 1], "-", color="gray", lw=0.5,
-        alpha=0.4, zorder=2)
-sc = ax.scatter(chain_vis[:, 0], chain_vis[:, 1], c=colors, cmap="YlOrRd",
-                s=15, edgecolors="k", lw=0.3, zorder=3)
-ax.scatter(*chain_vis[0], marker="*", s=200, color="#27AE60", edgecolors="k",
-           lw=1, zorder=4, label="Start")
-cbar = fig.colorbar(sc, ax=ax, shrink=0.7, label="Step number")
-
-ax.set_xlabel(r"$\xi_1$", fontsize=12)
-ax.set_ylabel(r"$\xi_2$", fontsize=12)
-ax.set_title("Random walker exploring a 2D posterior", fontsize=11)
-ax.legend(fontsize=10, loc="upper right")
-ax.grid(True, alpha=0.15)
+plot_random_walk_concept(fig, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -144,12 +97,11 @@ The walker's decision rule is the heart of MCMC. @fig-mh-single-step walks throu
 #| echo: false
 #| fig-cap: "Three scenarios for a proposed move. Top: the proposal lands in a higher-density region --- always accepted ($\\alpha = 1$). Middle: the proposal lands in a moderately lower region --- accepted with probability $\\alpha < 1$. Bottom: the proposal lands far in the tail --- almost always rejected ($\\alpha \\approx 0$). The walker naturally gravitates toward high-density regions."
 #| label: fig-mh-single-step
-from scipy.stats import norm
+import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.pde.cantilever_beam import (
     cantilever_beam_1d,
 )
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.likelihood import (
     DiagonalGaussianLogLikelihood,
     ModelBasedLogLikelihood,
@@ -157,22 +109,22 @@ from pyapprox.probability.likelihood import (
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from scipy.stats import norm
+from _figures._bayesian import plot_mh_single_step
 
 bkd = NumpyBkd()
 
 # 1D FEM beam with 1 KLE term for spatially varying EI(x)
 benchmark_1d = cantilever_beam_1d(bkd, num_kle_terms=1)
-beam_1d = benchmark_1d.function()   # nvars=1, nqoi=3
-prior = benchmark_1d.prior()        # GaussianMarginal(0, 1) wrapped in IndependentJoint
+beam_1d = benchmark_1d.function()
+prior = benchmark_1d.prior()
 
-# Tip-only wrapper (first QoI is tip deflection)
 tip_model = FunctionFromCallable(
     nqoi=1, nvars=1,
     fun=lambda xi: beam_1d(xi)[0:1, :],
     bkd=bkd,
 )
 
-# True parameter and noise
 xi_true = 0.5
 delta_true = float(tip_model(bkd.asarray([[xi_true]]))[0, 0])
 sigma_noise = 0.1 * abs(delta_true)
@@ -180,7 +132,6 @@ noise_variances = bkd.asarray([sigma_noise**2])
 noise_likelihood = DiagonalGaussianLogLikelihood(noise_variances, bkd)
 model_likelihood = ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)
 
-# Generate synthetic observation
 np.random.seed(42)
 y_obs = float(model_likelihood.rvs(bkd.asarray([[xi_true]])))
 noise_likelihood.set_observations(bkd.asarray([[y_obs]]))
@@ -193,78 +144,9 @@ lik_vals = norm.pdf(y_obs, tip_preds, sigma_noise)
 post_vals = lik_vals * prior_vals
 post_vals = post_vals / np.trapz(post_vals, xi_grid)
 
-# Three scenarios for the MH figure
-scenarios = [
-    {"current": 1.0, "proposed": 0.4,
-     "title": "Proposal into higher density → accept",
-     "accept_text": r"$\alpha = 1$: always accept"},
-    {"current": 0.4, "proposed": 1.5,
-     "title": "Proposal into lower density → sometimes accept",
-     "accept_text": None},
-    {"current": 0.4, "proposed": 3.0,
-     "title": "Proposal into far tail → almost always reject",
-     "accept_text": None},
-]
-
 fig, axes = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
-
-for ax, sc in zip(axes, scenarios):
-    xi_curr = sc["current"]
-    xi_prop = sc["proposed"]
-
-    # Posterior values at current and proposed
-    p_curr = np.interp(xi_curr, xi_grid, post_vals)
-    p_prop = np.interp(xi_prop, xi_grid, post_vals)
-    alpha = min(1.0, p_prop / p_curr) if p_curr > 0 else 1.0
-
-    # Plot posterior
-    ax.fill_between(xi_grid, post_vals, alpha=0.15, color="#E67E22")
-    ax.plot(xi_grid, post_vals, color="#E67E22", lw=2)
-
-    # Proposal distribution (Gaussian centered at current)
-    sigma_prop_demo = 1.0
-    prop_dist = norm.pdf(xi_grid, xi_curr, sigma_prop_demo)
-    prop_dist_scaled = prop_dist / prop_dist.max() * post_vals.max() * 0.3
-    ax.plot(xi_grid, prop_dist_scaled, color="gray", ls="--", lw=1,
-            label="Proposal distribution")
-
-    # Current position
-    ax.plot(xi_curr, p_curr, "o", ms=12, color="#2C7FB8", zorder=5,
-            markeredgecolor="k", markeredgewidth=1.5)
-    ax.annotate("current", (xi_curr, p_curr),
-                textcoords="offset points", xytext=(0, 15),
-                ha="center", fontsize=9, color="#2C7FB8", fontweight="bold")
-
-    # Proposed position
-    ax.plot(xi_prop, p_prop, "s", ms=12, zorder=5, markeredgecolor="k",
-            markeredgewidth=1.5,
-            color="#27AE60" if alpha > 0.5 else "#C0392B")
-    ax.annotate("proposed", (xi_prop, p_prop),
-                textcoords="offset points", xytext=(0, 15),
-                ha="center", fontsize=9,
-                color="#27AE60" if alpha > 0.5 else "#C0392B",
-                fontweight="bold")
-
-    # Arrow from current to proposed
-    ax.annotate("", xy=(xi_prop, p_prop * 0.5 + p_curr * 0.5),
-                xytext=(xi_curr, p_prop * 0.5 + p_curr * 0.5),
-                arrowprops=dict(arrowstyle="->", lw=1.5,
-                                color="#27AE60" if alpha > 0.5 else "#C0392B"))
-
-    # Acceptance probability
-    text = sc["accept_text"] or rf"$\alpha = {alpha:.3f}$"
-    outcome = "accept ✓" if alpha > 0.5 else "likely reject ✗"
-    ax.text(0.98, 0.88, f"{text}\n{outcome}",
-            transform=ax.transAxes, ha="right", va="top", fontsize=10,
-            bbox=dict(boxstyle="round,pad=0.3",
-                      fc="#d5f5d5" if alpha > 0.5 else "#f5d5d5",
-                      ec="gray", lw=0.5))
-
-    ax.set_ylabel("Density", fontsize=10)
-    ax.set_title(sc["title"], fontsize=10)
-    ax.grid(True, alpha=0.15)
-
-axes[-1].set_xlabel(r"$\xi$", fontsize=12)
+plot_mh_single_step(axes, None, tip_model, noise_likelihood,
+                    y_obs, sigma_noise, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -327,42 +209,13 @@ print(f"Acceptance rate: {result.acceptance_rate:.1%}")
 #| echo: false
 #| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."
 #| label: fig-trace-and-histogram
-
-burnin = 200
-chain_post = chain[burnin:]
+from _figures._bayesian import plot_trace_and_histogram
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-# Trace plot
-ax1.plot(chain, lw=0.5, color="#2C7FB8", alpha=0.8)
-ax1.axhspan(-5, 5, xmin=0, xmax=burnin/n_steps,
-            color="gray", alpha=0.15)
-ax1.axvline(burnin, color="gray", ls="--", lw=1, label="End of burn-in")
-ax1.axhline(xi_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7,
-            label=rf"True $\xi$ = {xi_true}")
-ax1.set_xlabel("Iteration", fontsize=12)
-ax1.set_ylabel(r"$\xi$", fontsize=12)
-ax1.set_title("Trace plot", fontsize=11)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.15)
-
-# Histogram vs exact posterior
-ax2.hist(chain_post, bins=50, density=True, color="#2C7FB8", alpha=0.6,
-         edgecolor="k", lw=0.3, label="MCMC samples")
-ax2.plot(xi_grid, post_vals, color="#E67E22", lw=2.5,
-         label="Exact posterior (grid)")
-ax2.axvline(xi_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7)
-ax2.set_xlabel(r"$\xi$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title("Posterior: MCMC vs. exact", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.15)
-
+plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,
+                         xi_true, n_steps)
 plt.tight_layout()
 plt.show()
-
-print(f"MCMC posterior mean: {np.mean(chain_post):.3f}")
-print(f"Grid posterior mean: {np.trapz(xi_grid * post_vals, xi_grid):.3f}")
 ```
 
 The histogram matches the exact posterior --- the chain has done its job.
@@ -441,52 +294,14 @@ print(f"Acceptance rate: {result_2d.acceptance_rate:.1%}")
 #| echo: false
 #| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."
 #| label: fig-2d-chain
+from _figures._bayesian import plot_2d_chain
 
 burnin_2d = 500
 chain_2d_post = chain_2d[burnin_2d:]
 
 fig, ax = plt.subplots(figsize=(8, 6))
-
-# Background: compute posterior on a grid for contours
-n_grid_2d = 100
-xi1_g = np.linspace(-3.0, 3.0, n_grid_2d)
-xi2_g = np.linspace(-3.0, 3.0, n_grid_2d)
-xi1_m, xi2_m = np.meshgrid(xi1_g, xi2_g)
-grid_samples = bkd.asarray(np.vstack([xi1_m.ravel(), xi2_m.ravel()]))
-log_post_flat = bkd.to_numpy(posterior_2d(grid_samples))
-log_post_grid = log_post_flat.reshape(n_grid_2d, n_grid_2d)
-post_grid = np.exp(log_post_grid - np.nanmax(log_post_grid))
-
-ax.contourf(xi1_m, xi2_m, post_grid, levels=10, cmap="Blues", alpha=0.5)
-ax.contour(xi1_m, xi2_m, post_grid, levels=8, colors="steelblue",
-           linewidths=0.5, alpha=0.4)
-
-# Burn-in trajectory
-ax.plot(chain_2d[:burnin_2d, 0], chain_2d[:burnin_2d, 1], "-",
-        color="gray", lw=0.3, alpha=0.5)
-ax.scatter(chain_2d[:burnin_2d, 0], chain_2d[:burnin_2d, 1],
-           c="gray", s=3, alpha=0.3, zorder=2)
-
-# Stationary trajectory
-step_colors = np.arange(len(chain_2d_post))
-ax.plot(chain_2d_post[:200, 0], chain_2d_post[:200, 1], "-",
-        color="gray", lw=0.2, alpha=0.3)
-sc = ax.scatter(chain_2d_post[:, 0], chain_2d_post[:, 1],
-                c=step_colors, cmap="YlOrRd", s=5, alpha=0.5,
-                edgecolors="none", zorder=3)
-
-# Start and true
-ax.scatter(*chain_2d[0], marker="*", s=200, color="#27AE60",
-           edgecolors="k", lw=1, zorder=5, label="Start (prior mean)")
-ax.scatter(float(xi_true_2d[0, 0]), float(xi_true_2d[1, 0]),
-           marker="D", s=80, color="#C0392B",
-           edgecolors="k", lw=1, zorder=5, label="True parameters")
-
-ax.set_xlabel(r"$\xi_1$", fontsize=12)
-ax.set_ylabel(r"$\xi_2$", fontsize=12)
-ax.set_title("2D MCMC trajectory", fontsize=11)
-ax.legend(fontsize=9, loc="upper right")
-ax.grid(True, alpha=0.15)
+plot_2d_chain(ax, chain_2d, posterior_2d, xi_true_2d, bkd,
+              burnin_2d=burnin_2d)
 plt.tight_layout()
 plt.show()
 ```
@@ -497,40 +312,10 @@ plt.show()
 #| echo: false
 #| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."
 #| label: fig-2d-marginals
-
-# Exact marginals from grid
-post_grid_normed = post_grid / np.trapz(np.trapz(post_grid, xi2_g, axis=0), xi1_g)
-marginal_xi1_exact = np.trapz(post_grid_normed, xi2_g, axis=0)
-marginal_xi2_exact = np.trapz(post_grid_normed, xi1_g, axis=1)
+from _figures._bayesian import plot_2d_marginals
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-# xi_1 marginal
-ax1.hist(chain_2d_post[:, 0], bins=50, density=True, color="#2C7FB8",
-         alpha=0.6, edgecolor="k", lw=0.3, label="MCMC")
-ax1.plot(xi1_g, marginal_xi1_exact, color="#E67E22", lw=2.5,
-         label="Exact (grid)")
-ax1.axvline(float(xi_true_2d[0, 0]), color="#27AE60", ls="--", lw=1.5)
-ax1.axvline(0.0, color="gray", ls=":", lw=1, label="Prior mean")
-ax1.set_xlabel(r"$\xi_1$", fontsize=12)
-ax1.set_ylabel("Density", fontsize=12)
-ax1.set_title(r"Marginal posterior: $\xi_1$", fontsize=11)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.15)
-
-# xi_2 marginal
-ax2.hist(chain_2d_post[:, 1], bins=50, density=True, color="#2C7FB8",
-         alpha=0.6, edgecolor="k", lw=0.3, label="MCMC")
-ax2.plot(xi2_g, marginal_xi2_exact, color="#E67E22", lw=2.5,
-         label="Exact (grid)")
-ax2.axvline(float(xi_true_2d[1, 0]), color="#27AE60", ls="--", lw=1.5)
-ax2.axvline(0.0, color="gray", ls=":", lw=1, label="Prior mean")
-ax2.set_xlabel(r"$\xi_2$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title(r"Marginal posterior: $\xi_2$", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.15)
-
+plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -544,22 +329,11 @@ As a final sanity check, we propagate every posterior sample through the model a
 #| echo: false
 #| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."
 #| label: fig-posterior-predictive
-
-chain_2d_post_arr = bkd.asarray(chain_2d_post.T)  # (2, n_post)
-delta_predictive = bkd.to_numpy(tip_model_2d(chain_2d_post_arr))[0, :]
+from _figures._bayesian import plot_posterior_predictive
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.hist(delta_predictive, bins=60, density=True, color="#2C7FB8", alpha=0.6,
-        edgecolor="k", lw=0.3, label="Posterior predictions")
-ax.axvline(y_obs_2d, color="#C0392B", ls="--", lw=2,
-           label=f"Observed $y_{{\\text{{obs}}}}$")
-ax.axvline(delta_true_2d, color="#27AE60", ls="--", lw=1.5,
-           label=f"True $\\delta_{{\\text{{tip}}}}$")
-ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Posterior predictive distribution", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.15)
+plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,
+                          y_obs_2d, delta_true_2d, bkd)
 plt.tight_layout()
 plt.show()
 ```

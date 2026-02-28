@@ -257,31 +257,23 @@ rho = np.array([cov_true[0, a] / np.sqrt(cov_true[0, 0] * cov_true[a, a])
                 for a in range(len(models))])
 rho_ext = np.append(rho, 0.0)   # rho_{M+1} = 0
 
-print("Correlations rho_{0,alpha}:")
-for a, r in enumerate(rho):
-    print(f"  alpha={a}: rho = {r:.4f}")
-
 # Analytical optimal ratios from eq-r-star
 r_star = np.array([1.0] + [
     np.sqrt(costs[0] * (rho_ext[a]**2 - rho_ext[a+1]**2)
             / (costs[a] * (1 - rho_ext[1]**2)))
     for a in range(1, M + 1)
 ])
-print("\nAnalytical optimal ratios r_alpha*:")
+
+print("Optimal ratios r_alpha*:")
 for a, r in enumerate(r_star):
     print(f"  alpha={a}: r* = {r:.2f}")
-
-# Validity condition check
-print("\nValidity condition C_{alpha-1}/C_alpha > delta_rho_{alpha-1}/delta_rho_alpha:")
-for a in range(1, M + 1):
-    lhs = costs[a-1] / costs[a]
-    rhs = (rho_ext[a-1]**2 - rho_ext[a]**2) / (rho_ext[a]**2 - rho_ext[a+1]**2)
-    print(f"  alpha={a}: {lhs:.1f} > {rhs:.2f}?  {'✓' if lhs > rhs else '✗'}")
 ```
 
 ```{python}
 #| fig-cap: "MFMC and MC variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."
 #| label: fig-variance-verify
+
+from _figures._hierarchy import plot_mfmc_variance_verify
 
 stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(bkd.asarray(cov_true))
@@ -322,28 +314,10 @@ for P_t in target_costs_sweep:
     mfmc_vars_emp.append(mfmc_ests_t.var())
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
-          label="MC (predicted)")
-ax.loglog(target_costs_sweep, mc_vars_emp, "o", color="#aaaaaa", ms=8,
-          label="MC (empirical)")
-ax.loglog(target_costs_sweep, mfmc_vars_pred, "-", color="#E67E22", lw=2,
-          label="MFMC (predicted)")
-ax.loglog(target_costs_sweep, mfmc_vars_emp, "s", color="#E67E22", ms=8,
-          label="MFMC (empirical)")
-ax.set_xlabel("Total cost $P$", fontsize=12)
-ax.set_ylabel(r"Estimator variance", fontsize=12)
-ax.set_title(f"Predicted vs empirical variance  ({n_trials} trials)", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_mfmc_variance_verify(target_costs_sweep, mc_vars_pred, mc_vars_emp,
+                          mfmc_vars_pred, mfmc_vars_emp, n_trials, ax)
 plt.tight_layout()
 plt.show()
-
-for P_t, mp, me, mfp, mfe in zip(
-    target_costs_sweep, mc_vars_pred, mc_vars_emp,
-    mfmc_vars_pred, mfmc_vars_emp,
-):
-    print(f"P={P_t:5d}:  MC pred={mp:.2e} emp={me:.2e}  |  "
-          f"MFMC pred={mfp:.2e} emp={mfe:.2e}")
 ```
 
 

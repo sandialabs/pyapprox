@@ -60,6 +60,7 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
 )
+from _figures._quadrature import plot_newton_cotes, plot_pw_quad_convergence
 
 bkd = NumpyBkd()
 ```
@@ -120,42 +121,9 @@ def f_demo(x):
     return np.exp(x)
 
 a, b = 0.0, 1.0
-x_plot = np.linspace(a, b, 300)
 
 fig, axs = plt.subplots(1, 3, figsize=(14, 4), sharey=True)
-
-for ax, label, xs, color in zip(
-    axs,
-    ["Midpoint", "Trapezoid", "Simpson's"],
-    [
-        [(a + b) / 2],
-        [a, b],
-        [a, (a + b) / 2, b],
-    ],
-    ["#2C7FB8", "#E67E22", "#27AE60"],
-):
-    ax.plot(x_plot, f_demo(x_plot), "k-", lw=2, label="$f(x)$")
-    ys = [f_demo(xi) for xi in xs]
-    ax.plot(xs, ys, "o", ms=8, color=color)
-
-    if len(xs) == 1:          # midpoint: rectangle
-        ax.fill_between([a, b], 0, ys[0], alpha=0.25, color=color, label=label)
-        ax.hlines(ys[0], a, b, color=color, lw=2)
-    elif len(xs) == 2:        # trapezoid
-        ax.fill_between([a, b], 0, ys, alpha=0.25, color=color, label=label)
-        ax.plot([a, b], ys, color=color, lw=2)
-    else:                     # Simpson's: parabola through 3 points
-        coeffs = np.polyfit(xs, ys, 2)
-        p_vals = np.polyval(coeffs, x_plot)
-        ax.fill_between(x_plot, 0, p_vals, alpha=0.25, color=color, label=label)
-        ax.plot(x_plot, p_vals, color=color, lw=2)
-
-    ax.set_title(label, fontsize=12)
-    ax.set_xlabel("$x$")
-    ax.axhline(0, color="k", lw=0.5)
-    ax.legend(fontsize=10)
-
-axs[0].set_ylabel("$f(x)$")
+plot_newton_cotes(axs, f_demo, a, b)
 plt.tight_layout()
 plt.show()
 ```
@@ -327,15 +295,6 @@ for M in Ms:
         wts_np = bkd.to_numpy(wts[:, 0])
         approx = wts_np @ f_smooth(pts_np)
         err_list.append(abs(approx - true_val))
-
-# Verify that weights reproduce the expected patterns
-trap_rule.set_nterms(5)
-_, wt5 = trap_rule.quadrature_rule()
-print(f"PiecewiseLinear weights (M=5): {bkd.to_numpy(wt5[:, 0])}")
-
-simp_rule.set_nterms(5)
-_, ws5 = simp_rule.quadrature_rule()
-print(f"PiecewiseQuadratic weights (M=5): {bkd.to_numpy(ws5[:, 0])}")
 ```
 
 ```{python}
@@ -343,18 +302,7 @@ print(f"PiecewiseQuadratic weights (M=5): {bkd.to_numpy(ws5[:, 0])}")
 #| label: fig-convergence
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.loglog(Ms, trap_errors, "o-", label="PiecewiseLinear (trapezoid) $O(M^{-2})$")
-ax.loglog(Ms, simp_errors, "s-", label="PiecewiseQuadratic (Simpson) $O(M^{-4})$")
-
-# Reference slopes
-ax.loglog(Ms, 0.5 * Ms.astype(float)**-2, "k--", lw=1, label="$M^{-2}$ slope")
-ax.loglog(Ms, 0.5 * Ms.astype(float)**-4, "k:",  lw=1, label="$M^{-4}$ slope")
-
-ax.set_xlabel("Number of nodes $M$", fontsize=12)
-ax.set_ylabel("Absolute error $|I_M[f] - I[f]|$", fontsize=12)
-ax.set_title("Piecewise polynomial quadrature convergence", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+plot_pw_quad_convergence(ax, Ms, trap_errors, simp_errors)
 plt.tight_layout()
 plt.show()
 ```

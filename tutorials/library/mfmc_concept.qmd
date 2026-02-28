@@ -68,71 +68,11 @@ Before the algebra, @fig-sample-structure makes the structural difference visual
 #| fig-cap: "Sample allocation for MLMC (left) and MFMC (right) across three models at equal total cost. Each row is a model; each cell is a sample evaluation. MLMC: each level correction uses a disjoint set — no sample appears in more than one row. MFMC: sets are nested — every HF sample (red) is also evaluated by all LF models, and cheaper models evaluate progressively more exclusive samples (orange, blue)."
 #| label: fig-sample-structure
 
-import numpy as np
-np.random.seed(42)
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-
-mlmc_N   = [3, 8, 28]   # independent blocks per level correction
-mfmc_N   = [3, 10, 40]  # total nested samples per model
-n_models = 3
-mnames   = [r"$f_0$  (HF)", r"$f_1$", r"$f_2$  (cheap)"]
+from _figures._hierarchy import plot_sample_structure
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.5))
-
-# ── MLMC ──────────────────────────────────────────────────────────────────────
-ax = axes[0]
-mlmc_colors = ["#C0392B", "#E67E22", "#2C7FB8"]
-offset = 0
-for m in range(n_models):
-    N  = mlmc_N[m]
-    xs = np.arange(offset, offset + N)
-    ax.barh([m]*N, [0.88]*N, left=xs, height=0.6,
-            color=mlmc_colors[m], edgecolor="k", lw=0.4, alpha=0.85)
-    offset += N + 1.5
-ax.set_yticks(range(n_models))
-ax.set_yticklabels(mnames, fontsize=11)
-ax.set_xlabel("Sample index", fontsize=11)
-ax.set_title("MLMC: independent sets per level", fontsize=11, pad=8)
-ax.set_xlim(-0.5, offset - 0.5)
-ax.set_ylim(-0.5, n_models - 0.4)
-ax.legend(handles=[mpatches.Patch(color=c, label=f"Level {m} only")
-                   for m, c in enumerate(mlmc_colors)], fontsize=9)
-ax.grid(alpha=0.12, axis="x")
-
-# ── MFMC ──────────────────────────────────────────────────────────────────────
-ax = axes[1]
-n_hf     = mfmc_N[0]
-n_lf1_ex = mfmc_N[1] - mfmc_N[0]
-n_lf2_ex = mfmc_N[2] - mfmc_N[1]
-c_shared = "#C0392B"
-c_lf12   = "#E67E22"
-c_lf2    = "#2C7FB8"
-
-for m in range(n_models):   # all models evaluate the HF samples
-    ax.barh([m]*n_hf, [0.88]*n_hf, left=np.arange(n_hf),
-            height=0.6, color=c_shared, edgecolor="k", lw=0.4, alpha=0.85)
-for m in range(1, n_models):  # LF1 and LF2 see extra samples
-    ax.barh([m]*n_lf1_ex, [0.88]*n_lf1_ex,
-            left=np.arange(n_hf, n_hf + n_lf1_ex),
-            height=0.6, color=c_lf12, edgecolor="k", lw=0.4, alpha=0.85)
-ax.barh([2]*n_lf2_ex, [0.88]*n_lf2_ex,   # only LF2 sees the remaining samples
-        left=np.arange(n_hf + n_lf1_ex, mfmc_N[2]),
-        height=0.6, color=c_lf2, edgecolor="k", lw=0.4, alpha=0.85)
-
-ax.set_yticks(range(n_models))
-ax.set_yticklabels(mnames, fontsize=11)
-ax.set_xlabel("Sample index", fontsize=11)
-ax.set_title("MFMC: nested sets, HF samples always shared", fontsize=11, pad=8)
-ax.set_xlim(-0.5, mfmc_N[-1] + 0.5)
-ax.set_ylim(-0.5, n_models - 0.4)
-ax.legend(handles=[
-    mpatches.Patch(color=c_shared, label=r"$\mathcal{Z}_0$: HF + all LF"),
-    mpatches.Patch(color=c_lf12,   label=r"$\mathcal{Z}_1\!\setminus\!\mathcal{Z}_0$: LF1 + LF2"),
-    mpatches.Patch(color=c_lf2,    label=r"$\mathcal{Z}_2\!\setminus\!\mathcal{Z}_1$: LF2 only"),
-], fontsize=9)
-ax.grid(alpha=0.12, axis="x")
-
+plot_sample_structure(axes)
 plt.tight_layout()
 plt.show()
 ```

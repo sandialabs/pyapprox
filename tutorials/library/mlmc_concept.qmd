@@ -93,60 +93,12 @@ concentrate most of the correction work at negligible expense.
 #| fig-cap: "Variance of the level corrections $Y_\\ell = f_\\ell - f_{\\ell+1}$ (blue bars, left axis) and cost per sample (red line, right axis) for the five-level polynomial hierarchy. The variance of each correction is much smaller than the variance of the corresponding model, and it decreases rapidly toward cheaper levels."
 #| label: fig-level-variances
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-)
-
-bkd = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-variable  = benchmark.prior()
-models    = benchmark.models()
-costs     = bkd.to_numpy(benchmark.costs())
-M         = len(models) - 1   # 4: levels 0..4, with f_5 = 0
-
-np.random.seed(0)
-N_est = 50000
-samples = variable.rvs(N_est)
-values  = [bkd.to_numpy(m(samples)).ravel() for m in models]
-
-# Variance of each model
-model_vars = [np.var(v) for v in values]
-# Variance of each correction Y_ell = f_ell - f_{ell+1}  (f_{M+1} = 0)
-diff_vars = []
-for ell in range(M):
-    diff_vars.append(np.var(values[ell] - values[ell + 1]))
-diff_vars.append(np.var(values[M]))   # Y_M = f_M - 0
-
-level_labels = [rf"$Y_{{\ell={ell}}}$" for ell in range(M + 1)]
-x = np.arange(M + 1)
+from _figures._hierarchy import plot_level_variances
 
 fig, ax1 = plt.subplots(figsize=(9, 4.5))
-
-bars = ax1.bar(x, diff_vars, color="#2C7FB8", alpha=0.75, width=0.5,
-               edgecolor="k", lw=0.5, label=r"$\mathrm{Var}[Y_\ell]$")
-ax1.set_xticks(x)
-ax1.set_xticklabels(level_labels, fontsize=12)
-ax1.set_ylabel(r"Variance of correction $\mathrm{Var}[Y_\ell]$", fontsize=11,
-               color="#2C7FB8")
-ax1.tick_params(axis="y", labelcolor="#2C7FB8")
-ax1.set_yscale("log")
-ax1.set_xlabel("Level $\\ell$  (0 = HF, 4 = cheapest)", fontsize=12)
-
 ax2 = ax1.twinx()
-ax2.plot(x, costs, "o-", color="#C0392B", lw=2, ms=8,
-         label="Cost per sample $C_\\ell$")
-ax2.set_ylabel("Cost per sample $C_\\ell$", fontsize=11, color="#C0392B")
-ax2.tick_params(axis="y", labelcolor="#C0392B")
-ax2.set_yscale("log")
-
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax2.get_legend_handles_labels()
-ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=10, loc="upper right")
-ax1.set_title("Level correction variances vs cost per sample", fontsize=11)
-ax1.grid(True, alpha=0.2, axis="y")
+plot_level_variances(ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```
@@ -187,84 +139,11 @@ across the hierarchy.
 #| fig-cap: "Distribution of 1000 MC and MLMC estimates of $\\mathbb{E}[f_0]$ at equal total cost. MLMC concentrates its budget where each level correction is cheapest to estimate, producing a much narrower distribution."
 #| label: fig-mlmc-vs-mc
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-)
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest import MLMCEstimator
-from pyapprox.statest.mc_estimator import MCEstimator
-
-bkd = NumpyBkd()
-np.random.seed(0)
-
-benchmark = polynomial_ensemble_5model(bkd)
-variable  = benchmark.prior()
-models    = benchmark.models()
-costs     = benchmark.costs()
-nqoi      = models[0].nqoi()
-
-# True mean via quadrature
-true_mean = bkd.to_float(benchmark.ensemble_means()[0, 0])
-
-# Pilot to estimate covariance
-N_pilot  = 500
-s_pilot  = variable.rvs(N_pilot)
-vals_pilot = [m(s_pilot) for m in models]
-stat = MultiOutputMean(nqoi, bkd)
-cov_pilot, = stat.compute_pilot_quantities(vals_pilot)
-stat.set_pilot_quantities(cov_pilot)
-
-target_cost = 50.0
-n_trials = 1000
-
-# --- MC ---
-mc_stat = MultiOutputMean(nqoi, bkd)
-mc_stat.set_pilot_quantities(cov_pilot[0:1, 0:1])
-mc_est = MCEstimator(mc_stat, costs[0:1])
-mc_est.allocate_samples(target_cost)
-mc_means = np.empty(n_trials)
-for i in range(n_trials):
-    np.random.seed(i)
-    s = variable.rvs(mc_est._rounded_nsamples_per_model[0])
-    mc_means[i] = float(bkd.mean(models[0](s)[0]))
-
-# --- MLMC ---
-mlmc_est = MLMCEstimator(stat, costs)
-mlmc_est.allocate_samples(target_cost)
-mlmc_means = np.empty(n_trials)
-for i in range(n_trials):
-    np.random.seed(i + 10000)
-    samples_per_model = mlmc_est.generate_samples_per_model(
-        lambda n: variable.rvs(int(n))
-    )
-    vals = [models[ell](samples_per_model[ell]) for ell in range(len(models))]
-    mlmc_means[i] = float(mlmc_est(vals))
-
-all_vals = np.concatenate([mc_means, mlmc_means])
-pad  = 0.04 * (all_vals.max() - all_vals.min())
-xlim = (all_vals.min() - pad, all_vals.max() + pad)
+from _figures._hierarchy import plot_mlmc_vs_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
-for ax, ests, color, label in zip(
-    axes,
-    [mc_means, mlmc_means],
-    ["#2C7FB8", "#E67E22"],
-    [f"MC\n(N = {mc_est._rounded_nsamples_per_model[0]})",
-     "MLMC\n(optimal allocation)"],
-):
-    ax.hist(ests, bins=50, density=True, color=color, alpha=0.75,
-            edgecolor="k", lw=0.2)
-    ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
-    ax.set_xlabel(r"Estimate of $\mathbb{E}[f_0]$", fontsize=11)
-    ax.set_title(f"{label}\nStd = {ests.std():.4f}", fontsize=10)
-    ax.set_xlim(xlim)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.2)
-
-axes[0].set_ylabel("Density", fontsize=11)
+target_cost, n_trials = plot_mlmc_vs_mc(axes)
 fig.suptitle(f"Equal total cost = {target_cost}  |  {n_trials} trials", fontsize=11)
 plt.tight_layout()
 plt.show()

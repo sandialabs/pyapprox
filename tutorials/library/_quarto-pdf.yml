@@ -144,8 +144,12 @@ format:
     documentclass: scrreprt
     classoption:
       - open=any
-    include-in-header: ../_macros.tex
+    include-in-header:
+      - ../_macros.tex
+      - _notitle.tex
     include-before-body: cover.tex
+    filters:
+      - _strip-index.lua
     toc: true
     toc-depth: 2
     number-sections: true

@@ -102,32 +102,17 @@ The first point $z^{(1)}$ is typically chosen as the maximum of $v$ alone; subse
 #| label: fig-leja-growth
 #| echo: false
 
-# Use LejaSequence1D to build the sequence
+from _figures._interpolation import plot_leja_growth
+
 poly = LegendrePolynomial1D(bkd)
 poly.set_nterms(30)
 weighting = ChristoffelWeighting(bkd)
 leja_seq = LejaSequence1D(bkd, poly, weighting, bounds=(-1.0, 1.0))
 
 Ms = [3, 5, 9, 15]
-nodes_full, _ = leja_seq.quadrature_rule(max(Ms))
-nodes_full_np = bkd.to_numpy(nodes_full).ravel()
 
 fig, ax = plt.subplots(figsize=(11, 3.5))
-colors = plt.cm.Blues(np.linspace(0.35, 0.9, len(Ms)))
-
-for ii, M in enumerate(Ms):
-    y = ii
-    pts = nodes_full_np[:M]
-    ax.plot(pts, np.full(M, y), "o", ms=9, color=colors[ii], label=f"$M = {M}$")
-    ax.axhline(y, lw=0.4, color=colors[ii], alpha=0.5)
-
-ax.set_yticks(range(len(Ms)))
-ax.set_yticklabels([f"$M = {M}$" for M in Ms], fontsize=12)
-ax.set_xlabel("Node location", fontsize=12)
-ax.set_title("Leja sequence growth — each level adds one point", fontsize=12)
-ax.legend(fontsize=10, loc="lower right")
-ax.grid(True, axis="x", alpha=0.3)
-ax.set_xlim([-1.15, 1.15])
+plot_leja_growth(bkd, leja_seq, Ms, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -146,6 +131,8 @@ The key observation is that the 3-point sequence is a **subset** of the 15-point
 The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.
 
 ```{python}
+from _figures._interpolation import plot_node_distribution
+
 # Build a Leja sequence on [-1, 1] with Christoffel weighting
 poly_leg = LegendrePolynomial1D(bkd)
 poly_leg.set_nterms(30)
@@ -155,9 +142,6 @@ leja = LejaSequence1D(bkd, poly_leg, weighting, bounds=(-1.0, 1.0))
 # Get 15 Leja points
 M = 15
 nodes_leja, weights_leja = leja.quadrature_rule(M)
-print(f"Leja nodes shape:   {nodes_leja.shape}")       # (1, 15)
-print(f"Leja weights shape: {weights_leja.shape}")      # (15, 1)
-print(f"Weight sum:         {bkd.to_numpy(weights_leja).sum():.6f}")
 
 # Compare node distributions
 cc_rule = ClenshawCurtisQuadratureRule(bkd, store=True)
@@ -171,24 +155,7 @@ cc_np    = bkd.to_numpy(nodes_cc).ravel()
 gauss_np = bkd.to_numpy(nodes_gauss).ravel()
 
 fig, axs = plt.subplots(3, 1, figsize=(11, 5), sharex=True)
-labels = ["Leja (Christoffel)", "Clenshaw-Curtis", "Gauss-Legendre"]
-colors_pts = ["#2C7FB8", "#E67E22", "#27AE60"]
-sizes = [M, 17, M]
-
-for ax, nodes, lbl, col, sz in zip(
-    axs,
-    [leja_np, cc_np, gauss_np],
-    labels,
-    colors_pts,
-    sizes,
-):
-    ax.plot(nodes, np.zeros_like(nodes), "o", ms=9, color=col)
-    ax.set_yticks([])
-    ax.set_ylabel(f"{lbl}\n($M={sz}$)", fontsize=10, rotation=0, ha="right", va="center")
-    ax.axhline(0, lw=0.4, color="k", alpha=0.3)
-    ax.grid(True, axis="x", alpha=0.3)
-
-axs[-1].set_xlabel("Node location", fontsize=12)
+plot_node_distribution(leja_np, M, cc_np, 17, gauss_np, M, axs)
 plt.suptitle("Node distributions — all cluster toward boundary", fontsize=12)
 plt.tight_layout()
 plt.show()
@@ -208,11 +175,8 @@ n5  = bkd.to_numpy(nodes5).ravel()
 n10 = bkd.to_numpy(nodes10).ravel()
 n15 = bkd.to_numpy(nodes15).ravel()
 
-print(f"5-pt nodes:  {np.round(n5, 4)}")
-print(f"First 5 of 10-pt: {np.round(n10[:5], 4)}")
-print(f"First 5 of 15-pt: {np.round(n15[:5], 4)}")
-print(f"5 ⊂ 10: {np.allclose(n5, n10[:5])}")
-print(f"10 ⊂ 15: {np.allclose(n10, n15[:10])}")
+assert np.allclose(n5, n10[:5]), "5-pt not nested in 10-pt"
+assert np.allclose(n10, n15[:10]), "10-pt not nested in 15-pt"
 ```
 
 
@@ -221,6 +185,8 @@ print(f"10 ⊂ 15: {np.allclose(n10, n15[:10])}")
 `LagrangeBasis1D` accepts any quadrature rule callable with signature `(npoints) → (samples, weights)`.  We can pass `leja.quadrature_rule` directly:
 
 ```{python}
+from _figures._interpolation import plot_lagrange_on_leja
+
 # Build a Lagrange basis on Leja points
 basis_leja = LagrangeBasis1D(bkd, leja.quadrature_rule)
 basis_leja.set_nterms(7)
@@ -231,16 +197,10 @@ phi_leja = bkd.to_numpy(basis_leja(x_eval))     # (300, 7)
 nodes_7, _ = basis_leja.quadrature_rule()
 nodes_7_np = bkd.to_numpy(nodes_7).ravel()
 
-fig, ax = plt.subplots(figsize=(9, 4))
 x_plot = np.linspace(-1, 1, 300)
-for j in range(7):
-    ax.plot(x_plot, phi_leja[:, j], lw=1.5)
-ax.axhline(0, color="k", lw=0.5)
-ax.plot(nodes_7_np, np.zeros(7), "ko", ms=7, zorder=5)
-ax.set_title("Lagrange basis on 7 Leja points", fontsize=12)
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel(r"$\phi_j(x)$", fontsize=12)
-ax.grid(True, alpha=0.3)
+
+fig, ax = plt.subplots(figsize=(9, 4))
+plot_lagrange_on_leja(x_plot, phi_leja, nodes_7_np, 7, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -260,15 +220,10 @@ from pyapprox.probability.univariate.uniform import UniformMarginal
 marginal = UniformMarginal(-1.0, 1.0, bkd)
 factory = LejaLagrangeFactory(marginal, bkd)
 
-print(f"Factory type: {type(factory).__name__}")
-print(f"Is nested:    {factory.is_nested()}")
-
 # The factory creates a LagrangeBasis1D backed by a Leja sequence
 basis_from_factory = factory.create_basis()
 basis_from_factory.set_nterms(5)
 nodes_fac, weights_fac = basis_from_factory.quadrature_rule()
-print(f"Nodes shape: {nodes_fac.shape}, weights shape: {weights_fac.shape}")
-print(f"Nodes: {np.round(bkd.to_numpy(nodes_fac).ravel(), 4)}")
 ```
 
 
@@ -279,6 +234,8 @@ For a uniform distribution the three families — Leja, Clenshaw-Curtis, and Gau
 ```{python}
 #| fig-cap: "Interpolation error vs. M for an analytic function. Leja and CC achieve comparable exponential convergence; Gauss is slightly more efficient but non-nested."
 #| label: fig-leja-convergence
+
+from _figures._interpolation import plot_leja_convergence
 
 def f_test(x):
     return np.exp(np.cos(np.pi * x))
@@ -326,14 +283,7 @@ for M in cc_Ms:
     err_cc.append(np.max(np.abs(true_ref - interp_c)))
 
 fig, ax = plt.subplots(figsize=(9, 5))
-ax.semilogy(Ms, err_leja,  "o-", color="#2C7FB8", lw=2, ms=5, label="Leja (nested, any M)")
-ax.semilogy(cc_Ms, err_cc, "s-", color="#E67E22", lw=2, ms=6, label="Clenshaw-Curtis (nested, $2^k+1$)")
-ax.semilogy(Ms, err_gauss, "^-", color="#27AE60", lw=2, ms=5, label="Gauss-Legendre (non-nested)")
-ax.set_xlabel("Number of nodes $M$", fontsize=12)
-ax.set_ylabel(r"$\max_x |f(x) - f_M(x)|$", fontsize=12)
-ax.set_title(r"Convergence for $f(x) = e^{\cos(\pi x)}$", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_leja_convergence(Ms, err_leja, cc_Ms, err_cc, err_gauss, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -383,9 +333,6 @@ leja_2pt = LejaSequence1D(
 M = 15  # two-point starts from 1 initial point + pairs: valid sizes are 1, 3, 5, 7, ...
 nodes_1pt, weights_1pt = leja_1pt.quadrature_rule(M)
 nodes_2pt, weights_2pt = leja_2pt.quadrature_rule(M)
-
-print(f"One-point  nodes ({M}): {np.round(bkd.to_numpy(nodes_1pt).ravel(), 4)}")
-print(f"Two-point  nodes ({M}): {np.round(bkd.to_numpy(nodes_2pt).ravel(), 4)}")
 ```
 
 ### Quadrature Accuracy Comparison
@@ -395,6 +342,8 @@ Two-point optimization typically produces more accurate quadrature weights, espe
 ```{python}
 #| fig-cap: "Quadrature error for one-point vs. two-point optimized Leja sequences. Two-point optimization improves accuracy for moderate M."
 #| label: fig-two-point-quadrature
+
+from _figures._interpolation import plot_two_point_quadrature
 
 def f_quad_test(x):
     """Test integrand: Runge-like function."""
@@ -417,13 +366,7 @@ for M in Ms_quad:
     err_2pt.append(abs(wt2_np @ f_quad_test(nd2_np) - exact_val))
 
 fig, ax = plt.subplots(figsize=(9, 5))
-ax.semilogy(Ms_quad, err_1pt, "o-", color="#2C7FB8", lw=2, ms=5, label="One-point Leja")
-ax.semilogy(Ms_quad, err_2pt, "s-", color="#E67E22", lw=2, ms=6, label="Two-point Leja")
-ax.set_xlabel("Number of quadrature points $M$", fontsize=12)
-ax.set_ylabel("Absolute quadrature error", fontsize=12)
-ax.set_title("Quadrature accuracy: one-point vs. two-point Leja", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_two_point_quadrature(Ms_quad, err_1pt, err_2pt, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -445,6 +388,7 @@ For a $\text{Beta}(\alpha, \beta)$ distribution on $[0, 1]$, the matched orthogo
 #| label: fig-leja-beta
 
 from scipy.stats import beta as beta_dist
+from _figures._interpolation import plot_leja_beta
 
 alpha_s, beta_s = 3.0, 5.0
 rv_beta = beta_dist(alpha_s, beta_s)
@@ -471,26 +415,7 @@ nodes_beta_01 = (bkd.to_numpy(nodes_beta_leja).ravel() + 1) / 2
 x_plot = np.linspace(0, 1, 300)
 
 fig, axs = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
-
-for ax, seq, title in zip(
-    axs,
-    [nodes_uni_01, nodes_beta_01],
-    ["Uniform (Legendre) — nodes spread across $[0,1]$",
-     r"Beta(3,5)-matched Jacobi — nodes concentrate near mode"],
-):
-    ax2 = ax.twinx()
-    ax2.fill_between(x_plot, rv_beta.pdf(x_plot), alpha=0.15, color="#E67E22",
-                     label=r"$p(\theta)$")
-    ax2.set_ylabel(r"$p(\theta)$", fontsize=11, color="#E67E22")
-    ax2.tick_params(axis="y", labelcolor="#E67E22")
-
-    ax.plot(seq, np.zeros(M), "o", ms=9, color="#2C7FB8", zorder=5, label=f"$M={M}$ Leja nodes")
-    ax.axhline(0, lw=0.5, color="k")
-    ax.set_ylim(-0.1, 0.1)
-    ax.set_yticks([])
-    ax.set_title(title, fontsize=11)
-
-axs[-1].set_xlabel(r"$\theta$", fontsize=12)
+plot_leja_beta(nodes_uni_01, nodes_beta_01, M, x_plot, rv_beta, axs)
 plt.suptitle(f"Probability-aware Leja sequences, $M = {M}$", fontsize=12, y=1.01)
 plt.tight_layout()
 plt.show()

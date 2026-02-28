@@ -103,45 +103,16 @@ full_solution = obs_model.solve_trajectory(sample)[0]   # full ODE trajectory
 
 # Candidate observations: 2 states x T times
 observations = obs_model(sample).reshape((2, -1))    # shape (2, T)
-
-print(f"Number of candidate observation times: {observations.shape[1]}")
-print(f"Total OED design dimension: {obs_model.nqoi()}")
 ```
 
 ```{python}
 #| echo: false
 #| fig-cap: "Lotka-Volterra ODE trajectories for 30 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."
 #| label: fig-lv-trajectories
+from _figures import plot_lv_trajectories
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=False)
-titles = ["State 1 (prey)", "State 2", "State 3 (predator)"]
-
-# 100 random trajectories
-for samp in prior.rvs(30).T:
-    sol = obs_model.solve_trajectory(samp[:, None])[0]
-    for ii in range(3):
-        axes[ii].plot(
-            benchmark.solution_times(), sol[ii], color="#AAAAAA", lw=0.8, alpha=0.5
-        )
-
-# Nominal trajectory and observations
-sol_nom = obs_model.solve_trajectory(sample)[0]
-for ii in range(3):
-    axes[ii].plot(benchmark.solution_times(), sol_nom[ii], color="#2C7FB8", lw=2)
-    axes[ii].set_title(titles[ii], fontsize=11)
-    axes[ii].set_xlabel("Time (s)", fontsize=10)
-    axes[ii].grid(True, alpha=0.2)
-
-# Mark observation locations (states 1 and 3)
-obs_times = bkd.to_numpy(benchmark.observation_times())
-for ii, state_idx in enumerate([0, 2]):
-    axes[state_idx].plot(
-        obs_times,
-        observations[ii],
-        "o", ms=7, color="#D95F02", zorder=5, label="Candidate obs."
-    )
-axes[0].legend(fontsize=9)
-axes[1].set_ylabel("Population", fontsize=10)
+plot_lv_trajectories(axes, benchmark, obs_model, prior, sample, observations)
 plt.suptitle("Lotka-Volterra: prior ensemble + nominal trajectory", fontsize=12)
 plt.tight_layout()
 plt.show()
@@ -195,7 +166,6 @@ innerloop_samples, innerloop_weights = data_gen.setup_quadrature_data(
     loop="inner",
 )
 
-print(f"Outer samples: {nouter},  Inner samples: {ninner}")
 ```
 
 ::: {.callout-note}
@@ -237,7 +207,6 @@ objective = create_kl_oed_objective_from_data(
 config = RelaxedOEDConfig(maxiter=200, verbosity=0)
 solver = RelaxedKLOEDSolver(objective, config)
 design_weights, eig = solver.solve()
-print(f"Optimal EIG: {eig:.4f} nats")
 ```
 
 ## Interpreting the Design
@@ -249,21 +218,10 @@ about the parameters, on average.*
 ```{python}
 #| fig-cap: "Optimal design weights for the Lotka-Volterra EIG problem. Each bar is one candidate observation time for one of the two measured states. The OED concentrates observations near the population peak — where sensitivity to the interaction parameters is highest."
 #| label: fig-lv-design
-
-weights_by_state = bkd.to_numpy(design_weights).reshape((2, -1))
-obs_times = bkd.to_numpy(benchmark.observation_times())
+from _figures import plot_lv_design
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-labels = ["State 1 (prey)", "State 3 (predator)"]
-colors = ["#2C7FB8", "#D95F02"]
-
-for ii, ax in enumerate(axes):
-    ax.bar(obs_times, weights_by_state[ii], color=colors[ii], alpha=0.8)
-    ax.set_xlabel("Observation time (s)", fontsize=11)
-    ax.set_title(labels[ii], fontsize=11)
-    ax.grid(True, axis="y", alpha=0.25)
-
-axes[0].set_ylabel("Design weight", fontsize=11)
+plot_lv_design(axes, benchmark, design_weights, bkd)
 plt.suptitle("Optimal EIG design: Lotka-Volterra", fontsize=12)
 plt.tight_layout()
 plt.show()

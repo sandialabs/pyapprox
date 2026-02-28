@@ -166,7 +166,6 @@ chol_sampler.set_kernel(ref_kernel)
 
 # Select 30 training points greedily
 chol_samples = chol_sampler.select_samples(30)
-print(f"Cholesky samples shape: {chol_samples.shape}")
 ```
 
 ::: {.callout-note}
@@ -184,7 +183,6 @@ loop.
 updated_kernel = Matern52Kernel([0.8] * nvars, (0.1, 10.0), nvars, bkd)
 chol_sampler.set_kernel(updated_kernel)
 extra_samples = chol_sampler.select_samples(10)   # 10 new points under new kernel
-print(f"Extra samples after kernel update: {extra_samples.shape}")
 ```
 
 
@@ -219,7 +217,6 @@ ivar_sampler.set_kernel(ref_kernel)
 ivar_sampler.set_P(P)
 
 ivar_samples = ivar_sampler.select_samples(30)
-print(f"IVAR samples shape: {ivar_samples.shape}")
 ```
 
 The IVAR criterion is slightly more expensive per step than Cholesky because it
@@ -250,7 +247,6 @@ sobol_sampler = SobolAdaptiveSampler(nvars, bkd)
 sobol_samples = sobol_sampler.select_samples(30)
 # Map [0,1]^d to prior distribution using the inverse CDF
 sobol_samples_mapped = map_uniform_to_marginals(sobol_samples, marginals, bkd)
-print(f"Sobol samples shape: {sobol_samples_mapped.shape}")
 ```
 
 
@@ -262,7 +258,7 @@ For 2D projections, we can see how the three strategies distribute their points.
 #| fig-cap: "Sample designs for 30 training points. Each panel shows the projection onto dimensions 1 and 2. Cholesky and IVAR tend to spread points more evenly across the input space than Sobol, which can exhibit clustering in projections."
 #| label: fig-sample-designs
 
-fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+from _figures._gp import plot_sample_designs
 
 strategies = [
     (bkd.to_numpy(chol_samples), "#1A5276", "Cholesky-greedy"),
@@ -270,16 +266,8 @@ strategies = [
     (bkd.to_numpy(sobol_samples_mapped), "#7D3C98", "Sobol (mapped)"),
 ]
 
-for ax, (pts, color, label) in zip(axes, strategies):
-    ax.scatter(pts[0, :], pts[1, :], s=22, color=color, alpha=0.8,
-               edgecolors="k", linewidths=0.3)
-    ax.set_xlabel(r"$\xi_1$", fontsize=11)
-    ax.set_ylabel(r"$\xi_2$", fontsize=11)
-    ax.set_title(label, fontsize=10)
-    ax.grid(True, alpha=0.2)
-    ax.set_xlim(-3.2, 3.2)
-    ax.set_ylim(-3.2, 3.2)
-
+fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+plot_sample_designs(axes, strategies)
 plt.tight_layout()
 plt.show()
 ```
@@ -362,20 +350,10 @@ for n in budgets:
 #| fig-cap: "Relative L₂ error vs. number of training samples for Cholesky-greedy, IVAR, and Sobol designs. Adaptive strategies typically achieve lower error at every budget."
 #| label: fig-convergence
 
+from _figures._gp import plot_gp_sampling_convergence
+
 fig, ax = plt.subplots(figsize=(7, 4.5))
-
-ax.semilogy(budgets, chol_errors, "o-", color="#1A5276",
-            lw=2, ms=6, label="Cholesky-greedy")
-ax.semilogy(budgets, ivar_errors, "s-", color="#117A65",
-            lw=2, ms=6, label="IVAR")
-ax.semilogy(budgets, sobol_errors, "^--", color="#7D3C98",
-            lw=2, ms=6, label="Sobol (space-filling)", alpha=0.8)
-
-ax.set_xlabel("Number of training samples $N$", fontsize=11)
-ax.set_ylabel(r"Relative $L_2$ error", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, which="both", alpha=0.25)
-ax.set_title("GP convergence by sampling strategy", fontsize=10)
+plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)
 plt.tight_layout()
 plt.show()
 ```
@@ -430,7 +408,6 @@ for batch in range(n_batches):
     loop_errors.append(err)
 
     n_total = (batch + 1) * batch_size
-    print(f"Batch {batch+1}: N={n_total:3d}  L2 error={err:.4e}")
 ```
 
 

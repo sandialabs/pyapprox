@@ -93,91 +93,12 @@ the main estimator. A large pilot leaves too little budget for the estimator its
 #| fig-cap: "MSE (relative to single-fidelity MC MSE) vs pilot size $N_p$ for MFMC on the three-model polynomial benchmark at total budget $P=100$. **Left:** Pilot cost is *not* deducted from the estimator budget — only covariance estimation error matters, so MSE decreases monotonically with $N_p$. **Right:** Pilot cost *is* deducted — too large a pilot starves the main estimator, and MSE has a minimum at an intermediate $N_p$."
 #| label: fig-tradeoff
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import polynomial_ensemble_3model
-from pyapprox.statest import MultiOutputMean, MFMCEstimator, MCEstimator
-
-bkd = NumpyBkd()
-np.random.seed(1)
-benchmark = polynomial_ensemble_3model(bkd)
-nmodels   = 3
-nqoi      = 1
-costs     = bkd.array([1.0, 0.1, 0.05])
-prior     = benchmark.prior()
-models    = benchmark.models()
-true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
-P_total   = 100.0
-
-cov_oracle = benchmark.ensemble_covariance()
-oracle_stat = MultiOutputMean(nqoi, bkd)
-oracle_stat.set_pilot_quantities(cov_oracle)
-oracle_est = MFMCEstimator(oracle_stat, costs)
-oracle_est.allocate_samples(P_total)
-oracle_mse = float(bkd.to_numpy(oracle_est.optimized_covariance())[0, 0])
-
-mc_est = MCEstimator(oracle_stat, costs[:1])
-mc_est.allocate_samples(P_total)
-mc_mse = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
-
-def single_trial(seed, npilot, budget):
-    np.random.seed(seed)
-    s_p = prior.rvs(npilot)
-    vals_p = [m(s_p) for m in models]
-    stat = MultiOutputMean(nqoi, bkd)
-    (cov_hat,) = stat.compute_pilot_quantities(vals_p)
-    stat.set_pilot_quantities(cov_hat)
-    est = MFMCEstimator(stat, costs)
-    try:
-        est.allocate_samples(budget)
-        np.random.seed(seed + 1000)
-        s_main = est.generate_samples_per_model(prior.rvs)
-        vals_main = [m(s) for m, s in zip(models, s_main)]
-        return float(est(vals_main))
-    except Exception:
-        return float("nan")
-
-npilot_list  = [5, 10, 20, 40, 80, 160]
-ntrials      = 400
-costs_np     = bkd.to_numpy(costs)
-
-mse_free  = []  # pilot cost not deducted
-mse_paid  = []  # pilot cost deducted
-
-for npilot in npilot_list:
-    pilot_cost = float(costs_np.sum()) * npilot
-    budget_free = P_total
-    budget_paid = max(P_total - pilot_cost, 1.0)
-
-    vals_free = [single_trial(s, npilot, budget_free) for s in range(ntrials)]
-    vals_paid = [single_trial(s, npilot, budget_paid) for s in range(ntrials)]
-
-    vals_free = np.array([v for v in vals_free if np.isfinite(v)])
-    vals_paid = np.array([v for v in vals_paid if np.isfinite(v)])
-
-    mse_free.append(float(np.mean((vals_free - true_mean)**2)))
-    mse_paid.append(float(np.mean((vals_paid - true_mean)**2)))
+from _figures._multifidelity_advanced import plot_pilot_tradeoff
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
-for ax, mse_list, title in zip(
-    axes,
-    [mse_free, mse_paid],
-    ["Pilot cost ignored\n(unrealistic)", "Pilot cost deducted\n(realistic)"],
-):
-    ax.plot(npilot_list, [m / mc_mse for m in mse_list], "-o",
-            color="#2C7FB8", lw=2.2, ms=7, label="Pilot MSE")
-    ax.axhline(oracle_mse / mc_mse, color="k",   ls="--", lw=1.8,
-               label=f"Oracle ACV  ({oracle_mse/mc_mse:.3f})")
-    ax.axhline(1.0,                  color="#c0392b", ls=":", lw=1.5,
-               label="MC baseline")
-    ax.set_xlabel("Pilot samples $N_p$", fontsize=11)
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-    ax.set_ylim(bottom=0)
-axes[0].set_ylabel("MSE / MC MSE", fontsize=11)
-fig.suptitle("Pilot size trade-off — three-model MFMC, P=100", fontsize=12)
+plot_pilot_tradeoff(axes)
+fig.suptitle("Pilot size trade-off --- three-model MFMC, P=100", fontsize=12)
 plt.tight_layout()
 plt.show()
 ```

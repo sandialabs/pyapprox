@@ -158,7 +158,6 @@ innerloop_samples, innerloop_weights = data_gen.setup_quadrature_data(
 nqoi             = pred_model.nqoi()
 qoi_quad_weights = bkd.full((nqoi, 1), 1.0 / nqoi)
 
-print(f"Outer samples: {nout}  |  Inner samples: {nin}  |  QoI dim: {nqoi}")
 ```
 
 Now we run the forward model — the expensive step — and save everything.
@@ -268,8 +267,6 @@ design_weights, utility = solve_prediction_oed(
     risk_type="mean",
     config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
-print(f"Optimal design computed. Shape: {bkd.to_numpy(design_weights).shape}")
-print(f"Objective value: {utility:.6f}")
 ```
 
 ## Visualise the Design
@@ -277,20 +274,12 @@ print(f"Objective value: {utility:.6f}")
 ```{python}
 #| fig-cap: "Optimal sensor weights for the advection-diffusion domain. Circle area is proportional to weight; the OED concentrates budget on sensors where the flow signal is strongest."
 #| label: fig-advec-diff-design
+from _figures import plot_advec_diff_design
 
 fig, ax = plt.subplots(figsize=(9, 4))
-
-obs_locs   = bkd.to_numpy(oed_data["observation_locations"])
-w          = bkd.to_numpy(design_weights[:, 0])
-w_norm     = w / w.max()
-
-sc = ax.scatter(obs_locs[0], obs_locs[1], c=w, s=w_norm * 60 + 5,
-                cmap="YlOrRd", edgecolors="k", linewidths=0.4, zorder=3)
-plt.colorbar(sc, ax=ax, shrink=0.8, label="Design weight")
-ax.set_xlabel("x", fontsize=10)
-ax.set_ylabel("y", fontsize=10)
-ax.set_aspect("equal")
-ax.set_title("Optimal sensor placement: advection-diffusion", fontsize=11)
+obs_locs = bkd.to_numpy(oed_data["observation_locations"])
+w = bkd.to_numpy(design_weights[:, 0])
+plot_advec_diff_design(ax, obs_locs, w)
 plt.tight_layout()
 plt.show()
 ```

@@ -209,23 +209,13 @@ for r in r_values:
 r_fine = np.linspace(1.01, 55, 300)
 theory_line = 1 - (r_fine - 1) / r_fine * rho**2
 
+from _figures._cv_acv import plot_acv_two_model_verification
+
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.plot(r_fine, theory_line, "--", color="#C0392B", lw=1.8,
-        label=r"Theory: $1 - \frac{r-1}{r}\rho^2$")
-ax.scatter(r_values, empirical_reductions, color="#2C7FB8", s=60, zorder=4,
-           label=f"Empirical ($N={N}$, {n_trials} trials)")
-ax.axhline(1 - rho**2, color="#27AE60", ls=":", lw=1.5,
-           label=r"CVMC limit: $1 - \rho^2$")
-ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.3, label="MC (no reduction)")
-ax.set_xlabel(r"Sample ratio $r$", fontsize=12)
-ax.set_ylabel("Variance reduction factor $\\gamma$", fontsize=12)
-ax.set_title("ACV variance reduction: theory vs empirical", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_acv_two_model_verification(r_values, empirical_reductions, rho,
+                                N, n_trials, ax)
 plt.tight_layout()
 plt.show()
-
-print(f"rho = {rho:.4f}")
 ```
 
 
@@ -452,30 +442,10 @@ for name, est in estimators.items():
         allocator = ACVAllocator(est, optimizer=optimizer)
     est.set_allocation(allocator.allocate(target_cost))
 
-def plot_allocation_matrix(ax, est, bkd, show_sizes=True):
-    A = bkd.to_numpy(est._get_allocation_matrix())
-    p = bkd.to_numpy(est.npartition_samples())
-    nrows, ncols = A.shape
-    ax.imshow(A, cmap="Blues", aspect="auto", vmin=0, vmax=1)
-    if show_sizes:
-        for i in range(nrows):
-            for j in range(ncols):
-                if A[i, j] > 0:
-                    ax.text(j, i, f"{int(p[i])}", ha="center", va="center",
-                            fontsize=7, color="white", fontweight="bold")
-    ax.set_yticks(range(nrows))
-    ax.set_yticklabels([rf"$\mathcal{{P}}_{{{m}}}$" for m in range(nrows)],
-                       fontsize=8)
-    col_labels = []
-    for alpha in range(ncols // 2):
-        col_labels += [rf"$Z_{{{alpha}}}^*$", rf"$Z_{{{alpha}}}$"]
-    ax.set_xticks(range(ncols))
-    ax.set_xticklabels(col_labels, fontsize=7, rotation=45, ha="right")
+from _figures._cv_acv import plot_allocation_matrices
 
 fig, axes = plt.subplots(1, 4, figsize=(20, 5))
-for ax, (name, est) in zip(axes, estimators.items()):
-    plot_allocation_matrix(ax, est, bkd)
-    ax.set_title(name, fontsize=12, pad=8)
+plot_allocation_matrices(estimators, bkd, axes)
 plt.suptitle(f"Allocation matrices at budget $P = {target_cost}$", fontsize=12, y=1.02)
 plt.tight_layout()
 plt.show()
@@ -542,24 +512,13 @@ for P_t in target_costs_sweep:
     mfmc_vars_emp.append(mfmc_ests_t.var())
     acvmf_vars_emp.append(acvmf_ests_t.var())
 
+from _figures._cv_acv import plot_variance_verification
+
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
-          label="MC (predicted)")
-ax.loglog(target_costs_sweep, mc_vars_emp, "o", color="#aaaaaa", ms=8,
-          label="MC (empirical)")
-ax.loglog(target_costs_sweep, mfmc_vars_pred, "-", color="#E67E22", lw=2,
-          label="MFMC (predicted)")
-ax.loglog(target_costs_sweep, mfmc_vars_emp, "s", color="#E67E22", ms=8,
-          label="MFMC (empirical)")
-ax.loglog(target_costs_sweep, acvmf_vars_pred, "-", color="#8E44AD", lw=2,
-          label="ACVMF (predicted)")
-ax.loglog(target_costs_sweep, acvmf_vars_emp, "D", color="#8E44AD", ms=8,
-          label="ACVMF (empirical)")
-ax.set_xlabel("Total cost $P$", fontsize=12)
-ax.set_ylabel("Estimator variance", fontsize=12)
-ax.set_title(f"Predicted vs empirical variance  ({n_trials} trials)", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2, which="both")
+plot_variance_verification(target_costs_sweep, mc_vars_pred, mc_vars_emp,
+                           mfmc_vars_pred, mfmc_vars_emp,
+                           acvmf_vars_pred, acvmf_vars_emp,
+                           n_trials, ax)
 plt.tight_layout()
 plt.show()
 ```

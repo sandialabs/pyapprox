@@ -72,14 +72,12 @@ the spatial scale.
 ```{python}
 #| label: fig-cov-matrices
 #| fig-cap: "Covariance matrix $C(x,x')$ of the exponential kernel for three correlation lengths. Larger $\\ell$ concentrates the covariance along the diagonal over a wider band, encoding longer-range spatial dependence."
+from _figures._kle import plot_cov_matrices
+
+kernel_factory = lambda ell: ExponentialKernel(bkd.array([ell]), (0.01, 10.0), 1, bkd)
+
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.5), sharey=True)
-for ax, ell in zip(axes, [0.2, 0.5, 1.5]):
-    kernel = ExponentialKernel(bkd.array([ell]), (0.01, 10.0), 1, bkd)
-    C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
-    ax.imshow(C, extent=[0, 2, 2, 0], cmap="RdBu_r", vmin=0, vmax=1)
-    ax.set_title(f"$\\ell = {ell}$", fontsize=13)
-    ax.set_xlabel("$x'$")
-axes[0].set_ylabel("$x$")
+plot_cov_matrices(mesh_coords, kernel_factory, [0.2, 0.5, 1.5], bkd, axes)
 fig.suptitle("Covariance matrix $C(x,x')$ for three correlation lengths",
              fontsize=13)
 plt.tight_layout()
@@ -104,6 +102,8 @@ $W^{1/2}\,C\,W^{1/2}\,\hat\phi = \lambda\,\hat\phi$.
 ```{python}
 #| label: fig-eigenvalues-eigenfunctions
 #| fig-cap: "Left: eigenvalue decay showing the variance captured by each mode. Right: the first four eigenfunctions $\\phi_k(x)$, which are orthogonal spatial oscillations matched to the exponential covariance structure."
+from _figures._kle import plot_eigenvalues_eigenfunctions
+
 # Trapezoid quadrature weights
 dx = x[1] - x[0]
 w = np.ones(npts) * dx
@@ -122,24 +122,7 @@ lam = bkd.to_numpy(kle.eigenvalues())
 phi = bkd.to_numpy(kle.eigenvectors())
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-# Eigenvalue decay
-axes[0].bar(range(1, nterms+1), lam, color="steelblue", alpha=0.8)
-axes[0].set_xlabel("Mode $k$", fontsize=12)
-axes[0].set_ylabel("$\\lambda_k$", fontsize=12)
-axes[0].set_title("Eigenvalue decay — energy per mode", fontsize=12)
-axes[0].set_xticks(range(1, nterms+1))
-axes[0].set_ylim(bottom=0)
-
-# First 4 eigenfunctions
-colors = plt.cm.tab10(np.linspace(0, 0.5, 4))
-for k in range(4):
-    axes[1].plot(x, phi[:, k], color=colors[k],
-                 label=f"$\\phi_{k+1}$  ($\\lambda={lam[k]:.3f}$)")
-axes[1].axhline(0, color="k", lw=0.5)
-axes[1].set_xlabel("$x$", fontsize=12)
-axes[1].set_title("First four eigenfunctions $\\phi_k(x)$", fontsize=12)
-axes[1].legend(fontsize=10)
+plot_eigenvalues_eigenfunctions(x, lam, phi, nterms, axes[0], axes[1])
 plt.tight_layout()
 plt.show()
 ```
@@ -161,27 +144,23 @@ array and get back `(ncoords, nsamples)` field values.
 ```{python}
 #| label: fig-sample-paths
 #| fig-cap: "Sample paths from the KLE using $K = 1, 2, 4, 6$ terms with the same random coefficients $z_k$. More terms add finer spatial detail; by $K = 6$ essentially all variance is captured for $\\ell = 0.5$."
+from _figures._kle import plot_sample_paths
+
 K_list = [1, 2, 4, 6]
 nsamples = 5
-fig, axes = plt.subplots(1, len(K_list), figsize=(14, 3.8), sharey=True)
-
 Z = rng.standard_normal((nterms, nsamples))
 
-for ax, K in zip(axes, K_list):
-    # Build a KLE with K terms and evaluate
+fields_list = []
+for K in K_list:
     kle_K = MeshKLE(
         mesh_coords, kernel, sigma=1.0, nterms=K,
         quad_weights=quad_weights, bkd=bkd,
     )
     coef = bkd.array(Z[:K, :])
-    fields = bkd.to_numpy(kle_K(coef))
-    for s in range(nsamples):
-        ax.plot(x, fields[:, s], alpha=0.7, lw=1.2)
-    ax.set_title(f"$K = {K}$ terms", fontsize=12)
-    ax.set_xlabel("$x$")
-    ax.axhline(0, color="k", lw=0.5, ls="--")
+    fields_list.append(bkd.to_numpy(kle_K(coef)))
 
-axes[0].set_ylabel("$f(x)$")
+fig, axes = plt.subplots(1, len(K_list), figsize=(14, 3.8), sharey=True)
+plot_sample_paths(x, fields_list, K_list, axes)
 fig.suptitle("Sample paths using increasing numbers of KLE terms  "
              r"($\ell=0.5$, same $z_k$ draws)", fontsize=12)
 plt.tight_layout()
@@ -201,6 +180,8 @@ $$\frac{\sum_{k=1}^K \lambda_k}{\sum_{k=1}^{\infty} \lambda_k}$$
 ```{python}
 #| label: fig-truncation-error
 #| fig-cap: "Left: cumulative variance explained as a function of the number of KLE terms $K$, showing the thresholds at 90%, 95%, and 99%. Right: normalised eigenvalue decay for three correlation lengths on a log scale. Larger $\\ell$ produces faster decay, meaning fewer terms are needed."
+from _figures._kle import plot_kle_truncation_error
+
 nterms_full = 100
 kle_full = MeshKLE(
     mesh_coords, kernel, sigma=1.0, nterms=nterms_full,
@@ -208,37 +189,17 @@ kle_full = MeshKLE(
 )
 lam_full = bkd.to_numpy(kle_full.eigenvalues())
 
+kle_factory = lambda kern, nt: MeshKLE(
+    mesh_coords, kern, sigma=1.0, nterms=nt,
+    quad_weights=quad_weights, bkd=bkd,
+)
+
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-# Cumulative variance explained
-cumvar = np.cumsum(lam_full) / lam_full.sum()
-axes[0].plot(range(1, nterms_full+1), cumvar, "steelblue", lw=2)
-for thresh in [0.90, 0.95, 0.99]:
-    k_thresh = int(np.searchsorted(cumvar, thresh)) + 1
-    axes[0].axhline(thresh, color="gray", ls="--", lw=0.8)
-    axes[0].text(nterms_full * 0.55, thresh + 0.005,
-                 f"{int(thresh*100)}% at $K={k_thresh}$", fontsize=9)
-axes[0].set_xlabel("Number of terms $K$", fontsize=12)
-axes[0].set_ylabel("Cumulative variance explained", fontsize=12)
-axes[0].set_title("Truncation error vs $K$  ($\\ell=0.5$)", fontsize=12)
-axes[0].set_xlim(1, nterms_full)
-
-# Eigenvalue decay for three correlation lengths
-colors2 = ["steelblue", "darkorange", "green"]
-for color, ell_i in zip(colors2, [0.2, 0.5, 1.5]):
-    kernel_i = ExponentialKernel(bkd.array([ell_i]), (0.01, 10.0), 1, bkd)
-    kle_i = MeshKLE(
-        mesh_coords, kernel_i, sigma=1.0, nterms=nterms_full,
-        quad_weights=quad_weights, bkd=bkd,
-    )
-    lam_i = bkd.to_numpy(kle_i.eigenvalues())
-    axes[1].semilogy(range(1, nterms_full+1), lam_i / lam_i[0],
-                     color=color, lw=1.8, label=f"$\\ell={ell_i}$")
-axes[1].set_xlabel("Mode $k$", fontsize=12)
-axes[1].set_ylabel("$\\lambda_k / \\lambda_1$ (log scale)", fontsize=12)
-axes[1].set_title("Eigenvalue decay by correlation length", fontsize=12)
-axes[1].legend(fontsize=11)
-axes[1].set_xlim(1, 40)
+plot_kle_truncation_error(
+    x, lam_full, nterms_full, mesh_coords, quad_weights,
+    [0.2, 0.5, 1.5], bkd, kernel_factory, kle_factory,
+    axes[0], axes[1],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -252,44 +213,26 @@ Smooth fields are cheap to represent; rough fields require many modes.
 ```{python}
 #| label: fig-pointwise-variance
 #| fig-cap: "Left: pointwise variance recovered by the truncated KLE for $K = 1, 3, 6, 20$ terms compared with the exact diagonal of $C$. Right: relative error in pointwise variance on a log scale. Boundary nodes converge more slowly -- a systematic effect in all mesh-based KLE methods."
+from _figures._kle import plot_pointwise_variance
+
 K_vals = [1, 3, 6, 20]
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
 # Exact variance (from full covariance diagonal)
 C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
 true_var = np.diag(C)
 
-colors3 = plt.cm.viridis(np.linspace(0, 0.85, len(K_vals)))
-for color, K in zip(colors3, K_vals):
+# Compute approximate variance for each truncation level
+approx_vars = []
+for K in K_vals:
     kle_K = MeshKLE(
         mesh_coords, kernel, sigma=1.0, nterms=K,
         quad_weights=quad_weights, bkd=bkd,
     )
-    # weighted_eigenvectors() includes sqrt(lam_k) * sigma,
-    # so sum of squares gives sigma^2 * sum(lam_k * phi_k^2)
     W = bkd.to_numpy(kle_K.weighted_eigenvectors())
-    approx_var = np.sum(W**2, axis=1)
-    axes[0].plot(x, approx_var, color=color, lw=1.8, label=f"$K={K}$")
-axes[0].plot(x, true_var, "k--", lw=2, label="exact")
-axes[0].set_xlabel("$x$", fontsize=12)
-axes[0].set_ylabel("Pointwise variance", fontsize=12)
-axes[0].set_title("Variance recovered by truncated KLE", fontsize=12)
-axes[0].legend(fontsize=10)
+    approx_vars.append(np.sum(W**2, axis=1))
 
-# Relative error in variance
-for color, K in zip(colors3, K_vals):
-    kle_K = MeshKLE(
-        mesh_coords, kernel, sigma=1.0, nterms=K,
-        quad_weights=quad_weights, bkd=bkd,
-    )
-    W = bkd.to_numpy(kle_K.weighted_eigenvectors())
-    approx_var = np.sum(W**2, axis=1)
-    rel_err = np.abs(true_var - approx_var) / true_var
-    axes[1].semilogy(x, rel_err + 1e-16, color=color, lw=1.8, label=f"$K={K}$")
-axes[1].set_xlabel("$x$", fontsize=12)
-axes[1].set_ylabel("Relative variance error (log)", fontsize=12)
-axes[1].set_title("Truncation error in pointwise variance", fontsize=12)
-axes[1].legend(fontsize=10)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+plot_pointwise_variance(x, true_var, K_vals, approx_vars, axes[0], axes[1])
 plt.tight_layout()
 plt.show()
 ```
@@ -307,6 +250,7 @@ to validate the numerical `MeshKLE` solution.
 #| label: fig-analytical-validation
 #| fig-cap: "Left: eigenvalues from the numerical `MeshKLE` (blue) vs the analytical solution (orange) for the exponential kernel on $[0, 2]$. Right: relative eigenvalue error on a log scale, showing the numerical discretisation error decreases with mesh refinement."
 from pyapprox.surrogates.kle import AnalyticalExponentialKLE1D
+from _figures._kle import plot_analytical_validation
 
 # Analytical solution for the same kernel on [0, 2]
 kle_exact = AnalyticalExponentialKLE1D(
@@ -315,27 +259,7 @@ kle_exact = AnalyticalExponentialKLE1D(
 lam_exact = kle_exact.eigenvalues()
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-k_idx = np.arange(1, nterms + 1)
-axes[0].bar(k_idx - 0.15, lam, width=0.3, color="steelblue", alpha=0.8,
-            label="MeshKLE (numerical)")
-axes[0].bar(k_idx + 0.15, lam_exact, width=0.3, color="darkorange", alpha=0.8,
-            label="Analytical")
-axes[0].set_xlabel("Mode $k$", fontsize=12)
-axes[0].set_ylabel("$\\lambda_k$", fontsize=12)
-axes[0].set_title("Eigenvalue comparison", fontsize=12)
-axes[0].set_xticks(k_idx)
-axes[0].legend(fontsize=10)
-axes[0].set_ylim(bottom=0)
-
-# Relative error
-rel_err_eig = np.abs(lam - lam_exact) / lam_exact
-axes[1].bar(k_idx, rel_err_eig, color="steelblue", alpha=0.8)
-axes[1].set_xlabel("Mode $k$", fontsize=12)
-axes[1].set_ylabel("Relative eigenvalue error", fontsize=12)
-axes[1].set_title(f"MeshKLE accuracy  ({npts} mesh points)", fontsize=12)
-axes[1].set_xticks(k_idx)
-axes[1].set_yscale("log")
+plot_analytical_validation(lam, lam_exact, nterms, npts, axes[0], axes[1])
 plt.tight_layout()
 plt.show()
 ```

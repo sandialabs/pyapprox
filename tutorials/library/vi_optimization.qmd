@@ -62,85 +62,11 @@ The KL term between two Gaussians has a closed-form expression, so its gradient 
 #| echo: false
 #| fig-cap: "Left: sampling $\\theta \\sim q(\\cdot;\\, \\mu, \\sigma)$ blocks gradient flow — we cannot differentiate through a random number generator (red). Right: writing $\\theta = \\mu + \\sigma \\varepsilon$ with fixed $\\varepsilon \\sim \\mathcal{N}(0,1)$ makes $\\theta$ a differentiable function of the parameters (green). The gradient flows through the deterministic transformation."
 #| label: fig-reparam-diagram
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+from _figures._vi import plot_reparam_diagram
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-for ax in [ax1, ax2]:
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 6)
-    ax.axis("off")
-
-# --- Left: non-differentiable path ---
-ax1.set_title("Standard sampling (not differentiable)", fontsize=11,
-              fontweight="bold", color="#C0392B")
-
-box1 = FancyBboxPatch((0.5, 3.5), 2.5, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#D6EAF8", edgecolor="#2C7FB8", lw=2)
-ax1.add_patch(box1)
-ax1.text(1.75, 4.25, r"$(\mu, \sigma)$", ha="center", va="center",
-         fontsize=14, color="#2C7FB8")
-
-box2 = FancyBboxPatch((4.5, 3.5), 2.5, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#FADBD8", edgecolor="#C0392B", lw=2)
-ax1.add_patch(box2)
-ax1.text(5.75, 4.25, r"$\theta \sim q$", ha="center", va="center",
-         fontsize=14, color="#C0392B")
-
-box3 = FancyBboxPatch((4.5, 0.8), 2.5, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#F9E79F", edgecolor="#B7950B", lw=2)
-ax1.add_patch(box3)
-ax1.text(5.75, 1.55, "ELBO", ha="center", va="center",
-         fontsize=14, color="#B7950B")
-
-ax1.annotate("", xy=(4.4, 4.25), xytext=(3.1, 4.25),
-             arrowprops=dict(arrowstyle="-|>", lw=2, color="#C0392B"))
-ax1.text(3.75, 4.7, "sample", ha="center", fontsize=9, color="#C0392B")
-ax1.annotate("", xy=(5.75, 2.4), xytext=(5.75, 3.4),
-             arrowprops=dict(arrowstyle="-|>", lw=2, color="#B7950B"))
-ax1.text(3.75, 3.1, "X  no gradient", ha="center", fontsize=10,
-         color="#C0392B", fontweight="bold")
-
-# --- Right: reparameterized path ---
-ax2.set_title("Reparameterized (differentiable)", fontsize=11,
-              fontweight="bold", color="#27AE60")
-
-box4 = FancyBboxPatch((0.3, 3.5), 2.2, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#D6EAF8", edgecolor="#2C7FB8", lw=2)
-ax2.add_patch(box4)
-ax2.text(1.4, 4.25, r"$(\mu, \sigma)$", ha="center", va="center",
-         fontsize=14, color="#2C7FB8")
-
-box5 = FancyBboxPatch((0.3, 0.8), 2.2, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#E8DAEF", edgecolor="#8E44AD", lw=2)
-ax2.add_patch(box5)
-ax2.text(1.4, 1.55, r"$\varepsilon \sim \mathcal{N}(0,1)$",
-         ha="center", va="center", fontsize=12, color="#8E44AD")
-
-box6 = FancyBboxPatch((4.0, 2.2), 2.8, 1.5, boxstyle="round,pad=0.15",
-                       facecolor="#D5F5E3", edgecolor="#27AE60", lw=2)
-ax2.add_patch(box6)
-ax2.text(5.4, 2.95, r"$\theta = \mu + \sigma\varepsilon$",
-         ha="center", va="center", fontsize=12, color="#27AE60")
-
-box7 = FancyBboxPatch((4.0, 0.3), 2.8, 1.2, boxstyle="round,pad=0.15",
-                       facecolor="#F9E79F", edgecolor="#B7950B", lw=2)
-ax2.add_patch(box7)
-ax2.text(5.4, 0.9, "ELBO", ha="center", va="center",
-         fontsize=14, color="#B7950B")
-
-ax2.annotate("", xy=(3.9, 3.4), xytext=(2.6, 4.0),
-             arrowprops=dict(arrowstyle="-|>", lw=2, color="#27AE60"))
-ax2.annotate("", xy=(3.9, 2.6), xytext=(2.6, 1.8),
-             arrowprops=dict(arrowstyle="-|>", lw=2, color="#8E44AD"))
-ax2.annotate("", xy=(5.4, 1.6), xytext=(5.4, 2.1),
-             arrowprops=dict(arrowstyle="-|>", lw=2, color="#B7950B"))
-
-ax2.text(8.0, 3.0, "gradient\n   flows", ha="center", fontsize=10,
-         color="#27AE60", fontweight="bold")
-
+plot_reparam_diagram(ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```
@@ -167,6 +93,7 @@ The Gaussian shift-and-scale $\theta = \mu + \sigma \varepsilon$ is the simplest
 #| echo: false
 #| fig-cap: "The reparameterization trick visualized. Top: 15 base samples $\\varepsilon_s$ drawn once from $\\mathcal{N}(0, 1)$ — fixed throughout optimization. Middle: the same samples transformed at the initial parameters ($\\mu_z = 0, \\sigma_z = 1$), spread broadly over the prior. Bottom: after optimization, the same samples are shifted and compressed to cluster around the posterior mode. The base samples never change — only the transformation does."
 #| label: fig-reparam-visual
+import numpy as np
 from scipy.stats import norm
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
@@ -180,22 +107,9 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.surrogates.affine.univariate import (
-    HermitePolynomial1D,
-    GaussQuadratureRule,
-)
-from pyapprox.surrogates.affine.univariate.piecewisepoly import PiecewiseLinear
+from _figures._vi import _beam_exact_posterior, plot_reparam_visual
 
 bkd = NumpyBkd()
-
-
-def _grid_integrate(values, grid):
-    """Integrate values on a 1D grid using piecewise-linear quadrature."""
-    _b = NumpyBkd()
-    pw = PiecewiseLinear(_b.asarray(grid), _b)
-    _, weights = pw.quadrature_rule()
-    return float(_b.sum(_b.asarray(values) * weights))
-
 
 # Beam parameters (matching vi_intro / bayesian_inference_intro)
 L, H, q0 = 100.0, 30.0, 10.0
@@ -203,7 +117,6 @@ beam_model = HomogeneousBeam1DAnalytical(length=L, height=H, q0=q0, bkd=bkd)
 
 mu_prior = 12_000
 sigma_prior = 2_000
-prior = GaussianMarginal(mean=mu_prior, stdev=sigma_prior, bkd=bkd)
 
 tip_model = FunctionFromCallable(
     nqoi=1, nvars=1,
@@ -229,104 +142,17 @@ np.random.seed(42)
 y_obs = float(model_likelihood.rvs(bkd.asarray([[E_true]]))[0, 0])
 noise_likelihood.set_observations(bkd.asarray([[y_obs]]))
 
-# Exact posterior moments via Gauss-Hermite quadrature
-hermite_poly = HermitePolynomial1D(bkd)
-hermite_rule = GaussQuadratureRule(hermite_poly)
-nquad = 100
-quad_pts, quad_wts = hermite_rule(nquad)
-zq = bkd.to_numpy(quad_pts[0])
-wq = bkd.to_numpy(quad_wts[:, 0])
-Eq = mu_prior + sigma_prior * zq
-
-tip_preds_q = bkd.to_numpy(tip_model(bkd.asarray(Eq[np.newaxis, :])))[0, :]
-lik_vals_q = norm.pdf(y_obs, tip_preds_q, sigma_noise)
-
-Z_norm = wq @ lik_vals_q
-exact_mean = (wq @ (Eq * lik_vals_q)) / Z_norm
-exact_var = (wq @ ((Eq - exact_mean)**2 * lik_vals_q)) / Z_norm
-exact_std = np.sqrt(exact_var)
-
-# Exact posterior in standardized space
-exact_z_mean = (exact_mean - mu_prior) / sigma_prior
-exact_z_std = exact_std / sigma_prior
-
-# Dense grid for plotting
-E_grid = np.linspace(4_000, 20_000, 500)
-prior_vals = norm.pdf(E_grid, mu_prior, sigma_prior)
-tip_preds = bkd.to_numpy(tip_model(bkd.asarray(E_grid[np.newaxis, :])))[0, :]
-lik_vals = norm.pdf(y_obs, tip_preds, sigma_noise)
-post_exact = lik_vals * prior_vals
-post_exact = post_exact / _grid_integrate(post_exact, E_grid)
-
-# Reparam visualization: show base samples and their transformations
-np.random.seed(7)
-n_base = 15
-eps = np.sort(np.random.normal(0, 1, n_base))
-
-# In standardized space: initial (prior) and optimized
-mu_z_init, sig_z_init = 0.0, 1.0
-mu_z_opt, sig_z_opt = exact_z_mean, exact_z_std
-
-# Transform to physical E space for display
-E_init = mu_prior + sigma_prior * (mu_z_init + sig_z_init * eps)
-E_opt = mu_prior + sigma_prior * (mu_z_opt + sig_z_opt * eps)
+exact_mean, exact_std, E_grid, post_exact = _beam_exact_posterior(
+    bkd, tip_model, mu_prior, sigma_prior, y_obs, sigma_noise,
+)
 
 fig, axes = plt.subplots(3, 1, figsize=(11, 7),
                           gridspec_kw={"height_ratios": [1, 1.2, 1.2],
                                        "hspace": 0.5})
-
-# Top: base samples
-ax0 = axes[0]
-ax0.scatter(eps, np.zeros_like(eps), s=60, c="#8E44AD",
-            edgecolors="k", lw=0.8, zorder=5)
-x_ref = np.linspace(-4, 4, 200)
-ax0_t = ax0.twinx()
-ax0_t.plot(x_ref, norm.pdf(x_ref, 0, 1), color="#8E44AD", lw=1.5, alpha=0.3)
-ax0_t.set_yticks([])
-ax0_t.set_ylim(-0.05, 0.5)
-ax0.set_xlim(-4, 4)
-ax0.set_yticks([])
-ax0.set_xlabel(r"$\varepsilon$", fontsize=12)
-ax0.set_title(r"Base samples $\varepsilon_s \sim \mathcal{N}(0, 1)$ — drawn once, fixed",
-              fontsize=11)
-ax0.grid(True, alpha=0.15)
-
-# Middle: initial transformation (prior)
-ax1 = axes[1]
-ax1.scatter(E_init, np.zeros_like(E_init), s=60, c="#2C7FB8",
-            edgecolors="k", lw=0.8, zorder=5)
-ax1_t = ax1.twinx()
-ax1_t.fill_between(E_grid, post_exact, alpha=0.08, color="#E67E22")
-ax1_t.plot(E_grid, post_exact, color="#E67E22", lw=1.5, alpha=0.3)
-ax1_t.set_yticks([])
-ax1_t.set_ylim(-0.05 * max(post_exact), max(post_exact) * 1.5)
-ax1.set_xlim(E_grid[0], E_grid[-1])
-ax1.set_yticks([])
-ax1.set_xlabel(r"$E$", fontsize=12)
-ax1.set_title(
-    r"Initial: $E_s = \mu + \sigma \varepsilon_s$"
-    f"  ($\\mu={mu_prior:,},\\, \\sigma={sigma_prior:,}$) — spread over the prior",
-    fontsize=10)
-ax1.grid(True, alpha=0.15)
-
-# Bottom: optimized transformation
-ax2 = axes[2]
-ax2.scatter(E_opt, np.zeros_like(E_opt), s=60, c="#27AE60",
-            edgecolors="k", lw=0.8, zorder=5)
-ax2_t = ax2.twinx()
-ax2_t.fill_between(E_grid, post_exact, alpha=0.15, color="#E67E22")
-ax2_t.plot(E_grid, post_exact, color="#E67E22", lw=1.5, alpha=0.4)
-ax2_t.set_yticks([])
-ax2_t.set_ylim(-0.05 * max(post_exact), max(post_exact) * 1.5)
-ax2.set_xlim(E_grid[0], E_grid[-1])
-ax2.set_yticks([])
-ax2.set_xlabel(r"$E$", fontsize=12)
-ax2.set_title(
-    f"Optimized: $E_s = {exact_mean:.0f} + {exact_std:.0f}"
-    r" \cdot \varepsilon_s$ — clustered on the posterior",
-    fontsize=10)
-ax2.grid(True, alpha=0.15)
-
+plot_reparam_visual(
+    E_grid, post_exact, mu_prior, sigma_prior,
+    exact_mean, exact_std, axes,
+)
 plt.show()
 ```
 
@@ -425,33 +251,13 @@ for mi in maxiters:
 #| echo: false
 #| fig-cap: "ELBO convergence and parameter trajectories. Left: the negative ELBO decreases sharply in the first 50 iterations and then plateaus. Center: the variational mean converges toward the exact posterior mean (dashed line). Right: the variational standard deviation converges toward the exact posterior std. Most optimization work happens early."
 #| label: fig-elbo-convergence
+from _figures._vi import plot_elbo_convergence
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4))
-
-ax1.plot(maxiters, neg_elbos, "o-", color="#8E44AD", lw=2, ms=6)
-ax1.set_xlabel("Max iterations", fontsize=11)
-ax1.set_ylabel("Negative ELBO", fontsize=11)
-ax1.set_title("Objective convergence", fontsize=11)
-ax1.grid(True, alpha=0.2)
-
-ax2.plot(maxiters, means_E, "o-", color="#E67E22", lw=2, ms=6)
-ax2.axhline(exact_mean, color="gray", ls="--", lw=1.5,
-            label=f"Exact mean = {exact_mean:.0f}")
-ax2.set_xlabel("Max iterations", fontsize=11)
-ax2.set_ylabel(r"$\mu_E$", fontsize=11)
-ax2.set_title("Variational mean", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
-ax3.plot(maxiters, stdevs_E, "o-", color="#2C7FB8", lw=2, ms=6)
-ax3.axhline(exact_std, color="gray", ls="--", lw=1.5,
-            label=f"Exact std = {exact_std:.0f}")
-ax3.set_xlabel("Max iterations", fontsize=11)
-ax3.set_ylabel(r"$\sigma_E$", fontsize=11)
-ax3.set_title("Variational std dev", fontsize=11)
-ax3.legend(fontsize=9)
-ax3.grid(True, alpha=0.2)
-
+plot_elbo_convergence(
+    maxiters, neg_elbos, means_E, stdevs_E,
+    exact_mean, exact_std, ax1, ax2, ax3,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -470,35 +276,18 @@ The ELBO expectation is approximated by a sum over $S$ base samples. More sample
 #| echo: false
 #| fig-cap: "Effect of the number of base samples on VI accuracy. Each panel shows the converged VI approximation (blue dashed) vs. the exact posterior (orange). With $S = 20$, the noisy ELBO estimate leads to a poor fit. By $S = 200$, the result is already close to the $S = 2000$ result."
 #| label: fig-base-samples
+from _figures._vi import plot_base_samples
 
 sample_counts = [20, 200, 2000]
 fig, axes = plt.subplots(1, len(sample_counts), figsize=(13, 3.5),
                           sharey=True)
-
-for ax, ns in zip(axes, sample_counts):
-    vd, cd, vp, llf, bs, wt = make_vi_components(bkd, ns)
-    elbo_i = make_single_problem_elbo(vd, llf, vp, bs, wt, bkd)
-    opt = ScipyTrustConstrOptimizer(maxiter=50, gtol=1e-8, verbosity=0)
-    fitter = VariationalFitter(bkd, optimizer=opt)
-    result = fitter.fit(elbo_i)
-
-    dummy_x = bkd.zeros((cd.nvars(), 1))
-    z_mu = float(cd._mean_func(dummy_x)[0, 0])
-    z_sig = math.exp(float(cd._log_stdev_func(dummy_x)[0, 0]))
-    vi_mu_E = mu_prior + sigma_prior * z_mu
-    vi_sig_E = sigma_prior * z_sig
-    vi_pdf = norm.pdf(E_grid, vi_mu_E, vi_sig_E)
-
-    ax.plot(E_grid, post_exact, color="#E67E22", lw=2)
-    ax.fill_between(E_grid, post_exact, alpha=0.12, color="#E67E22")
-    ax.plot(E_grid, vi_pdf, color="#2C7FB8", lw=2, ls="--")
-    ax.set_title(f"$S = {ns}$", fontsize=11)
-    ax.set_xlabel(r"$E$", fontsize=10)
-    ax.grid(True, alpha=0.15)
-
-axes[0].set_ylabel("Density", fontsize=11)
-fig.legend(["Exact posterior", "", "VI approximation"], fontsize=9,
-           loc="upper center", ncol=2, bbox_to_anchor=(0.5, 1.08))
+plot_base_samples(
+    bkd, tip_model, std_tip_model,
+    noise_variances, y_obs,
+    mu_prior, sigma_prior,
+    E_grid, post_exact,
+    sample_counts, axes, fig,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -695,89 +484,17 @@ print(f"Full-covariance Gaussian: {elbo_full.nvars()} params, "
 #| echo: false
 #| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam. Left: the exact posterior shows a tilted ridge — $E_1$ and $E_2$ are correlated. Center: the diagonal Gaussian captures the correct center but its axis-aligned ellipses cannot represent the tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior, producing a better fit (lower negative ELBO). The extra expressiveness costs 1 additional parameter (5 vs. 4)."
 #| label: fig-vi-2d
-from pyapprox.inverse.posterior.log_unnormalized import (
-    LogUnNormalizedPosterior,
-)
-from matplotlib.patches import Ellipse
-
-# Grid posterior in physical (E1, E2) space
-posterior_2d_fn = LogUnNormalizedPosterior(
-    model_fn=tip_model_2d, likelihood=noise_lik_2d, prior=prior_2d, bkd=bkd,
-)
-
-n_g = 80
-E1_g = np.linspace(4_000, 20_000, n_g)
-E2_g = np.linspace(2_000, 18_000, n_g)
-E1_m, E2_m = np.meshgrid(E1_g, E2_g)
-grid_pts = bkd.asarray(np.vstack([E1_m.ravel(), E2_m.ravel()]))
-lp_flat = bkd.to_numpy(posterior_2d_fn(grid_pts))
-lp_grid = lp_flat.reshape(n_g, n_g)
-p_grid = np.exp(lp_grid - np.max(lp_grid))
-
-# Extract full-covariance params (in standardized space, then transform)
-dummy_full = bkd.zeros((var_dist_full.nvars(), 1))
-full_z_mean = bkd.to_numpy(
-    var_dist_full.reparameterize(dummy_full, bkd.zeros((2, 1)))
-).flatten()
-full_z_cov = bkd.to_numpy(var_dist_full.covariance(dummy_full)[0])
-
-# Transform to physical space
-full_mean_E = mu_prior_2d + sigma_prior_2d * full_z_mean
-S = np.diag(sigma_prior_2d)
-full_cov_E = S @ full_z_cov @ S
+from _figures._vi import plot_vi_2d
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(17, 5))
-
-for ax in [ax1, ax2, ax3]:
-    ax.contourf(E1_m, E2_m, p_grid, levels=10, cmap="Oranges", alpha=0.5)
-    ax.contour(E1_m, E2_m, p_grid, levels=8, colors="#E67E22",
-               linewidths=0.5, alpha=0.5)
-    ax.scatter(E1_true, E2_true,
-               marker="D", s=80, color="#27AE60", edgecolors="k",
-               lw=1, zorder=5, label="True parameters")
-    ax.set_xlabel(r"$E_1$ (skin)", fontsize=12)
-    ax.set_ylabel(r"$E_2$ (core)", fontsize=12)
-    ax.grid(True, alpha=0.15)
-
-ax1.set_title("Exact posterior (grid)", fontsize=11)
-ax1.legend(fontsize=9)
-
-# Diagonal VI ellipses (axis-aligned)
-for n_std in [1, 2]:
-    ell = Ellipse(
-        xy=(vi_means_2d[0], vi_means_2d[1]),
-        width=2 * n_std * vi_stdevs_2d[0],
-        height=2 * n_std * vi_stdevs_2d[1],
-        angle=0,
-        facecolor="none", edgecolor="#2C7FB8",
-        lw=2 if n_std == 1 else 1.5,
-        ls="-" if n_std == 1 else "--",
-    )
-    ax2.add_patch(ell)
-ax2.scatter(vi_means_2d[0], vi_means_2d[1], marker="+", s=150,
-            color="#2C7FB8", lw=3, zorder=5, label="VI mean")
-ax2.set_title(f"Diagonal ({elbo_2d.nvars()} params)", fontsize=11)
-ax2.legend(fontsize=9)
-
-# Full-covariance VI ellipses (tilted)
-eigenvalues, eigenvectors = np.linalg.eigh(full_cov_E)
-angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
-for n_std in [1, 2]:
-    ell = Ellipse(
-        xy=(full_mean_E[0], full_mean_E[1]),
-        width=2 * n_std * np.sqrt(eigenvalues[0]),
-        height=2 * n_std * np.sqrt(eigenvalues[1]),
-        angle=angle,
-        facecolor="none", edgecolor="#2C7FB8",
-        lw=2 if n_std == 1 else 1.5,
-        ls="-" if n_std == 1 else "--",
-    )
-    ax3.add_patch(ell)
-ax3.scatter(full_mean_E[0], full_mean_E[1], marker="+", s=150,
-            color="#2C7FB8", lw=3, zorder=5, label="VI mean")
-ax3.set_title(f"Full-covariance ({elbo_full.nvars()} params)", fontsize=11)
-ax3.legend(fontsize=9)
-
+plot_vi_2d(
+    bkd, tip_model_2d, noise_lik_2d, prior_2d,
+    mu_prior_2d, sigma_prior_2d,
+    E1_true, E2_true,
+    vi_means_2d, vi_stdevs_2d,
+    var_dist_full, elbo_2d, elbo_full,
+    ax1, ax2, ax3,
+)
 plt.tight_layout()
 plt.show()
 ```

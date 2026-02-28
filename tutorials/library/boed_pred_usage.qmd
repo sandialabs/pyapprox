@@ -97,7 +97,6 @@ weights = bkd.ones((nobs, 1)) / nobs
 
 ```{python}
 exact = diagnostics.exact_utility(weights)
-print(f"Analytical utility (std deviation): {exact:.6f}")
 ```
 
 A single numerical estimate:
@@ -109,8 +108,6 @@ approx = diagnostics.compute_numerical_utility(
     design_weights=weights,
     seed=42,
 )
-print(f"Numerical utility (nouter=500, ninner=1000): {approx:.6f}")
-print(f"Absolute error: {abs(approx - exact):.6f}")
 ```
 
 ## MSE Decomposition
@@ -123,9 +120,6 @@ bias, variance, mse = diagnostics.compute_mse(
     design_weights=weights,
     base_seed=0,
 )
-print(f"Bias^2:   {bias**2:.2e}")
-print(f"Variance: {variance:.2e}")
-print(f"MSE:      {mse:.2e}")
 ```
 
 ::: {.callout-note}
@@ -154,27 +148,10 @@ values_mc = diagnostics.compute_mse_for_sample_combinations(
 #| echo: false
 #| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."
 #| label: fig-pred-mse-mc
+from _figures import plot_pred_mse_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))  # shape: (n_inner, n_outer)
-
-colors = ["#2C7FB8", "#D95F02"]
-for ax_idx, nouter in enumerate(outer_counts):
-    ax = axes[ax_idx]
-    ax.loglog(inner_counts, mse_array[:, ax_idx], "o-",
-              color=colors[ax_idx], lw=2, label=f"$M = {nouter}$")
-
-    # Reference O(1/N) slope
-    ref_x = np.array([inner_counts[0], inner_counts[-1]])
-    ref_y = mse_array[0, ax_idx] * ref_x[0] / ref_x
-    ax.loglog(ref_x, ref_y, "k--", lw=1.5, alpha=0.6, label="$O(1/N)$")
-
-    ax.set_title(f"$M = {nouter}$ outer samples", fontsize=11)
-    ax.set_xlabel("Inner samples $N_{in}$", fontsize=11)
-    ax.set_ylabel("MSE" if ax_idx == 0 else "", fontsize=11)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.25, which="both")
-
+plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts)
 plt.suptitle("Goal-oriented OED: MSE vs. inner samples (MC)", fontsize=12, y=1.01)
 plt.tight_layout()
 plt.show()
@@ -186,7 +163,6 @@ mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))  # (n_inner, n_outer)
 for jj, nouter in enumerate(outer_counts):
     mse_values = mse_array[:, jj].tolist()
     rate = PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)
-    print(f"MC rate (nouter={nouter:4d}): {rate:.3f}  (expected ~1.0)")
 ```
 
 ## AVaR Deviation Variant
@@ -199,7 +175,6 @@ diagnostics_avar = create_prediction_oed_diagnostics(
     benchmark, "linear_avar", beta=0.9,
 )
 exact_avar = diagnostics_avar.exact_utility(weights)
-print(f"Analytical utility (AVaR 0.9 deviation): {exact_avar:.6f}")
 ```
 
 ## Key Takeaways

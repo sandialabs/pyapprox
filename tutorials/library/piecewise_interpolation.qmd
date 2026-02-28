@@ -83,6 +83,8 @@ requires $f$ to have $M$ bounded derivatives.  For functions with a **discontinu
 #| fig-cap: "A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity."
 #| label: fig-gibbs
 
+from _figures._interpolation import plot_gibbs
+
 def fun_step(x):
     y = np.zeros_like(x)
     y[x > 1.0/3.0] = 1.0
@@ -113,18 +115,7 @@ interp_pw = bkd.to_numpy(pw_lin(bkd.array(x_plot)))  # (600, M_pw)
 interp_pw_vals = interp_pw @ bkd.to_numpy(fun_step(nodes_pw))
 
 fig, axs = plt.subplots(1, 2, figsize=(13, 5))
-titles = ["Global Lagrange — Gibbs oscillations", "Piecewise linear — localized error"]
-interps = [interp_lagrange, interp_pw_vals]
-Ms_labels = [M_cc, M_pw]
-
-for ax, interp, title, M_label in zip(axs, interps, titles, Ms_labels):
-    ax.plot(x_plot, true_vals, "k-", lw=2, label="True $f(x)$")
-    ax.plot(x_plot, interp, "--", color="#2C7FB8", lw=2, label=f"Interpolant $M={M_label}$")
-    ax.set_title(title, fontsize=11)
-    ax.set_xlabel("$x$", fontsize=12)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-
+plot_gibbs(x_plot, true_vals, interp_lagrange, interp_pw_vals, M_cc, M_pw, axs)
 plt.suptitle("Global polynomial vs. piecewise interpolation of a step function", fontsize=12)
 plt.tight_layout()
 plt.show()
@@ -138,6 +129,8 @@ Piecewise polynomial interpolation divides $[a, b]$ into cells and fits a low-de
 The `PiecewiseLinear`, `PiecewiseQuadratic`, and `PiecewiseCubic` classes each take a 1D array of nodes and a backend.  The `__call__` method evaluates all basis functions at given points.
 
 ```{python}
+from _figures._interpolation import plot_piecewise_basis
+
 M = 7
 nodes_1d = bkd.array(np.linspace(-1, 1, M))
 x_plot_bkd = bkd.array(np.linspace(-1, 1, 400))
@@ -148,23 +141,7 @@ phi_hat = bkd.to_numpy(pw_lin(x_plot_bkd))   # (400, M)
 x_plot = np.linspace(-1, 1, 400)
 nodes_np = bkd.to_numpy(nodes_1d)
 
-fig, axs = plt.subplots(1, 2, figsize=(13, 4))
-colors = plt.cm.tab10(np.linspace(0, 1, M))
-
-# Left: all hat basis functions
-ax = axs[0]
-for j in range(M):
-    ax.plot(x_plot, phi_hat[:, j], color=colors[j], lw=2, label=f"$\\phi_{j+1}$")
-ax.plot(nodes_np, np.zeros(M), "ko", ms=7, zorder=5)
-ax.axhline(0, color="k", lw=0.5)
-ax.set_title(f"Piecewise linear (hat) basis, $M = {M}$", fontsize=11)
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel(r"$\phi_j(x)$", fontsize=12)
-ax.legend(fontsize=8, ncol=M, loc="upper center")
-ax.grid(True, alpha=0.3)
-
-# Right: compare local vs global support for middle basis function
-# Use LagrangeBasis1D with Leja nodes at the same M (works for any M)
+# Compare local vs global support for middle basis function
 from pyapprox.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.surrogates.affine.leja import (
     LejaSequence1D as LejaSeq,
@@ -178,18 +155,11 @@ basis_leja_compare = LagrangeBasis1D(bkd, leja_compare.quadrature_rule)
 basis_leja_compare.set_nterms(M)
 phi_lagrange_all = bkd.to_numpy(basis_leja_compare(bkd.array(x_plot.reshape(1, -1))))
 
-ax = axs[1]
 j_mid = M // 2
 phi_lagrange_mid = phi_lagrange_all[:, j_mid]
-phi_hat_mid = phi_hat[:, j_mid]
-ax.plot(x_plot, phi_lagrange_mid, "-",  color="#E67E22", lw=2, label=f"Lagrange $\\phi_{j_mid+1}$ (global support)")
-ax.plot(x_plot, phi_hat_mid,     "--", color="#2C7FB8", lw=2, label=f"Piecewise linear $\\phi_{j_mid+1}$ (local support)")
-ax.axhline(0, color="k", lw=0.5)
-ax.plot(nodes_np[j_mid], 0, "ko", ms=8)
-ax.set_title("Global vs. local support — middle basis function", fontsize=11)
-ax.set_xlabel("$x$", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.3)
+
+fig, axs = plt.subplots(1, 2, figsize=(13, 4))
+plot_piecewise_basis(x_plot, phi_hat, nodes_np, M, phi_lagrange_mid, j_mid, axs)
 plt.tight_layout()
 plt.show()
 ```
@@ -213,6 +183,8 @@ where $C_p$ depends only on the polynomial degree $p$.  Doubling the number of p
 ```{python}
 #| fig-cap: "Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm $O(h^2)$ and $O(h^4)$ theory."
 #| label: fig-pw-convergence
+
+from _figures._interpolation import plot_pw_convergence
 
 def f_smooth(x):
     return np.exp(np.sin(2 * np.pi * x))
@@ -246,17 +218,7 @@ hs_linear = (b - a) / (Ms_linear - 1)
 hs_cubic = (b - a) / (Ms_cubic - 1)
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.loglog(hs_linear, errors_linear, "o-", color="#2C7FB8", lw=2, ms=6, label="Linear ($p=1$)")
-ax.loglog(hs_cubic, errors_cubic, "^-", color="#E67E22", lw=2, ms=6, label="Cubic ($p=3$)")
-
-# Reference slopes
-ax.loglog(hs_linear, 0.5 * hs_linear**2, "k--", lw=1, label="$h^2$ slope")
-ax.loglog(hs_cubic, 2.0 * hs_cubic**4, "k:",  lw=1, label="$h^4$ slope")
-ax.set_xlabel("Cell width $h$", fontsize=12)
-ax.set_ylabel("Max error", fontsize=12)
-ax.set_title(r"Piecewise convergence on $e^{\sin(2\pi x)}$", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+plot_pw_convergence(hs_linear, errors_linear, hs_cubic, errors_cubic, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -274,6 +236,8 @@ The convergence plot below uses the $L^\infty$ (max) norm $\|f - f_M\|_\infty = 
 ```{python}
 #| fig-cap: "Error vs. $M$ for $|x - 1/3|$ (kink at $x = 1/3$). Piecewise linear converges at $O(M^{-1})$; global Lagrange converges much more slowly."
 #| label: fig-discontinuous
+
+from _figures._interpolation import plot_discontinuous
 
 def fun_kink(x):
     return np.abs(x - 1.0 / 3.0)
@@ -305,14 +269,7 @@ for M in Ms_pw:
     err_pw.append(np.max(np.abs(ip - true_kink)))
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.loglog(Ms_cc, err_lag, "o-", color="#E67E22", lw=2, ms=6, label="Global Lagrange (CC nodes)")
-ax.loglog(Ms_pw, err_pw,  "s-", color="#2C7FB8", lw=2, ms=6, label="Piecewise linear")
-ax.loglog(Ms_pw, 1.0 / Ms_pw, "k--", lw=1, label="$M^{-1}$ slope")
-ax.set_xlabel("Number of nodes $M$", fontsize=12)
-ax.set_ylabel("Max error", fontsize=12)
-ax.set_title("Kink function $|x - 1/3|$: piecewise linear converges; Lagrange stalls", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+plot_discontinuous(Ms_cc, err_lag, Ms_pw, err_pw, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -330,14 +287,9 @@ marginal = UniformMarginal(-1.0, 1.0, bkd)
 
 # Create a factory for piecewise quadratic bases
 factory = PiecewiseFactory(marginal, bkd, poly_type="quadratic")
-print(f"Factory type: {type(factory).__name__}")
-print(f"Is nested:    {factory.is_nested()}")
 
 # The factory creates a basis that can be used in sparse grid construction
 basis_pw = factory.create_basis()
-print(f"Basis type: {type(basis_pw).__name__}")
-print("PiecewiseFactory is used in Tutorial 6 (isotropic_sparse_grids.qmd)")
-print("and Tutorial 7 (adaptive_sparse_grids.qmd).")
 ```
 
 

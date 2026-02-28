@@ -209,14 +209,16 @@ mc_est = MCEstimator(stat_mc, bkd.asarray(costs[0:1]))
 mc_est.allocate_samples(P)
 var_mc = float(mc_est.optimized_covariance()[0, 0])
 
-print(f"MLMC optimized variance (estimator): {var_est:.6f}")
-print(f"MC variance (estimator):             {var_mc:.6f}")
-print(f"Variance reduction:                  {var_mc / var_est:.1f}x")
+print(f"MLMC optimized variance: {var_est:.6f}")
+print(f"MC variance:            {var_mc:.6f}")
+print(f"Variance reduction:     {var_mc / var_est:.1f}x")
 ```
 
 ```{python}
 #| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."
 #| label: fig-variance-vs-cost
+
+from _figures._hierarchy import plot_variance_vs_cost
 
 target_costs_sweep = [10, 100, 1000, 10000]
 n_trials = 500
@@ -253,28 +255,10 @@ for P_t in target_costs_sweep:
     mlmc_vars_emp.append(mlmc_ests_t.var())
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#2C7FB8", lw=2,
-          label="MC (predicted)")
-ax.loglog(target_costs_sweep, mc_vars_emp, "o", color="#2C7FB8", ms=8,
-          label="MC (empirical)")
-ax.loglog(target_costs_sweep, mlmc_vars_pred, "-", color="#E67E22", lw=2,
-          label="MLMC (predicted)")
-ax.loglog(target_costs_sweep, mlmc_vars_emp, "s", color="#E67E22", ms=8,
-          label="MLMC (empirical)")
-ax.set_xlabel("Total cost $P$", fontsize=12)
-ax.set_ylabel(r"Estimator variance", fontsize=12)
-ax.set_title(f"Predicted vs empirical variance  ({n_trials} trials)", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,
+                      mlmc_vars_pred, mlmc_vars_emp, n_trials, ax)
 plt.tight_layout()
 plt.show()
-
-for P_t, mp, me, mlp, mle in zip(
-    target_costs_sweep, mc_vars_pred, mc_vars_emp,
-    mlmc_vars_pred, mlmc_vars_emp,
-):
-    print(f"P={P_t:5d}:  MC pred={mp:.2e} emp={me:.2e}  |  "
-          f"MLMC pred={mlp:.2e} emp={mle:.2e}")
 ```
 
 
@@ -294,6 +278,7 @@ from pyapprox.statest.acv.allocation import ACVAllocator
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
+from _figures._hierarchy import plot_mlmc_vs_opt
 
 stat_true = MultiOutputMean(nqoi, bkd)
 stat_true.set_pilot_quantities(bkd.asarray(cov_true))
@@ -316,18 +301,12 @@ mc_est = MCEstimator(mc_stat_cmp, bkd.asarray(costs[0:1]))
 mc_est.allocate_samples(P_cmp)
 mc_var = float(mc_est.optimized_covariance()[0, 0])
 
-fig, ax = plt.subplots(figsize=(6, 4))
 labels = ["MC", "MLMC\n($\\eta=-1$)", "ACV-GRD\n(optimal weights)"]
 vals   = [mc_var / mc_var, mc_var / mlmc_var, mc_var / acv_var]
 colors = ["#aaaaaa", "#2C7FB8", "#E67E22"]
-bars = ax.bar(labels, vals, color=colors, edgecolor="k", lw=0.5, alpha=0.85)
-ax.axhline(1.0, color="k", ls="--", lw=1, alpha=0.5)
-ax.set_ylabel("Variance reduction vs MC", fontsize=12)
-ax.set_title("Standard MLMC vs optimal-weight MLMC", fontsize=11)
-ax.grid(True, alpha=0.2, axis="y")
-for bar, v in zip(bars, vals):
-    ax.text(bar.get_x() + bar.get_width()/2, v + 0.05, f"{v:.1f}×",
-            ha="center", fontsize=10)
+
+fig, ax = plt.subplots(figsize=(6, 4))
+plot_mlmc_vs_opt(labels, vals, colors, ax)
 plt.tight_layout()
 plt.show()
 ```

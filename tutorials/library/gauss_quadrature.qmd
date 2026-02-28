@@ -65,6 +65,12 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
 )
+from _figures._quadrature import (
+    plot_gauss_nodes,
+    plot_quad_convergence_comparison,
+    plot_gauss_hermite,
+    plot_lobatto,
+)
 
 bkd = NumpyBkd()
 ```
@@ -105,9 +111,6 @@ gauss_rule = GaussQuadratureRule(poly)
 # Get 5-point rule: nodes shape (1, M), weights shape (M, 1)
 M = 5
 nodes, weights = gauss_rule(M)
-print(f"Nodes shape: {nodes.shape},  Weights shape: {weights.shape}")
-print(f"Nodes:   {bkd.to_numpy(nodes[0])}")
-print(f"Weights: {bkd.to_numpy(weights[:, 0])}")
 ```
 
 ```{python}
@@ -115,27 +118,7 @@ print(f"Weights: {bkd.to_numpy(weights[:, 0])}")
 #| label: fig-gauss-nodes
 
 fig, ax = plt.subplots(figsize=(10, 3))
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-
-for ii, M in enumerate([3, 5, 9]):
-    nd, _ = gauss_rule(M)
-    nd_np = bkd.to_numpy(nd[0])
-    ax.plot(
-        nd_np,
-        np.full_like(nd_np, ii),
-        "o",
-        ms=10,
-        color=colors[ii],
-        label=f"$M = {M}$",
-    )
-    ax.axhline(ii, color=colors[ii], lw=0.5, alpha=0.4)
-
-ax.set_yticks([0, 1, 2])
-ax.set_yticklabels(["$M=3$", "$M=5$", "$M=9$"], fontsize=12)
-ax.set_xlabel("Node location $x$", fontsize=12)
-ax.set_title("Gauss-Legendre nodes on $[-1, 1]$", fontsize=12)
-ax.legend(fontsize=11, loc="upper right")
-ax.grid(True, axis="x", alpha=0.3)
+plot_gauss_nodes(ax, gauss_rule, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -156,10 +139,6 @@ exact_expectation = 1.0
 
 # nodes: (1, M), weights: (M, 1)
 approx = float(bkd.sum(weights[:, 0] * poly_deg9(nodes[0])))
-print(f"Weights sum to : {float(bkd.sum(weights)):.15f}  (probability measure)")
-print(f"Exact E[f]     : {exact_expectation:.15f}")
-print(f"M={M} Gauss rule: {approx:.15f}")
-print(f"Error          : {abs(approx - exact_expectation):.2e}   (machine precision)")
 ```
 
 
@@ -265,21 +244,10 @@ for M in Ms:
     trap_err_rough.append(   abs(wts_np @ f_rough(pts_np)    - true_rough))
 
 fig, axs = plt.subplots(1, 2, figsize=(13, 5))
-labels = ["$1/(1+16x^2)$ (analytic)", "$|x-0.3|^{1.5}$ (rough)"]
-for ax, ge, te, title in zip(
-    axs,
-    [gauss_err_analytic, gauss_err_rough],
-    [trap_err_analytic,  trap_err_rough],
-    labels,
-):
-    ax.semilogy(Ms, ge, "o-", color="#2C7FB8", label="Gauss-Legendre")
-    ax.semilogy(Ms, te, "s-", color="#E67E22", label="PiecewiseLinear (trapezoid)")
-    ax.set_xlabel("Number of points $M$", fontsize=12)
-    ax.set_ylabel("Absolute error", fontsize=12)
-    ax.set_title(title, fontsize=12)
-    ax.legend(fontsize=11)
-    ax.grid(True, which="both", alpha=0.3)
-
+plot_quad_convergence_comparison(
+    axs, Ms, gauss_err_analytic, trap_err_analytic,
+    gauss_err_rough, trap_err_rough,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -334,20 +302,9 @@ for M in Ms:
     gh_errors.append(abs(approx_mean - exact_mean))
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.loglog(Ms, gh_errors, "o-", color="#27AE60", label="Gauss-Hermite")
-ax.axhline(1e-15, color="gray", ls="--", lw=1, label="Machine precision floor")
-ax.set_xlabel("Number of quadrature points $M$", fontsize=12)
-ax.set_ylabel(r"Error in $\mathbb{E}[f(\theta)]$", fontsize=12)
-ax.set_title(r"Gauss-Hermite convergence for $\theta \sim \mathcal{N}(0,1)$", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_gauss_hermite(ax, Ms, gh_errors)
 plt.tight_layout()
 plt.show()
-
-nd3, wt3 = hermite_rule(3)
-nd3_np, wt3_np = bkd.to_numpy(nd3[0]), bkd.to_numpy(wt3[:, 0])
-print(f"M=3  Gauss-Hermite estimate: {wt3_np @ f_qoi(nd3_np):.15f}")
-print(f"Exact (√2/2 · exp(-1/4))  : {exact_mean:.15f}")
 ```
 
 
@@ -364,30 +321,7 @@ A Gauss-Lobatto rule with $M$ points achieves exactness degree $2M-3$ (two degre
 lobatto_rule = GaussLobattoQuadratureRule(LegendrePolynomial1D(bkd))
 
 fig, ax = plt.subplots(figsize=(10, 3.5))
-for ii, M in enumerate([5, 9]):
-    nd_gauss, _ = gauss_rule(M)
-    nd_lobatto, _ = lobatto_rule(M)
-    nd_gauss_np = bkd.to_numpy(nd_gauss[0])
-    nd_lobatto_np = bkd.to_numpy(nd_lobatto[0])
-    offset_g = ii * 2
-    offset_l = ii * 2 + 1
-    ax.plot(nd_gauss_np,   np.full(M, offset_g), "o", ms=9, color="#2C7FB8",
-            label=f"Gauss $M={M}$" if ii == 0 else None)
-    ax.plot(nd_lobatto_np, np.full(M, offset_l), "s", ms=9, color="#E67E22",
-            label=f"Gauss-Lobatto $M={M}$" if ii == 0 else None)
-    ax.axhline(offset_g, color="#2C7FB8", lw=0.4, alpha=0.5)
-    ax.axhline(offset_l, color="#E67E22", lw=0.4, alpha=0.5)
-    ax.text(1.05, offset_g, f"Gauss $M={M}$",   va="center", fontsize=10)
-    ax.text(1.05, offset_l, f"Lobatto $M={M}$", va="center", fontsize=10)
-
-ax.axvline(-1, color="k", lw=1, ls="--", alpha=0.4)
-ax.axvline( 1, color="k", lw=1, ls="--", alpha=0.4)
-ax.set_xlim([-1.2, 1.6])
-ax.set_xlabel("Node location", fontsize=12)
-ax.set_yticks([])
-ax.set_title("Gauss vs. Gauss-Lobatto nodes", fontsize=12)
-ax.legend(fontsize=10, loc="lower right")
-ax.grid(True, axis="x", alpha=0.3)
+plot_lobatto(ax, gauss_rule, lobatto_rule, bkd)
 plt.tight_layout()
 plt.show()
 ```

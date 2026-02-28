@@ -219,6 +219,8 @@ The predicted estimator covariance tells us how precise we *expect* the estimate
 #| fig-cap: "Verification of the budget prediction. Histograms of mean estimates from 200 independent experiments at the allocated budget, with the predicted standard deviation (red dashed) and empirical standard deviation (green) overlaid."
 #| label: fig-budget-verification
 
+from _figures._multifidelity_advanced import plot_budget_verification
+
 n_reps = 200
 M_alloc = int(est._rounded_nsamples_per_model[0])
 all_means = np.empty((n_reps, nqoi))
@@ -229,34 +231,10 @@ for i in range(n_reps):
     q = model(s)
     all_means[i] = bkd.to_numpy(bkd.mean(q, axis=1))
 
-fig, axes = plt.subplots(1, nqoi, figsize=(4 * nqoi, 4))
-qoi_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-
 predicted_est_cov_np = bkd.to_numpy(predicted_est_cov)
 
-from scipy.stats import norm
-
-for col, ax in enumerate(axes):
-    ax.hist(all_means[:, col], bins=30, density=True, color=colors[col],
-            alpha=0.7, edgecolor="k", lw=0.3)
-
-    pred_std = np.sqrt(predicted_est_cov_np[col, col])
-    emp_mean = np.mean(all_means[:, col])
-    emp_std = np.std(all_means[:, col])
-
-    x_grid = np.linspace(all_means[:, col].min(), all_means[:, col].max(), 200)
-    ax.plot(x_grid, norm.pdf(x_grid, emp_mean, pred_std), "r--", lw=2,
-            label=f"Predicted σ = {pred_std:.4f}")
-    ax.axvline(emp_mean, color="#27AE60", ls="-", lw=1.5,
-               label=f"Empirical σ = {emp_std:.4f}")
-
-    ax.set_xlabel(qoi_labels[col], fontsize=12)
-    ax.set_ylabel("Density", fontsize=12)
-    ax.set_title(f"Mean estimator, $M = {M_alloc}$", fontsize=11)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-
+fig, axes = plt.subplots(1, nqoi, figsize=(4 * nqoi, 4))
+plot_budget_verification(all_means, nqoi, predicted_est_cov_np, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -272,6 +250,8 @@ The estimator covariance depends on which statistics we estimate. Estimating the
 #| echo: false
 #| fig-cap: "Predicted estimation error (trace of estimator covariance) vs. computational budget for three statistic choices. Estimating the variance requires a larger budget than the mean for the same accuracy, and estimating both simultaneously is the most expensive."
 #| label: fig-budget-vs-statistic
+
+from _figures._multifidelity_advanced import plot_budget_vs_statistic
 
 # Create stat objects and set pilot quantities
 stat_mean = MultiOutputMean(nqoi, bkd)
@@ -291,25 +271,8 @@ stat_configs = {
     "Mean + Variance": stat_mv2,
 }
 
-budget_values = np.logspace(1, 3.5, 30)
-colors_stat = ["#2C7FB8", "#E67E22", "#C0392B"]
-
 fig, ax = plt.subplots(figsize=(8, 5))
-
-for (name, stat_obj), color in zip(stat_configs.items(), colors_stat):
-    traces = []
-    for budget in budget_values:
-        est_temp = MCEstimator(stat_obj, cost_per_eval)
-        est_temp.allocate_samples(float(budget))
-        est_cov = est_temp.optimized_covariance()
-        traces.append(float(bkd.trace(est_cov)))
-    ax.loglog(budget_values, traces, "-o", ms=4, color=color, label=name)
-
-ax.set_xlabel("Computational budget (model evaluations)", fontsize=12)
-ax.set_ylabel("tr(Cov[$\\hat{\\mathbf{Q}}_M$])", fontsize=12)
-ax.set_title("Estimation error vs. budget by statistic", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_budget_vs_statistic(stat_configs, cost_per_eval, bkd, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -325,6 +288,8 @@ The budget estimate is only as good as the pilot estimates of $\boldsymbol{\Sigm
 #| echo: false
 #| fig-cap: "Sensitivity of the budget prediction to pilot size. Each point is the predicted standard deviation of $\\hat{\\mu}_1$ from an independent pilot experiment. Small pilots ($M_{\\text{pilot}} = 20$) produce highly variable predictions; larger pilots ($M_{\\text{pilot}} = 200$) are much more stable. The true value (from the benchmark's exact moments) is shown as a dashed red line."
 #| label: fig-pilot-sensitivity
+
+from _figures._multifidelity_advanced import plot_pilot_sensitivity
 
 pilot_sizes = [20, 50, 100, 200]
 n_pilot_reps = 100
@@ -362,39 +327,18 @@ for M_p in pilot_sizes:
         pred_stds[i] = float(bkd.sqrt(est_p.optimized_covariance()[0, 0]))
     all_pred_stds[M_p] = pred_stds
 
-# Shared x limits across all panels
-all_vals = np.concatenate(list(all_pred_stds.values()))
-x_pad = 0.05 * (all_vals.max() - all_vals.min())
-xlim = (all_vals.min() - x_pad, all_vals.max() + x_pad)
-
 fig, axes = plt.subplots(1, len(pilot_sizes), figsize=(14, 3.5), sharey=True)
-
-for ax, M_p in zip(axes, pilot_sizes):
-    ax.hist(all_pred_stds[M_p], bins=25, density=True, color="#2C7FB8",
-            alpha=0.7, edgecolor="k", lw=0.3)
-    ax.axvline(true_pred_std, color="#C0392B", ls="--", lw=2)
-    ax.set_xlim(xlim)
-    ax.set_xlabel("Predicted σ", fontsize=10)
-    ax.set_title(f"$M_{{\\text{{pilot}}}} = {M_p}$", fontsize=11)
-    ax.grid(True, alpha=0.2)
-
-axes[0].set_ylabel("Density", fontsize=11)
-fig.suptitle(
-    "Predicted std of $\\hat{\\mu}_1$ at budget = "
-    f"{int(target_for_test)}, across {n_pilot_reps} independent pilots",
-    fontsize=11, y=1.02,
-)
+plot_pilot_sensitivity(all_pred_stds, pilot_sizes, true_pred_std,
+                       n_pilot_reps, target_for_test, axes, fig)
 plt.tight_layout()
 plt.show()
 ```
 
 ::: {.callout-important}
 ## Practical guidance on pilot size
-There is no universal rule for $M_{\text{pilot}}$, but some heuristics:
+There is no universal rule for $M_{\text{pilot}}$. Choose 20--50 samples if you can afford them and use the pilot samples as the first batch of the final experiment. The total budget is $M_{\text{pilot}} + M_{\text{additional}}$, so pilot samples are never wasted.
 
-- **For the mean only**: the pilot needs to estimate $\boldsymbol{\Sigma}$ (second moments). A pilot of $M_{\text{pilot}} \approx 30\text{--}50$ is often adequate.
-- **For the variance**: the pilot needs to estimate $\mathbf{W}$ (fourth moments), which converges more slowly. A pilot of $M_{\text{pilot}} \approx 100\text{--}200$ is safer.
-- **When in doubt**: use the pilot samples as the first batch of the final experiment. The total budget is $M_{\text{pilot}} + M_{\text{additional}}$, so pilot samples are never wasted.
+There are advanced methods for optimally balancing pilot size with accuracy of the final estimator [@dixon2025optimallybalancing].
 :::
 
 
@@ -453,6 +397,8 @@ The estimator covariance matrix at the allocated budget shows the block structur
 #| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation at the allocated budget. The block structure from the previous tutorial is visible: mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right)."
 #| label: fig-est-cov-final
 
+from _figures._multifidelity_advanced import plot_est_cov_final
+
 # Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance
 stat_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]
 for j in range(nqoi):
@@ -463,29 +409,8 @@ for j in range(nqoi):
 pred_cov_plot = bkd.to_numpy(pred_cov_full)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
-vmin = pred_cov_plot.min()
-vmax = pred_cov_plot.max()
-
-im1 = ax1.imshow(pred_cov_plot, cmap="RdBu_r", aspect="equal",
-                 vmin=vmin, vmax=vmax)
-ax1.set_xticks(range(nstats))
-ax1.set_xticklabels(stat_labels, fontsize=7, rotation=45)
-ax1.set_yticks(range(nstats))
-ax1.set_yticklabels(stat_labels, fontsize=7)
-ax1.set_title(f"Estimator covariance (target_cost = {target_cost:.0f})", fontsize=11)
-fig.colorbar(im1, ax=ax1, shrink=0.7)
-
-# Bar chart of diagonal
-diag_vals = np.diag(pred_cov_plot)
-colors_bar = ["#2C7FB8"] * nqoi + ["#E67E22"] * (nstats - nqoi)
-ax2.bar(range(nstats), diag_vals, color=colors_bar, edgecolor="k", lw=0.3)
-ax2.set_xticks(range(nstats))
-ax2.set_xticklabels(stat_labels, fontsize=8, rotation=45)
-ax2.set_ylabel("Estimator variance", fontsize=12)
-ax2.set_title("Individual estimator variances (diagonal)", fontsize=11)
-ax2.grid(True, alpha=0.2, axis="y")
-
+plot_est_cov_final(pred_cov_plot, stat_labels, nstats, nqoi, target_cost,
+                   ax1, ax2, fig)
 plt.tight_layout()
 plt.show()
 ```

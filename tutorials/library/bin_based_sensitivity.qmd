@@ -187,33 +187,10 @@ Now we plot the conditional means for each variable:
 #| fig-cap: "Conditional means per bin for each input variable. Orange bars show the bin-averaged output $\\hat{\\mu}_k = E[Y \\mid X_i \\in \\text{bin}_k]$; the red dashed line marks the global mean $E[Y]$; the blue histogram shows the sample density. Large bar-to-bar variation indicates a high first-order index."
 #| label: fig-bin-1d
 
+from _figures._sensitivity import plot_bin_1d
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-for var_idx in range(3):
-    ax = axes[var_idx]
-    bin_edges, bin_means, bin_centers = compute_bin_statistics(var_idx, nbins)
-
-    # Plot histogram of samples
-    ax.hist(samples_np[var_idx], bins=30, alpha=0.3, density=True,
-            color='tab:blue', label='Sample density')
-
-    # Plot bin means as bar chart overlay
-    ax2 = ax.twinx()
-    ax2.bar(bin_centers, bin_means, width=0.4, alpha=0.7, color='orange',
-            label=r'$E[Y|\mathrm{bin}]$')
-    ax2.axhline(global_mean, color='red', linestyle='--', label='$E[Y]$')
-
-    ax.set_xlabel(f'$X_{var_idx+1}$')
-    ax.set_ylabel('Density')
-    ax2.set_ylabel('Conditional Mean', color='orange')
-    ax.set_title(f'$S_{var_idx+1}$ = {main_effects[var_idx]:.3f}')
-
-    # Combine legends from both axes
-    h1, l1 = ax.get_legend_handles_labels()
-    h2, l2 = ax2.get_legend_handles_labels()
-    if var_idx == 2:
-        ax2.legend(h1 + h2, l1 + l2, loc='upper right', fontsize=8)
-
+plot_bin_1d(samples_np, values_np, main_effects, nbins, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -295,37 +272,11 @@ Now we visualize the results:
 #| fig-cap: "2D binning for the $X_1$--$X_3$ interaction. Left: samples colored by output value with the 5x5 bin grid overlaid. Right: conditional mean $E[Y \\mid X_1, X_3]$ within each cell. The cell-to-cell variation (after subtracting main effects) yields $S_{13}$."
 #| label: fig-bin-2d
 
+from _figures._sensitivity import plot_bin_2d
+
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-# Left plot: scatter with bin grid
-ax1 = axes[0]
-scatter = ax1.scatter(xi, xj, c=values_np, alpha=0.3, s=5, cmap='coolwarm')
-plt.colorbar(scatter, ax=ax1, label='Y')
-
-for edge in edges_i:
-    ax1.axvline(edge, color='black', linewidth=0.5, alpha=0.7)
-for edge in edges_j:
-    ax1.axhline(edge, color='black', linewidth=0.5, alpha=0.7)
-
-ax1.set_xlabel('$X_1$')
-ax1.set_ylabel('$X_3$')
-ax1.set_title(f'Samples colored by Y with bin grid ({nbins_2d}x{nbins_2d})')
-
-# Right plot: cell means heatmap
-ax2 = axes[1]
-im = ax2.imshow(cell_means.T, origin='lower', cmap='coolwarm', aspect='auto',
-                extent=[edges_i[0], edges_i[-1], edges_j[0], edges_j[-1]])
-plt.colorbar(im, ax=ax2, label='E[Y | cell]')
-
-for edge in edges_i[1:-1]:
-    ax2.axvline(edge, color='white', linewidth=0.5)
-for edge in edges_j[1:-1]:
-    ax2.axhline(edge, color='white', linewidth=0.5)
-
-ax2.set_xlabel('$X_1$')
-ax2.set_ylabel('$X_3$')
-ax2.set_title(f'Conditional means E[Y | X_1, X_3] per cell')
-
+plot_bin_2d(xi, xj, values_np, edges_i, edges_j, cell_means,
+            nbins_2d, axes, fig=fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -397,33 +348,9 @@ for N_budget in budgets:
 #| fig-cap: "Convergence comparison at equal computational budget. Left: maximum absolute error in first-order Sobol indices vs. number of function evaluations. The bin-based method uses all $N$ samples directly; the sample-based (Saltelli/Jansen) method splits the budget into $N/(d+2)$ base samples. Shaded bands show the 25th--75th percentile range over 10 random seeds. Right: detailed comparison at $N = 10{,}000$ showing per-variable accuracy."
 #| label: fig-bin-vs-mc
 
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+from _figures._sensitivity import plot_bin_vs_mc
 
-# Left: convergence plot
-ax = axes[0]
-bin_med = [np.median(bin_errors[N]) for N in budgets]
-bin_q25 = [np.percentile(bin_errors[N], 25) for N in budgets]
-bin_q75 = [np.percentile(bin_errors[N], 75) for N in budgets]
-
-mc_med = [np.median(mc_errors[N]) for N in budgets]
-mc_q25 = [np.percentile(mc_errors[N], 25) for N in budgets]
-mc_q75 = [np.percentile(mc_errors[N], 75) for N in budgets]
-
-ax.plot(budgets, bin_med, 'o-', color='tab:blue', label='Bin-based ($S_i$)')
-ax.fill_between(budgets, bin_q25, bin_q75, color='tab:blue', alpha=0.2)
-ax.plot(budgets, mc_med, 's-', color='tab:orange', label='Saltelli/Jansen ($S_i$)')
-ax.fill_between(budgets, mc_q25, mc_q75, color='tab:orange', alpha=0.2)
-
-ax.set_xlabel('Total function evaluations')
-ax.set_ylabel('Max absolute error in $S_i$')
-ax.set_title('First-Order Index Error vs. Budget')
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.legend()
-ax.grid(True, alpha=0.3)
-
-# Right: per-variable comparison at N=10000
-ax = axes[1]
+# Compute detailed comparison at N=10000
 N_detail = 10000
 np.random.seed(42)
 
@@ -444,20 +371,10 @@ mc_v = func(mc_s)
 sa_mc.compute(mc_v)
 mc_main_detail = bkd.to_numpy(sa_mc.main_effects()).flatten()
 
-x = np.arange(3)
-width = 0.25
-ax.bar(x - width, gt_main, width, label='Ground truth', alpha=0.8, color='tab:green')
-ax.bar(x, bin_main_detail, width, label=f'Bin-based (N={N_detail})', alpha=0.8, color='tab:blue')
-ax.bar(x + width, mc_main_detail, width,
-       label=f'Saltelli (N_base={N_base_detail})', alpha=0.8, color='tab:orange')
-ax.set_xlabel('Variable')
-ax.set_ylabel('$S_i$')
-ax.set_title(f'First-Order Indices at Budget = {N_detail}')
-ax.set_xticks(x)
-ax.set_xticklabels(['$X_1$', '$X_2$', '$X_3$'])
-ax.legend(fontsize=8)
-ax.axhline(0, color='black', linewidth=0.5)
-
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+plot_bin_vs_mc(budgets, bin_errors, mc_errors, gt_main,
+               bin_main_detail, mc_main_detail, N_detail,
+               N_base_detail, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -492,23 +409,10 @@ for i in range(3):
 #| fig-cap: "Bootstrap uncertainty of bin-based main effect estimates. Bars show medians over 20 resamples; error bars span the 25th--75th percentile range. Red stars mark the analytical ground truth."
 #| label: fig-bootstrap
 
-# Visualization with error bars
+from _figures._sensitivity import plot_bootstrap
+
 fig, ax = plt.subplots(figsize=(8, 5))
-
-x = np.arange(3)
-yerr = np.array([median - q25, q75 - median])
-
-ax.bar(x, median, yerr=yerr, capsize=5, alpha=0.8, label='Bootstrap median')
-ax.scatter(x, gt_main, marker='*', s=200, color='red', zorder=5, label='Ground truth')
-
-ax.set_xlabel('Variable')
-ax.set_ylabel('Sobol Index')
-ax.set_title('Bin-Based Estimates with Bootstrap Uncertainty')
-ax.set_xticks(x)
-ax.set_xticklabels(['$X_1$', '$X_2$', '$X_3$'])
-ax.legend()
-ax.axhline(0, color='black', linewidth=0.5)
-
+plot_bootstrap(median, q25, q75, gt_main, ax)
 plt.tight_layout()
 plt.show()
 ```

@@ -96,31 +96,12 @@ The first factor depends entirely on the node placement; the second factor is a 
 #| label: fig-lagrange-basis
 #| echo: false
 
+from _figures._interpolation import plot_lagrange_basis
+
 cc_rule = ClenshawCurtisQuadratureRule(bkd, store=True)
 
-M = 5
-nodes_arr, _ = cc_rule(M)  # (1, M), (M, 1)
-nodes = bkd.to_numpy(nodes_arr).ravel()
-
-# Build LagrangeBasis1D for evaluation
-basis = LagrangeBasis1D(bkd, cc_rule)
-basis.set_nterms(M)
-
-x_plot = np.linspace(-1, 1, 300)
-x_eval = bkd.array(x_plot.reshape(1, -1))
-phi = bkd.to_numpy(basis(x_eval))  # (300, M)
-
 fig, ax = plt.subplots(figsize=(9, 4))
-colors = plt.cm.tab10(np.linspace(0, 1, M))
-for j in range(M):
-    ax.plot(x_plot, phi[:, j], color=colors[j], lw=2, label=rf"$\phi_{j+1}$")
-ax.axhline(0, color="k", lw=0.5)
-ax.plot(nodes, np.zeros(M), "ko", ms=8, zorder=5)
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel(r"$\phi_j(x)$", fontsize=12)
-ax.set_title(f"Lagrange basis functions — $M = {M}$ Clenshaw-Curtis nodes", fontsize=12)
-ax.legend(fontsize=10, ncol=M, loc="lower center")
-ax.grid(True, alpha=0.3)
+plot_lagrange_basis(bkd, cc_rule, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -130,6 +111,8 @@ plt.show()
 `LagrangeBasis1D` takes a **quadrature rule callable** — any function with signature `(npoints) → (samples, weights)` — and builds the Lagrange basis at the rule's nodes.  This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.
 
 ```{python}
+from _figures._interpolation import plot_basis_comparison
+
 # --- Clenshaw-Curtis basis ---
 cc_rule = ClenshawCurtisQuadratureRule(bkd, store=True)
 basis_cc = LagrangeBasis1D(bkd, cc_rule)
@@ -153,21 +136,10 @@ phi_gauss = bkd.to_numpy(basis_gauss(x_eval))   # (400, 9)
 
 x_plot = np.linspace(-1, 1, 400)
 fig, axs = plt.subplots(1, 2, figsize=(13, 4), sharey=True)
-for ax, phi, nd, title in zip(
-    axs,
-    [phi_cc, phi_gauss],
-    [bkd.to_numpy(nodes_cc).ravel(), bkd.to_numpy(nodes_gauss).ravel()],
-    ["Clenshaw-Curtis nodes", "Gauss-Legendre nodes"],
-):
-    for j in range(M):
-        ax.plot(x_plot, phi[:, j], lw=1.5)
-    ax.axhline(0, color="k", lw=0.5)
-    ax.plot(nd, np.zeros(M), "ko", ms=7, zorder=5)
-    ax.set_title(f"{title}, $M = {M}$", fontsize=11)
-    ax.set_xlabel("$x$", fontsize=11)
-    ax.grid(True, alpha=0.3)
-
-axs[0].set_ylabel(r"$\phi_j(x)$", fontsize=11)
+plot_basis_comparison(
+    x_plot, phi_cc, bkd.to_numpy(nodes_cc).ravel(),
+    phi_gauss, bkd.to_numpy(nodes_gauss).ravel(), M, axs,
+)
 plt.suptitle("Lagrange basis functions — same $M$, different nodes", fontsize=12, y=1.02)
 plt.tight_layout()
 plt.show()
@@ -183,6 +155,8 @@ A natural first choice for interpolation nodes is **equally spaced** points.  Fo
 ```{python}
 #| fig-cap: "Runge's function 1/(1+25x^2) interpolated with equally-spaced (M=13) vs. Clenshaw-Curtis (M=17) nodes. Equidistant nodes produce violent oscillations near the boundary; CC nodes give an excellent approximation."
 #| label: fig-runge
+
+from _figures._interpolation import plot_runge
 
 def runge(x):
     return 1.0 / (1.0 + 25.0 * x**2)
@@ -219,24 +193,8 @@ phi_cc = bkd.to_numpy(basis_cc17(x_eval))   # (400, 17)
 interp_cc = phi_cc @ runge(nodes_cc_np)
 
 fig, axs = plt.subplots(1, 2, figsize=(13, 5), sharey=False)
-
-for ax, nodes, interp, M_label, title, color in zip(
-    axs,
-    [nodes_equi, nodes_cc_np],
-    [interp_equi, interp_cc],
-    [M_equi, M_cc],
-    ["Equidistant nodes — Runge phenomenon", "Clenshaw-Curtis nodes — no oscillation"],
-    ["#E67E22", "#27AE60"],
-):
-    ax.plot(x_plot, true_vals, "k-", lw=2, label=r"$f(x) = 1/(1+25x^2)$")
-    ax.plot(x_plot, interp, "--", color=color, lw=2, label=f"Interpolant $M={M_label}$")
-    ax.plot(nodes, runge(nodes), "o", color=color, ms=7)
-    ax.set_ylim(-0.5, 1.4)
-    ax.set_xlabel("$x$", fontsize=12)
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-
+plot_runge(x_plot, true_vals, nodes_equi, interp_equi, M_equi,
+           nodes_cc_np, interp_cc, M_cc, axs)
 plt.tight_layout()
 plt.show()
 ```
@@ -257,25 +215,12 @@ These are the projection of equally spaced points on the unit circle onto the re
 A critical property for sparse grids is that CC nodes are **nested**: the $M = 2^k + 1$ point CC grid contains all points of the $M = 2^{k-1} + 1$ point grid.
 
 ```{python}
-# Visualise nesting: level-1 (3 pts) ⊂ level-2 (5 pts) ⊂ level-3 (9 pts)
+from _figures._interpolation import plot_nested_cc
+
 levels = [3, 5, 9]
-y_pos  = [0, 1, 2]
 
 fig, ax = plt.subplots(figsize=(10, 3))
-colors  = ["#2C7FB8", "#E67E22", "#27AE60"]
-
-for lvl, yy, col in zip(levels, y_pos, colors):
-    nd, _ = cc_rule(lvl)  # (1, M), (M, 1)
-    nd_np = bkd.to_numpy(nd).ravel()
-    ax.plot(nd_np, np.full_like(nd_np, yy), "o", ms=10, color=col, label=f"$M = {lvl}$")
-    ax.axhline(yy, lw=0.4, color=col, alpha=0.4)
-
-ax.set_yticks(y_pos)
-ax.set_yticklabels([f"$M={l}$" for l in levels], fontsize=12)
-ax.set_xlabel("Node location", fontsize=12)
-ax.set_title("Nested Clenshaw-Curtis hierarchies", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, axis="x", alpha=0.3)
+plot_nested_cc(cc_rule, bkd, levels, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -288,6 +233,8 @@ For a function with $r$ continuous derivatives, the Lagrange interpolant on Cheb
 ```{python}
 #| fig-cap: "Interpolation error vs. number of nodes M for three test functions. Analytic functions converge exponentially; C^1 functions converge algebraically."
 #| label: fig-convergence
+
+from _figures._interpolation import plot_interp_convergence
 
 def f_analytic(x):
     return np.exp(np.cos(np.pi * x))
@@ -302,17 +249,13 @@ test_funcs = [
 ]
 
 x_ref = np.linspace(-1, 1, 2000)
-
-# Use CC point counts that are valid: 1, 3, 5, 9, 17
-# For simplicity, use M = 3, 5, 9, 17 (valid CC sizes: 2^l + 1)
 Ms = [3, 5, 9, 17]
-
-fig, ax = plt.subplots(figsize=(9, 5))
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
 
 x_eval = bkd.array(x_ref.reshape(1, -1))
 
-for (func, label), col in zip(test_funcs, colors):
+errors_by_func = []
+labels = []
+for func, label in test_funcs:
     true_vals_ref = func(x_ref)
     errors = []
     for M in Ms:
@@ -323,13 +266,11 @@ for (func, label), col in zip(test_funcs, colors):
         phi_M = bkd.to_numpy(basis_M(x_eval))   # (2000, M)
         interp_vals = phi_M @ func(nodes_M_np)
         errors.append(np.max(np.abs(true_vals_ref - interp_vals)))
-    ax.semilogy(Ms, errors, "o-", color=col, lw=2, ms=7, label=label)
+    errors_by_func.append(errors)
+    labels.append(label)
 
-ax.set_xlabel("Number of nodes $M$", fontsize=12)
-ax.set_ylabel(r"$\max_{x} |f(x) - f_M(x)|$", fontsize=12)
-ax.set_title("Lagrange interpolation convergence — Clenshaw-Curtis nodes", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+fig, ax = plt.subplots(figsize=(9, 5))
+plot_interp_convergence(Ms, errors_by_func, labels, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -362,12 +303,6 @@ phi_fine = bkd.to_numpy(basis_verify(x_fine_bkd))  # (10000, M)
 
 # Integrate with probability measure (divide by 2 for [-1,1])
 computed_weights = np.trapezoid(phi_fine, x_fine, axis=0) / 2.0
-
-print(f"{'Method':<30s} {'Weights':>50s}")
-print("-" * 82)
-print(f"{'Basis integration (÷2):':<30s} {np.array2string(computed_weights, precision=6):>50s}")
-print(f"{'CC rule weights:':<30s} {np.array2string(rule_w_np, precision=6):>50s}")
-print(f"{'Max discrepancy:':<30s} {np.max(np.abs(computed_weights - rule_w_np)):>50.2e}")
 ```
 
 The weights from integrating the Lagrange basis functions (divided by 2 to convert from Lebesgue to probability measure) match the Clenshaw-Curtis quadrature weights to high precision.

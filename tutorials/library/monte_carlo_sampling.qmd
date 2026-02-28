@@ -77,95 +77,11 @@ print(f"Number of QoIs: {model.nqoi()}")
 #| echo: false
 #| fig-cap: "Deflected beam shapes for two different KLE parameter values. Color indicates the spatially varying bending stiffness $EI(x)$. Left: $\\boldsymbol{\\xi} = (-1.5,\\, 1.0)$ produces a stiffness field that is softer near the root, giving larger deflection. Right: $\\boldsymbol{\\xi} = (1.5,\\, -1.0)$ yields a stiffer root region and smaller deflection."
 #| label: fig-beam-deflections
-
-from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-    EulerBernoulliBeamFEM,
-)
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
-from matplotlib.collections import LineCollection
-from matplotlib.colors import Normalize
-
-# Beam parameters (must match the benchmark factory)
-nx, length, EI_mean, q0 = 40, 100.0, 1e6, 1.0
-sigma, corr_len, num_kle = 0.3, 0.3, 2
-
-# Build field map (same as factory)
-midpoints = np.linspace(length / (2 * nx), length - length / (2 * nx), nx)
-mesh_coords_norm = bkd.asarray(midpoints[np.newaxis, :] / length)
-mean_log = bkd.full((nx,), float(np.log(EI_mean)))
-elem_lengths = bkd.full((nx,), 1.0 / nx)
-field_map = create_lognormal_kle_field_map(
-    mesh_coords=mesh_coords_norm, mean_log_field=mean_log, bkd=bkd,
-    num_kle_terms=num_kle, sigma=sigma, correlation_length=corr_len,
-    quad_weights=elem_lengths,
-)
-
-# Build beam
-beam = EulerBernoulliBeamFEM(
-    nx=nx, length=length, EI=EI_mean,
-    load_func=lambda x: q0 * x / length, bkd=bkd,
-)
-x_nodes = beam.node_coordinates()
-
-# Two parameter vectors
-xi_vals = [np.array([-1.5, 1.0]), np.array([1.5, -1.0])]
-xi_labels = [r"$\boldsymbol{\xi} = (-1.5,\; 1.0)$",
-             r"$\boldsymbol{\xi} = (1.5,\; -1.0)$"]
-
-# Compute EI fields and deflections
-EI_fields, deflections = [], []
-for xi in xi_vals:
-    EI_field = bkd.to_numpy(field_map(bkd.asarray(xi)))
-    beam.set_EI(EI_field)
-    EI_fields.append(EI_field)
-    deflections.append(bkd.to_numpy(beam.deflection_at_nodes()))
-
-# Common color scale for EI
-all_EI = np.concatenate(EI_fields)
-norm = Normalize(vmin=all_EI.min(), vmax=all_EI.max())
-
-# Common y-limits for deflection (negative = downward)
-all_w = np.concatenate(deflections)
-w_max = max(abs(all_w.min()), abs(all_w.max()))
-y_lim = (-w_max * 1.3, w_max * 0.3)
+from _figures._forward_uq import plot_beam_deflections
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.5),
                           gridspec_kw={"wspace": 0.3, "right": 0.88})
-
-for ax, EI_field, w, label in zip(
-    axes, EI_fields, deflections, xi_labels
-):
-    # EI is element-based (midpoints); average to segments between nodes
-    EI_seg = 0.5 * (EI_field[:-1] + EI_field[1:])
-    # Pad first and last segments with nearest element value
-    EI_seg = np.concatenate([[EI_field[0]], EI_seg, [EI_field[-1]]])
-
-    # Build line segments colored by EI (deflection downward)
-    points = np.column_stack([x_nodes, -w])
-    segments = np.array([points[:-1], points[1:]]).transpose(1, 0, 2)
-    lc = LineCollection(segments, cmap="magma", norm=norm, lw=3.5)
-    lc.set_array(EI_seg)
-    ax.add_collection(lc)
-
-    # Undeformed beam (dashed)
-    ax.plot(x_nodes, np.zeros_like(x_nodes), "k--", lw=0.8, alpha=0.4)
-
-    # Clamped wall
-    ax.plot([0, 0], [y_lim[0] * 0.8, y_lim[1] * 2], "k-", lw=3)
-
-    ax.set_xlim(-5, length + 5)
-    ax.set_ylim(y_lim)
-    ax.set_xlabel("$x$", fontsize=12)
-    ax.set_ylabel("Deflection $w(x)$", fontsize=11)
-    ax.set_title(label, fontsize=11)
-    ax.grid(True, alpha=0.2)
-
-# Colorbar in dedicated space on the right
-sm = plt.cm.ScalarMappable(cmap="magma", norm=norm)
-cbar = fig.colorbar(sm, ax=axes.tolist(), shrink=0.8, pad=0.04)
-cbar.set_label("$EI(x)$", fontsize=11)
+plot_beam_deflections(benchmark, bkd, axes[0], axes[1], cbar_fig=fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -193,53 +109,12 @@ print(f"Sample mean of tip deflection: "
 #| echo: false
 #| fig-cap: "Left: $M = 50$ samples drawn from the prior in $(\\xi_1, \\xi_2)$ space. Right: the model response surface $\\delta_{\\text{tip}} = f(\\xi_1, \\xi_2)$ with sample QoI values overlaid as colored points."
 #| label: fig-samples-and-surface
-
-from pyapprox.interface.functions.plot.plot2d_rectangular import (
-    Plotter2DRectangularDomain,
-)
-
-samples_np = bkd.to_numpy(samples)
-qoi_np = bkd.to_numpy(qoi_values)
-plot_limits = [-3.5, 3.5, -3.5, 3.5]  # covers >99.9% of N(0,1) prior
+from _figures._forward_uq import plot_samples_and_surface
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-
-# Left: samples in input space
-ax1.scatter(samples_np[0], samples_np[1], c=qoi_np, cmap="magma",
-            s=30, edgecolors="w", lw=0.4, zorder=3)
-ax1.set_xlabel(r"$\xi_1$", fontsize=12)
-ax1.set_ylabel(r"$\xi_2$", fontsize=12)
-ax1.set_title("Samples in input space", fontsize=11)
-cbar1 = fig.colorbar(ax1.collections[0], ax=ax1, shrink=0.8)
-cbar1.set_label(r"$\delta_{\mathrm{tip}}$")
-ax1.grid(True, alpha=0.2)
-
-# Right: response surface with samples overlaid
-plotter = Plotter2DRectangularDomain(model, plot_limits)
-cs = plotter.plot_contours(ax2, qoi=0, npts_1d=40,
-                            levels=20, cmap="magma", alpha=0.8)
-ax2.scatter(samples_np[0], samples_np[1], c=qoi_np, cmap="magma",
-            s=30, edgecolors="w", lw=0.5, zorder=3)
-ax2.set_xlabel(r"$\xi_1$", fontsize=12)
-ax2.set_ylabel(r"$\xi_2$", fontsize=12)
-ax2.set_title("Response surface with samples", fontsize=11)
-cbar2 = fig.colorbar(cs, ax=ax2, shrink=0.8)
-cbar2.set_label(r"$\delta_{\mathrm{tip}}$")
-
+plot_samples_and_surface(model, samples, qoi_values, bkd, ax1, ax2, fig=fig)
 plt.tight_layout()
 plt.subplots_adjust(wspace=0.35)
-
-# Arrow between plots indicating parameter-to-QoI map
-from matplotlib.patches import FancyArrowPatch
-arrow = FancyArrowPatch(
-    (0.44, 0.5), (0.52, 0.5),
-    transform=fig.transFigure, arrowstyle="->,head_length=8,head_width=5",
-    lw=2, color="0.3", clip_on=False,
-)
-fig.patches.append(arrow)
-fig.text(0.48, 0.56, r"$f(\boldsymbol{\xi})$",
-         ha="center", va="bottom", fontsize=14, color="0.3",
-         transform=fig.transFigure)
 plt.show()
 ```
 
@@ -334,19 +209,10 @@ for i in range(n_reps):
     q = model(s)[0]
     means_small[i] = bkd.to_float(bkd.mean(q))
 
+from _figures._forward_uq import plot_mc_variability_histogram
+
 fig, ax = plt.subplots(figsize=(7, 3.5))
-ax.hist(means_small, bins=30, density=True, color="#2C7FB8", alpha=0.7,
-        edgecolor="k", lw=0.3)
-ax.axvline(true_mean, color="#C0392B", ls="--", lw=2,
-           label=f"True mean = {true_mean:.6f}")
-ax.axvline(np.mean(means_small), color="#27AE60", ls="-", lw=2,
-           label=f"Mean of estimates = {np.mean(means_small):.6f}")
-ax.set_xlabel(r"$\hat{\mu}_{10}$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title(f"Distribution of MC mean estimate ($M = {M_small}$, {n_reps} repetitions)",
-             fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_mc_variability_histogram(means_small, true_mean, n_reps, M_small, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -370,44 +236,13 @@ for i in range(n_reps):
     q = model(s)[0]
     means_large[i] = bkd.to_float(bkd.mean(q))
 
-xlim_shared = (
-    min(means_small.min(), means_large.min()),
-    max(means_small.max(), means_large.max()),
-)
-pad = 0.05 * (xlim_shared[1] - xlim_shared[0])
-xlim_shared = (xlim_shared[0] - pad, xlim_shared[1] + pad)
+from _figures._forward_uq import plot_mc_variability_comparison
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3.5), sharey=True)
-
-# M = 10
-ax1.hist(means_small, bins=30, density=True, color="#2C7FB8", alpha=0.7,
-         edgecolor="k", lw=0.3)
-ax1.axvline(true_mean, color="#C0392B", ls="--", lw=2)
-ax1.axvline(np.mean(means_small), color="#27AE60", ls="-", lw=1.5)
-ax1.set_xlabel(r"$\hat{\mu}_M$", fontsize=12)
-ax1.set_ylabel("Density", fontsize=12)
-ax1.set_title(f"$M = {M_small}$", fontsize=11)
-ax1.set_xlim(xlim_shared)
-ax1.grid(True, alpha=0.2)
-
-# M = 100
-ax2.hist(means_large, bins=30, density=True, color="#E67E22", alpha=0.7,
-         edgecolor="k", lw=0.3)
-ax2.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
-ax2.axvline(np.mean(means_large), color="#27AE60", ls="-", lw=1.5,
-            label="Mean of estimates")
-ax2.set_xlabel(r"$\hat{\mu}_M$", fontsize=12)
-ax2.set_title(f"$M = {M_large}$", fontsize=11)
-ax2.set_xlim(xlim_shared)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+plot_mc_variability_comparison(means_small, means_large, true_mean,
+                               M_small, M_large, ax1, ax2)
 plt.tight_layout()
 plt.show()
-
-print(f"True mean (quadrature):            {true_mean:.6f}")
-print(f"Mean of MC estimates (M={M_small:>4d}):  {np.mean(means_small):.6f}")
-print(f"Mean of MC estimates (M={M_large:>4d}): {np.mean(means_large):.6f}")
 ```
 
 In both cases the average of the estimates matches the true mean. This property has a name: the Monte Carlo mean estimator is **unbiased**.
@@ -435,6 +270,8 @@ print(f"Mean max curvature:      {bkd.to_float(bkd.mean(qoi_multi[2])):.6f}")
 #| fig-cap: "Pairwise scatter of three QoIs across $M = 50$ samples. Tip deflection and max curvature are highly correlated, while integrated stress is nearly uncorrelated with both."
 #| label: fig-multi-qoi-scatter
 
+from _figures._forward_uq import plot_multi_qoi_scatter
+
 qoi_multi_np = bkd.to_numpy(qoi_multi)
 qoi_labels = [
     r"Tip deflection $\delta_{\mathrm{tip}}$",
@@ -443,15 +280,7 @@ qoi_labels = [
 ]
 
 fig, axes = plt.subplots(1, 3, figsize=(14, 3.5))
-pairs = [(0, 1), (0, 2), (1, 2)]
-for ax, (i, j) in zip(axes, pairs):
-    ax.scatter(qoi_multi_np[i], qoi_multi_np[j],
-               c="#2C7FB8", s=20, edgecolors="k", lw=0.3, alpha=0.7)
-    ax.set_xlabel(qoi_labels[i], fontsize=10)
-    ax.set_ylabel(qoi_labels[j], fontsize=10)
-    corr = np.corrcoef(qoi_multi_np[i], qoi_multi_np[j])[0, 1]
-    ax.set_title(f"$\\rho = {corr:.2f}$", fontsize=11)
-    ax.grid(True, alpha=0.2)
+plot_multi_qoi_scatter(qoi_multi_np, qoi_labels, axes)
 plt.tight_layout()
 plt.show()
 ```

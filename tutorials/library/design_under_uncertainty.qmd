@@ -51,160 +51,15 @@ Complete [Forward UQ](forward_uq.qmd) before this tutorial.
 #| echo: false
 #| fig-cap: "Cantilever beam with rectangular cross-section $w \\times t$, fixed at the left wall. Uncertain tip loads $X$ (horizontal) and $Y$ (vertical) act at the free end. The design variables are the width $w$ and depth $t$."
 #| label: fig-beam-schematic
-
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyArrowPatch
+from _figures import plot_duu_beam_schematic
 
 fig, (ax_side, ax_cross) = plt.subplots(
     1, 2, figsize=(12, 4),
     gridspec_kw={"width_ratios": [3, 1], "wspace": 0.35},
 )
-
-# ── Side view ──
-beam_left, beam_bot = 1.0, 2.0
-beam_length, beam_height = 6.0, 1.0
-beam_right = beam_left + beam_length
-beam_top = beam_bot + beam_height
-beam_mid_y = beam_bot + beam_height / 2
-
-# Wall (hatching)
-wall_width = 0.35
-wall = mpatches.FancyBboxPatch(
-    (beam_left - wall_width, beam_bot - 0.6),
-    wall_width, beam_height + 1.2,
-    boxstyle="square,pad=0", facecolor="#AAAAAA", edgecolor="k", lw=1.5,
-)
-ax_side.add_patch(wall)
-# Hatch lines on wall
-for yy in np.linspace(beam_bot - 0.5, beam_top + 0.5, 12):
-    ax_side.plot(
-        [beam_left - wall_width - 0.15, beam_left - wall_width + 0.02],
-        [yy - 0.2, yy + 0.2],
-        "k-", lw=0.8,
-    )
-
-# Beam body
-beam_rect = mpatches.FancyBboxPatch(
-    (beam_left, beam_bot), beam_length, beam_height,
-    boxstyle="square,pad=0",
-    facecolor="#D4E6F1", edgecolor="#2C3E50", lw=2,
-)
-ax_side.add_patch(beam_rect)
-
-# Dashed neutral axis
-ax_side.plot(
-    [beam_left, beam_right], [beam_mid_y, beam_mid_y],
-    "k--", lw=0.8, alpha=0.4,
-)
-
-# Length dimension (L) — below beam
-dim_y = beam_bot - 0.45
-ax_side.annotate(
-    "", xy=(beam_right, dim_y), xytext=(beam_left, dim_y),
-    arrowprops=dict(arrowstyle="<->", lw=1.2, color="#2C3E50"),
-)
-ax_side.text(
-    beam_left + beam_length / 2, dim_y - 0.28,
-    "$L$", ha="center", va="top", fontsize=16, fontstyle="italic",
-)
-
-# Depth dimension (t) — right side
-dim_x = beam_right + 0.35
-ax_side.annotate(
-    "", xy=(dim_x, beam_top), xytext=(dim_x, beam_bot),
-    arrowprops=dict(arrowstyle="<->", lw=1.2, color="#8E44AD"),
-)
-ax_side.text(
-    dim_x + 0.2, beam_mid_y, "$t$",
-    ha="left", va="center", fontsize=16, color="#8E44AD", fontstyle="italic",
-)
-
-# Horizontal load X (arrow pointing right at tip)
-arrow_x_start = beam_right + 0.15
-arrow_x_end = beam_right + 1.5
-ax_side.annotate(
-    "", xy=(arrow_x_start, beam_mid_y), xytext=(arrow_x_end, beam_mid_y),
-    arrowprops=dict(
-        arrowstyle="->,head_width=0.3,head_length=0.2",
-        lw=2.5, color="#E74C3C",
-    ),
-)
-ax_side.text(
-    arrow_x_end + 0.15, beam_mid_y, "$X$",
-    ha="left", va="center", fontsize=18, color="#E74C3C",
-    fontweight="bold",
-)
-
-# Vertical load Y (arrow pointing down at tip)
-arrow_y_start = beam_right - 0.3, beam_top + 1.2
-arrow_y_end = beam_right - 0.3, beam_top + 0.15
-ax_side.annotate(
-    "", xy=arrow_y_end, xytext=arrow_y_start,
-    arrowprops=dict(
-        arrowstyle="->,head_width=0.3,head_length=0.2",
-        lw=2.5, color="#2980B9",
-    ),
-)
-ax_side.text(
-    beam_right - 0.3, beam_top + 1.35, "$Y$",
-    ha="center", va="bottom", fontsize=18, color="#2980B9",
-    fontweight="bold",
-)
-
-# Material labels
-ax_side.text(
-    beam_left + beam_length / 2, beam_mid_y + 0.05,
-    "$E, R$", ha="center", va="center", fontsize=14,
-    fontstyle="italic", color="#2C3E50", alpha=0.7,
-)
-
-ax_side.set_xlim(-0.2, 9.5)
-ax_side.set_ylim(0.8, 4.5)
-ax_side.set_aspect("equal")
-ax_side.axis("off")
-ax_side.set_title("Side View", fontsize=13, pad=10)
-
-# ── Cross-section view ──
-cx, cy = 1.5, 2.5
-cw, ct = 2.0, 1.2  # display width/height for cross-section
-
-cross = mpatches.FancyBboxPatch(
-    (cx - cw / 2, cy - ct / 2), cw, ct,
-    boxstyle="square,pad=0",
-    facecolor="#D4E6F1", edgecolor="#2C3E50", lw=2,
-)
-ax_cross.add_patch(cross)
-
-# Width dimension (w) — below
-wd_y = cy - ct / 2 - 0.3
-ax_cross.annotate(
-    "", xy=(cx + cw / 2, wd_y), xytext=(cx - cw / 2, wd_y),
-    arrowprops=dict(arrowstyle="<->", lw=1.2, color="#E67E22"),
-)
-ax_cross.text(
-    cx, wd_y - 0.22, "$w$",
-    ha="center", va="top", fontsize=16, color="#E67E22", fontstyle="italic",
-)
-
-# Depth dimension (t) — right
-td_x = cx + cw / 2 + 0.3
-ax_cross.annotate(
-    "", xy=(td_x, cy + ct / 2), xytext=(td_x, cy - ct / 2),
-    arrowprops=dict(arrowstyle="<->", lw=1.2, color="#8E44AD"),
-)
-ax_cross.text(
-    td_x + 0.18, cy, "$t$",
-    ha="left", va="center", fontsize=16, color="#8E44AD", fontstyle="italic",
-)
-
-ax_cross.set_xlim(-0.5, 3.5)
-ax_cross.set_ylim(1.2, 3.8)
-ax_cross.set_aspect("equal")
-ax_cross.axis("off")
-ax_cross.set_title("Cross-Section", fontsize=13, pad=10)
-
+plot_duu_beam_schematic(ax_side, ax_cross)
 plt.tight_layout()
 plt.show()
 ```
@@ -250,9 +105,6 @@ from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
 beam = CantileverBeam2DAnalytical(length=100.0, bkd=bkd)
 constraints_model = CantileverBeam2DConstraints(beam, yield_stress=40000.0, max_displacement=2.2535)
 objective_model = CantileverBeam2DObjective(bkd)
-
-print(f"Constraints: {constraints_model.nvars()} variables, {constraints_model.nqoi()} QoIs")
-print(f"Objective:   {objective_model.nvars()} variables, {objective_model.nqoi()} QoI")
 ```
 
 
@@ -270,9 +122,6 @@ design_indices = [4, 5]  # w, t
 
 det_objective = ActiveSetFunction(objective_model, nominal_values, design_indices, bkd)
 det_constraints = ActiveSetFunction(constraints_model, nominal_values, design_indices, bkd)
-
-print(f"Reduced objective: {det_objective.nvars()} vars, {det_objective.nqoi()} QoI")
-print(f"Reduced constraints: {det_constraints.nvars()} vars, {det_constraints.nqoi()} QoIs")
 ```
 
 Now set up and solve the optimization problem. The constraints must be $\geq 0$ (feasibility), so we set lower bounds to 0 and upper bounds to $\infty$.
@@ -326,10 +175,6 @@ det_result = optimizer.minimize(init_guess)
 w_det = float(bkd.to_numpy(det_result.optima())[0, 0])
 t_det = float(bkd.to_numpy(det_result.optima())[1, 0])
 area_det = float(det_result.fun())
-
-print(f"Deterministic optimum: w = {w_det:.4f}, t = {t_det:.4f}")
-print(f"Minimum area: {area_det:.4f}")
-print(f"Optimizer success: {det_result.success()}")
 ```
 
 
@@ -375,10 +220,6 @@ stress_failures = np.sum(constraint_values[0, :] < 0)
 disp_failures = np.sum(constraint_values[1, :] < 0)
 any_failure = np.sum(np.any(constraint_values < 0, axis=0))
 
-print(f"At deterministic optimum (w={w_det:.4f}, t={t_det:.4f}):")
-print(f"  Stress constraint violations: {stress_failures}/{N_mc} ({100*stress_failures/N_mc:.1f}%)")
-print(f"  Displacement constraint violations: {disp_failures}/{N_mc} ({100*disp_failures/N_mc:.1f}%)")
-print(f"  Any constraint violation: {any_failure}/{N_mc} ({100*any_failure/N_mc:.1f}%)")
 ```
 
 ```{python}
@@ -435,8 +276,6 @@ quad_rule = quad_factory([0, 1, 2, 3])
 quad_samples, quad_weights = quad_rule()
 
 n_quad = quad_samples.shape[1]
-print(f"Quadrature rule: {n_quad} points over 4 random variables")
-print(f"Weights sum to: {float(bkd.to_numpy(bkd.sum(quad_weights))):.6f}")
 ```
 
 ```{python}
@@ -463,8 +302,6 @@ robust_constraint = SampleAverageConstraint(
     bkd=bkd,
 )
 
-print(f"Robust constraint: {robust_constraint.nvars()} design vars, {robust_constraint.nqoi()} constraints")
-print(f"Has analytical Jacobian: {hasattr(robust_constraint, 'jacobian')}")
 ```
 
 Now solve the robust optimization problem. The objective is the same (minimize area), but we use `ActiveSetFunction` to reduce the objective to design variables only, and the `SampleAverageConstraint` enforces statistical feasibility.
@@ -478,9 +315,6 @@ w_rob = float(bkd.to_numpy(robust_result.optima())[0, 0])
 t_rob = float(bkd.to_numpy(robust_result.optima())[1, 0])
 area_rob = float(robust_result.fun())
 
-print(f"Robust optimum: w = {w_rob:.4f}, t = {t_rob:.4f}")
-print(f"Minimum area: {area_rob:.4f}")
-print(f"Optimizer success: {robust_result.success()}")
 ```
 
 
@@ -494,36 +328,15 @@ full_samples_rob = bkd.concatenate([random_samples, design_rob_tiled], axis=0)
 
 constraint_values_rob = bkd.to_numpy(constraints_model(full_samples_rob))
 any_failure_rob = np.sum(np.any(constraint_values_rob < 0, axis=0))
-
-print("Design Comparison")
-print("=" * 50)
-print(f"{'':20s} {'Deterministic':>14s} {'Robust':>14s}")
-print(f"{'-'*50}")
-print(f"{'Width w':20s} {w_det:14.4f} {w_rob:14.4f}")
-print(f"{'Depth t':20s} {t_det:14.4f} {t_rob:14.4f}")
-print(f"{'Area (cost)':20s} {area_det:14.4f} {area_rob:14.4f}")
-print(f"{'Cost increase':20s} {'---':>14s} {100*(area_rob - area_det)/area_det:13.1f}%")
-print(f"{'Failure rate':20s} {100*any_failure/N_mc:13.1f}% {100*any_failure_rob/N_mc:13.1f}%")
 ```
 
 ```{python}
 #| fig-cap: "Constraint value distributions at the deterministic (blue) and robust (orange) optima. The robust design shifts the distributions away from the failure boundary, dramatically reducing constraint violations at the cost of a modest increase in cross-sectional area."
 #| label: fig-comparison
+from _figures import plot_duu_comparison
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-labels = ["Stress constraint", "Displacement constraint"]
-
-for ii, ax in enumerate(axes):
-    ax.hist(constraint_values[ii, :], bins=60, density=True, alpha=0.4,
-            color="#2C7FB8", edgecolor="k", lw=0.1, label=f"Deterministic")
-    ax.hist(constraint_values_rob[ii, :], bins=60, density=True, alpha=0.4,
-            color="#E67E22", edgecolor="k", lw=0.1, label=f"Robust")
-    ax.axvline(0, color="red", linestyle="--", lw=2)
-    ax.set_xlabel(labels[ii])
-    ax.set_ylabel("Density")
-    ax.legend()
-    ax.grid(True, alpha=0.2)
-
+plot_duu_comparison(constraint_values, constraint_values_rob, axes)
 plt.tight_layout()
 plt.show()
 ```

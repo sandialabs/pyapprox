@@ -146,8 +146,6 @@ y_pred = gp.predict(X_test)
 rel_rmse = float(bkd.to_numpy(
     bkd.sqrt(bkd.mean((y_test - y_pred)**2)) / bkd.sqrt(bkd.mean(y_test**2))
 ))
-print(f"Relative RMSE on test set: {rel_rmse:.2e}")
-print(repr(gp))
 ```
 
 
@@ -213,19 +211,15 @@ stats = GaussianProcessStatistics(gp, calc)
 ```{python}
 # Mean of GP mean: E_xi[mu*(xi)]
 eta = stats.mean_of_mean()
-print(f"E_xi[mu*]       = {float(bkd.to_numpy(eta)):.6f}")
 
 # Variance of GP mean: V_xi[mu*(xi)]  (uncertainty from limited training data)
 var_mu = stats.variance_of_mean()
-print(f"V_xi[mu*]       = {float(bkd.to_numpy(var_mu)):.2e}")
 
 # Mean of GP variance: E_xi[gamma_f(xi)]  (expected posterior variance)
 mean_var = stats.mean_of_variance()
-print(f"E_xi[gamma_f]   = {float(bkd.to_numpy(mean_var)):.2e}")
 
 # Variance of GP variance: V_xi[gamma_f(xi)]
 var_var = stats.variance_of_variance()
-print(f"V_xi[gamma_f]   = {float(bkd.to_numpy(var_var)):.2e}")
 ```
 
 ::: {.callout-note}
@@ -268,14 +262,6 @@ ref_var  = float(bkd.to_numpy(bkd.sum(w_quad * y_quad[0, :]**2) - ref_mean**2))
 gp_mean  = float(bkd.to_numpy(eta))
 gp_var   = float(bkd.to_numpy(mean_var + var_mu))
 gp_std   = np.sqrt(gp_var)
-
-print(f"Reference (true model, {int(tp_rule.nsamples())} quad pts):")
-print(f"  E_xi[f(xi)]   = {ref_mean:.6f},   V_xi[f(xi)]   = {ref_var:.6e}")
-print(f"\nGP analytical:")
-print(f"  E_xi[mu*]                     = {gp_mean:.6f}")
-print(f"  E_xi[gamma_f] + V_xi[mu*]     = {gp_var:.6e}")
-print(f"\nMean error:     {abs(gp_mean - ref_mean):.2e}")
-print(f"Variance ratio: {gp_var / ref_var:.2f}x  (GP includes surrogate uncertainty)")
 ```
 
 The GP mean closely matches the true-model reference. The GP variance is
@@ -301,25 +287,15 @@ inputs from the prior, evaluate the (cheap) surrogate, and plot a histogram.
 #| fig-cap: "Estimated marginal density of tip deflection using the GP surrogate ($N=50\\,000$ evaluations). The dashed line marks $\\E_{\\boldsymbol{\\xi}}[\\mu^*]$; the shaded band shows $\\pm 1\\sigma$ where $\\sigma = \\sqrt{\\E_{\\boldsymbol{\\xi}}[\\gamma_f] + \\Var_{\\boldsymbol{\\xi}}[\\mu^*]}$."
 #| label: fig-marginal-density
 
+from _figures._pce import plot_gp_marginal_density
+
 np.random.seed(999)
 N_mc = 50_000
 X_mc   = prior.rvs(N_mc)
 mu_mc  = bkd.to_numpy(gp.predict(X_mc))[0, :]
 
 fig, ax = plt.subplots(figsize=(7, 4))
-ax.hist(mu_mc, bins=60, density=True, alpha=0.7, color="#2C7FB8",
-        edgecolor="k", linewidth=0.2, label="GP surrogate")
-
-# GP mean and ±1σ band
-ax.axvline(gp_mean, color="#084594", lw=1.5, linestyle="--",
-           label=rf"$\mathbb{{E}}_{{\boldsymbol{{\xi}}}}[\mu^*] = {gp_mean:.4f}$")
-ax.axvspan(gp_mean - gp_std, gp_mean + gp_std, alpha=0.15, color="#084594",
-           label=rf"$\pm 1\sigma$ ($\sigma = {gp_std:.4f}$)")
-
-ax.set_xlabel("Tip deflection", fontsize=11)
-ax.set_ylabel("Density", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_gp_marginal_density(mu_mc, gp_mean, gp_std, ax)
 plt.tight_layout()
 plt.show()
 ```

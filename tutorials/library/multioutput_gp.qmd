@@ -86,7 +86,6 @@ nmodels = 2
 level_models = [models[1], models[0]]
 level_names = ["Low fidelity", "High fidelity"]
 costs_per_eval = [0.05, 1.0]     # seconds per evaluation
-print(f"Cost ratio HF/LF: {costs_per_eval[1]/costs_per_eval[0]:.0f}×")
 ```
 
 ```{python}
@@ -94,19 +93,15 @@ print(f"Cost ratio HF/LF: {costs_per_eval[1]/costs_per_eval[0]:.0f}×")
 #| fig-cap: "The Forrester multi-fidelity benchmark. The high-fidelity function (black) is expensive; the low-fidelity approximation (orange dashed) is cheap but biased. Both share the same oscillatory structure --- the MFGP can exploit this correlation."
 #| label: fig-forrester-functions
 
+from _figures._gp import plot_forrester_functions
+
 x_plot = bkd.asarray(np.linspace(0, 1, 200).reshape(1, -1))
 xr = np.linspace(0, 1, 200)
 y_hf_true = bkd.to_numpy(level_models[1](x_plot))[0, :]
 y_lf_true = bkd.to_numpy(level_models[0](x_plot))[0, :]
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.plot(xr, y_hf_true, "k-", lw=2.5, label="High fidelity $f_h(x)$")
-ax.plot(xr, y_lf_true, "--", color="#E67E22", lw=2,
-        label="Low fidelity $f_l(x)$")
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel("$f(x)$", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, alpha=0.2)
+plot_forrester_functions(ax, xr, y_hf_true, y_lf_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -159,12 +154,6 @@ mf_kernel = MultiLevelKernel(level_kernels, scalings)
 # TorchMultiOutputGP uses autograd to differentiate the NLL directly,
 # bypassing the kernel's analytical jacobian_wrt_params.
 mf_gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
-
-print("Hyperparameters before fitting:")
-for h in mf_kernel.hyp_list().hyperparameters():
-    vals = bkd.to_numpy(h.get_values())
-    vals_str = ", ".join(f"{float(v):.3f}" for v in vals)
-    print(f"  {h._name}: [{vals_str}]  (active={h.nactive_params() > 0})")
 ```
 
 ::: {.callout-note}
@@ -196,9 +185,6 @@ samples_list = [X_lf, X_hf]
 y_train_list = [y_lf, y_hf]
 
 total_cost = n_lf * costs_per_eval[0] + n_hf * costs_per_eval[1]
-print(f"LF evaluations: {n_lf}  (cost: {n_lf * costs_per_eval[0]:.1f} s)")
-print(f"HF evaluations: {n_hf}  (cost: {n_hf * costs_per_eval[1]:.1f} s)")
-print(f"Total cost:     {total_cost:.1f} s")
 ```
 
 
@@ -207,12 +193,6 @@ print(f"Total cost:     {total_cost:.1f} s")
 ```{python}
 # fit() optimises all active hyperparameters (length scales) via MLL
 mf_gp.fit(samples_list, y_train_list)
-
-print("Fitted hyperparameters:")
-for h in mf_kernel.hyp_list().hyperparameters():
-    vals = bkd.to_numpy(h.get_values())
-    vals_str = ", ".join(f"{float(v):.4f}" for v in vals)
-    print(f"  {h._name}: [{vals_str}]")
 
 # Predict on a dense grid with uncertainty
 x_test = bkd.asarray(np.linspace(0, 1, 200).reshape(1, -1))
@@ -224,7 +204,6 @@ mf_std = bkd.to_numpy(stds[-1])[0, :]         # HF-level std
 
 y_test_hf = bkd.to_numpy(level_models[1](x_test))[0, :]
 l2_mf = np.linalg.norm(y_test_hf - mf_pred) / np.linalg.norm(y_test_hf)
-print(f"\nMulti-fidelity GP  HF L2 error: {l2_mf:.4e}")
 ```
 
 
@@ -254,9 +233,6 @@ hf_pred = bkd.to_numpy(hf_gp.predict(x_test))[0, :]
 hf_std = bkd.to_numpy(hf_gp.predict_std(x_test))[0, :]
 l2_hf = np.linalg.norm(y_test_hf - hf_pred) / np.linalg.norm(y_test_hf)
 
-print(f"HF-only GP (N={n_hf_equiv})  HF L2 error: {l2_hf:.4e}")
-print(f"Accuracy improvement: {l2_hf/l2_mf:.1f}×")
-
 # HF-only baseline using the SAME 4 HF samples as the MF GP
 hf_kern_few = SquaredExponentialKernel([1.0], (0.01, 10.0), nvars, bkd)
 hf_gp_few = ExactGaussianProcess(hf_kern_few, nvars=nvars, bkd=bkd, nugget=1e-6)
@@ -266,7 +242,6 @@ hf_gp_few = GPMaximumLikelihoodFitter(bkd).fit(
 hf_few_pred = bkd.to_numpy(hf_gp_few.predict(x_test))[0, :]
 hf_few_std = bkd.to_numpy(hf_gp_few.predict_std(x_test))[0, :]
 l2_hf_few = np.linalg.norm(y_test_hf - hf_few_pred) / np.linalg.norm(y_test_hf)
-print(f"HF-only GP (N={n_hf})      HF L2 error: {l2_hf_few:.4e}")
 ```
 
 
@@ -277,60 +252,22 @@ print(f"HF-only GP (N={n_hf})      HF L2 error: {l2_hf_few:.4e}")
 #| fig-cap: "Three GP surrogates compared. **Top**: multi-fidelity GP using 100 LF + 4 HF samples. **Middle**: HF-only GP at equal budget. **Bottom**: HF-only GP using only the same 4 HF samples as the MF model --- the wide uncertainty bands show how much information the 100 cheap LF evaluations contribute. Shaded bands show $\\pm 2\\sigma$."
 #| label: fig-predictions-uncertainty
 
+from _figures._gp import plot_predictions_uncertainty
+
 xr = np.linspace(0, 1, 200)
-
-fig, axes = plt.subplots(3, 1, figsize=(9, 11), sharex=True)
-
-# Top: Multi-fidelity GP
-ax = axes[0]
-ax.plot(xr, y_test_hf, "k-", lw=2, label="HF truth", zorder=4)
-ax.plot(xr, mf_pred, "-", color="#1F77B4", lw=2,
-        label=f"MF GP (L2={l2_mf:.2e})")
-ax.fill_between(xr, mf_pred - 2 * mf_std, mf_pred + 2 * mf_std,
-                color="#1F77B4", alpha=0.2, label="$\\pm 2\\sigma$")
 xs_hf = bkd.to_numpy(X_hf).ravel()
 ys_hf = bkd.to_numpy(y_hf).ravel()
-ax.scatter(xs_hf, ys_hf, s=50, color="#D62728", edgecolor="k", lw=0.5,
-           zorder=5, label=f"HF data ($N={n_hf}$)")
-ax.set_ylabel("$f(x)$", fontsize=12)
-ax.set_title(f"Multi-fidelity GP ({n_lf} LF + {n_hf} HF, cost = {total_cost:.0f} s)",
-             fontsize=11)
-ax.legend(fontsize=9, loc="upper left")
-ax.grid(True, alpha=0.2)
-
-# Middle: HF-only GP at equal budget
-ax = axes[1]
-ax.plot(xr, y_test_hf, "k-", lw=2, label="HF truth", zorder=4)
-ax.plot(xr, hf_pred, "-", color="#E67E22", lw=2,
-        label=f"HF-only GP (L2={l2_hf:.2e})")
-ax.fill_between(xr, hf_pred - 2 * hf_std, hf_pred + 2 * hf_std,
-                color="#E67E22", alpha=0.2, label="$\\pm 2\\sigma$")
 xs_hf_only = bkd.to_numpy(X_hf_only).ravel()
 ys_hf_only = bkd.to_numpy(y_hf_only).ravel()
-ax.scatter(xs_hf_only, ys_hf_only, s=50, color="#D62728", edgecolor="k",
-           lw=0.5, zorder=5, label=f"HF data ($N={n_hf_equiv}$)")
-ax.set_ylabel("$f(x)$", fontsize=12)
-ax.set_title(f"HF-only GP ({n_hf_equiv} HF, cost = {total_cost:.0f} s)",
-             fontsize=11)
-ax.legend(fontsize=9, loc="upper left")
-ax.grid(True, alpha=0.2)
 
-# Bottom: HF-only GP using only the 4 HF samples from MF
-ax = axes[2]
-ax.plot(xr, y_test_hf, "k-", lw=2, label="HF truth", zorder=4)
-ax.plot(xr, hf_few_pred, "-", color="#2CA02C", lw=2,
-        label=f"HF-only GP (L2={l2_hf_few:.2e})")
-ax.fill_between(xr, hf_few_pred - 2 * hf_few_std, hf_few_pred + 2 * hf_few_std,
-                color="#2CA02C", alpha=0.2, label="$\\pm 2\\sigma$")
-ax.scatter(xs_hf, ys_hf, s=50, color="#D62728", edgecolor="k", lw=0.5,
-           zorder=5, label=f"HF data ($N={n_hf}$)")
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel("$f(x)$", fontsize=12)
-ax.set_title(f"HF-only GP ({n_hf} HF, cost = {n_hf * costs_per_eval[-1]:.0f} s)",
-             fontsize=11)
-ax.legend(fontsize=9, loc="upper left")
-ax.grid(True, alpha=0.2)
-
+fig, axes = plt.subplots(3, 1, figsize=(9, 11), sharex=True)
+plot_predictions_uncertainty(
+    axes, xr, y_test_hf,
+    mf_pred, mf_std, l2_mf, n_lf, n_hf, total_cost,
+    hf_pred, hf_std, l2_hf, n_hf_equiv,
+    hf_few_pred, hf_few_std, l2_hf_few,
+    xs_hf, ys_hf, xs_hf_only, ys_hf_only, costs_per_eval,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -348,6 +285,8 @@ the high-fidelity level.
 #| fig-cap: "Joint prior kernel matrix across 30 sorted test points for both fidelity levels. The off-diagonal block (LF--HF) shows strong cross-level covariance --- this is the inter-level information that the multi-fidelity GP exploits."
 #| label: fig-kernel-matrix
 
+from _figures._gp import plot_kernel_matrix
+
 n_cov = 30
 X_cov_unsorted = x_test[:, :n_cov]
 sort_idx = bkd.to_numpy(X_cov_unsorted[0, :]).argsort()
@@ -355,19 +294,7 @@ X_cov = X_cov_unsorted[:, sort_idx]
 K_np = bkd.to_numpy(mf_kernel([X_cov] * nmodels))
 
 fig, ax = plt.subplots(figsize=(6, 5))
-im = ax.imshow(K_np, cmap="viridis", aspect="auto")
-plt.colorbar(im, ax=ax, label="Kernel value", fraction=0.046)
-block = n_cov
-for k, name in enumerate(level_names):
-    mid = k * block + block // 2
-    ax.text(mid, -1.5, name, ha="center", va="top", fontsize=9)
-    ax.text(-1.5, mid, name, ha="right", va="center", fontsize=9, rotation=90)
-    if k < nmodels - 1:
-        ax.axvline((k + 1) * block - 0.5, color="k", lw=0.8)
-        ax.axhline((k + 1) * block - 0.5, color="k", lw=0.8)
-ax.set_xticks([])
-ax.set_yticks([])
-ax.set_title("Multi-level kernel matrix", fontsize=11)
+plot_kernel_matrix(ax, K_np, n_cov, level_names, nmodels)
 plt.tight_layout()
 plt.show()
 ```

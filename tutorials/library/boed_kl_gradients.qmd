@@ -277,6 +277,7 @@ from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
 from pyapprox.expdesign.objective import (
     create_kl_oed_objective_from_data,
 )
+from _figures import plot_eig_landscape
 
 bkd = NumpyBkd()
 rng = np.random.default_rng(42)
@@ -287,81 +288,45 @@ K, D      = 2, 2
 gamma     = np.ones(K)
 prior_std = 1.0
 
-# Build typing model for exact EIG
-model = LinearGaussianOEDModel(
-    bkd.array(A_np),
-    bkd.zeros((D, 1)),             # prior mean
-    bkd.eye(D) * prior_std**2,    # prior covariance
-    bkd.diag(bkd.array(gamma)),   # noise covariance
-    bkd,
-)
-
-def eig_exact(w1):
-    """Closed-form EIG for the 2-sensor problem (for plotting)."""
-    return 0.5 * np.log(6 + 9*w1 - 9*w1**2)
-
 def eig_grad_exact(w1):
-    """Total d/dw₁ with constraint w₂ = 1 − w₁."""
     det = 6 + 9*w1 - 9*w1**2
     return (9 - 18*w1) / (2 * det)
 
 def mc_gradient_correct(w1_val, M=3000, N_in=300):
-    """
-    Correct C1+C2+C3 gradient via KLOEDObjective.jacobian().
-
-    The jacobian returns -dEIG/dw (for minimization), shape (1, K).
-    The simplex total derivative is dEIG/dw₁ - dEIG/dw₂.
-    """
     w = bkd.array([[w1_val], [1 - w1_val]])
     noise_var = bkd.array(gamma)
-
-    # Generate joint outer samples: prior + latent noise
     theta_out = bkd.array(rng.standard_normal((D, M)) * prior_std)
     latent    = bkd.array(rng.standard_normal((K, M)))
-    outer_shapes = bkd.dot(bkd.array(A_np), theta_out)  # (K, M)
-
-    # Inner samples from prior
+    outer_shapes = bkd.dot(bkd.array(A_np), theta_out)
     theta_in = bkd.array(rng.standard_normal((D, N_in)) * prior_std)
-    inner_shapes = bkd.dot(bkd.array(A_np), theta_in)   # (K, N_in)
-
+    inner_shapes = bkd.dot(bkd.array(A_np), theta_in)
     obj = create_kl_oed_objective_from_data(
         noise_var, outer_shapes, inner_shapes, latent, bkd)
-    jac = bkd.to_numpy(obj.jacobian(w))   # (1, K), equals -dEIG/dw
-    # Simplex derivative: dEIG/dw₁ − dEIG/dw₂ = -(jac[0,0] - jac[0,1])
+    jac = bkd.to_numpy(obj.jacobian(w))
     return -(jac[0, 0] - jac[0, 1])
 
 def mc_gradient_wrong(w1_val, M=3000, N_in=300):
-    """
-    Deliberately incomplete C1+C2-only gradient (no C3 reparameterization term).
-    Kept as raw numpy to demonstrate the wrong-sign failure.
-    """
     w = np.array([w1_val, 1 - w1_val])
-
     theta_out = rng.standard_normal((D, M)) * prior_std
     eps_out   = rng.standard_normal((K, M))
     F_out     = A_np @ theta_out
     y         = F_out + np.sqrt(gamma[:, None] / w[:, None]) * eps_out
-
     R_out  = y - F_out
     C1_out = -0.5 * R_out**2 / gamma[:, None]
     C2_out =  0.5 / w[:, None] * np.ones((K, M))
-    outer_grad = C1_out + C2_out    # missing C3!
-
+    outer_grad = C1_out + C2_out
     theta_in = rng.standard_normal((D, N_in)) * prior_std
     F_in     = A_np @ theta_in
     R_inner  = y[:, :, None] - F_in[:, None, :]
-
     quad   = -0.5 * np.sum(
         w[:, None, None] / gamma[:, None, None] * R_inner**2, axis=0)
     C_w    = 0.5 * np.sum(np.log(w / gamma))
     ll_in  = quad + C_w
     exp_ll = np.exp(ll_in - ll_in.max(axis=1, keepdims=True))
     wts    = exp_ll / exp_ll.sum(axis=1, keepdims=True)
-
     C1_in = -0.5 * R_inner**2 / gamma[:, None, None]
     C2_in =  0.5 / w[:, None, None] * np.ones((K, M, N_in))
-    inner_grad_all = C1_in + C2_in  # missing C3!
-
+    inner_grad_all = C1_in + C2_in
     evidence_grad = np.einsum('mn,kmn->km', wts, inner_grad_all)
     sample_grad   = outer_grad - evidence_grad
     return (sample_grad[0] - sample_grad[1]).mean()
@@ -371,56 +336,10 @@ analytic_grads = [eig_grad_exact(w) for w in check_pts]
 correct_grads  = [mc_gradient_correct(w) for w in check_pts]
 wrong_grads    = [mc_gradient_wrong(w)   for w in check_pts]
 
-BLUE   = "#2C7FB8"
-ORANGE = "#E6550D"
-GREEN  = "#31A354"
-GREY   = "#888888"
-
-w_fine   = np.linspace(0.01, 0.99, 300)
-eig_vals = eig_exact(w_fine)
-
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
 fig.suptitle("EIG landscape and gradient comparison  (2-sensor, 2-parameter)",
              fontsize=13, fontweight="bold")
-
-ax = axes[0]
-ax.plot(w_fine, eig_vals, color=BLUE, lw=2.5, label="EIG$(w_1)$  (closed form)")
-ax.axvline(0.5, color=GREY, lw=1.3, ls="--", label="Optimum  $w_1^*=0.5$")
-ax.scatter([0.5], [eig_exact(0.5)], color=GREEN, s=90, zorder=5,
-           label=f"Maximum: {eig_exact(0.5):.3f} nats")
-for w1 in [0.12, 0.28, 0.50, 0.72, 0.88]:
-    g = eig_grad_exact(w1)
-    ax.annotate("", xy=(w1 + np.sign(g)*0.10, eig_exact(w1)),
-                xytext=(w1, eig_exact(w1)),
-                arrowprops=dict(arrowstyle="-|>", color=ORANGE, lw=1.8, mutation_scale=11))
-ax.set_xlabel("$w_1$   ($w_2 = 1 - w_1$)", fontsize=11)
-ax.set_ylabel("EIG (nats)", fontsize=11)
-ax.set_title("EIG$(w_1)$ and gradient direction", fontsize=10)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
-ax.spines[["top", "right"]].set_visible(False)
-
-ax = axes[1]
-x = np.arange(len(check_pts))
-width = 0.28
-ax.bar(x-width, analytic_grads, width, label="Analytic  $d\\,$EIG/$dw_1$", color=BLUE,   alpha=0.85, edgecolor="white")
-ax.bar(x,       correct_grads,  width, label="MC  C1+C2+C3  (correct)",    color=GREEN,  alpha=0.85, edgecolor="white")
-ax.bar(x+width, wrong_grads,    width, label="MC  C1+C2  (wrong)",         color=ORANGE, alpha=0.85, edgecolor="white")
-ax.axhline(0, color=GREY, lw=1.0, ls="--")
-ax.set_xticks(x)
-ax.set_xticklabels([f"$w_1={w:.2f}$" for w in check_pts], fontsize=9)
-ax.set_ylabel("Gradient value", fontsize=11)
-ax.set_title("C1+C2+C3 vs incomplete C1+C2 gradient", fontsize=10)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.15, axis="y")
-ax.spines[["top", "right"]].set_visible(False)
-if np.sign(wrong_grads[0]) != np.sign(analytic_grads[0]):
-    ax.annotate("Wrong sign\n← diverges from optimum",
-                xy=(x[0]+width, wrong_grads[0]),
-                xytext=(x[0]+width+0.4, wrong_grads[0]-0.12),
-                fontsize=7.5, color=ORANGE,
-                arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.2))
-
+plot_eig_landscape(axes, check_pts, analytic_grads, correct_grads, wrong_grads)
 plt.tight_layout()
 plt.show()
 ```

@@ -82,7 +82,6 @@ giving us an exact reference against which to measure numerical error.
 
 ```{python}
 exact = diagnostics.exact_eig(weights)
-print(f"Exact EIG: {exact:.6f} nats")
 ```
 
 A single numerical estimate with moderate sample counts:
@@ -94,8 +93,6 @@ approx = diagnostics.compute_numerical_eig(
     design_weights=weights,
     seed=42,
 )
-print(f"Numerical EIG (nouter=200, ninner=100): {approx:.6f} nats")
-print(f"Absolute error: {abs(approx - exact):.6f} nats")
 ```
 
 ::: {.callout-tip}
@@ -118,9 +115,6 @@ bias, variance, mse = diagnostics.compute_mse(
     design_weights=weights,
     base_seed=0,
 )
-print(f"Bias²:    {bias**2:.2e}")
-print(f"Variance: {variance:.2e}")
-print(f"MSE:      {mse:.2e}  (should ≈ bias² + variance)")
 ```
 
 ## Outer vs. Inner: Which Budget Matters More?
@@ -159,62 +153,26 @@ values_inner = diagnostics.compute_mse_for_sample_combinations(
 #| echo: false
 #| fig-cap: "Left: MSE vs. outer sample count M for two inner counts (MC quadrature). Both curves nearly collapse and follow O(1/M), confirming that variance — not bias — drives the outer convergence. Right: bias² and variance vs. inner sample count N_in for fixed M=500. Bias² decays rapidly once N_in ≳ 50; variance (set by M) stays flat, confirming the budget separation."
 #| label: fig-convergence-panels
-BLUE   = "#2C7FB8"
-ORANGE = "#E6550D"
-GREEN  = "#31A354"
-GREY   = "#888888"
-
-mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))      # (n_inner, n_outer)
-bias2_arr = bkd.to_numpy(bkd.vstack(values_inner["sqbias"]))   # (n_inner_sweep, 1)
-var_arr   = bkd.to_numpy(bkd.vstack(values_inner["variance"])) # (n_inner_sweep, 1)
+from _figures import plot_boed_convergence_panels
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 fig.suptitle("Outer budget drives variance; inner budget drives bias",
              fontsize=13, fontweight="bold")
-
-# ── Left: MSE vs M ────────────────────────────────────────────────────────
-ax = axes[0]
-colors = [BLUE, ORANGE]
-for ii, ninner in enumerate(inner_counts):
-    ax.loglog(outer_counts, mse_array[ii, :], "o-",
-              color=colors[ii], lw=2, label=f"$N_{{\\mathrm{{in}}}}={ninner}$")
-
-ref_x = np.array([outer_counts[0], outer_counts[-1]])
-ref_y = mse_array[0, 0] * ref_x[0] / ref_x
-ax.loglog(ref_x, ref_y, "k--", lw=1.5, alpha=0.55, label="$O(1/M)$ reference")
-ax.set_xlabel("Outer samples $M$", fontsize=11)
-ax.set_ylabel("MSE", fontsize=11)
-ax.set_title("MSE vs. outer samples  (variance-dominated)", fontsize=10)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.25, which="both")
-ax.spines[["top", "right"]].set_visible(False)
-
-# ── Right: bias² and variance vs N_in ────────────────────────────────────
-ax = axes[1]
-ax.loglog(inner_sweep, bias2_arr[:, 0], "s-", color=ORANGE, lw=2,
-          label="bias²  (inner bias)")
-ax.loglog(inner_sweep, var_arr[:, 0],   "o-", color=BLUE,   lw=2,
-          label=f"variance  ($M={M_fixed}$, fixed)")
-ax.set_xlabel("Inner samples $N_{\\mathrm{in}}$", fontsize=11)
-ax.set_ylabel("Error component", fontsize=11)
-ax.set_title("Bias² and variance vs. inner samples", fontsize=10)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.25, which="both")
-ax.spines[["top", "right"]].set_visible(False)
-
+plot_boed_convergence_panels(
+    axes, bkd, values_mc, values_inner,
+    outer_counts, inner_counts, M_fixed, inner_sweep,
+)
 plt.tight_layout()
 plt.show()
 ```
 
 ```{python}
 # Convergence rates
-print("Outer sweep convergence rates:")
 for ii, ninner in enumerate(inner_counts):
     rate = KLOEDDiagnostics.compute_convergence_rate(
         outer_counts,
         bkd.to_numpy(values_mc["mse"][ii]).tolist(),
     )
-    print(f"  N_in={ninner:4d}: rate = {rate:.3f}  (expected ~1.0 for O(1/M))")
 ```
 
 A rate near 1.0 confirms the $O(1/M)$ variance decay. The right panel shows

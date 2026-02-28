@@ -106,7 +106,6 @@ A = bkd.to_numpy(benchmark.design_matrix())
 
 weights = bkd.ones((K, 1)) / K   # uniform design weights
 true_eig = benchmark.exact_eig(weights)
-print(f"Exact EIG (uniform weights): {true_eig:.6f} nats")
 ```
 
 ## Halton Sequence
@@ -124,34 +123,12 @@ points tile the space without clusters or gaps.
 #| echo: false
 #| fig-cap: "200 samples in 2-D: standard MC (left) vs. randomly-shifted Halton RQMC (right). MC produces clusters and gaps by chance; RQMC tiles the space evenly while remaining a valid unbiased estimator due to the random shift."
 #| label: fig-points-comparison
-rng_mc = np.random.default_rng(0)
-pts_mc = rng_mc.standard_normal((200, 2))
-
-halton_2d = HaltonSampler(2, bkd, transform_to_normal=True, seed=0)
-pts_qmc, _ = halton_2d.sample(200)   # (2, 200) — transpose for scatter
-pts_qmc = bkd.to_numpy(pts_qmc).T    # (200, 2)
-
-BLUE   = "#2C7FB8"
-ORANGE = "#E6550D"
-GREY   = "#888888"
+from _figures import plot_points_comparison
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), sharex=True, sharey=True)
 fig.suptitle("Sample coverage: MC vs. RQMC (200 points, 2-D)",
              fontsize=12, fontweight="bold")
-
-for ax, pts, title, color in [
-    (axes[0], pts_mc,  "Standard MC  (i.i.d.)",           BLUE),
-    (axes[1], pts_qmc, "RQMC  (randomly-shifted Halton)", ORANGE),
-]:
-    ax.scatter(pts[:, 0], pts[:, 1], s=10, alpha=0.55, color=color)
-    ax.set_title(title, fontsize=10)
-    ax.set_xlabel("Dimension 1", fontsize=10)
-    ax.set_xlim(-3.2, 3.2); ax.set_ylim(-3.2, 3.2)
-    ax.grid(True, alpha=0.15)
-    ax.set_aspect("equal")
-    ax.spines[["top", "right"]].set_visible(False)
-
-axes[0].set_ylabel("Dimension 2", fontsize=10)
+plot_points_comparison(axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -217,47 +194,23 @@ for M in outer_counts:
 
     mse_mc.append( np.mean((np.array(ests_mc)  - true_eig)**2))
     mse_qmc.append(np.mean((np.array(ests_qmc) - true_eig)**2))
-
-    print(f"M={M:5d}: MSE_MC={mse_mc[-1]:.2e}  MSE_QMC={mse_qmc[-1]:.2e}  "
-          f"ratio={mse_qmc[-1]/mse_mc[-1]:.2f}")
 ```
 
 ```{python}
 #| echo: false
 #| fig-cap: "MSE vs. outer sample count M for standard MC (blue) and randomly-shifted Halton RQMC (orange). Both follow O(1/M) asymptotically, but RQMC achieves a smaller constant — consistently lower MSE at every sample count."
 #| label: fig-mc-vs-qmc
-BLUE   = "#2C7FB8"
-ORANGE = "#E6550D"
-GREY   = "#888888"
-
-slope_mc  = np.polyfit(np.log(outer_counts), np.log(mse_mc),  1)[0]
-slope_qmc = np.polyfit(np.log(outer_counts), np.log(mse_qmc), 1)[0]
+from _figures import plot_mc_vs_qmc
 
 fig, ax = plt.subplots(figsize=(8, 4.8))
-ax.loglog(outer_counts, mse_mc,  "o-", color=BLUE,   lw=2.2, ms=7,
-          label=f"MC   (slope = {slope_mc:.2f})")
-ax.loglog(outer_counts, mse_qmc, "s-", color=ORANGE, lw=2.2, ms=7,
-          label=f"RQMC (slope = {slope_qmc:.2f})")
-
-# Reference slope
-ref_x = np.array([outer_counts[0], outer_counts[-1]], dtype=float)
-ref_1 = mse_mc[0]  * (ref_x / outer_counts[0])**(-1.0)
-ax.loglog(ref_x, ref_1,  "k--", lw=1.3, alpha=0.50, label="$O(M^{-1})$ reference")
-
-ax.set_xlabel("Outer samples $M$", fontsize=12)
-ax.set_ylabel("MSE", fontsize=12)
-ax.set_title("MC vs. RQMC convergence for the double-loop EIG estimator", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.25, which="both")
-ax.spines[["top", "right"]].set_visible(False)
+plot_mc_vs_qmc(ax, outer_counts, mse_mc, mse_qmc)
 plt.tight_layout()
 plt.show()
 ```
 
 ```{python}
-print(f"MC   convergence rate: {slope_mc:.3f}  (expected ~−1.0)")
-print(f"RQMC convergence rate: {slope_qmc:.3f}  (expected ~−1.0 asymptotically)")
-print(f"\nAt M=1600, RQMC achieves {mse_mc[-1]/mse_qmc[-1]:.1f}× lower MSE than MC")
+slope_mc  = np.polyfit(np.log(outer_counts), np.log(mse_mc),  1)[0]
+slope_qmc = np.polyfit(np.log(outer_counts), np.log(mse_qmc), 1)[0]
 ```
 
 ## When Does QMC Help?

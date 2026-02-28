@@ -158,88 +158,10 @@ makes the estimator a nested loop rather than two independent sweeps.
 #| fig-cap: "Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε) jointly and forms y(w) via the reparameterization. The observation y^(m) is passed to the inner loop (orange, right), which draws independent θ* samples and averages their likelihoods to approximate the marginal evidence. The outer log-likelihood ℓₘ and inner log-evidence feed the final EIG estimate (green, bottom)."
 #| label: fig-double-loop
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-
-BLUE     = "#2C7FB8"
-ORANGE   = "#E6550D"
-GREEN    = "#31A354"
-GREY     = "#636363"
-LTBLUE   = "#BDD7E7"
-LTORANGE = "#FDDBC7"
-LTGREEN  = "#A1D99B"
+from _figures import plot_double_loop
 
 fig, ax = plt.subplots(figsize=(13, 7.5))
-ax.set_xlim(0, 13)
-ax.set_ylim(0, 8.0)
-ax.axis("off")
-
-def box(ax, x, y, w, h, text, fc, ec, fontsize=9.5, bold=False):
-    p = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.1",
-                       facecolor=fc, edgecolor=ec, linewidth=1.8, zorder=3)
-    ax.add_patch(p)
-    ax.text(x+w/2, y+h/2, text, ha="center", va="center", fontsize=fontsize,
-            fontweight="bold" if bold else "normal", zorder=4, multialignment="center")
-
-def arrow(ax, x0, y0, x1, y1, color=GREY, lw=1.6, ls="solid"):
-    ax.annotate("", xy=(x1,y1), xytext=(x0,y0),
-                arrowprops=dict(arrowstyle="-|>", color=color,
-                                lw=lw, linestyle=ls, mutation_scale=11), zorder=2)
-
-ax.text(1.85, 7.7, "OUTER LOOP  ($M$ samples)",
-        ha="center", fontsize=11, fontweight="bold", color=BLUE)
-ax.text(6.5,  7.7, "SHARED  (reuses outer $\\mathbf{y}$)",
-        ha="center", fontsize=11, fontweight="bold", color=GREEN)
-ax.text(11.2, 7.7, "INNER LOOP  ($N_{\\mathrm{in}}$ samples)",
-        ha="center", fontsize=11, fontweight="bold", color=ORANGE)
-
-box(ax, 0.15, 6.3,  2.1, 0.95, r"$\boldsymbol{\theta}^{(m)} \sim p(\boldsymbol{\theta})$", LTBLUE, BLUE, 9)
-box(ax, 0.15, 4.95, 2.1, 0.95, "$\\boldsymbol{\\varepsilon}^{(m)}\\sim\\mathcal{N}(\\mathbf{0},\\mathbf{I}_K)$", LTBLUE, BLUE, 9)
-box(ax, 0.15, 3.55, 2.1, 0.90, r"$\mathbf{f}(\boldsymbol{\theta}^{(m)})$", LTBLUE, BLUE, 9)
-
-box(ax, 4.5, 6.2, 4.0, 1.05,
-    "$\\mathbf{y}^{(m)}=\\mathbf{f}(\\boldsymbol{\\theta}^{(m)})"
-    "+\\mathbf{W}^{-1/2}\\boldsymbol{\\Gamma}^{1/2}\\boldsymbol{\\varepsilon}^{(m)}$",
-    LTGREEN, GREEN, 8.8)
-box(ax, 4.5, 4.85, 4.0, 1.0,
-    r"$\ell_m = \log p(\mathbf{y}^{(m)} \mid \boldsymbol{\theta}^{(m)}, \mathbf{w})$"
-    "\n(outer log-likelihood)",
-    LTGREEN, GREEN, 8.5)
-box(ax, 4.5, 3.2, 4.0, 1.0,
-    r"$\hat{p}(\mathbf{y}^{(m)}\!\mid\!\mathbf{w}) = "
-    r"\frac{1}{N_{\mathrm{in}}}\!\sum_n p(\mathbf{y}^{(m)}\!\mid\!\boldsymbol{\theta}^{(n)},\mathbf{w})$"
-    "\n(inner evidence average)",
-    LTGREEN, GREEN, 8.0)
-box(ax, 4.5, 1.4, 4.0, 1.2,
-    r"$\widehat{\mathrm{EIG}}=\frac{1}{M}\sum_m"
-    r"\left[\ell_m-\log\hat{p}(\mathbf{y}^{(m)}\mid\mathbf{w})\right]$",
-    "#EDF8FB", GREEN, 9.2, bold=True)
-
-box(ax, 11.0, 6.2,  1.85, 1.05,
-    "$\\boldsymbol{\\theta}^{(n)}\\sim p(\\boldsymbol{\\theta})$\n$n=1,\\ldots,N_{\\mathrm{in}}$",
-    LTORANGE, ORANGE, 8.5)
-box(ax, 11.0, 4.85, 1.85, 0.95, r"$\mathbf{f}(\boldsymbol{\theta}^{(n)})$", LTORANGE, ORANGE, 9)
-box(ax, 11.0, 3.2,  1.85, 1.0,
-    "$\\log p(\\mathbf{y}^{(m)}\\!\\mid\\!\\boldsymbol{\\theta}^{(n)},\\mathbf{w})$\nfor each $(m,n)$",
-    LTORANGE, ORANGE, 7.8)
-
-arrow(ax, 1.2,  6.3,  1.2,  5.9,  BLUE)
-arrow(ax, 1.2,  4.95, 1.2,  4.45, BLUE)
-arrow(ax, 2.25, 6.77, 4.5,  6.72, BLUE)
-arrow(ax, 2.25, 5.42, 4.5,  6.60, BLUE)
-arrow(ax, 2.25, 4.00, 4.5,  6.50, BLUE)
-arrow(ax, 6.5,  6.2,  6.5,  5.85, GREEN)
-arrow(ax, 6.5,  4.85, 6.5,  4.2,  GREEN)
-arrow(ax, 6.5,  3.2,  6.5,  2.6,  GREEN)
-arrow(ax, 11.93, 6.2,  11.93, 5.8,  ORANGE)
-arrow(ax, 11.93, 4.85, 11.93, 4.2,  ORANGE)
-arrow(ax, 8.5,   6.72, 11.0,  3.72, ORANGE)
-arrow(ax, 11.0,  3.7,  8.5,   3.7,  ORANGE)
-
-ax.text(9.85, 5.5,
-        "outer $\\mathbf{y}^{(m)}$\npassed to inner loop",
-        ha="center", va="center", fontsize=8, color=ORANGE, fontstyle="italic",
-        bbox=dict(fc="white", ec=ORANGE, lw=0.8, pad=2, alpha=0.85))
-
+plot_double_loop(ax)
 plt.tight_layout(pad=0.2)
 plt.show()
 ```

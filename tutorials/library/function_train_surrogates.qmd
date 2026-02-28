@@ -82,33 +82,11 @@ $$
 #| echo: false
 import numpy as np
 import matplotlib.pyplot as plt
-
-x = np.linspace(-3, 3, 200)
-X1, X2 = np.meshgrid(x, x)
-
-# Rank-1: product of two 1D Gaussians
-g1 = np.exp(-X1**2 / 2)   # depends only on x1
-g2 = np.exp(-X2**2 / 2)   # depends only on x2
-f_rank1 = g1 * g2
+from _figures._function_train import plot_ft_rank1_contours
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8))
-
-axes[0].plot(x, np.exp(-x**2 / 2), color="#2563a8", lw=2.5)
-axes[0].set_title(r"$g_1(x_1) = e^{-x_1^2/2}$", fontsize=11)
-axes[0].set_xlabel(r"$x_1$")
-axes[0].grid(True, alpha=0.25)
-
-axes[1].plot(x, np.exp(-x**2 / 2), color="#1a7a4a", lw=2.5)
-axes[1].set_title(r"$g_2(x_2) = e^{-x_2^2/2}$", fontsize=11)
-axes[1].set_xlabel(r"$x_2$")
-axes[1].grid(True, alpha=0.25)
-
-cf = axes[2].contourf(X1, X2, f_rank1, levels=20, cmap="Blues")
-axes[2].set_title(r"$f(x_1,x_2) = g_1(x_1)\cdot g_2(x_2)$", fontsize=11)
-axes[2].set_xlabel(r"$x_1$")
-axes[2].set_ylabel(r"$x_2$")
+cf = plot_ft_rank1_contours(axes)
 fig.colorbar(cf, ax=axes[2])
-
 plt.suptitle("Rank-1 function: a product of two 1D Gaussians", fontsize=12, y=1.02)
 plt.tight_layout()
 plt.show()
@@ -146,33 +124,10 @@ add them:
 
 ```{python}
 #| echo: false
-# Rank-1 term 1: narrow Gaussian centred at (−1, −1)
-g1_a = np.exp(-2 * (X1 + 1)**2)   # narrow, centred at x1=−1
-g2_a = np.exp(-2 * (X2 + 1)**2)   # narrow, centred at x2=−1
-
-# Rank-1 term 2: broader Gaussian centred at (+1, +1)
-g1_b = np.exp(-0.5 * (X1 - 1)**2)  # broad, centred at x1=+1
-g2_b = np.exp(-0.5 * (X2 - 1)**2)  # broad, centred at x2=+1
-
-f_rank2 = g1_a * g2_a + g1_b * g2_b
+from _figures._function_train import plot_ft_highrank_contours
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.0))
-
-cf1 = axes[0].contourf(X1, X2, g1_a * g2_a, levels=15, cmap="Blues")
-axes[0].set_title("Term 1:  narrow, at $(-1,-1)$", fontsize=11)
-axes[0].set_xlabel(r"$x_1$"); axes[0].set_ylabel(r"$x_2$")
-fig.colorbar(cf1, ax=axes[0])
-
-cf2 = axes[1].contourf(X1, X2, g1_b * g2_b, levels=15, cmap="Greens")
-axes[1].set_title("Term 2:  broad, at $(+1,+1)$", fontsize=11)
-axes[1].set_xlabel(r"$x_1$"); axes[1].set_ylabel(r"$x_2$")
-fig.colorbar(cf2, ax=axes[1])
-
-cf3 = axes[2].contourf(X1, X2, f_rank2, levels=20, cmap="Oranges")
-axes[2].set_title(r"Sum = rank-2 function", fontsize=11)
-axes[2].set_xlabel(r"$x_1$"); axes[2].set_ylabel(r"$x_2$")
-fig.colorbar(cf3, ax=axes[2])
-
+plot_ft_highrank_contours(axes, fig=fig)
 plt.suptitle(
     r"Rank-2 function: $f = g_1^{(1)}g_2^{(1)} + g_1^{(2)}g_2^{(2)}$",
     fontsize=12, y=1.02
@@ -224,72 +179,10 @@ product determines the rank of the result in linear algebra.
 #| echo: false
 #| fig-cap: "A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2."
 #| label: fig-core-diagram
+from _figures._function_train import plot_core_diagram
 
 fig, ax = plt.subplots(figsize=(10, 3.5))
-ax.set_xlim(0, 10)
-ax.set_ylim(-0.1, 3.2)
-ax.axis("off")
-
-BLUE    = "#2563a8"
-GREEN   = "#1a7a4a"
-LIGHT_B = "#dbeafe"
-LIGHT_G = "#d1fae5"
-BORDER  = "#374151"
-
-bw, bh = 1.5, 0.9  # box width, height
-
-def box(ax, x, y, w, h, color, label, fontsize=10):
-    rect = plt.Rectangle((x, y), w, h, facecolor=color,
-                          edgecolor=BORDER, lw=1.5, zorder=3)
-    ax.add_patch(rect)
-    ax.text(x + w/2, y + h/2, label, ha="center", va="center",
-            fontsize=fontsize, zorder=4)
-
-# ── Core 1: 1×2 row vector (two boxes side by side) ─────────────────────────
-c1_y = 1.0
-box(ax, 0.2, c1_y, bw, bh, LIGHT_B, r"$g_1^{(1)}(x_1)$")
-box(ax, 0.2 + bw + 0.1, c1_y, bw, bh, LIGHT_B, r"$g_1^{(2)}(x_1)$")
-ax.text(0.2 + bw + 0.05, c1_y + bh + 0.35,
-        r"$\mathbf{G}_1(x_1)$", fontsize=11, color=BLUE,
-        fontweight="bold", ha="center")
-ax.text(0.2 + bw + 0.05, c1_y + bh + 0.08,
-        r"$1{\times}2$", fontsize=9, color="gray", ha="center")
-
-# ── multiply sign ────────────────────────────────────────────────────────────
-mid1_x = 0.2 + 2*bw + 0.1 + 0.3
-ax.text(mid1_x, c1_y + bh/2, r"$\cdot$", fontsize=28,
-        ha="center", va="center", color=BORDER)
-
-# ── Core 2: 2×1 column vector (two boxes stacked) ───────────────────────────
-c2_x = mid1_x + 0.4
-c2_top = c1_y + bh/2 + 0.05
-c2_bot = c1_y - bh/2 - 0.05
-box(ax, c2_x, c2_top, bw, bh, LIGHT_G, r"$g_2^{(1)}(x_2)$")
-box(ax, c2_x, c2_bot, bw, bh, LIGHT_G, r"$g_2^{(2)}(x_2)$")
-ax.text(c2_x + bw/2, c2_top + bh + 0.35,
-        r"$\mathbf{G}_2(x_2)$", fontsize=11, color=GREEN,
-        fontweight="bold", ha="center")
-ax.text(c2_x + bw/2, c2_top + bh + 0.08,
-        r"$2{\times}1$", fontsize=9, color="gray", ha="center")
-
-# ── rank annotation ──────────────────────────────────────────────────────────
-rank_x = (mid1_x + c2_x) / 2
-ax.text(rank_x, c1_y - 0.25, "rank = 2", fontsize=8, color="gray", ha="center")
-
-# ── equals sign and result ───────────────────────────────────────────────────
-eq_x = c2_x + bw + 0.5
-ax.text(eq_x, c1_y + bh/2, r"$=$", fontsize=22,
-        ha="center", va="center", color=BORDER)
-res_x = eq_x + 0.5
-ax.text(res_x, c1_y + bh/2 + 0.4,
-        r"$g_1^{(1)}(x_1)\,g_2^{(1)}(x_2)$", fontsize=10)
-ax.text(res_x, c1_y + bh/2 - 0.1,
-        r"$+\; g_1^{(2)}(x_1)\,g_2^{(2)}(x_2)$", fontsize=10)
-ax.text(res_x, c1_y + bh/2 - 0.65,
-        r"$= f(x_1, x_2)$", fontsize=11, color="black", fontstyle="italic")
-
-ax.set_title("A rank-2 function as a matrix product of function-valued vectors",
-             fontsize=11, pad=8)
+plot_core_diagram(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -320,99 +213,10 @@ expression is just an ordinary chain of matrix multiplications that produces a s
 #| echo: false
 #| fig-cap: "A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar."
 #| label: fig-ft-3var
+from _figures._function_train import plot_ft_3var
 
 fig, ax = plt.subplots(figsize=(13, 4.2))
-ax.set_xlim(0, 13)
-ax.set_ylim(-0.5, 4.2)
-ax.axis("off")
-
-BLUE    = "#2563a8"; LIGHT_B = "#dbeafe"
-GREEN   = "#1a7a4a"; LIGHT_G = "#d1fae5"
-PURPLE  = "#6b3fa0"; LIGHT_P = "#ede9fe"
-BORDER  = "#374151"
-
-bw, bh, gap = 1.3, 0.85, 0.1  # box width, height, gap
-
-def box(ax, x, y, w, h, color, label, fontsize=9):
-    rect = plt.Rectangle((x, y), w, h, facecolor=color,
-                          edgecolor=BORDER, lw=1.4, zorder=3)
-    ax.add_patch(rect)
-    ax.text(x + w/2, y + h/2, label, ha="center", va="center",
-            fontsize=fontsize, zorder=4)
-
-# ── vertical centre for the whole diagram ────────────────────────────────────
-cy = 1.6  # vertical centre of the 2×2 core
-
-# ── Core 1: G1(x1), shape 1×2 — row vector (two boxes side by side) ─────────
-c1_x = 0.2
-c1_y = cy - bh/2  # single row, vertically centred
-box(ax, c1_x, c1_y, bw, bh, LIGHT_B, r"$g_{11}(x_1)$")
-box(ax, c1_x + bw + gap, c1_y, bw, bh, LIGHT_B, r"$g_{12}(x_1)$")
-c1_mid = c1_x + bw + gap/2
-ax.text(c1_mid, c1_y + bh + 0.55,
-        r"$\mathbf{G}_1(x_1)$", fontsize=11, color=BLUE,
-        fontweight="bold", ha="center")
-ax.text(c1_mid, c1_y + bh + 0.2,
-        r"$1 \times 2$", fontsize=9, color="gray", ha="center")
-
-# ── multiply sign ────────────────────────────────────────────────────────────
-dot1_x = c1_x + 2*bw + gap + 0.35
-ax.text(dot1_x, cy, r"$\cdot$", fontsize=28, ha="center", va="center",
-        color=BORDER)
-
-# ── Core 2: G2(x2), shape 2×2 — 2×2 grid ───────────────────────────────────
-c2_x = dot1_x + 0.35
-c2_top = cy + gap/2
-c2_bot = cy - bh - gap/2
-# row 0
-box(ax, c2_x,            c2_top, bw, bh, LIGHT_G, r"$g_{21}(x_2)$")
-box(ax, c2_x + bw + gap, c2_top, bw, bh, LIGHT_G, r"$g_{22}(x_2)$")
-# row 1
-box(ax, c2_x,            c2_bot, bw, bh, LIGHT_G, r"$g_{23}(x_2)$")
-box(ax, c2_x + bw + gap, c2_bot, bw, bh, LIGHT_G, r"$g_{24}(x_2)$")
-c2_mid = c2_x + bw + gap/2
-ax.text(c2_mid, c2_top + bh + 0.55,
-        r"$\mathbf{G}_2(x_2)$", fontsize=11, color=GREEN,
-        fontweight="bold", ha="center")
-ax.text(c2_mid, c2_top + bh + 0.2,
-        r"$2 \times 2$", fontsize=9, color="gray", ha="center")
-
-# ── multiply sign ────────────────────────────────────────────────────────────
-dot2_x = c2_x + 2*bw + gap + 0.35
-ax.text(dot2_x, cy, r"$\cdot$", fontsize=28, ha="center", va="center",
-        color=BORDER)
-
-# ── Core 3: G3(x3), shape 2×1 — column vector (two boxes stacked) ───────────
-c3_x = dot2_x + 0.35
-box(ax, c3_x, c2_top, bw, bh, LIGHT_P, r"$g_{31}(x_3)$")
-box(ax, c3_x, c2_bot, bw, bh, LIGHT_P, r"$g_{32}(x_3)$")
-ax.text(c3_x + bw/2, c2_top + bh + 0.55,
-        r"$\mathbf{G}_3(x_3)$", fontsize=11, color=PURPLE,
-        fontweight="bold", ha="center")
-ax.text(c3_x + bw/2, c2_top + bh + 0.2,
-        r"$2 \times 1$", fontsize=9, color="gray", ha="center")
-
-# ── equals sign and result ───────────────────────────────────────────────────
-eq_x = c3_x + bw + 0.45
-ax.text(eq_x, cy, r"$=$", fontsize=22, ha="center", va="center", color=BORDER)
-ax.text(eq_x + 0.4, cy + 0.35,
-        r"$f(x_1, x_2, x_3)$", fontsize=12, fontstyle="italic")
-ax.text(eq_x + 0.5, cy - 0.15, "(a scalar)", fontsize=9.5, color="gray")
-
-# ── annotations ──────────────────────────────────────────────────────────────
-ax.annotate("univariate\nfunction", xy=(c1_x + bw/2, c1_y), xytext=(c1_x + bw/2, -0.35),
-            fontsize=8, color="gray", ha="center",
-            arrowprops=dict(arrowstyle="->", color="gray", lw=0.9))
-
-ax.annotate("core = matrix\nof functions", xy=(c2_mid, c2_bot), xytext=(c2_mid, -0.35),
-            fontsize=8, color="gray", ha="center",
-            arrowprops=dict(arrowstyle="->", color="gray", lw=0.9))
-
-ax.set_title(
-    r"Function Train for $d=3$, rank $r=2$: "
-    r"$f = \mathbf{G}_1(x_1)\cdot\mathbf{G}_2(x_2)\cdot\mathbf{G}_3(x_3)$",
-    fontsize=11, pad=8
-)
+plot_ft_3var(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -532,15 +336,6 @@ marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
 
 # Rank-2 FT, polynomial degree 4
 ft = create_pce_functiontrain(marginals, max_level=4, ranks=[2, 2], bkd=bkd)
-
-print(f"Number of variables:   {ft.nvars()}")
-print(f"Number of QoIs:        {ft.nqoi()}")
-print(f"Total parameters:      {ft.nparams()}")
-print()
-for k, core in enumerate(ft.cores()):
-    r_left, r_right = core.ranks()
-    print(f"  Core {k}: shape {r_left}x{r_right}, "
-          f"nterms per entry = {core.get_nterms(0, 0)}")
 ```
 
 The shapes confirm the structure: core 0 is $1 \times 2$, core 1 is $2 \times 2$, and
@@ -553,9 +348,6 @@ We can evaluate the FT on a batch of samples just like any other surrogate:
 nsamples = 2000
 samples = bkd.asarray(np.random.uniform(-1, 1, (3, nsamples)))
 values = ft(samples)
-
-print(f"Input shape:  {samples.shape}")
-print(f"Output shape: {values.shape}")
 ```
 
 ::: {.callout-note}
@@ -617,44 +409,15 @@ als_result = ALSFitter(bkd, max_sweeps=50, tol=1e-14).fit(ft_2d, s_fit, y_fit)
 # ── Step 2: MSE polish with gradient-based optimiser ─────────────────────────
 mse_result = MSEFitter(bkd).fit(als_result.surrogate(), s_fit, y_fit)
 ft_fitted = mse_result.surrogate()
-
-print(f"ALS converged: {als_result.converged()}")
-print(f"MSE final loss: {mse_result.final_loss():.2e}")
 ```
 
 ```{python}
 #| fig-cap: "Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable."
 #| label: fig-ft-fitted
-
-npts = 100
-true_plotter = Plotter2DRectangularDomain(true_func, plot_limits)
-ft_plotter = Plotter2DRectangularDomain(ft_fitted, plot_limits)
-
-# Compute error on a grid
-X, Y, eval_pts = meshgrid_samples(npts, plot_limits, bkd)
-f_true_vals = bkd.to_numpy(true_func(eval_pts)[0]).reshape(X.shape)
-f_pred_vals = bkd.to_numpy(ft_fitted(eval_pts)[0]).reshape(X.shape)
-err = np.abs(f_true_vals - f_pred_vals)
-rel_err = np.linalg.norm(f_true_vals - f_pred_vals) / np.linalg.norm(f_true_vals)
+from _figures._function_train import plot_ft_fitted
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
-
-kw = dict(levels=25, cmap="Oranges")
-true_plotter.plot_contours(axes[0], qoi=0, npts_1d=npts, **kw)
-axes[0].set_title("True rank-2 function", fontsize=11)
-axes[0].set_xlabel(r"$x_1$"); axes[0].set_ylabel(r"$x_2$")
-
-ft_plotter.plot_contours(axes[1], qoi=0, npts_1d=npts, **kw)
-axes[1].set_title("FT surrogate (rank 2, degree 12)", fontsize=11)
-axes[1].set_xlabel(r"$x_1$"); axes[1].set_ylabel(r"$x_2$")
-
-cf2 = axes[2].contourf(
-    bkd.to_numpy(X), bkd.to_numpy(Y), err, levels=25, cmap="Reds"
-)
-axes[2].set_title(f"Pointwise error  (rel. $L_2$ = {rel_err:.2e})", fontsize=11)
-axes[2].set_xlabel(r"$x_1$"); axes[2].set_ylabel(r"$x_2$")
-fig.colorbar(cf2, ax=axes[2])
-
+plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig=fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -670,26 +433,18 @@ The rank $r$ is the single number that determines how much interaction between
 variables the FT can represent. A quick experiment illustrates this:
 
 ```{python}
+from _figures._function_train import plot_ft_rank_comparison
+from pyapprox.interface.functions.plot.plot2d_rectangular import meshgrid_samples
+
+npts = 100
+X, Y, eval_pts = meshgrid_samples(npts, plot_limits, bkd)
+f_true_vals = bkd.to_numpy(true_func(eval_pts)[0]).reshape(X.shape)
+
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.0))
-
-for ax, rank in zip(axes, [1, 2, 4]):
-    ranks_list = [rank] * (2 - 1)   # 2 variables → 1 interior rank
-    ft_r = create_pce_functiontrain(
-        marginals_2d, max_level=12, ranks=ranks_list, bkd=bkd, init_scale=0.1
-    )
-    # ALS for initial guess, then MSE polish
-    als_r = ALSFitter(bkd, max_sweeps=50, tol=1e-14).fit(ft_r, s_fit, y_fit)
-    mse_r = MSEFitter(bkd).fit(als_r.surrogate(), s_fit, y_fit)
-    ft_r_fit = mse_r.surrogate()
-
-    f_r_vals = bkd.to_numpy(ft_r_fit(eval_pts)[0]).reshape(X.shape)
-    rel_r = np.linalg.norm(f_true_vals - f_r_vals) / np.linalg.norm(f_true_vals)
-
-    plotter_r = Plotter2DRectangularDomain(ft_r_fit, plot_limits)
-    plotter_r.plot_contours(ax, qoi=0, npts_1d=npts, levels=25, cmap="Oranges")
-    ax.set_title(f"rank = {rank},  rel. $L_2$ = {rel_r:.1e}", fontsize=11)
-    ax.set_xlabel(r"$x_1$"); ax.set_ylabel(r"$x_2$")
-
+plot_ft_rank_comparison(
+    true_func, marginals_2d, s_fit, y_fit, eval_pts, X, f_true_vals,
+    plot_limits, bkd, axes,
+)
 plt.suptitle("FT approximation quality vs rank  (target is rank-2)", fontsize=12,
              y=1.02)
 plt.tight_layout()

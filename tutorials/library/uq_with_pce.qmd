@@ -90,9 +90,6 @@ degree = 3
 pce = create_pce_from_marginals(marginals, degree, bkd, nqoi=nqoi)
 ls_fitter = LeastSquaresFitter(bkd)
 pce = ls_fitter.fit(pce, samples_train, values_train).surrogate()
-
-print(f"Fitted PCE: {pce.nterms()} terms, degree {degree}")
-print(f"Input variables: {nvars}, QoIs: {nqoi}")
 ```
 
 
@@ -118,12 +115,6 @@ The mean is the zeroth coefficient (constant term), and the variance is the sum 
 pce_mean = bkd.to_numpy(pce.mean())           # (nqoi,)
 pce_var = bkd.to_numpy(pce.variance())         # (nqoi,)
 pce_cov = bkd.to_numpy(pce.covariance())       # (nqoi, nqoi)
-
-print("PCE analytical moments:")
-for k in range(nqoi):
-    print(f"  {qoi_labels[k]}: mean = {pce_mean[k]:.6f},  std = {np.sqrt(pce_var[k]):.6f}")
-
-print(f"\nCovariance matrix:\n{pce_cov}")
 ```
 
 ::: {.callout-important}
@@ -147,6 +138,7 @@ $$
 #| label: fig-marginal-densities
 
 from pyapprox.interface.functions.timing import timed
+from _figures._pce import plot_pce_marginal_densities
 
 # Measure per-evaluation cost of beam model and PCE
 timed_model = timed(model)
@@ -159,16 +151,9 @@ timed_pce = timed(pce)
 _ = timed_pce(warmup_samples)
 pce_cost = timed_pce.timer().get("__call__").median()
 
-speedup = beam_cost / pce_cost
-print(f"Beam model: {beam_cost:.6f} s/eval")
-print(f"PCE:        {pce_cost:.6f} s/eval")
-print(f"Speedup:    {speedup:.0f}x")
-
 # Equal-cost sample sizes
 N_mc = 500
 M_pce = int((N_mc - N_train) * beam_cost / pce_cost)
-print(f"\nMC budget:  {N_mc} beam evaluations")
-print(f"PCE budget: {N_train} beam evals (training) + {M_pce:,} PCE evals")
 
 # MC reference: 500 beam evaluations
 np.random.seed(123)
@@ -181,19 +166,8 @@ samples_pce = prior.rvs(M_pce)
 preds_pce = bkd.to_numpy(pce(samples_pce))  # (nqoi, M_pce)
 
 fig, axes = plt.subplots(1, nqoi, figsize=(14, 4))
-
-for k, ax in enumerate(axes):
-    ax.hist(vals_mc[k, :], bins=40, density=True, alpha=0.5,
-            color="#2C7FB8", edgecolor="k", lw=0.2,
-            label=f"MC ({N_mc} beam evals)")
-    ax.hist(preds_pce[k, :], bins=80, density=True, alpha=0.4,
-            color="#E67E22", edgecolor="k", lw=0.1,
-            label=f"PCE ({N_train}+{M_pce:,} evals)")
-    ax.set_xlabel(qoi_labels[k], fontsize=11)
-    ax.set_ylabel("Density", fontsize=11)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-
+plot_pce_marginal_densities(vals_mc, preds_pce, N_mc, N_train, M_pce,
+                            qoi_labels, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -259,118 +233,11 @@ For Monte Carlo, we use all $N$ samples directly. For PCE, we increase the polyn
 #| fig-cap: "PCE vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For PCE, the degree increases with the budget (oversampling ratio = 2). Lines show median over 20 repetitions; bands show 10th--90th percentiles."
 #| label: fig-pce-vs-mc
 
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.quadrature import (
-    TensorProductQuadratureRule,
-    gauss_quadrature_rule,
-)
+from _figures._pce import plot_pce_vs_mc
 
-# True moments via tensor-product Gauss quadrature (exact for polynomials
-# of degree <= 2*nquad-1; highly accurate for the smooth beam model)
-nquad = 20
-quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
-quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * nvars)
-quad_pts, quad_wts = quad_rule()
-qoi_quad = model(quad_pts)                        # (nqoi, nquad^nvars)
-qoi_quad_np = bkd.to_numpy(qoi_quad)
-quad_wts_np = bkd.to_numpy(quad_wts)
-qoi_plot = 0  # tip deflection
-true_mean = float(quad_wts_np @ qoi_quad_np[qoi_plot])
-true_var = float(quad_wts_np @ (qoi_quad_np[qoi_plot] - true_mean) ** 2)
-
-# Build (degree, N_budget) pairs with oversampling ratio = 2
-oversampling = 2
-degrees = [1, 2, 3, 4, 5]
-budget_degree_pairs = []
-for deg in degrees:
-    nterms = compute_hyperbolic_indices(nvars, deg, 1.0, bkd).shape[1]
-    N_bud = oversampling * nterms
-    budget_degree_pairs.append((N_bud, deg))
-
-N_budget_values = [pair[0] for pair in budget_degree_pairs]
-n_reps = 20
-
-mc_mean_errors = {N: [] for N in N_budget_values}
-mc_var_errors = {N: [] for N in N_budget_values}
-pce_mean_errors = {N: [] for N in N_budget_values}
-pce_var_errors = {N: [] for N in N_budget_values}
-
-for N_bud, deg in budget_degree_pairs:
-    for rep in range(n_reps):
-        np.random.seed(1000 * N_bud + rep)
-        s = prior.rvs(N_bud)
-        v = bkd.to_numpy(model(s))   # (nqoi, N_bud)
-
-        # MC estimates
-        mc_mu = np.mean(v[qoi_plot, :])
-        mc_va = np.var(v[qoi_plot, :], ddof=1)
-        mc_mean_errors[N_bud].append(
-            abs(mc_mu - true_mean) / abs(true_mean)
-        )
-        mc_var_errors[N_bud].append(
-            abs(mc_va - true_var) / abs(true_var)
-        )
-
-        # PCE: fit with matching degree and extract moments
-        pce_rep = create_pce_from_marginals(marginals, deg, bkd, nqoi=nqoi)
-        try:
-            rep_result = ls_fitter.fit(pce_rep, s, bkd.asarray(v))
-            fitted_rep = rep_result.surrogate()
-            pce_mu = bkd.to_numpy(fitted_rep.mean())[qoi_plot]
-            pce_va = bkd.to_numpy(fitted_rep.variance())[qoi_plot]
-            pce_mean_errors[N_bud].append(
-                abs(pce_mu - true_mean) / abs(true_mean)
-            )
-            pce_var_errors[N_bud].append(
-                abs(pce_va - true_var) / abs(true_var)
-            )
-        except Exception:
-            pce_mean_errors[N_bud].append(np.nan)
-            pce_var_errors[N_bud].append(np.nan)
-
-
-def _plot_convergence(ax, N_vals, mc_errs, pce_errs, ylabel, title,
-                      deg_labels):
-    mc_med = [np.nanmedian(mc_errs[N]) for N in N_vals]
-    mc_lo = [np.nanpercentile(mc_errs[N], 10) for N in N_vals]
-    mc_hi = [np.nanpercentile(mc_errs[N], 90) for N in N_vals]
-    pce_med = [np.nanmedian(pce_errs[N]) for N in N_vals]
-    pce_lo = [np.nanpercentile(pce_errs[N], 10) for N in N_vals]
-    pce_hi = [np.nanpercentile(pce_errs[N], 90) for N in N_vals]
-
-    ax.fill_between(N_vals, mc_lo, mc_hi, alpha=0.15, color="#2C7FB8")
-    ax.semilogy(N_vals, mc_med, "o-", ms=5, color="#2C7FB8", lw=1.5,
-                label="Monte Carlo")
-    ax.fill_between(N_vals, pce_lo, pce_hi, alpha=0.15, color="#E67E22")
-    ax.semilogy(N_vals, pce_med, "s-", ms=5, color="#E67E22", lw=1.5,
-                label="PCE")
-    # Annotate PCE degree at each point
-    for N, deg_lbl in zip(N_vals, deg_labels):
-        idx = N_vals.index(N)
-        ax.annotate(f"p={deg_lbl}", (N, pce_med[idx]),
-                    textcoords="offset points", xytext=(6, -12),
-                    fontsize=7, color="#E67E22")
-    ax.set_xlabel("Number of model evaluations $N$", fontsize=11)
-    ax.set_ylabel(ylabel, fontsize=11)
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.2, which="both")
-
-
-deg_labels = [str(d) for _, d in budget_degree_pairs]
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-_plot_convergence(
-    ax1, N_budget_values, mc_mean_errors, pce_mean_errors,
-    "Relative error in mean",
-    f"Mean of {qoi_labels[qoi_plot]}",
-    deg_labels,
-)
-_plot_convergence(
-    ax2, N_budget_values, mc_var_errors, pce_var_errors,
-    "Relative error in variance",
-    f"Variance of {qoi_labels[qoi_plot]}",
-    deg_labels,
-)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+plot_pce_vs_mc(model, prior, marginals, ls_fitter, bkd,
+               nvars, nqoi, qoi_labels, axes)
 plt.tight_layout()
 plt.show()
 ```

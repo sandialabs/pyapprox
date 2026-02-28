@@ -177,6 +177,8 @@ format:
     include-in-header:
       - file: ../_macros_html.tex
 
+bibliography: references.bib
+
 execute:
   echo: true
   warning: false

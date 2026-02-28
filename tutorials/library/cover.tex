@@ -1,32 +1,48 @@
 % PyApprox User Manual — Cover Page
 % Included via include-before-body in _quarto-pdf.yml
+% Matches the hero block style from index.html
+
+% Suppress Pandoc's auto-generated title page
+\renewcommand{\maketitle}{}
+
+% Define hero colors matching custom.scss
+\definecolor{heroBlack}{HTML}{000000}
+\definecolor{heroCyan}{HTML}{00B4D8}
 
 \begin{titlepage}
 \newgeometry{margin=1in}
+\pagecolor{heroBlack}
+\color{white}
 
 \centering
 
-\vspace*{1cm}
+\vspace*{0.5cm}
 
 % Logo
-\includegraphics[width=0.35\textwidth]{assets/pyapprox-logo.png}
+\includegraphics[width=0.25\textwidth]{assets/pyapprox-logo.png}
 
-\vspace{1.5cm}
+\vspace{1cm}
 
-% Title
-{\Huge\bfseries\sffamily PyApprox User Manual\par}
+% Eyebrow
+{\small\sffamily\bfseries\color{heroCyan}\MakeUppercase{Open-Source Python Toolkit}\par}
 
 \vspace{0.5cm}
 
-% Subtitle
-{\Large\itshape\color{cyan} Faster, Defensible Delivery via Simulation \& Data\par}
+% Title
+{\fontsize{32}{38}\selectfont\sffamily\bfseries PyApprox User Manual\par}
 
-\vspace{1.5cm}
+\vspace{0.2cm}
+
+% Subtitle
+{\fontsize{18}{24}\selectfont\sffamily\bfseries\color{heroCyan}%
+Uncertainty Quantification for Real-World Decisions\par}
+
+\vspace{1cm}
 
 % Tagline
-\begin{minipage}{0.8\textwidth}
+\begin{minipage}{0.75\textwidth}
 \centering
-\large
+\normalsize\color{white}
 Pushing performance while guaranteeing reliability demands expensive
 simulations and observational data. \textbf{PyApprox} gives engineers and
 scientists the mathematical tools to quantify uncertainty, focus resources
@@ -34,51 +50,37 @@ where they matter most, and close the gap between ambitious targets and
 defensible results --- faster.
 \end{minipage}
 
-\vspace{1.5cm}
-
-% Stats
-{\Large\sffamily 80+ Tutorials \quad$\cdot$\quad 11 Topics \quad$\cdot$\quad 2 Backends\par}
-
 \vspace{1cm}
 
-% Application domains
-\begin{minipage}{0.8\textwidth}
-\centering
-\textit{Energy Systems \quad$\cdot$\quad Precision Manufacturing \quad$\cdot$\quad Aerospace}\\[4pt]
-\textit{Energy \& Subsurface \quad$\cdot$\quad Heavy Industry \quad$\cdot$\quad Robotics}\\[4pt]
-\textit{Aerothermal \quad$\cdot$\quad Earth Science}
-\end{minipage}
+% Stats bar
+{\large\sffamily\color{heroCyan}80+ Tutorials \quad$\cdot$\quad 11 Topics \quad$\cdot$\quad 2 Backends\par}
 
-\vspace{1.5cm}
+\vspace{0.8cm}
 
 % Author
-{\Large\sffamily John D. Jakeman\par}
-\vspace{0.3cm}
-{\large Sandia National Laboratories\par}
-
-\vspace{1cm}
-
-% Citation
-\begin{minipage}{0.85\textwidth}
-\small
-\textit{J.D.\ Jakeman, ``PyApprox: A software package for sensitivity analysis,
-Bayesian inference, optimal experimental design, and multi-fidelity uncertainty
-quantification and surrogate modeling,''
-\textbf{Environmental Modelling \& Software}, vol.~170, p.~105825, 2023.}\\[4pt]
-\href{https://doi.org/10.1016/j.envsoft.2023.105825}{DOI: 10.1016/j.envsoft.2023.105825}
-\end{minipage}
+{\Large\sffamily\bfseries John D. Jakeman\par}
+\vspace{0.2cm}
+{\normalsize\sffamily Sandia National Laboratories\par}
 
 \vfill
 
+% Citation
+\begin{minipage}{0.80\textwidth}
+\small\color{white}
+\textit{J.D.\ Jakeman, ``PyApprox,''
+\textbf{Environmental Modelling \& Software}, vol.~170, p.~105825, 2023.}\\[3pt]
+{\color{heroCyan}\href{https://doi.org/10.1016/j.envsoft.2023.105825}{DOI: 10.1016/j.envsoft.2023.105825}}
+\end{minipage}
+
+\vspace{0.5cm}
+
 % Copyright
-\small Copyright 2019 National Technology \& Engineering Solutions of Sandia, LLC (NTESS).\\
-Under the terms of Contract DE-NA0003525 with NTESS,\\
-the U.S. Government retains certain rights in this software.
+{\scriptsize Copyright 2019 National Technology \& Engineering Solutions of Sandia, LLC (NTESS).\\
+Under the terms of Contract DE-NA0003525, the U.S. Government retains certain rights in this software.}
 
-\vspace{0.3cm}
-
-% Date
+\vspace{0.2cm}
 {\small\today}
 
 \restoregeometry
+\nopagecolor
 \end{titlepage}

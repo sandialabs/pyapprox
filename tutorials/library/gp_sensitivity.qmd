@@ -148,12 +148,8 @@ gt = benchmark.ground_truth()
 marginals = prior.marginals()
 nvars = 3
 
-# Print ground truth
 gt_main = bkd.to_numpy(gt.main_effects).flatten()
 gt_total = bkd.to_numpy(gt.total_effects).flatten()
-print("Ground truth Sobol indices:")
-for i in range(nvars):
-    print(f"  x_{i+1}: S = {gt_main[i]:.4f},  S^T = {gt_total[i]:.4f}")
 ```
 
 ::: {.callout-important}
@@ -190,8 +186,6 @@ y_pred = gp.predict(X_test)
 rel_rmse = float(bkd.to_numpy(
     bkd.sqrt(bkd.mean((y_test - y_pred)**2)) / bkd.sqrt(bkd.mean(y_test**2))
 ))
-print(f"Relative RMSE: {rel_rmse:.2e}")
-print(repr(gp))
 ```
 
 
@@ -227,11 +221,6 @@ total_effects_gp = sens.total_effect_indices()  # Dict[int, Array]
 
 S1_gp = np.array([float(bkd.to_numpy(main_effects_gp[d])) for d in range(nvars)])
 ST_gp = np.array([float(bkd.to_numpy(total_effects_gp[d])) for d in range(nvars)])
-
-print("GP kernel-integral Sobol indices:")
-for i in range(nvars):
-    print(f"  x_{i+1}: S = {S1_gp[i]:.4f}  (truth: {gt_main[i]:.4f}),  "
-          f"S^T = {ST_gp[i]:.4f}  (truth: {gt_total[i]:.4f})")
 ```
 
 Note that $\Sobol{3} \approx 0$ (no main effect for $x_3$) but $\SobolT{3} > 0$
@@ -255,11 +244,6 @@ sa.compute(sa_values)
 
 S1_ff = bkd.to_numpy(sa.main_effects())[:, 0]
 ST_ff = bkd.to_numpy(sa.total_effects())[:, 0]
-
-print("Fix-and-freeze Sobol indices (from GP surrogate):")
-for i in range(nvars):
-    print(f"  x_{i+1}: S = {S1_ff[i]:.4f}  (truth: {gt_main[i]:.4f}),  "
-          f"S^T = {ST_ff[i]:.4f}  (truth: {gt_total[i]:.4f})")
 ```
 
 
@@ -273,46 +257,10 @@ known analytical values. @fig-gp-sobol shows both estimates side-by-side.
 #| fig-cap: "GP-based Sobol indices for the Ishigami function. Bars show GP kernel-integral estimates; dots show fix-and-freeze (Saltelli/Jansen) estimates; dashed lines mark the analytical ground truth."
 #| label: fig-gp-sobol
 
-x = np.arange(nvars)
-width = 0.35
-hw = width / 2 + 0.08          # half-width of ground-truth dashes
-input_labels = [f"$x_{i+1}$" for i in range(nvars)]
+from _figures._gp import plot_gp_sobol
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-
-# First-order
-ax1.bar(x, S1_gp, width, label="GP kernel integrals",
-        color="#2C7FB8", edgecolor="k", lw=0.5)
-ax1.scatter(x, S1_ff, s=50, color="white", edgecolors="#084594",
-            linewidths=1.5, zorder=5, label="Fix & freeze")
-for i in range(nvars):
-    ax1.plot([i - hw, i + hw], [gt_main[i], gt_main[i]],
-             color="k", linestyle="--", alpha=0.6, lw=1.2,
-             label="Ground truth" if i == 0 else None)
-ax1.set_xticks(x)
-ax1.set_xticklabels(input_labels, fontsize=11)
-ax1.set_ylabel("Sensitivity index", fontsize=10)
-ax1.set_title("First-order $S_i$", fontsize=11)
-ax1.set_ylim(0, 0.65)
-ax1.legend(fontsize=8)
-ax1.grid(True, alpha=0.25, axis="y")
-
-# Total effect
-ax2.bar(x, ST_gp, width, label="GP kernel integrals",
-        color="#FD8D3C", edgecolor="k", lw=0.5)
-ax2.scatter(x, ST_ff, s=50, color="white", edgecolors="#A63603",
-            linewidths=1.5, zorder=5, label="Fix & freeze")
-for i in range(nvars):
-    ax2.plot([i - hw, i + hw], [gt_total[i], gt_total[i]],
-             color="k", linestyle="--", alpha=0.6, lw=1.2,
-             label="Ground truth" if i == 0 else None)
-ax2.set_xticks(x)
-ax2.set_xticklabels(input_labels, fontsize=11)
-ax2.set_title("Total effect $S_i^T$", fontsize=11)
-ax2.set_ylim(0, 0.7)
-ax2.legend(fontsize=8)
-ax2.grid(True, alpha=0.25, axis="y")
-
+fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+plot_gp_sobol(axes, nvars, S1_gp, ST_gp, S1_ff, ST_ff, gt_main, gt_total)
 plt.tight_layout()
 plt.show()
 ```
@@ -378,37 +326,16 @@ S_dist = ensemble.compute_sobol_distribution(
     seed=42,
 )
 
-# Print summary statistics
-print("Sobol index distribution (500 GP realizations):")
-for d in range(nvars):
-    S_d = bkd.to_numpy(S_dist[d])
-    print(f"  S_{d+1}: mean={S_d.mean():.4f}, std={S_d.std():.4f}, "
-          f"95% CI=[{np.percentile(S_d, 2.5):.4f}, {np.percentile(S_d, 97.5):.4f}]"
-          f"  (truth: {gt_main[d]:.4f})")
 ```
 
 ```{python}
 #| fig-cap: "Distribution of first-order Sobol indices across 500 GP posterior realizations. Histograms show the spread due to GP uncertainty; vertical dashed lines mark the analytical ground truth. Narrow distributions indicate the GP has enough training data to pin down the sensitivity structure."
 #| label: fig-sobol-distribution
 
+from _figures._gp import plot_sobol_distribution
+
 fig, axes = plt.subplots(1, nvars, figsize=(12, 3.5), sharey=True)
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-
-for d in range(nvars):
-    ax = axes[d]
-    S_d = bkd.to_numpy(S_dist[d])
-    ax.hist(S_d, bins=30, density=True, alpha=0.7, color=colors[d],
-            edgecolor="k", lw=0.3)
-    ax.axvline(gt_main[d], color="k", lw=1.5, ls="--", alpha=0.7,
-               label=f"Truth: {gt_main[d]:.3f}")
-    ax.axvline(S_d.mean(), color=colors[d], lw=1.5, ls="-",
-               label=f"Mean: {S_d.mean():.3f}")
-    ax.set_xlabel(f"$S_{d+1}$", fontsize=11)
-    ax.set_title(f"$x_{d+1}$", fontsize=11)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-
-axes[0].set_ylabel("Density", fontsize=10)
+plot_sobol_distribution(axes, nvars, S_dist, gt_main, bkd)
 plt.suptitle("GP posterior uncertainty in Sobol indices", fontsize=11, y=1.02)
 plt.tight_layout()
 plt.show()

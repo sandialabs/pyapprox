@@ -188,47 +188,10 @@ The [previous tutorial](mcmc_sampling.qmd) used a well-tuned proposal and the ch
 #| echo: false
 #| fig-cap: "Effect of proposal width on chain behavior. Left: too narrow — the chain takes tiny steps and explores slowly (high acceptance, high autocorrelation). Center: well-tuned — healthy mixing, the chain moves freely through the posterior. Right: too wide — most proposals land in low-density regions and are rejected, causing the chain to stick in place for long stretches."
 #| label: fig-proposal-width
-
-n_steps = 2000
-configs = [
-    {"sigma": np.array([0.05, 0.05]), "label": "Too narrow", "color": "#2C7FB8"},
-    {"sigma": np.array([0.5, 0.5]), "label": "Well-tuned", "color": "#27AE60"},
-    {"sigma": np.array([5.0, 5.0]), "label": "Too wide", "color": "#C0392B"},
-]
+from _figures._bayesian import plot_proposal_width
 
 fig, axes = plt.subplots(3, 2, figsize=(13, 10))
-
-for row, cfg in enumerate(configs):
-    chain_cfg, acc_rate = run_mh(n_steps, cfg["sigma"])
-    burnin = 500
-    chain_post = chain_cfg[burnin:]
-
-    # Trace plot (xi_1 only for clarity)
-    ax_trace = axes[row, 0]
-    ax_trace.plot(chain_cfg[:, 0], lw=0.4, color=cfg["color"], alpha=0.8)
-    ax_trace.axhline(xi1_true, color="#27AE60", ls="--", lw=1, alpha=0.5)
-    ax_trace.axvspan(0, burnin, color="gray", alpha=0.1)
-    ax_trace.set_ylabel(r"$\xi_1$", fontsize=11)
-    ax_trace.set_title(f'{cfg["label"]} (accept rate: {acc_rate:.0%})',
-                       fontsize=10, color=cfg["color"], fontweight="bold")
-    ax_trace.grid(True, alpha=0.15)
-    if row == 2:
-        ax_trace.set_xlabel("Iteration", fontsize=11)
-
-    # 2D scatter
-    ax_scatter = axes[row, 1]
-    ax_scatter.plot(chain_cfg[:200, 0], chain_cfg[:200, 1], "-",
-                    color="gray", lw=0.3, alpha=0.4)
-    ax_scatter.scatter(chain_post[:, 0], chain_post[:, 1], s=3,
-                       alpha=0.3, color=cfg["color"], edgecolors="none")
-    ax_scatter.scatter(xi1_true, xi2_true, marker="D", s=60, color="k",
-                       edgecolors="k", lw=1, zorder=5)
-    ax_scatter.set_ylabel(r"$\xi_2$", fontsize=11)
-    ax_scatter.set_title(f"2D scatter — {cfg['label']}", fontsize=10)
-    ax_scatter.grid(True, alpha=0.15)
-    if row == 2:
-        ax_scatter.set_xlabel(r"$\xi_1$", fontsize=11)
-
+plot_proposal_width(axes, run_mh, xi1_true, xi2_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -248,41 +211,11 @@ The acceptance rate provides a quick diagnostic. @fig-acceptance-rate sweeps the
 #| echo: false
 #| fig-cap: "Acceptance rate and effective sample size (ESS) vs. proposal width. The optimal proposal width produces an acceptance rate of roughly $25\\text{--}40\\%$ for 2D problems. Too narrow → high acceptance but low ESS. Too wide → low acceptance and low ESS."
 #| label: fig-acceptance-rate
-
-sigma_multipliers = np.logspace(-1.5, 1.2, 12)
-base_sigma = np.array([0.5, 0.5])
-acc_rates = []
-ess_values = []
-
-for mult in sigma_multipliers:
-    ch, ar = run_mh(1500, base_sigma * mult, seed=123)
-    acc_rates.append(ar)
-    ess_values.append(effective_sample_size(ch[500:, 0]))
+from _figures._bayesian import plot_acceptance_rate
 
 fig, ax1 = plt.subplots(figsize=(8, 4.5))
 ax2 = ax1.twinx()
-
-ax1.semilogx(sigma_multipliers, acc_rates, "o-", ms=5, color="#2C7FB8",
-             lw=1.5, label="Acceptance rate")
-ax1.axhspan(0.2, 0.4, color="#27AE60", alpha=0.1)
-ax1.axhline(0.234, color="#27AE60", ls="--", lw=1, alpha=0.6,
-            label="Optimal ≈ 23.4% (theory)")
-ax1.set_xlabel("Proposal width multiplier", fontsize=12)
-ax1.set_ylabel("Acceptance rate", fontsize=12, color="#2C7FB8")
-ax1.tick_params(axis="y", labelcolor="#2C7FB8")
-ax1.set_ylim(-0.02, 1.02)
-
-ax2.semilogx(sigma_multipliers, ess_values, "s-", ms=5, color="#E67E22",
-             lw=1.5, label=r"ESS ($\xi_1$)")
-ax2.set_ylabel("Effective sample size", fontsize=12, color="#E67E22")
-ax2.tick_params(axis="y", labelcolor="#E67E22")
-
-# Combined legend
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax2.get_legend_handles_labels()
-ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc="center right")
-ax1.grid(True, alpha=0.15)
-ax1.set_title("Tuning the proposal width", fontsize=11)
+plot_acceptance_rate(ax1, ax2, run_mh, effective_sample_size)
 plt.tight_layout()
 plt.show()
 ```
@@ -302,35 +235,10 @@ The chain starts wherever we place it and needs time to find the high-density re
 #| echo: false
 #| fig-cap: "Effect of burn-in removal. The red histogram (all samples) is visibly shifted from the true value because the burn-in transient pulls the distribution toward the starting point. The blue histogram (burn-in removed) centers on the true value. The inset trace plot shows the transient approach phase (gray region)."
 #| label: fig-burnin
-
-chain_demo, _ = run_mh(2000, np.array([0.5, 0.5]), seed=7)
-burnin_val = 500
+from _figures._bayesian import plot_burnin
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
-
-# Use the same bins for both histograms so they overlay cleanly
-bins = np.linspace(chain_demo[:, 0].min(), chain_demo[:, 0].max(), 50)
-
-ax.hist(chain_demo[:, 0], bins=bins, density=True, color="#C0392B",
-        alpha=0.35, edgecolor="#C0392B", lw=0.5, label="All samples (with burn-in)")
-ax.hist(chain_demo[burnin_val:, 0], bins=bins, density=True, color="#2C7FB8",
-        alpha=0.45, edgecolor="#2C7FB8", lw=0.5, label="After burn-in removed")
-ax.axvline(xi1_true, color="#27AE60", ls="--", lw=2,
-           label=r"True $\xi_1$")
-ax.set_xlabel(r"$\xi_1$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Burn-in skews the posterior estimate", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.15)
-
-# Inset: trace plot
-ax_in = ax.inset_axes([0.55, 0.55, 0.42, 0.4])
-ax_in.plot(chain_demo[:, 0], lw=0.4, color="#C0392B", alpha=0.7)
-ax_in.axvspan(0, burnin_val, color="gray", alpha=0.2)
-ax_in.axhline(xi1_true, color="#27AE60", ls="--", lw=1, alpha=0.5)
-ax_in.set_ylabel(r"$\xi_1$", fontsize=7)
-ax_in.tick_params(labelsize=6)
-
+plot_burnin(ax, run_mh, xi1_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -345,29 +253,16 @@ Even after burn-in, consecutive chain samples are correlated --- the walker's po
 #| echo: false
 #| fig-cap: "Autocorrelation of the $\\xi_1$ chain for three proposal widths. The well-tuned chain (green) decorrelates within ~20 steps. The too-narrow chain (blue) stays correlated for hundreds of steps. The too-wide chain (red) also decorrelates slowly due to frequent rejections."
 #| label: fig-autocorrelation
+from _figures._bayesian import plot_autocorrelation
+
+configs = [
+    {"sigma": np.array([0.05, 0.05]), "label": "Too narrow", "color": "#2C7FB8"},
+    {"sigma": np.array([0.5, 0.5]), "label": "Well-tuned", "color": "#27AE60"},
+    {"sigma": np.array([5.0, 5.0]), "label": "Too wide", "color": "#C0392B"},
+]
 
 fig, ax = plt.subplots(figsize=(8, 4))
-max_lag = 200
-
-for cfg in configs:
-    chain_acf, _ = run_mh(3000, cfg["sigma"], seed=99)
-    x = chain_acf[500:, 0]
-    x = x - np.mean(x)
-    acf_full = np.correlate(x, x, mode="full")
-    acf_full = acf_full[len(x)-1:]
-    acf_full = acf_full / acf_full[0]
-    lags = np.arange(max_lag)
-    ax.plot(lags, acf_full[:max_lag], lw=1.5, color=cfg["color"],
-            label=cfg["label"])
-
-ax.axhline(0, color="gray", lw=0.5)
-ax.axhline(0.05, color="gray", ls=":", lw=0.5)
-ax.set_xlabel("Lag", fontsize=12)
-ax.set_ylabel("Autocorrelation", fontsize=12)
-ax.set_title(r"Autocorrelation of $\xi_1$ chain", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.15)
-ax.set_xlim(0, max_lag)
+plot_autocorrelation(ax, run_mh, configs)
 plt.tight_layout()
 plt.show()
 ```
@@ -385,69 +280,11 @@ Standard Metropolis-Hastings has a binary outcome: accept or reject. If a propos
 #| echo: false
 #| fig-cap: "Delayed Rejection in action. Top: the first proposal (large step) lands in a low-density region and is rejected. Bottom: a second proposal (smaller step) is tried from the same current position. It lands in a higher-density region and is accepted. Without DR, the chain would have stayed put."
 #| label: fig-delayed-rejection
-from scipy.stats import norm as sp_norm
-
-# 1D posterior on a grid for visualization
-xi_grid_1d = np.linspace(-4.0, 4.0, 500)
-prior_vals_1d = sp_norm.pdf(xi_grid_1d, 0, 1)
-tip_preds_1d = bkd.to_numpy(
-    tip_model_1d(bkd.asarray(xi_grid_1d[np.newaxis, :]))
-)[0, :]
-lik_vals_1d = sp_norm.pdf(y_obs_1d, tip_preds_1d, sigma_noise_1d)
-post_vals_1d = lik_vals_1d * prior_vals_1d
-post_vals_1d = post_vals_1d / np.trapz(post_vals_1d, xi_grid_1d)
-
-xi_current = 0.3
-xi_prop1 = 2.5   # large step, will be rejected
-xi_prop2 = 0.8   # smaller step, will be accepted
-
-p_curr = np.interp(xi_current, xi_grid_1d, post_vals_1d)
-p_prop1 = np.interp(xi_prop1, xi_grid_1d, post_vals_1d)
-p_prop2 = np.interp(xi_prop2, xi_grid_1d, post_vals_1d)
+from _figures._bayesian import plot_delayed_rejection
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
-
-for ax, xi_prop, p_prop, stage, color, outcome in [
-    (ax1, xi_prop1, p_prop1, "Stage 1 (large step)", "#C0392B", "Rejected ✗"),
-    (ax2, xi_prop2, p_prop2, "Stage 2 (smaller step)", "#27AE60", "Accepted ✓"),
-]:
-    ax.fill_between(xi_grid_1d, post_vals_1d, alpha=0.12, color="#E67E22")
-    ax.plot(xi_grid_1d, post_vals_1d, color="#E67E22", lw=2)
-
-    # Current
-    ax.plot(xi_current, p_curr, "o", ms=12, color="#2C7FB8",
-            markeredgecolor="k", markeredgewidth=1.5, zorder=5)
-    ax.annotate("current", (xi_current, p_curr),
-                textcoords="offset points", xytext=(0, 15),
-                ha="center", fontsize=9, color="#2C7FB8", fontweight="bold")
-
-    # Proposal
-    ax.plot(xi_prop, p_prop, "s", ms=12, color=color,
-            markeredgecolor="k", markeredgewidth=1.5, zorder=5)
-
-    # Arrow
-    y_arrow = max(p_curr, p_prop) * 0.3
-    ax.annotate("", xy=(xi_prop, y_arrow), xytext=(xi_current, y_arrow),
-                arrowprops=dict(arrowstyle="->", lw=2, color=color))
-
-    # Proposal distribution sketch
-    sigma_sketch = 2.0 if "Stage 1" in stage else 0.6
-    prop_sketch = sp_norm.pdf(xi_grid_1d, xi_current, sigma_sketch)
-    prop_sketch = prop_sketch / prop_sketch.max() * post_vals_1d.max() * 0.2
-    ax.plot(xi_grid_1d, prop_sketch, "--", color="gray", lw=1,
-            label=f"Proposal ($\\sigma = {sigma_sketch}$)")
-
-    ax.text(0.98, 0.85, f"{stage}\n{outcome}", transform=ax.transAxes,
-            ha="right", va="top", fontsize=10, fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.3",
-                      fc="#f5d5d5" if "Rejected" in outcome else "#d5f5d5",
-                      ec="gray", lw=0.5))
-
-    ax.set_ylabel("Density", fontsize=11)
-    ax.legend(fontsize=8, loc="upper left")
-    ax.grid(True, alpha=0.15)
-
-ax2.set_xlabel(r"$\xi$", fontsize=12)
+plot_delayed_rejection(ax1, ax2, tip_model_1d, y_obs_1d, sigma_noise_1d,
+                       bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -471,17 +308,7 @@ where $\hat{\boldsymbol{\Sigma}}_t$ is the sample covariance of the chain so far
 #| echo: false
 #| fig-cap: "Adaptive Metropolis learns the posterior shape. Left: initial isotropic proposal (circle) — the chain makes many rejected moves perpendicular to the posterior ridge. Right: after adaptation, the proposal aligns with the posterior's correlation structure (tilted ellipse) — the chain moves efficiently along the ridge."
 #| label: fig-adaptive-proposal
-from matplotlib.patches import Ellipse
-
-def plot_proposal_ellipse(ax, center, cov, color, label, scale=2):
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    angle = np.degrees(np.arctan2(eigvecs[1, 1], eigvecs[0, 1]))
-    w = 2 * scale * np.sqrt(eigvals[1])
-    h = 2 * scale * np.sqrt(eigvals[0])
-    ell = Ellipse(xy=center, width=w, height=h, angle=angle,
-                  facecolor="none", edgecolor=color, lw=2.5, ls="--",
-                  label=label)
-    ax.add_patch(ell)
+from _figures._bayesian import plot_adaptive_proposal
 
 # Run adaptive MH
 n_steps_am = 3000
@@ -501,45 +328,13 @@ result_am = sampler_am.sample(
     bounds=bkd.asarray([[-4.0, 4.0], [-4.0, 4.0]]),
 )
 
-chain_am = bkd.to_numpy(result_am.samples).T  # (n_steps, 2)
+chain_am = bkd.to_numpy(result_am.samples).T
 acc_am = result_am.acceptance_rate
 cov_late = bkd.to_numpy(sampler_am.proposal_covariance())
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-
-# Posterior contours
-n_g = 80
-xi1_g = np.linspace(-4.0, 4.0, n_g)
-xi2_g = np.linspace(-4.0, 4.0, n_g)
-xi1_m, xi2_m = np.meshgrid(xi1_g, xi2_g)
-grid_samples = bkd.asarray(np.vstack([xi1_m.ravel(), xi2_m.ravel()]))
-lp_flat = bkd.to_numpy(posterior_2d(grid_samples))
-lp_grid = lp_flat.reshape(n_g, n_g)
-p_grid = np.exp(lp_grid - np.max(lp_grid))
-
-for ax, title, chain_slice, cov_ell, c_color, ell_label in [
-    (ax1, "Early: isotropic proposal", chain_am[:600], cov_early,
-     "#C0392B", "Initial proposal"),
-    (ax2, "Late: adapted proposal", chain_am[1000:], cov_late,
-     "#27AE60", "Adapted proposal"),
-]:
-    ax.contourf(xi1_m, xi2_m, p_grid, levels=10, cmap="Blues", alpha=0.4)
-    ax.contour(xi1_m, xi2_m, p_grid, levels=8, colors="steelblue",
-               linewidths=0.4, alpha=0.4)
-    ax.scatter(chain_slice[:, 0], chain_slice[:, 1], s=3, alpha=0.4,
-               color=c_color, edgecolors="none")
-    ax.scatter(xi1_true, xi2_true, marker="D", s=60, color="k",
-               edgecolors="k", lw=1, zorder=5)
-
-    center = np.mean(chain_slice, axis=0)
-    plot_proposal_ellipse(ax, center, cov_ell, c_color, ell_label)
-
-    ax.set_xlabel(r"$\xi_1$", fontsize=11)
-    ax.set_ylabel(r"$\xi_2$", fontsize=11)
-    ax.set_title(title, fontsize=10, fontweight="bold")
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.15)
-
+plot_adaptive_proposal(ax1, ax2, chain_am, cov_early, cov_late,
+                       posterior_2d, xi1_true, xi2_true, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -560,6 +355,7 @@ The adapted proposal ellipse is tilted to align with the posterior's correlation
 #| echo: false
 #| fig-cap: "Comparison of four MCMC variants on the KLE beam problem (3,000 steps each). Top row: trace plots of $\\xi_1$. Bottom row: 2D scatter of posterior samples with ESS annotations. Focus on ESS rather than acceptance rate — DR achieves 90% acceptance but the lowest ESS, because most accepted moves are tiny second-stage steps that barely advance the chain."
 #| label: fig-dram-comparison
+from _figures._bayesian import plot_dram_comparison
 
 n_compare = 3000
 burnin_comp = 500
@@ -611,35 +407,8 @@ methods = [
 ]
 
 fig, axes = plt.subplots(2, 4, figsize=(16, 7))
-
-for col, (name, ch, acc, color) in enumerate(methods):
-    # Trace
-    ax_t = axes[0, col]
-    ax_t.plot(ch[:, 0], lw=0.3, color=color, alpha=0.8)
-    ax_t.axhline(xi1_true, color="gray", ls="--", lw=0.8, alpha=0.5)
-    ax_t.axvspan(0, burnin_comp, color="gray", alpha=0.08)
-    ax_t.set_title(f"{name} (acc: {acc:.0%})", fontsize=10,
-                   color=color, fontweight="bold")
-    ax_t.set_ylabel(r"$\xi_1$", fontsize=10) if col == 0 else None
-    ax_t.grid(True, alpha=0.15)
-    ax_t.set_xlabel("Iteration", fontsize=9)
-
-    # 2D scatter
-    ax_s = axes[1, col]
-    ch_post = ch[burnin_comp:]
-    ax_s.scatter(ch_post[:, 0], ch_post[:, 1], s=2, alpha=0.3,
-                 color=color, edgecolors="none")
-    ax_s.scatter(xi1_true, xi2_true, marker="D", s=50, color="k", zorder=5)
-    ax_s.set_xlabel(r"$\xi_1$", fontsize=10)
-    ax_s.set_ylabel(r"$\xi_2$", fontsize=10) if col == 0 else None
-    ax_s.grid(True, alpha=0.15)
-
-    # ESS annotation
-    ess = effective_sample_size(ch_post[:, 0])
-    ax_s.text(0.05, 0.92, f"ESS = {ess:.0f}", transform=ax_s.transAxes,
-              fontsize=9, fontweight="bold", color=color,
-              bbox=dict(fc="white", ec="gray", lw=0.5, alpha=0.8))
-
+plot_dram_comparison(axes, methods, xi1_true, xi2_true,
+                     effective_sample_size, burnin_comp=burnin_comp)
 plt.tight_layout()
 plt.show()
 ```

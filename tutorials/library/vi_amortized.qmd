@@ -82,79 +82,12 @@ where $P_1$ is the first orthonormal polynomial and $c_0, c_1, d_0, d_1$ are the
 #| echo: false
 #| fig-cap: "Single-problem VI (top) runs a separate optimization for each dataset, producing independent posteriors. Amortized VI (bottom) learns parameter functions $\\mu(x)$ and $\\sigma(x)$ that map any dataset descriptor $x$ to the corresponding posterior --- a single optimization covers all problems."
 #| label: fig-amortization-concept
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-from scipy.stats import norm
+from _figures._vi import plot_amortization_concept
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7),
                                  gridspec_kw={"hspace": 0.5})
-
-for ax in [ax1, ax2]:
-    ax.set_xlim(0, 14)
-    ax.set_ylim(0, 3.5)
-    ax.axis("off")
-
-# --- Top: Single-problem VI ---
-ax1.set_title("Single-problem VI: one optimization per dataset",
-              fontsize=11, fontweight="bold", loc="left", pad=10)
-
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-for i, (xpos, label, c) in enumerate([
-    (1.5, "$y_1$", colors[0]),
-    (6.0, "$y_2$", colors[1]),
-    (10.5, "$y_3$", colors[2]),
-]):
-    # Data box
-    box = FancyBboxPatch((xpos - 0.8, 2.2), 1.6, 0.8,
-                          boxstyle="round,pad=0.1",
-                          facecolor="#F0F0F0", edgecolor=c, lw=2)
-    ax1.add_patch(box)
-    ax1.text(xpos, 2.6, label, ha="center", va="center",
-             fontsize=13, color=c, fontweight="bold")
-
-    # Arrow
-    ax1.annotate("", xy=(xpos, 1.7), xytext=(xpos, 2.1),
-                 arrowprops=dict(arrowstyle="-|>", lw=1.5, color=c))
-    ax1.text(xpos, 1.9, "optimize", ha="center", fontsize=8, color="gray")
-
-    # Result box
-    box2 = FancyBboxPatch((xpos - 1.0, 0.5), 2.0, 1.0,
-                           boxstyle="round,pad=0.1",
-                           facecolor=c, edgecolor=c, lw=1, alpha=0.15)
-    ax1.add_patch(box2)
-    ax1.text(xpos, 1.0, f"$q_{i+1}(\\theta;\\,\\mu_{i+1},\\sigma_{i+1})$",
-             ha="center", va="center", fontsize=11, color=c)
-
-# --- Bottom: Amortized VI ---
-ax2.set_title("Amortized VI: one optimization for all datasets",
-              fontsize=11, fontweight="bold", loc="left", pad=10)
-
-for i, (xpos, label, c) in enumerate([
-    (1.5, "$y_1$", colors[0]),
-    (6.0, "$y_2$", colors[1]),
-    (10.5, "$y_3$", colors[2]),
-]):
-    box = FancyBboxPatch((xpos - 0.8, 2.2), 1.6, 0.8,
-                          boxstyle="round,pad=0.1",
-                          facecolor="#F0F0F0", edgecolor=c, lw=2)
-    ax2.add_patch(box)
-    ax2.text(xpos, 2.6, label, ha="center", va="center",
-             fontsize=13, color=c, fontweight="bold")
-    ax2.annotate("", xy=(6.0, 1.7), xytext=(xpos, 2.1),
-                 arrowprops=dict(arrowstyle="-|>", lw=1.2, color=c, alpha=0.6))
-
-# Central function box
-center_box = FancyBboxPatch((3.5, 0.5), 5.0, 1.0,
-                              boxstyle="round,pad=0.15",
-                              facecolor="#D6EAF8", edgecolor="#2C7FB8", lw=2)
-ax2.add_patch(center_box)
-ax2.text(6.0, 1.0,
-         r"$q(\theta;\, \mu(x),\, \sigma(x))$",
-         ha="center", va="center", fontsize=13, color="#2C7FB8")
-ax2.text(6.0, 1.85, "single optimization", ha="center",
-         fontsize=9, color="gray", fontstyle="italic")
-
+plot_amortization_concept(ax1, ax2)
 plt.show()
 ```
 
@@ -421,35 +354,17 @@ for k in range(K):
 #| echo: false
 #| fig-cap: "Amortized VI posteriors (blue dashed) at each of the $K = 3$ training groups, compared to the exact conjugate posteriors (orange). A single optimization with 4 parameters recovers all three posteriors simultaneously."
 #| label: fig-training-recovery
+import numpy as np
+from scipy.stats import norm
+from _figures._vi import plot_training_recovery
 
 theta_grid = np.linspace(-4, 5, 300)
 fig, axes = plt.subplots(1, K, figsize=(5 * K, 4), sharey=True)
-
-for k, ax in enumerate(axes):
-    # Exact
-    conjugate.compute(all_obs[k])
-    exact_mean = float(conjugate.posterior_mean()[0, 0])
-    exact_std = math.sqrt(float(conjugate.posterior_covariance()[0, 0]))
-    exact_pdf = norm.pdf(theta_grid, exact_mean, exact_std)
-
-    # VI
-    label_k = bkd.asarray([[labels_np[k]]])
-    vi_mu = float(mean_func(label_k)[0, 0])
-    vi_std = math.exp(float(log_stdev_func(label_k)[0, 0]))
-    vi_pdf = norm.pdf(theta_grid, vi_mu, vi_std)
-
-    ax.plot(theta_grid, exact_pdf, color="#E67E22", lw=2.5,
-            label="Exact conjugate")
-    ax.fill_between(theta_grid, exact_pdf, alpha=0.12, color="#E67E22")
-    ax.plot(theta_grid, vi_pdf, color="#2C7FB8", lw=2.5, ls="--",
-            label="Amortized VI")
-    ax.axvline(theta_true[k], color="#27AE60", ls="--", lw=1.5, alpha=0.7)
-    ax.set_xlabel(r"$\theta$", fontsize=12)
-    ax.set_title(f"Group {k} (label = {labels_np[k]:.2f})", fontsize=11)
-    ax.grid(True, alpha=0.15)
-
-axes[0].set_ylabel("Density", fontsize=12)
-axes[-1].legend(fontsize=9, loc="upper right")
+plot_training_recovery(
+    bkd, mean_func, log_stdev_func,
+    all_obs, labels_np, theta_true,
+    conjugate, K, axes,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -511,81 +426,15 @@ for t in range(K_test):
 #| echo: false
 #| fig-cap: "Left: the learned $\\mu(x)$ and $\\sigma(x)$ functions (solid curves) evaluated across the label range $[-1, 1]$. Training points (circles) and test points (stars) are shown. Right: the amortized posterior at a test label compared to the exact conjugate posterior. The degree-1 polynomial exactly captures the affine relationship between the observations and the posterior parameters."
 #| label: fig-generalization
-
-x_eval = np.linspace(-1, 1, 100)
-mu_curve = []
-sig_curve = []
-for x in x_eval:
-    xv = bkd.asarray([[x]])
-    mu_curve.append(float(mean_func(xv)[0, 0]))
-    sig_curve.append(math.exp(float(log_stdev_func(xv)[0, 0])))
+from _figures._vi import plot_generalization
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-
-# Left: parameter functions
-ax1_twin = ax1.twinx()
-ln1, = ax1.plot(x_eval, mu_curve, color="#E67E22", lw=2.5, label=r"$\mu(x)$")
-ln2, = ax1_twin.plot(x_eval, sig_curve, color="#8E44AD", lw=2.5, ls="--",
-                      label=r"$\sigma(x)$")
-
-# Training labels
-for k in range(K):
-    label_k = bkd.asarray([[labels_np[k]]])
-    mu_k = float(mean_func(label_k)[0, 0])
-    sig_k = math.exp(float(log_stdev_func(label_k)[0, 0]))
-    ax1.plot(labels_np[k], mu_k, "o", ms=10, color="#E67E22",
-             markeredgecolor="k", lw=1.5, zorder=5)
-    ax1_twin.plot(labels_np[k], sig_k, "o", ms=10, color="#8E44AD",
-                  markeredgecolor="k", lw=1.5, zorder=5)
-
-# Test labels (reuse stored data for consistency)
-for t in range(K_test):
-    label_test_val = test_labels_list[t]
-    if abs(label_test_val) <= 1.0:
-        xv = bkd.asarray([[label_test_val]])
-        mu_t = float(mean_func(xv)[0, 0])
-        sig_t = math.exp(float(log_stdev_func(xv)[0, 0]))
-        ax1.plot(label_test_val, mu_t, "*", ms=14, color="#E67E22",
-                 markeredgecolor="k", lw=1, zorder=5)
-        ax1_twin.plot(label_test_val, sig_t, "*", ms=14, color="#8E44AD",
-                      markeredgecolor="k", lw=1, zorder=5)
-
-ax1.set_xlabel("Label $x$", fontsize=12)
-ax1.set_ylabel(r"$\mu(x)$", fontsize=12, color="#E67E22")
-ax1_twin.set_ylabel(r"$\sigma(x)$", fontsize=12, color="#8E44AD")
-ax1.set_title("Learned parameter functions", fontsize=11)
-lns = [ln1, ln2]
-labs = [l.get_label() for l in lns]
-ax1.legend(lns, labs, fontsize=10, loc="upper left")
-ax1.grid(True, alpha=0.15)
-ax1.text(0.98, 0.05, "● train   ★ test", transform=ax1.transAxes,
-         ha="right", fontsize=9, color="gray")
-
-# Right: example test posterior (first test group)
-conjugate.compute(test_obs_list[0])
-ex_mean = float(conjugate.posterior_mean()[0, 0])
-ex_std = math.sqrt(float(conjugate.posterior_covariance()[0, 0]))
-
-label_ex = test_labels_list[0]
-xv_ex = bkd.asarray([[label_ex]])
-vi_mu_ex = float(mean_func(xv_ex)[0, 0])
-vi_std_ex = math.exp(float(log_stdev_func(xv_ex)[0, 0]))
-
-exact_pdf = norm.pdf(theta_grid, ex_mean, ex_std)
-vi_pdf = norm.pdf(theta_grid, vi_mu_ex, vi_std_ex)
-
-ax2.plot(theta_grid, exact_pdf, color="#E67E22", lw=2.5, label="Exact conjugate")
-ax2.fill_between(theta_grid, exact_pdf, alpha=0.12, color="#E67E22")
-ax2.plot(theta_grid, vi_pdf, color="#2C7FB8", lw=2.5, ls="--",
-         label="Amortized VI")
-ax2.axvline(theta_test[0], color="#27AE60", ls="--", lw=1.5, alpha=0.7,
-            label=rf"True $\theta$ = {theta_test[0]}")
-ax2.set_xlabel(r"$\theta$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title(f"Test group (label = {label_ex:.2f})", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.15)
-
+plot_generalization(
+    bkd, mean_func, log_stdev_func,
+    labels_np, K,
+    test_obs_list, test_labels_list, theta_test, K_test,
+    conjugate, theta_grid, ax1, ax2,
+)
 plt.tight_layout()
 plt.show()
 ```

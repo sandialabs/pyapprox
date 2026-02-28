@@ -109,9 +109,6 @@ beta_E2 = BetaMarginal(6.0, 2.0, bkd, lb=0.9 * E2_nom, ub=1.1 * E2_nom)
 variable_indep = IndependentJoint([beta_E1, beta_E2], bkd)
 
 samples_indep = variable_indep.rvs(3000)
-print(f"Sample shape: {samples_indep.shape}")
-print(f"E1 range: [{samples_indep[0].min():.0f}, {samples_indep[0].max():.0f}]")
-print(f"E2 range: [{samples_indep[1].min():.0f}, {samples_indep[1].max():.0f}]")
 ```
 
 @fig-indep-beta shows the joint distribution: a scatter plot of the samples with marginal histograms and contours of the joint PDF. Because the parameters are independent, the contours are axis-aligned --- there is no preferred diagonal direction.
@@ -120,56 +117,17 @@ print(f"E2 range: [{samples_indep[1].min():.0f}, {samples_indep[1].max():.0f}]")
 #| echo: false
 #| fig-cap: "Independent Beta prior. $E_1$ has a Beta(2,6) marginal (left-skewed) and $E_2$ has a Beta(6,2) marginal (right-skewed), both on $\\pm 10\\%$ of nominal. The contours are axis-aligned because the parameters are uncorrelated."
 #| label: fig-indep-beta
-import numpy as np
 import matplotlib.pyplot as plt
+from _figures._forward_uq import plot_indep_beta
 
 fig, axes = plt.subplots(2, 2, figsize=(6, 6),
                           gridspec_kw={"width_ratios": [3, 1],
                                        "height_ratios": [1, 3],
                                        "hspace": 0.05, "wspace": 0.05})
-ax_main = axes[1, 0]
-ax_top = axes[0, 0]
-ax_right = axes[1, 1]
 axes[0, 1].axis("off")
-
-# Get domain for plot limits
-domain = variable_indep.domain()
-E1_lo, E1_hi = float(domain[0, 0]), float(domain[0, 1])
-E2_lo, E2_hi = float(domain[1, 0]), float(domain[1, 1])
-
-# Contours of the joint PDF
-plotter = variable_indep.plotter()
-plotter.plot_contours(ax_main, npts_1d=80, levels=8, cmap="Blues", alpha=0.6)
-
-# Scatter
 samples_np = bkd.to_numpy(samples_indep)
-ax_main.scatter(samples_np[0], samples_np[1], alpha=0.1, s=3, color="#2C7FB8",
-                zorder=0)
-ax_main.set_xlabel(r"$E_1$", fontsize=12)
-ax_main.set_ylabel(r"$E_2$", fontsize=12)
-ax_main.set_xlim(E1_lo - 200, E1_hi + 200)
-ax_main.set_ylim(E2_lo - 50, E2_hi + 50)
-
-# Marginal E1 (top)
-ax_top.hist(samples_np[0], bins=40, density=True, color="#2C7FB8", alpha=0.5,
-            edgecolor="none")
-e1_grid = bkd.reshape(bkd.linspace(E1_lo, E1_hi, 200), (1, -1))
-ax_top.plot(bkd.to_numpy(e1_grid[0]),
-            bkd.to_numpy(beta_E1.pdf(e1_grid)[0]), "k-", lw=1.2)
-ax_top.set_xlim(E1_lo - 200, E1_hi + 200)
-ax_top.set_yticks([])
-ax_top.set_xticks([])
-
-# Marginal E2 (right)
-ax_right.hist(samples_np[1], bins=40, density=True, color="#2C7FB8", alpha=0.5,
-              edgecolor="none", orientation="horizontal")
-e2_grid = bkd.reshape(bkd.linspace(E2_lo, E2_hi, 200), (1, -1))
-ax_right.plot(bkd.to_numpy(beta_E2.pdf(e2_grid)[0]),
-              bkd.to_numpy(e2_grid[0]), "k-", lw=1.2)
-ax_right.set_ylim(E2_lo - 50, E2_hi + 50)
-ax_right.set_xticks([])
-ax_right.set_yticks([])
-
+plot_indep_beta(variable_indep, beta_E1, beta_E2, samples_indep, bkd,
+                axes[1, 0], axes[0, 0], axes[1, 1])
 plt.show()
 ```
 
@@ -221,47 +179,15 @@ print(f"Empirical correlation: {corr:.3f}")
 #| echo: false
 #| fig-cap: "Gaussian copula with Beta marginals ($\\rho = 0.95$). The strong correlation produces a crescent-shaped cloud. The marginals remain Beta(2,6) and Beta(6,2) --- only the dependence structure has changed."
 #| label: fig-copula-beta
+from _figures._forward_uq import plot_copula_beta
 
 fig, axes = plt.subplots(2, 2, figsize=(6, 6),
                           gridspec_kw={"width_ratios": [3, 1],
                                        "height_ratios": [1, 3],
                                        "hspace": 0.05, "wspace": 0.05})
-ax_main = axes[1, 0]
-ax_top = axes[0, 0]
-ax_right = axes[1, 1]
 axes[0, 1].axis("off")
-
-# Contours of the copula joint PDF
-plotter_cop = variable_copula.plotter()
-plotter_cop.plot_contours(ax_main, npts_1d=80, levels=8, cmap="Greens", alpha=0.6)
-
-# Scatter
-samples_cop_np = bkd.to_numpy(samples_copula)
-ax_main.scatter(samples_cop_np[0], samples_cop_np[1], alpha=0.1, s=3,
-                color="#27AE60", zorder=0)
-ax_main.set_xlabel(r"$E_1$", fontsize=12)
-ax_main.set_ylabel(r"$E_2$", fontsize=12)
-ax_main.set_xlim(E1_lo - 200, E1_hi + 200)
-ax_main.set_ylim(E2_lo - 50, E2_hi + 50)
-
-# Marginal E1 (top) — same Beta marginal
-ax_top.hist(samples_cop_np[0], bins=40, density=True, color="#27AE60", alpha=0.5,
-            edgecolor="none")
-ax_top.plot(bkd.to_numpy(e1_grid[0]),
-            bkd.to_numpy(beta_E1.pdf(e1_grid)[0]), "k-", lw=1.2)
-ax_top.set_xlim(E1_lo - 200, E1_hi + 200)
-ax_top.set_yticks([])
-ax_top.set_xticks([])
-
-# Marginal E2 (right) — same Beta marginal
-ax_right.hist(samples_cop_np[1], bins=40, density=True, color="#27AE60", alpha=0.5,
-              edgecolor="none", orientation="horizontal")
-ax_right.plot(bkd.to_numpy(beta_E2.pdf(e2_grid)[0]),
-              bkd.to_numpy(e2_grid[0]), "k-", lw=1.2)
-ax_right.set_ylim(E2_lo - 50, E2_hi + 50)
-ax_right.set_xticks([])
-ax_right.set_yticks([])
-
+plot_copula_beta(variable_copula, beta_E1, beta_E2, samples_copula, bkd,
+                 axes[1, 0], axes[0, 0], axes[1, 1])
 plt.show()
 ```
 
@@ -284,29 +210,16 @@ Ignoring correlation when it exists leads to incorrect uncertainty estimates.
 #| echo: false
 #| fig-cap: "Two prior specifications for $(E_1, E_2)$. Left: independent Beta marginals. Right: Gaussian copula with the same Beta marginals and $\\rho = 0.95$. The choice of prior directly affects the push-forward distribution of the QoI."
 #| label: fig-two-priors
+from _figures._forward_uq import plot_two_priors
+
+plotter = variable_indep.plotter()
+plotter_cop = variable_copula.plotter()
+samples_cop_np = bkd.to_numpy(samples_copula)
+domain = variable_indep.domain()
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
-
-# Independent: contours + scatter
-plotter.plot_contours(ax1, npts_1d=80, levels=8, cmap="Blues", alpha=0.5)
-ax1.scatter(samples_np[0], samples_np[1], alpha=0.08, s=3, color="#2C7FB8",
-            zorder=0)
-ax1.set_xlabel(r"$E_1$", fontsize=12)
-ax1.set_ylabel(r"$E_2$", fontsize=12)
-ax1.set_title("Independent Beta marginals", fontsize=11)
-ax1.set_xlim(E1_lo - 200, E1_hi + 200)
-ax1.set_ylim(E2_lo - 50, E2_hi + 50)
-
-# Copula: contours + scatter
-plotter_cop.plot_contours(ax2, npts_1d=80, levels=8, cmap="Greens", alpha=0.5)
-ax2.scatter(samples_cop_np[0], samples_cop_np[1], alpha=0.08, s=3,
-            color="#27AE60", zorder=0)
-ax2.set_xlabel(r"$E_1$", fontsize=12)
-ax2.set_ylabel(r"$E_2$", fontsize=12)
-ax2.set_title(r"Gaussian copula ($\rho = 0.95$)", fontsize=11)
-ax2.set_xlim(E1_lo - 200, E1_hi + 200)
-ax2.set_ylim(E2_lo - 50, E2_hi + 50)
-
+plot_two_priors(plotter, samples_np, plotter_cop, samples_cop_np, domain,
+                ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```

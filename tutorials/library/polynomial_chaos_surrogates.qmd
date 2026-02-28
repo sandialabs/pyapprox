@@ -67,10 +67,6 @@ marginals = prior.marginals()
 
 nvars = model.nvars()
 nqoi = model.nqoi()
-
-print(f"Input dimension: {nvars}")
-print(f"Number of QoIs: {nqoi}")
-print(f"Marginals: {[type(m).__name__ for m in marginals]}")
 ```
 
 
@@ -120,9 +116,8 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 
-for degree in [1, 2, 3, 4, 5]:
-    indices = compute_hyperbolic_indices(nvars, degree, 1.0, bkd)
-    print(f"Degree {degree}: {indices.shape[1]} basis terms")
+for deg in [1, 2, 3, 4, 5]:
+    indices = compute_hyperbolic_indices(nvars, deg, 1.0, bkd)
 ```
 
 
@@ -135,9 +130,6 @@ N_train = 100
 np.random.seed(42)
 samples_train = prior.rvs(N_train)       # (nvars, N_train)
 values_train = model(samples_train)       # (nqoi, N_train)
-
-print(f"Training samples: {samples_train.shape}")
-print(f"Training values:  {values_train.shape}")
 ```
 
 ::: {.callout-note}
@@ -170,10 +162,6 @@ degree = 3
 pce = create_pce_from_marginals(marginals, degree, bkd, nqoi=nqoi)
 
 nterms = pce.nterms()
-print(f"Polynomial degree: {degree}")
-print(f"Number of basis terms: {nterms}")
-print(f"Number of training samples: {N_train}")
-print(f"Oversampling ratio: {N_train / nterms:.1f}")
 ```
 
 ### Least-Squares Fitting
@@ -196,8 +184,6 @@ from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
 ls_fitter = LeastSquaresFitter(bkd)
 ls_result = ls_fitter.fit(pce, samples_train, values_train)
 pce = ls_result.surrogate()
-
-print(f"Coefficient matrix shape: {pce.get_coefficients().shape}  (nterms x nqoi)")
 ```
 
 ::: {.callout-note}
@@ -216,14 +202,8 @@ $$
 
 ```{python}
 predictions_test = pce(samples_test)     # (nqoi, N_test)
-preds_np = bkd.to_numpy(predictions_test)
-vals_np = bkd.to_numpy(values_test)
 
 qoi_labels = [r"$\delta_{\mathrm{tip}}$", r"$\sigma_{\mathrm{tot}}$"]
-for k in range(nqoi):
-    l2_err = np.linalg.norm(vals_np[k, :] - preds_np[k, :])
-    l2_ref = np.linalg.norm(vals_np[k, :])
-    print(f"QoI {k+1} ({qoi_labels[k]}): relative L2 error = {l2_err / l2_ref:.4e}")
 ```
 
 @fig-pce-predictions shows the predicted vs. true QoI values on the test set. Points near the diagonal indicate a good fit.
@@ -233,23 +213,10 @@ for k in range(nqoi):
 #| fig-cap: "PCE predictions vs. true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy."
 #| label: fig-pce-predictions
 
+from _figures._pce import plot_pce_predictions
+
 fig, axes = plt.subplots(1, nqoi, figsize=(11, 4.5))
-
-for k, ax in enumerate(axes):
-    ax.scatter(vals_np[k, :], preds_np[k, :], s=10, alpha=0.5,
-               color="#2C7FB8", edgecolors="k", lw=0.2)
-    lims = [min(vals_np[k, :].min(), preds_np[k, :].min()),
-            max(vals_np[k, :].max(), preds_np[k, :].max())]
-    ax.plot(lims, lims, "r--", lw=1.5)
-    ax.set_xlabel(f"True {qoi_labels[k]}", fontsize=11)
-    ax.set_ylabel(f"PCE {qoi_labels[k]}", fontsize=11)
-    l2_err = np.linalg.norm(vals_np[k, :] - preds_np[k, :])
-    l2_ref = np.linalg.norm(vals_np[k, :])
-    ax.set_title(f"{qoi_labels[k]},  rel. $L_2$ error = {l2_err/l2_ref:.2e}",
-                 fontsize=10)
-    ax.grid(True, alpha=0.2)
-    ax.set_aspect("equal")
-
+plot_pce_predictions(pce, samples_test, values_test, qoi_labels, bkd, axes)
 plt.tight_layout()
 plt.show()
 ```

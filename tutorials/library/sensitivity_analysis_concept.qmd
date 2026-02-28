@@ -126,30 +126,12 @@ where:
 #| fig-cap: "Variance decomposition for beam tip deflection. Each slice shows the fraction of total variance attributable to each KLE input. The first KLE term dominates because it represents the lowest-frequency spatial mode of the stiffness field."
 #| label: fig-variance-decomposition
 
+from _figures._sensitivity import plot_variance_decomposition
+
 qoi_plot = 0  # tip deflection
 fig, ax = plt.subplots(figsize=(7, 4.5))
-main_vals = main_effects[:, qoi_plot]
-
-# Interaction contribution (total - sum of main effects)
-interaction_fraction = max(0, 1.0 - np.sum(main_vals))
-
-bar_labels = list(input_labels)
-bar_vals = list(main_vals)
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-if interaction_fraction > 0.005:
-    bar_labels.append("Interactions")
-    bar_vals.append(interaction_fraction)
-    colors.append("#CCCCCC")
-
-bars = ax.bar(bar_labels, bar_vals, color=colors, alpha=0.85, width=0.55)
-for bar, val in zip(bars, bar_vals):
-    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-            f"{val:.1%}", ha="center", fontsize=11, fontweight="bold")
-
-ax.set_ylabel("Fraction of total variance", fontsize=11)
-ax.set_title(f"Variance decomposition: {qoi_labels[qoi_plot]}", fontsize=13)
-ax.set_ylim(0, max(bar_vals) * 1.15)
-ax.grid(True, alpha=0.2, axis="y")
+plot_variance_decomposition(main_effects, qoi_plot, input_labels,
+                            qoi_labels, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -195,29 +177,14 @@ Key properties:
 #| fig-cap: "First-order and total-order Sobol indices for tip deflection and maximum curvature. When the bars are similar in height, interactions are weak. When the total-order bar is much taller, the input participates in interactions with other inputs."
 #| label: fig-sobol-bar-chart
 
+from _figures._sensitivity import plot_sobol_bar_chart
+
 # Plot only QoIs with nonzero variance (skip sigma_int, index 1)
 plot_qois = [0, 2]
 
 fig, axes = plt.subplots(1, len(plot_qois), figsize=(10, 4), sharey=True)
-
-x = np.arange(nvars)
-width = 0.35
-
-for panel, (k, ax) in enumerate(zip(plot_qois, axes)):
-    ax.bar(x - width/2, main_effects[:, k], width,
-           label=r"$S_i$ (first-order)", color="#2C7FB8", alpha=0.8)
-    ax.bar(x + width/2, total_effects[:, k], width,
-           label=r"$S_i^T$ (total-order)", color="#E67E22", alpha=0.8)
-    ax.set_xlabel("KLE input", fontsize=11)
-    ax.set_title(qoi_labels[k], fontsize=12)
-    ax.set_xticks(x)
-    ax.set_xticklabels(input_labels)
-    ax.axhline(0, color="black", linewidth=0.5)
-    ax.grid(True, alpha=0.2)
-    if panel == 0:
-        ax.set_ylabel("Sobol index", fontsize=11)
-        ax.legend(fontsize=9)
-
+plot_sobol_bar_chart(main_effects, total_effects, plot_qois,
+                     input_labels, qoi_labels, nvars, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -237,12 +204,9 @@ A quick visual check supports the sensitivity indices. @fig-scatter-dominant sho
 #| fig-cap: "Scatter plots confirming sensitivity rankings. Left: QoI vs. dominant KLE input (clear trend explains high S_i). Right: QoI vs. least influential input (no trend, low S_i)."
 #| label: fig-scatter-dominant
 
-qoi_plot = 0
-# Find dominant and non-influential variables
-dominant_var = np.argmax(main_effects[:, qoi_plot])
-least_var = np.argmin(main_effects[:, qoi_plot])
+from _figures._sensitivity import plot_scatter_dominant
 
-# Generate scatter data
+qoi_plot = 0
 np.random.seed(99)
 N_scatter = 500
 scatter_samples = prior.rvs(N_scatter)
@@ -250,29 +214,8 @@ scatter_values = bkd.to_numpy(model(scatter_samples))
 scatter_samples_np = bkd.to_numpy(scatter_samples)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
-
-ax1.scatter(scatter_samples_np[dominant_var, :], scatter_values[qoi_plot, :],
-            s=8, alpha=0.5, color="#2C7FB8")
-ax1.set_xlabel(input_labels[dominant_var], fontsize=12)
-ax1.set_ylabel(qoi_labels[qoi_plot], fontsize=12)
-ax1.set_title(
-    f"Dominant input: {input_labels[dominant_var]}"
-    f" ($S = {main_effects[dominant_var, qoi_plot]:.3f}$)",
-    fontsize=11,
-)
-ax1.grid(True, alpha=0.2)
-
-ax2.scatter(scatter_samples_np[least_var, :], scatter_values[qoi_plot, :],
-            s=8, alpha=0.5, color="#AAAAAA")
-ax2.set_xlabel(input_labels[least_var], fontsize=12)
-ax2.set_ylabel(qoi_labels[qoi_plot], fontsize=12)
-ax2.set_title(
-    f"Least influential: {input_labels[least_var]}"
-    f" ($S = {main_effects[least_var, qoi_plot]:.3f}$)",
-    fontsize=11,
-)
-ax2.grid(True, alpha=0.2)
-
+plot_scatter_dominant(scatter_samples_np, scatter_values, main_effects,
+                      qoi_plot, input_labels, qoi_labels, ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```

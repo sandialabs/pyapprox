@@ -65,6 +65,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 
 bkd = NumpyBkd()
 rng = np.random.default_rng(42)
+L = 100.0
 ```
 
 @fig-beam-setup shows the physical setup: the composite beam clamped at the left, with the uncertain distributed load on top and two candidate sensor locations.
@@ -73,72 +74,10 @@ rng = np.random.default_rng(42)
 #| echo: false
 #| fig-cap: "Composite cantilever beam with uncertain loading $t_y(x) = -(\\theta_1 + \\theta_2\\, x/L)$. The beam has stiff skins (blue) and a compliant core (orange) with five circular holes. Two candidate sensor locations are marked: tip (green) and midpoint (purple). Both measure the vertical deflection at their location."
 #| label: fig-beam-setup
-import matplotlib.patches as mpatches
+from _figures import plot_beam_setup
 
 fig, ax = plt.subplots(figsize=(11, 4.5))
-
-L, H, t_s = 100.0, 30.0, 5.0
-hole_centers = [16.5, 33.5, 50.0, 66.5, 83.5]
-r_hole = 5.0
-
-# Material layers
-ax.add_patch(mpatches.Rectangle((0, 0), L, t_s,
-             fc="#8FBCDB", ec="none", alpha=0.8))
-ax.add_patch(mpatches.Rectangle((0, t_s), L, H - 2*t_s,
-             fc="#F4C2A1", ec="none", alpha=0.6))
-ax.add_patch(mpatches.Rectangle((0, H - t_s), L, t_s,
-             fc="#8FBCDB", ec="none", alpha=0.8))
-
-# Beam outline
-ax.add_patch(mpatches.Rectangle((0, 0), L, H,
-             fill=False, ec="k", lw=1.5))
-
-# Holes
-for cx in hole_centers:
-    ax.add_patch(mpatches.Circle((cx, H / 2), r_hole,
-                 fc="white", ec="k", lw=1.0, zorder=3))
-
-# Clamped left edge
-for yy in np.linspace(0, H, 12):
-    ax.plot([-3, 0], [yy, yy - 1.5], "k-", lw=0.7)
-ax.plot([0, 0], [-1.5, H + 1.5], "k-", lw=2)
-
-# Load arrows (varying magnitude: constant + slope)
-x_arrows = np.linspace(8, 95, 9)
-for xa in x_arrows:
-    mag = 3 + 6 * xa / L
-    ax.annotate("", xy=(xa, H), xytext=(xa, H + mag + 1),
-                arrowprops=dict(arrowstyle="->", lw=1.5, color="#C0392B"))
-ax.text(L/2, H + 13, r"$t_y(x) = -(\theta_1 + \theta_2\, x/L)$",
-        ha="center", fontsize=11, color="#C0392B")
-
-# Sensor locations
-sensor_tip_x = L - 1
-sensor_mid_x = L / 2
-ms = 14
-
-ax.plot(sensor_tip_x, 0, "v", ms=ms, color="#27AE60", markeredgecolor="k",
-        markeredgewidth=1.2, zorder=5)
-ax.text(sensor_tip_x, -6, "Tip sensor", ha="center", fontsize=9,
-        color="#27AE60", fontweight="bold")
-
-ax.plot(sensor_mid_x, 0, "v", ms=ms, color="#8E44AD", markeredgecolor="k",
-        markeredgewidth=1.2, zorder=5)
-ax.text(sensor_mid_x, -6, "Mid sensor", ha="center", fontsize=9,
-        color="#8E44AD", fontweight="bold")
-
-# Material labels
-ax.text(85, 2.5, r"Skin ($E_1$)", ha="center", va="center",
-        fontsize=9, color="#1A5276")
-ax.text(85, 27.5, r"Skin ($E_1$)", ha="center", va="center",
-        fontsize=9, color="#1A5276")
-ax.text(85, 8.5, r"Core ($E_2$)", ha="center", va="center",
-        fontsize=9, color="#A04000")
-
-ax.set_xlim(-8, L + 5)
-ax.set_ylim(-10, H + 18)
-ax.set_aspect("equal")
-ax.axis("off")
+plot_beam_setup(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -162,7 +101,6 @@ from pyapprox.benchmarks.instances.pde.cantilever_beam import (
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
-from pyapprox.probability.gaussian import plot_gaussian_2d_contour
 
 # Prior and noise
 theta_true = np.array([5.0, 10.0])
@@ -224,38 +162,10 @@ post_mid = compute_posterior(a_mid.reshape(1, -1), np.array([y_mid]))
 #| echo: false
 #| fig-cap: "Same prior, same budget, different posteriors. The tip sensor (green) and midpoint sensor (purple) each constrain a different combination of $(\\theta_1, \\theta_2)$. The posterior ellipses are elongated in different directions --- each sensor leaves a different parameter combination unresolved."
 #| label: fig-two-posteriors
+from _figures import plot_two_posteriors
 
 fig, ax = plt.subplots(figsize=(8, 7))
-
-# Prior
-plot_gaussian_2d_contour(prior_dist, ax, n_std=2,
-                         facecolor="none", edgecolor="#2C7FB8", lw=2.5,
-                         ls="--", label=r"Prior ($2\sigma$)")
-
-# Posterior — tip
-plot_gaussian_2d_contour(post_tip, ax, n_std=2,
-                         facecolor="#27AE60", edgecolor="#27AE60", lw=2,
-                         alpha=0.15, label="Posterior --- tip sensor")
-plot_gaussian_2d_contour(post_tip, ax, n_std=2,
-                         facecolor="none", edgecolor="#27AE60", lw=2)
-
-# Posterior — midpoint
-plot_gaussian_2d_contour(post_mid, ax, n_std=2,
-                         facecolor="#8E44AD", edgecolor="#8E44AD", lw=2,
-                         alpha=0.15, label="Posterior --- mid sensor")
-plot_gaussian_2d_contour(post_mid, ax, n_std=2,
-                         facecolor="none", edgecolor="#8E44AD", lw=2)
-
-# True parameters
-ax.plot(*theta_true, "x", ms=14, mew=3, color="#C0392B", zorder=5,
-        label=rf"True $\boldsymbol{{\theta}}$ = ({theta_true[0]}, {theta_true[1]})")
-
-ax.set_xlabel(r"$\theta_1$ (constant load)", fontsize=12)
-ax.set_ylabel(r"$\theta_2$ (slope)", fontsize=12)
-ax.set_title("Two sensors, two posteriors", fontsize=11)
-ax.legend(fontsize=10, loc="upper left")
-ax.grid(True, alpha=0.2)
-ax.set_aspect("equal")
+plot_two_posteriors(prior_dist, post_tip, post_mid, theta_true, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -277,33 +187,10 @@ The coefficients $a_1$ and $a_2$ encode how strongly the measurement at $x_s$ re
 #| echo: false
 #| fig-cap: "Response surfaces for the two sensor locations. Contours show deflection as a function of $(\\theta_1, \\theta_2)$. The contour orientation differs --- the tip (left) and midpoint (right) have different sensitivity to the two load parameters. The bold black curve marks the observed-value level set: the data constrains $\\boldsymbol{\\theta}$ to lie near this curve. The red X marks the true parameter values."
 #| label: fig-response-surfaces
+from _figures import plot_response_surfaces
 
-t1_grid = np.linspace(0, 12, 100)
-t2_grid = np.linspace(0, 20, 100)
-T1, T2 = np.meshgrid(t1_grid, t2_grid)
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-for ax, a_vec, y_val, title, color in [
-    (ax1, a_tip, y_tip, "Tip sensor", "#27AE60"),
-    (ax2, a_mid, y_mid, "Midpoint sensor", "#8E44AD"),
-]:
-    Z = a_vec[0] * T1 + a_vec[1] * T2
-    cs = ax.contourf(T1, T2, Z, levels=15, cmap="coolwarm", alpha=0.7)
-    ax.contour(T1, T2, Z, levels=15, colors="gray", linewidths=0.3, alpha=0.5)
-    fig.colorbar(cs, ax=ax, shrink=0.8, label=r"$\delta(x_s)$")
-
-    # Level set at observed value
-    ax.contour(T1, T2, Z, levels=[y_val], colors="k", linewidths=2.5)
-
-    # True parameters
-    ax.plot(*theta_true, "x", ms=12, mew=3, color="#C0392B", zorder=5)
-
-    ax.set_xlabel(r"$\theta_1$", fontsize=12)
-    ax.set_ylabel(r"$\theta_2$", fontsize=12)
-    ax.set_title(title, fontsize=11, color=color, fontweight="bold")
-    ax.grid(True, alpha=0.15)
-
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+plot_response_surfaces(a_tip, a_mid, y_tip, y_mid, theta_true, fig, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -321,15 +208,6 @@ $$
 
 We compute the sensitivity vector $\mathbf{a}(x_s)$ by **superposition**: solve the FEM once with a unit constant load ($\theta_1 = 1$, $\theta_2 = 0$) and once with a unit slope load ($\theta_1 = 0$, $\theta_2 = 1$). The deflections from these two solves give $a_1(x_s)$ and $a_2(x_s)$ directly.
 
-```{python}
-# Sensitivity vectors at tip and midpoint
-print(f"Tip sensor:   a = [{a_tip[0]:.6f}, {a_tip[1]:.6f}]")
-print(f"Mid sensor:   a = [{a_mid[0]:.6f}, {a_mid[1]:.6f}]")
-print()
-print(f"Tip:   ratio a2/a1 = {a_tip[1]/a_tip[0]:.3f}")
-print(f"Mid:   ratio a2/a1 = {a_mid[1]/a_mid[0]:.3f}")
-```
-
 The ratio $a_2 / a_1$ determines the contour slope in @fig-response-surfaces. Different ratios mean different constraint directions, which is why the posteriors differ.
 
 
@@ -343,23 +221,6 @@ def cov_det(gaussian):
 
 def cov_std(gaussian, idx):
     return bkd.to_float(bkd.sqrt(gaussian.covariance()[idx, idx]))
-
-# Compare prior and posterior uncertainty
-prior_det = cov_det(prior_dist)
-tip_det = cov_det(post_tip)
-mid_det = cov_det(post_mid)
-
-print(f"Prior covariance determinant:      {prior_det:.2f}")
-print(f"Posterior det (tip sensor):         {tip_det:.4f}  "
-      f"(reduction: {1 - tip_det/prior_det:.1%})")
-print(f"Posterior det (midpoint sensor):    {mid_det:.4f}  "
-      f"(reduction: {1 - mid_det/prior_det:.1%})")
-print()
-print("Posterior standard deviations:")
-print(f"  Tip:   sigma(theta_1) = {cov_std(post_tip, 0):.3f},  "
-      f"sigma(theta_2) = {cov_std(post_tip, 1):.3f}")
-print(f"  Mid:   sigma(theta_1) = {cov_std(post_mid, 0):.3f},  "
-      f"sigma(theta_2) = {cov_std(post_mid, 1):.3f}")
 ```
 
 The determinant of the posterior covariance measures the "volume" of the uncertainty ellipse. A smaller determinant means the experiment squeezed the ellipse into a smaller area.
@@ -384,6 +245,7 @@ $$
 #| echo: false
 #| fig-cap: "Combining sensors. Left: two sensors at the tip --- the strong signal from both measurements reduces noise effectively. Center: one at the tip plus one at the midpoint --- diversity adds some new information, but the midpoint's weaker signal limits the gain. Right: posterior covariance determinant for all three configurations."
 #| label: fig-combined-experiments
+from _figures import plot_combined_experiments
 
 # Two-sensor posteriors
 def two_sensor_posterior(x1, x2, seed):
@@ -397,68 +259,13 @@ post_tm = two_sensor_posterior(L, L/2, 101)        # tip + mid
 post_mm = two_sensor_posterior(L/2, L/2, 102)      # mid + mid
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-configs = [
-    ("Tip + Tip", post_tt, "#C0392B"),
-    ("Tip + Mid", post_tm, "#27AE60"),
-]
-
-for ax, (title, post, color) in zip(axes[:2], configs):
-    # Prior
-    plot_gaussian_2d_contour(prior_dist, ax, n_std=2,
-                             facecolor="none", edgecolor="#2C7FB8", lw=2,
-                             ls="--", label="Prior")
-    # Posterior
-    plot_gaussian_2d_contour(post, ax, n_std=2,
-                             facecolor=color, edgecolor=color, lw=2,
-                             alpha=0.2)
-    plot_gaussian_2d_contour(post, ax, n_std=2,
-                             facecolor="none", edgecolor=color, lw=2,
-                             label="Posterior")
-    # True
-    ax.plot(*theta_true, "x", ms=12, mew=3, color="#C0392B", zorder=5)
-    ax.set_xlabel(r"$\theta_1$", fontsize=11)
-    ax.set_ylabel(r"$\theta_2$", fontsize=11)
-    ax.set_title(title, fontsize=10, fontweight="bold", color=color)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.15)
-    ax.set_aspect("equal")
-
-# Bar chart
-ax_bar = axes[2]
-dets = {
-    "Tip+Tip": cov_det(post_tt),
-    "Mid+Mid": cov_det(post_mm),
-    "Tip+Mid": cov_det(post_tm),
-}
-colors_bar = ["#C0392B", "#8E44AD", "#27AE60"]
-bars = ax_bar.bar(dets.keys(), dets.values(), color=colors_bar, alpha=0.7,
-                  edgecolor="k", lw=0.5)
-ax_bar.set_ylabel("Posterior cov. determinant\n(smaller = more informative)",
-                   fontsize=10)
-ax_bar.set_title("Design comparison", fontsize=10, fontweight="bold")
-ax_bar.grid(True, alpha=0.15, axis="y")
-
-# Annotate the winner
-min_key = min(dets, key=dets.get)
-min_idx = list(dets.keys()).index(min_key)
-min_color = colors_bar[min_idx]
-ax_bar.annotate("Best", xy=(min_idx, dets[min_key]),
-                xytext=(0, 15), textcoords="offset points", ha="center",
-                fontsize=10, fontweight="bold", color=min_color,
-                arrowprops=dict(arrowstyle="->", color=min_color))
-
+plot_combined_experiments(prior_dist, post_tt, post_tm, post_mm,
+                          theta_true, cov_det, fig, axes)
 plt.tight_layout()
 plt.show()
 ```
 
 The result may be surprising: **two sensors at the tip beat the mixed placement**. Why? For this beam, the sensitivity directions at the tip and midpoint are nearly identical --- both sensors constrain almost the same parameter combination. The midpoint simply has a weaker signal (smaller deflection). The repeated tip measurement averages out observation noise, extracting more information from the strong signal. Replacing one strong tip measurement with a weaker midpoint measurement trades noise-averaging ability for negligible diversity.
-
-```{python}
-print(f"Posterior covariance determinant (Tip+Tip): {cov_det(post_tt):.4f}")
-print(f"Posterior covariance determinant (Tip+Mid): {cov_det(post_tm):.4f}")
-print(f"Posterior covariance determinant (Mid+Mid): {cov_det(post_mm):.4f}")
-```
 
 The determinants confirm the bar chart: Tip+Tip produces the tightest posterior. This illustrates an important nuance: **diversification only helps when the sensors provide genuinely complementary information** --- that is, when their sensitivity directions differ substantially. When all candidate locations "see" the parameters through nearly the same linear combination, placing sensors where the signal is strongest wins. The two-sensor EIG heatmap below confirms this.
 
@@ -496,10 +303,6 @@ def compute_eig(A_design):
 # Single-sensor EIG
 eig_tip = compute_eig(a_tip.reshape(1, -1))
 eig_mid = compute_eig(a_mid.reshape(1, -1))
-
-print(f"EIG (tip sensor):      {eig_tip:.4f} nats")
-print(f"EIG (midpoint sensor): {eig_mid:.4f} nats")
-print(f"Tip is {eig_tip/eig_mid:.1f}x more informative than midpoint")
 ```
 
 ::: {.callout-note}
@@ -516,6 +319,7 @@ With EIG as our design criterion, we can systematically search over all candidat
 #| echo: false
 #| fig-cap: "Expected Information Gain vs. sensor position along the beam. The tip region is most informative because deflection is largest there, giving the best signal-to-noise ratio. The clamped end provides almost no information (near-zero deflection regardless of parameters)."
 #| label: fig-eig-sweep
+from _figures import plot_eig_sweep
 
 x_candidates = bkd.to_numpy(all_sensor_xs)
 eig_values = np.array([
@@ -523,23 +327,8 @@ eig_values = np.array([
     for x in x_candidates
 ])
 
-# Find optimal
-x_opt = x_candidates[np.argmax(eig_values)]
-eig_opt = eig_values.max()
-
 fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.plot(x_candidates, eig_values, color="#2C7FB8", lw=2.5)
-ax.axvline(L, color="#27AE60", ls="--", lw=1.5, alpha=0.7, label="Tip")
-ax.axvline(L/2, color="#8E44AD", ls="--", lw=1.5, alpha=0.7, label="Midpoint")
-ax.plot(x_opt, eig_opt, "o", ms=12, color="#C0392B", zorder=5,
-        markeredgecolor="k", markeredgewidth=1.5,
-        label=f"Optimal: $x$ = {x_opt:.1f}")
-
-ax.set_xlabel(r"Sensor position $x$ along beam", fontsize=12)
-ax.set_ylabel("Expected Information Gain (nats)", fontsize=12)
-ax.set_title("Single-sensor design optimization", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2)
+plot_eig_sweep(x_candidates, eig_values, L, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -553,6 +342,7 @@ For two sensors, we search over all pairs $(x_1, x_2)$. @fig-eig-2sensor-heatmap
 #| echo: false
 #| fig-cap: "EIG heatmap for two-sensor designs. Each pixel shows the EIG for the sensor pair $(x_1, x_2)$. The diagonal corresponds to placing both sensors at the same location. The star marks the optimal pair."
 #| label: fig-eig-2sensor-heatmap
+from _figures import plot_eig_2sensor_heatmap
 
 n_sweep = 40
 x_sweep = np.linspace(2, L, n_sweep)
@@ -563,37 +353,10 @@ for i, x1 in enumerate(x_sweep):
         A2 = np.vstack([observation_row(x1), observation_row(x2)])
         eig_2d[i, j] = compute_eig(A2)
 
-# Find optimal pair
-idx_opt = np.unravel_index(np.argmax(eig_2d), eig_2d.shape)
-x1_opt = x_sweep[idx_opt[0]]
-x2_opt = x_sweep[idx_opt[1]]
-
 fig, ax = plt.subplots(figsize=(7, 6))
-im = ax.imshow(eig_2d, origin="lower", aspect="equal",
-               extent=[x_sweep[0], x_sweep[-1], x_sweep[0], x_sweep[-1]],
-               cmap="YlOrRd")
-fig.colorbar(im, ax=ax, shrink=0.8, label="EIG (nats)")
-
-# Diagonal line
-ax.plot([x_sweep[0], x_sweep[-1]], [x_sweep[0], x_sweep[-1]],
-        "w--", lw=1.5, alpha=0.7, label="Same location (repeated)")
-
-# Optimal pair
-ax.plot(x2_opt, x1_opt, "*", ms=18, color="cyan", markeredgecolor="k",
-        markeredgewidth=1.5, zorder=5,
-        label=f"Optimal: ({x1_opt:.0f}, {x2_opt:.0f})")
-
-ax.set_xlabel(r"Sensor 2 position $x_2$", fontsize=12)
-ax.set_ylabel(r"Sensor 1 position $x_1$", fontsize=12)
-ax.set_title("Two-sensor EIG heatmap", fontsize=11)
-ax.legend(fontsize=9, loc="upper left")
+plot_eig_2sensor_heatmap(x_sweep, eig_2d, ax)
 plt.tight_layout()
 plt.show()
-
-print(f"Optimal sensor pair: x_1 = {x1_opt:.1f}, x_2 = {x2_opt:.1f}")
-print(f"EIG (optimal pair):  {eig_2d[idx_opt]:.4f} nats")
-eig_tip_tip = compute_eig(np.vstack([a_tip, a_tip]))
-print(f"EIG (tip + tip):     {eig_tip_tip:.4f} nats")
 ```
 
 

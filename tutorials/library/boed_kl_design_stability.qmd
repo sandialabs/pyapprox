@@ -147,33 +147,16 @@ for seed in range(n_seeds):
     w, e = solve_oed(M_fixed, seed=seed * 1000)
     designs_fixed.append(w)
     eigs_fixed.append(e)
-    print(f"  seed {seed}: EIG = {e:.4f} nats")
 ```
 
 ```{python}
 #| echo: false
 #| fig-cap: "Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."
 #| label: fig-variability
-
-state_labels = ["State 1 (prey)", "State 3 (predator)"]
-BLUE   = "#2C7FB8"
-ORANGE = "#D95F02"
-GREEN  = "#31A354"
-seed_colors = [BLUE, ORANGE, GREEN]
+from _figures import plot_design_variability
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharey=True)
-for col in range(2):
-    ax = axes[col]
-    for trial, w_2d in enumerate(designs_fixed):
-        ax.plot(obs_times, w_2d[col], "o-", ms=4, lw=1.5, alpha=0.7,
-                color=seed_colors[trial], label=f"seed {trial}")
-    ax.set_title(f"{state_labels[col]}  ($M = {M_fixed:,}$)", fontsize=11)
-    ax.set_xlabel("Observation time (s)", fontsize=10)
-    ax.grid(True, alpha=0.2)
-    ax.spines[["top", "right"]].set_visible(False)
-
-axes[0].set_ylabel("Design weight", fontsize=10)
-axes[0].legend(fontsize=9)
+plot_design_variability(axes, obs_times, designs_fixed, M_fixed)
 plt.suptitle(f"Design variability at fixed budget $M = {M_fixed:,}$",
              fontsize=12, fontweight="bold")
 plt.tight_layout()
@@ -212,7 +195,6 @@ for M in budgets:
     for seed in range(n_seeds):
         w, e = solve_oed(M, seed=seed * 1000)
         designs_at_M.append(w)
-        print(f"  M={M:6d}, seed {seed}: EIG = {e:.4f}")
     all_designs[M] = designs_at_M
 ```
 
@@ -220,26 +202,11 @@ for M in budgets:
 #| echo: false
 #| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized."
 #| label: fig-design-convergence
+from _figures import plot_design_convergence
 
 fig, axes = plt.subplots(len(budgets), 2, figsize=(13, 3.0 * len(budgets)),
                          sharex=True, sharey=True)
-
-for row, M in enumerate(budgets):
-    for col in range(2):
-        ax = axes[row, col]
-        for trial, w_2d in enumerate(all_designs[M]):
-            ax.plot(obs_times, w_2d[col], "o-", ms=3, lw=1.2, alpha=0.6,
-                    color=seed_colors[trial],
-                    label=f"seed {trial}" if row == 0 and col == 0 else None)
-        ax.set_title(f"$M={M:,}$  —  {state_labels[col]}", fontsize=10)
-        ax.grid(True, alpha=0.2)
-        ax.spines[["top", "right"]].set_visible(False)
-        if col == 0:
-            ax.set_ylabel("Design weight", fontsize=10)
-        if row == len(budgets) - 1:
-            ax.set_xlabel("Observation time (s)", fontsize=10)
-
-axes[0, 0].legend(fontsize=8, ncol=3, loc="upper right")
+plot_design_convergence(axes, obs_times, budgets, all_designs)
 plt.suptitle("Design convergence: MC realizations at increasing budget",
              fontsize=12, fontweight="bold")
 plt.tight_layout()

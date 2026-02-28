@@ -264,28 +264,18 @@ for sidx, mk in zip(subsets_idx, m_counts):
     Ck = Rk @ cov @ Rk.T       # |S_k| x |S_k| error covariance block
     Psi += mk * Rk.T @ np.linalg.solve(Ck, Rk)
 
-print("Psi (information matrix):")
-print(np.round(Psi, 4))
-print(f"\nPsi^{{-1}} (estimator covariance):")
 Psi_inv = np.linalg.inv(Psi)
-print(np.round(Psi_inv, 6))
 
 beta = np.zeros(M + 1); beta[0] = 1.0   # extract HF mean
 var_theo = float(beta @ Psi_inv @ beta)
-print(f"\nV[Q^B_0] = beta^T Psi^{{-1}} beta = {var_theo:.8f}")
 ```
 
 ```{python}
 # Per-subset information contributions — shows which subsets inform which means
-print("Per-subset contributions to Psi:\n")
 for k, (sidx, mk) in enumerate(zip(subsets_idx, m_counts)):
     Rk = restriction(sidx, M)
     Ck = Rk @ cov @ Rk.T
     term = mk * Rk.T @ np.linalg.solve(Ck, Rk)
-    print(f"  S_{{{k+1}}} = {sidx}, m={mk}:")
-    print(f"    {np.round(term, 4)}")
-    nonzero = [(i, round(float(term[i, i]), 4)) for i in range(M+1) if term[i, i] > 1e-9]
-    print(f"    Informs: {nonzero}\n")
 ```
 
 Now verify @eq-variance empirically.
@@ -317,24 +307,12 @@ for seed in range(n_trials):
 estimates = np.array(estimates)
 true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
 
+from _figures._multifidelity_advanced import plot_mlblue_verify
+
 fig, ax = plt.subplots(figsize=(8, 4.5))
-ax.hist(estimates, bins=60, density=True, color="#2C7FB8", alpha=0.78,
-        edgecolor="k", lw=0.2, label=f"Empirical ({n_trials} trials)")
-ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
-ax.axvspan(true_mean - var_theo**0.5, true_mean + var_theo**0.5,
-           alpha=0.14, color="#C0392B",
-           label=f"$\\pm$std theory = {var_theo**0.5:.4f}")
-ax.set_xlabel(r"MLBLUE estimate $Q^B_0$", fontsize=11)
-ax.set_ylabel("Density", fontsize=11)
-ax.set_title(f"Variance verification  |  subsets {subsets_idx}  |  m={m_counts}",
-             fontsize=10)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax)
 plt.tight_layout()
 plt.show()
-
-print(f"Theoretical std: {var_theo**0.5:.5f}")
-print(f"Empirical std:   {estimates.std():.5f}  (ratio = {estimates.std()/var_theo**0.5:.4f})")
 ```
 
 
@@ -368,19 +346,10 @@ cv1_floor = float(beta @ np.linalg.solve(Psi_inf, beta))
 
 mc_var_N1 = cov[0, 0]    # MC variance with N=1 HF sample
 
+from _figures._multifidelity_advanced import plot_mlblue_m_sweep
+
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.semilogx(m3_vals, vars_sweep, color="#2C7FB8", lw=2.5,
-            label=r"MLBLUE variance ($m_1=1, m_2=1, m_3$ varies)")
-ax.axhline(cv1_floor, color="#C0392B", ls="--", lw=1.5, alpha=0.85,
-           label=f"CV-1 floor = {cv1_floor:.5f}")
-ax.axhline(mc_var_N1, color="k", ls=":", lw=1, alpha=0.4,
-           label=f"MC variance (N=1) = {mc_var_N1:.4f}")
-ax.set_xlabel(r"Sample count $m_3$ for $S_3 = \{f_0, f_1\}$", fontsize=11)
-ax.set_ylabel(r"$\mathbb{V}[Q^B_0] = \boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$",
-              fontsize=11)
-ax.set_title("MLBLUE variance vs subset sample count", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax)
 plt.tight_layout()
 plt.show()
 ```

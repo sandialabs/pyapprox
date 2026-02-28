@@ -69,59 +69,11 @@ $$
 import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
-from scipy.stats import norm
+from _figures._forward_uq import plot_forward_uq_schematic
 
 fig, axes = plt.subplots(1, 3, figsize=(11, 3),
                          gridspec_kw={"width_ratios": [1, 0.5, 1]})
-
-# Left: input distribution (2D contour)
-ax_in = axes[0]
-t1 = np.linspace(-3, 3, 200)
-t2 = np.linspace(-3, 3, 200)
-T1, T2 = np.meshgrid(t1, t2)
-# Correlated 2D Gaussian
-rho = 0.3
-Z = (T1**2 - 2*rho*T1*T2 + T2**2) / (2*(1 - rho**2))
-pdf_2d = np.exp(-Z) / (2*np.pi*np.sqrt(1 - rho**2))
-ax_in.contourf(T1, T2, pdf_2d, levels=8, cmap="Blues", alpha=0.8)
-ax_in.contour(T1, T2, pdf_2d, levels=6, colors="steelblue", linewidths=0.5)
-ax_in.set_xlabel(r"$\theta_1$", fontsize=12)
-ax_in.set_ylabel(r"$\theta_2$", fontsize=12)
-ax_in.set_title(r"Input distribution $p(\boldsymbol{\theta})$", fontsize=11)
-ax_in.set_aspect("equal")
-ax_in.set_xlim(-3, 3)
-ax_in.set_ylim(-3, 3)
-
-# Center: model box with arrow
-ax_mid = axes[1]
-ax_mid.axis("off")
-box = FancyBboxPatch((0.15, 0.35), 0.7, 0.3, boxstyle="round,pad=0.05",
-                      facecolor="#F0F0F0", edgecolor="k", linewidth=1.5)
-ax_mid.add_patch(box)
-ax_mid.text(0.5, 0.5, r"$f(\boldsymbol{\theta})$", ha="center", va="center",
-            fontsize=14, transform=ax_mid.transAxes)
-# Arrows
-ax_mid.annotate("", xy=(0.12, 0.5), xytext=(-0.15, 0.5),
-                xycoords="axes fraction", textcoords="axes fraction",
-                arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8"))
-ax_mid.annotate("", xy=(1.15, 0.5), xytext=(0.88, 0.5),
-                xycoords="axes fraction", textcoords="axes fraction",
-                arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8"))
-
-# Right: output distribution (1D, slightly skewed for generality)
-ax_out = axes[2]
-q_vals = np.linspace(-1, 5, 300)
-# Mixture of two Gaussians to suggest non-trivial shape
-pdf_out = 0.7 * norm.pdf(q_vals, 1.5, 0.8) + 0.3 * norm.pdf(q_vals, 3.0, 0.5)
-ax_out.fill_between(q_vals, pdf_out, alpha=0.3, color="#E67E22")
-ax_out.plot(q_vals, pdf_out, color="#E67E22", lw=2)
-ax_out.set_xlabel(r"$q = f(\boldsymbol{\theta})$", fontsize=12)
-ax_out.set_ylabel("Density", fontsize=12)
-ax_out.set_title("Push-forward distribution", fontsize=11)
-ax_out.set_yticks([])
-ax_out.set_xlim(-1, 5)
-
+plot_forward_uq_schematic(axes[0], axes[1], axes[2])
 plt.tight_layout()
 plt.show()
 ```
@@ -146,70 +98,11 @@ This is a linear function of $q_0$: doubling the load doubles the deflection. If
 #| echo: false
 #| fig-cap: "Linear propagation of uncertainty. A Gaussian input on $q_0$ produces a Gaussian push-forward on $\\delta_{\\text{tip}}$. Because the model is linear, the shape is preserved."
 #| label: fig-linear-propagation
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-    EulerBernoulliBeamFEM,
-)
-
-bkd = NumpyBkd()
-L, H, q0_nom = 100.0, 30.0, 10.0
-
-# Effective EI (same as previous tutorial)
-A_skin = 2 * 5.0 * 1.0
-A_core = 20.0 * 1.0
-E_eff = (A_skin * 2e4 + A_core * 5e3) / (A_skin + A_core)
-I_rect = H**3 / 12.0
-EI_eff = E_eff * I_rect
-
-# Proportionality constant: delta_tip = c * q0
-beam_ref = EulerBernoulliBeamFEM(
-    nx=40, length=L, EI=EI_eff,
-    load_func=lambda x: 1.0 * x / L, bkd=bkd,
-)
-c_linear = float(beam_ref.tip_deflection())  # deflection per unit q0
-
-nsamples = 5000
-rng = np.random.default_rng(42)
-
-q0_gaussian = rng.normal(loc=q0_nom, scale=2.0, size=nsamples)
-delta_gaussian = c_linear * q0_gaussian
+from _figures._forward_uq import plot_linear_propagation
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.5),
                          gridspec_kw={"width_ratios": [1, 0.15, 1]})
-
-# Input distribution
-ax_in = axes[0]
-ax_in.hist(q0_gaussian, bins=50, density=True, color="#2C7FB8",
-           alpha=0.7, edgecolor="k", lw=0.3)
-q_grid = np.linspace(q0_gaussian.min(), q0_gaussian.max(), 300)
-ax_in.plot(q_grid, norm.pdf(q_grid, q0_nom, 2.0), "k-", lw=1.5)
-ax_in.set_xlabel(r"$q_0$", fontsize=12)
-ax_in.set_ylabel("Density", fontsize=12)
-ax_in.set_title(r"Input: $q_0 \sim \mathcal{N}(10,\, 2^2)$", fontsize=10)
-ax_in.grid(True, alpha=0.2)
-
-# Arrow
-ax_mid = axes[1]
-ax_mid.axis("off")
-ax_mid.annotate("", xy=(1.0, 0.5), xytext=(0.0, 0.5),
-                xycoords="axes fraction", textcoords="axes fraction",
-                arrowprops=dict(arrowstyle="->", lw=2.5, color="#2C7FB8"))
-ax_mid.text(0.5, 0.62, r"$\delta_{\mathrm{tip}} = c \cdot q_0$",
-            ha="center", va="center", fontsize=11, color="#666",
-            transform=ax_mid.transAxes)
-
-# Output distribution
-ax_out = axes[2]
-ax_out.hist(delta_gaussian, bins=50, density=True, color="#E67E22",
-            alpha=0.7, edgecolor="k", lw=0.3)
-d_grid = np.linspace(delta_gaussian.min(), delta_gaussian.max(), 300)
-ax_out.plot(d_grid, norm.pdf(d_grid, c_linear*q0_nom, abs(c_linear)*2.0),
-            "k-", lw=1.5)
-ax_out.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax_out.set_ylabel("Density", fontsize=12)
-ax_out.set_title("Push-forward: Gaussian shape preserved", fontsize=10)
-ax_out.grid(True, alpha=0.2)
-
+plot_linear_propagation(axes[0], axes[1], axes[2])
 plt.tight_layout()
 plt.show()
 ```
@@ -233,57 +126,11 @@ This is a **nonlinear** function of $E$: the relationship $\delta_{\text{tip}} \
 #| echo: false
 #| fig-cap: "Nonlinear propagation of uncertainty. The tip deflection is proportional to $1/E$, so a symmetric Gaussian input on $E$ produces a right-skewed output distribution. The red dashed curve is a Gaussian with matching mean and variance --- the actual push-forward is clearly non-Gaussian."
 #| label: fig-nonlinear-propagation
-
-E_mean = E_eff
-E_std = 0.15 * E_eff  # 15% coefficient of variation
-E_samples = rng.normal(loc=E_mean, scale=E_std, size=nsamples)
-# Clip to avoid negative modulus
-E_samples = E_samples[E_samples > 0]
-
-# delta_tip = (11 * q0 * L^4) / (120 * E * I_rect)
-delta_nonlinear = (11 * q0_nom * L**4) / (120 * E_samples * I_rect)
+from _figures._forward_uq import plot_nonlinear_propagation
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.5),
                          gridspec_kw={"width_ratios": [1, 0.15, 1]})
-
-# Input distribution
-ax_in = axes[0]
-ax_in.hist(E_samples, bins=60, density=True, color="#2C7FB8",
-           alpha=0.7, edgecolor="k", lw=0.3)
-e_grid = np.linspace(E_samples.min(), E_samples.max(), 300)
-ax_in.plot(e_grid, norm.pdf(e_grid, E_mean, E_std), "k-", lw=1.5)
-ax_in.set_xlabel(r"$E$", fontsize=12)
-ax_in.set_ylabel("Density", fontsize=12)
-ax_in.set_title(r"Input: $E \sim \mathcal{N}(\bar{E},\, (0.15\bar{E})^2)$",
-                fontsize=10)
-ax_in.grid(True, alpha=0.2)
-
-# Arrow
-ax_mid = axes[1]
-ax_mid.axis("off")
-ax_mid.annotate("", xy=(1.0, 0.5), xytext=(0.0, 0.5),
-                xycoords="axes fraction", textcoords="axes fraction",
-                arrowprops=dict(arrowstyle="->", lw=2.5, color="#2C7FB8"))
-ax_mid.text(0.5, 0.62, r"$f \propto 1/E$", ha="center", va="center",
-            fontsize=11, color="#666", transform=ax_mid.transAxes)
-
-# Output distribution
-ax_out = axes[2]
-ax_out.hist(delta_nonlinear, bins=60, density=True, color="#E67E22",
-            alpha=0.7, edgecolor="k", lw=0.3)
-
-# Overlay a Gaussian with same mean/variance for comparison
-d_mean = np.mean(delta_nonlinear)
-d_std = np.std(delta_nonlinear)
-d_grid = np.linspace(delta_nonlinear.min(), delta_nonlinear.max(), 300)
-ax_out.plot(d_grid, norm.pdf(d_grid, d_mean, d_std), "r--", lw=1.5,
-            label="Gaussian (same mean, var)")
-ax_out.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax_out.set_ylabel("Density", fontsize=12)
-ax_out.set_title("Push-forward: skewed (non-Gaussian)", fontsize=10)
-ax_out.legend(fontsize=9)
-ax_out.grid(True, alpha=0.2)
-
+plot_nonlinear_propagation(axes[0], axes[1], axes[2])
 plt.tight_layout()
 plt.show()
 ```
@@ -301,39 +148,10 @@ Two factors determine the push-forward distribution: the input distribution and 
 #| echo: false
 #| fig-cap: "Same model, different inputs. A narrow input distribution on $E$ (10% CV, blue) produces a concentrated output; a wide input (25% CV, red) produces a broader, more skewed output. The choice of input distribution directly affects the conclusions we draw about the QoI."
 #| label: fig-different-priors
-
-E_narrow = rng.normal(loc=E_mean, scale=0.10 * E_mean, size=nsamples)
-E_wide = rng.normal(loc=E_mean, scale=0.25 * E_mean, size=nsamples)
-E_narrow = E_narrow[E_narrow > 0]
-E_wide = E_wide[E_wide > 0]
-
-delta_narrow = (11 * q0_nom * L**4) / (120 * E_narrow * I_rect)
-delta_wide = (11 * q0_nom * L**4) / (120 * E_wide * I_rect)
+from _figures._forward_uq import plot_different_priors
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.5))
-
-# Input distributions
-ax1.hist(E_narrow, bins=60, density=True, color="#2C7FB8", alpha=0.4,
-         edgecolor="none", label="Narrow (10% CV)")
-ax1.hist(E_wide, bins=60, density=True, color="#C0392B", alpha=0.4,
-         edgecolor="none", label="Wide (25% CV)")
-ax1.set_xlabel(r"$E$", fontsize=12)
-ax1.set_ylabel("Density", fontsize=12)
-ax1.set_title("Input distributions", fontsize=11)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.2)
-
-# Output distributions
-ax2.hist(delta_narrow, bins=60, density=True, color="#2C7FB8", alpha=0.4,
-         edgecolor="none", label="From narrow input")
-ax2.hist(delta_wide, bins=60, density=True, color="#C0392B", alpha=0.4,
-         edgecolor="none", label="From wide input")
-ax2.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title("Push-forward distributions", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+plot_different_priors(ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```
@@ -351,35 +169,10 @@ Because deflection scales as $L^4$, even a modest change in length significantly
 #| echo: false
 #| fig-cap: "Same input, different models. Identical samples of $E$ are propagated through two Euler-Bernoulli beam models with different lengths ($L_1 = 100$, $L_2 = 110$). The $L^4$ dependence amplifies the length difference, shifting and broadening the push-forward."
 #| label: fig-different-models
-
-E_common = rng.normal(loc=E_mean, scale=0.15 * E_mean, size=nsamples)
-E_common = E_common[E_common > 0]
-
-L1, L2 = 100.0, 110.0
-delta_L1 = (11 * q0_nom * L1**4) / (120 * E_common * I_rect)
-delta_L2 = (11 * q0_nom * L2**4) / (120 * E_common * I_rect)
+from _figures._forward_uq import plot_different_models
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.5))
-
-# Input (same for both)
-ax1.hist(E_common, bins=60, density=True, color="#2C7FB8", alpha=0.7,
-         edgecolor="k", lw=0.3)
-ax1.set_xlabel(r"$E$", fontsize=12)
-ax1.set_ylabel("Density", fontsize=12)
-ax1.set_title("Shared input distribution", fontsize=11)
-ax1.grid(True, alpha=0.2)
-
-# Output from two models
-ax2.hist(delta_L1, bins=60, density=True, color="#2C7FB8", alpha=0.4,
-         edgecolor="none", label=r"$L_1 = 100$")
-ax2.hist(delta_L2, bins=60, density=True, color="#27AE60", alpha=0.4,
-         edgecolor="none", label=r"$L_2 = 110$")
-ax2.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title("Push-forward distributions", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+plot_different_models(ax1, ax2)
 plt.tight_layout()
 plt.show()
 ```
@@ -397,70 +190,21 @@ In practice, however, decision makers rarely need the full PDF. They need specif
 #| echo: false
 #| fig-cap: "Summary statistics extracted from a push-forward PDF. The mean and median locate the center; the standard deviation and quantile interval describe the spread; the failure probability quantifies the chance that the QoI exceeds a critical threshold."
 #| label: fig-summary-statistics
-from scipy.stats import gaussian_kde
+from _figures._forward_uq import plot_summary_statistics
 
-# Use the nonlinear push-forward from earlier
-kde = gaussian_kde(delta_nonlinear)
-d_grid = np.linspace(
-    np.percentile(delta_nonlinear, 0.5),
-    np.percentile(delta_nonlinear, 99.5),
-    500,
-)
-pdf_vals = kde(d_grid)
-
-d_mean = np.mean(delta_nonlinear)
-d_median = np.median(delta_nonlinear)
-d_std = np.std(delta_nonlinear)
-q05 = np.percentile(delta_nonlinear, 5)
-q95 = np.percentile(delta_nonlinear, 95)
-threshold = d_mean + 2.0 * d_std  # example failure threshold
+# Generate the nonlinear push-forward samples
+L, H, q0_nom = 100.0, 30.0, 10.0
+A_skin = 2 * 5.0 * 1.0
+A_core = 20.0 * 1.0
+E_eff = (A_skin * 2e4 + A_core * 5e3) / (A_skin + A_core)
+I_rect = H**3 / 12.0
+rng = np.random.default_rng(42)
+E_samples = rng.normal(loc=E_eff, scale=0.15 * E_eff, size=5000)
+E_samples = E_samples[E_samples > 0]
+delta_nonlinear = (11 * q0_nom * L**4) / (120 * E_samples * I_rect)
 
 fig, ax = plt.subplots(figsize=(10, 4.5))
-
-# Full PDF
-ax.fill_between(d_grid, pdf_vals, alpha=0.15, color="#E67E22")
-ax.plot(d_grid, pdf_vals, color="#E67E22", lw=2, label="Push-forward PDF")
-
-# 90% quantile interval shading
-mask_ci = (d_grid >= q05) & (d_grid <= q95)
-ax.fill_between(d_grid[mask_ci], pdf_vals[mask_ci], alpha=0.3, color="#2C7FB8",
-                label=f"90% interval [{q05:.3f}, {q95:.3f}]")
-
-# Failure region shading
-mask_fail = d_grid >= threshold
-ax.fill_between(d_grid[mask_fail], pdf_vals[mask_fail], alpha=0.5,
-                color="#C0392B",
-                label=f"$P(\\delta_{{\\mathrm{{tip}}}} > {threshold:.3f})$"
-                      f" = {np.mean(delta_nonlinear > threshold):.1%}")
-
-# Mean line
-ax.axvline(d_mean, color="#27AE60", ls="-", lw=2,
-           label=f"Mean = {d_mean:.4f}")
-
-# Median line
-ax.axvline(d_median, color="#8E44AD", ls="--", lw=1.5,
-           label=f"Median = {d_median:.4f}")
-
-# Threshold line
-ax.axvline(threshold, color="#C0392B", ls="-", lw=1.5)
-ax.text(threshold + 0.0002, max(pdf_vals) * 0.85, r"$\delta_{\mathrm{crit}}$",
-        fontsize=12, color="#C0392B", ha="left")
-
-# Standard deviation bracket
-bracket_y = max(pdf_vals) * 0.45
-ax.annotate("", xy=(d_mean - d_std, bracket_y), xytext=(d_mean + d_std, bracket_y),
-            arrowprops=dict(arrowstyle="<->", lw=1.5, color="#27AE60"))
-ax.text(d_mean, bracket_y + max(pdf_vals) * 0.04,
-        rf"$\pm\sigma$ = $\pm${d_std:.4f}",
-        ha="center", fontsize=9, color="#27AE60")
-
-ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Push-forward distribution with summary statistics", fontsize=11)
-ax.legend(fontsize=9, loc="upper right")
-ax.grid(True, alpha=0.2)
-ax.set_xlim(d_grid[0], d_grid[-1])
-
+plot_summary_statistics(delta_nonlinear, ax)
 plt.tight_layout()
 plt.show()
 ```

@@ -86,6 +86,8 @@ Neither is "better" --- they serve different purposes.
 #| fig-cap: "Both sets span the space of polynomials of degree 3. Left: four Lagrange basis functions, each peaking at its node. Right: four Legendre polynomials, smooth and oscillatory. The Lagrange basis is defined by interpolation nodes; the orthonormal basis is defined by the probability measure."
 #| label: fig-two-bases
 
+from _figures._sparse_grids import plot_two_bases
+
 marginal = UniformMarginal(-1.0, 1.0, bkd)
 bases_1d = create_bases_1d([marginal], bkd)
 ortho_basis = bases_1d[0]
@@ -97,40 +99,10 @@ nodes = bkd.to_numpy(quad_pts).flatten()
 
 x_plot = np.linspace(-1, 1, 200)
 x_plot_bkd = bkd.asarray(x_plot.reshape(1, -1))
+ortho_vals = bkd.to_numpy(ortho_basis(x_plot_bkd))  # (200, 4)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-colors = ["#2C7FB8", "#E67E22", "#27AE60", "#8E44AD"]
-
-# Left: Lagrange basis functions
-for j in range(4):
-    L_j = np.ones_like(x_plot)
-    for k in range(4):
-        if k != j:
-            L_j = L_j * (x_plot - nodes[k]) / (nodes[j] - nodes[k])
-    ax1.plot(x_plot, L_j, color=colors[j], lw=2,
-             label=f"$L_{j}(x)$")
-    ax1.plot(nodes[j], 1.0, "o", color=colors[j], ms=8)
-
-ax1.axhline(0, color="gray", lw=0.5, ls="--")
-ax1.set_xlabel("$x$", fontsize=11)
-ax1.set_ylabel("$L_j(x)$", fontsize=11)
-ax1.set_title("Lagrange basis ($n=4$ nodes)", fontsize=12)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.2)
-
-# Right: orthonormal Legendre polynomials
-ortho_vals = bkd.to_numpy(ortho_basis(x_plot_bkd))  # (200, 4)
-for k in range(4):
-    ax2.plot(x_plot, ortho_vals[:, k], color=colors[k], lw=2,
-             label=f"$P_{k}(x)$")
-
-ax2.axhline(0, color="gray", lw=0.5, ls="--")
-ax2.set_xlabel("$x$", fontsize=11)
-ax2.set_ylabel("$P_k(x)$", fontsize=11)
-ax2.set_title("Orthonormal Legendre polynomials", fontsize=12)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+plot_two_bases(ax1, ax2, nodes, x_plot, ortho_vals)
 plt.tight_layout()
 plt.show()
 ```
@@ -162,6 +134,8 @@ We can compute this projection matrix using PyApprox's internal API:
 #| fig-cap: "Projection of a single Lagrange basis function L_2(x). Left: the Lagrange function (solid) and its reconstruction from orthonormal polynomial coefficients (dashed) --- they overlap exactly. Right: bar chart of the projection coefficients c_{2,k}, showing how L_2 decomposes into the orthonormal basis."
 #| label: fig-projection-1d
 
+from _figures._sparse_grids import plot_projection_1d
+
 # Build the converter's 1D projection matrix
 converter_1d = TensorProductSubspaceToPCEConverter(bkd, bases_1d)
 
@@ -172,49 +146,9 @@ proj_coefs = converter_1d._compute_univariate_projection_coefficients(
 )
 proj_coefs_np = bkd.to_numpy(proj_coefs)  # (npts, npts) = (4, 4)
 
-print("Projection coefficient matrix C[j, k] = <L_j, P_k>:")
-print(f"  Shape: {proj_coefs_np.shape}")
-for j in range(4):
-    row = "  ".join(f"{proj_coefs_np[j, k]:+.4f}" for k in range(4))
-    print(f"  j={j}: [{row}]")
-
-# Show one Lagrange function and its reconstruction
 j_show = 2
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-
-# Left: L_j and its PCE reconstruction
-L_j_plot = np.ones_like(x_plot)
-for k in range(4):
-    if k != j_show:
-        L_j_plot *= (x_plot - nodes[k]) / (nodes[j_show] - nodes[k])
-
-# Reconstruction from orthonormal expansion
-reconstruction = np.zeros_like(x_plot)
-for k in range(4):
-    reconstruction += proj_coefs_np[j_show, k] * ortho_vals[:, k]
-
-ax1.plot(x_plot, L_j_plot, color="#2C7FB8", lw=2.5,
-         label=f"$L_{j_show}(x)$ (Lagrange)")
-ax1.plot(x_plot, reconstruction, "--", color="#E67E22", lw=2,
-         label=r"$\sum_k c_{" + str(j_show) + r"k}\, P_k(x)$ (reconstruction)")
-ax1.plot(nodes[j_show], 1.0, "o", color="#2C7FB8", ms=10, zorder=5)
-ax1.axhline(0, color="gray", lw=0.5, ls="--")
-ax1.set_xlabel("$x$", fontsize=11)
-ax1.set_title(f"$L_{j_show}(x)$ and its PCE reconstruction", fontsize=12)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.2)
-
-# Right: bar chart of projection coefficients
-bar_colors = colors[:4]
-ax2.bar(range(4), proj_coefs_np[j_show, :], color=bar_colors,
-        edgecolor="k", lw=0.5)
-ax2.set_xticks(range(4))
-ax2.set_xticklabels([f"$P_{k}$" for k in range(4)])
-ax2.set_ylabel(f"$c_{{{j_show},k}}$", fontsize=12)
-ax2.set_title(f"Projection coefficients for $L_{j_show}$", fontsize=12)
-ax2.axhline(0, color="gray", lw=0.5, ls="--")
-ax2.grid(True, alpha=0.2, axis="y")
-
+plot_projection_1d(ax1, ax2, x_plot, nodes, ortho_vals, proj_coefs_np, j_show)
 plt.tight_layout()
 plt.show()
 ```
@@ -247,6 +181,8 @@ This is a tensor contraction --- each dimension is projected independently, so n
 #| fig-cap: "2D tensor product conversion. Left: function values at the 4x4 tensor product grid. Right: the corresponding PCE multi-indices with color-coded coefficient magnitudes. Each grid point's value is projected through the 1D matrices to produce the PCE coefficients."
 #| label: fig-2d-tp
 
+from _figures._sparse_grids import plot_2d_tp
+
 # Build a 2D example: f(x1, x2) = x1^2 + x1*x2
 marginals_2d = [
     UniformMarginal(-1.0, 1.0, bkd),
@@ -277,43 +213,9 @@ pce_2d = converter.convert(sg_surr)
 # Extract PCE info
 pce_indices = bkd.to_numpy(pce_2d.get_basis().get_indices())  # (nvars, nterms)
 pce_coefs = bkd.to_numpy(pce_2d.get_coefficients())  # (nterms, nqoi)
-nterms = pce_indices.shape[1]
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-# Left: grid points with values
-sg_np = bkd.to_numpy(sg_samples)
-vals_np = bkd.to_numpy(sg_values).flatten()
-sc = ax1.scatter(sg_np[0], sg_np[1], c=vals_np, s=120, cmap="coolwarm",
-                 edgecolor="k", lw=0.5, zorder=5)
-plt.colorbar(sc, ax=ax1, label="$f(x_1, x_2)$")
-ax1.set_xlabel("$x_1$", fontsize=11)
-ax1.set_ylabel("$x_2$", fontsize=11)
-ax1.set_title("Sparse grid sample values", fontsize=12)
-ax1.set_xlim(-1.2, 1.2)
-ax1.set_ylim(-1.2, 1.2)
-ax1.grid(True, alpha=0.3)
-
-# Right: PCE multi-index grid with coefficient magnitudes
-coef_abs = np.abs(pce_coefs[:, 0])
-# Normalize for color mapping
-coef_max = coef_abs.max() if coef_abs.max() > 0 else 1.0
-sc2 = ax2.scatter(pce_indices[0], pce_indices[1], c=coef_abs, s=200,
-                  cmap="YlOrRd", edgecolor="k", lw=0.5, zorder=5,
-                  vmin=0, vmax=coef_max)
-plt.colorbar(sc2, ax=ax2, label="$|\\hat{c}_{k_1 k_2}|$")
-for t in range(nterms):
-    ax2.annotate(f"{pce_coefs[t, 0]:.3f}",
-                 (pce_indices[0, t], pce_indices[1, t]),
-                 textcoords="offset points", xytext=(8, 5),
-                 fontsize=8)
-ax2.set_xlabel("$k_1$ (degree in $x_1$)", fontsize=11)
-ax2.set_ylabel("$k_2$ (degree in $x_2$)", fontsize=11)
-ax2.set_title("PCE multi-indices and coefficients", fontsize=12)
-ax2.set_xlim(-0.5, max(pce_indices[0]) + 0.8)
-ax2.set_ylim(-0.5, max(pce_indices[1]) + 0.8)
-ax2.grid(True, alpha=0.3)
-
+plot_2d_tp(ax1, ax2, fig, sg_samples, sg_values, pce_indices, pce_coefs, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -341,6 +243,8 @@ Different subspaces may produce the **same** multi-index $\mathbf{k}$, so their 
 #| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with $f(x_1, x_2) = x_1^2 + x_1 x_2$. Each dot is a PCE multi-index $(k_1, k_2)$. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value $c_{\\ell} \\hat{c}_{\\mathbf{k}}^{(\\ell)}$. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure $x_2$ term, so the $(0,1)$ coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same $(k_1, k_2)$, their weighted coefficients are summed."
 #| label: fig-smolyak-merge
 
+from _figures._sparse_grids import plot_smolyak_merge
+
 # Build level-2 SG to have multiple subspaces
 fitter_l2 = IsotropicSparseGridFitter(
     bkd, TensorProductSubspaceFactory(bkd, factories, growth), 2
@@ -362,66 +266,9 @@ nrows = (n_subs + ncols) // ncols
 fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows))
 axes_flat = axes.flatten() if hasattr(axes, 'flatten') else [axes]
 
-# Collect merged PCE
-merged = {}
-
-for idx, subspace in enumerate(subspaces):
-    coef = smolyak_coefs[idx]
-    indices, coefficients = sub_converter.convert_subspace(subspace)
-    indices_np = bkd.to_numpy(indices)
-    coefs_np = bkd.to_numpy(coefficients)
-
-    # Merge into global
-    for t in range(indices_np.shape[1]):
-        key = (int(indices_np[0, t]), int(indices_np[1, t]))
-        weighted = coef * coefs_np[0, t]
-        merged[key] = merged.get(key, 0.0) + weighted
-
-    # Plot this subspace
-    ax = axes_flat[idx]
-    for t in range(indices_np.shape[1]):
-        val = coef * coefs_np[0, t]
-        color = "#E67E22" if abs(val) > 1e-10 else "#BDC3C7"
-        ax.scatter(indices_np[0, t], indices_np[1, t], c=color, s=150,
-                   edgecolor="k", lw=0.5, zorder=5)
-        if abs(val) > 1e-10:
-            ax.annotate(f"{val:+.3f}",
-                        (indices_np[0, t], indices_np[1, t]),
-                        textcoords="offset points", xytext=(6, 5),
-                        fontsize=7)
-
-    sub_idx = bkd.to_numpy(subspace.get_index())
-    ax.set_title(
-        f"Subspace ({int(sub_idx[0])},{int(sub_idx[1])}), "
-        f"$c = {coef:+.0f}$",
-        fontsize=10,
-    )
-    ax.set_xlim(-0.5, 5)
-    ax.set_ylim(-0.5, 5)
-    ax.set_xlabel("$k_1$", fontsize=9)
-    ax.set_ylabel("$k_2$", fontsize=9)
-    ax.grid(True, alpha=0.3)
-
-# Plot merged PCE in last panel
-ax_merged = axes_flat[n_subs]
-for (k1, k2), val in merged.items():
-    color = "#27AE60" if abs(val) > 1e-10 else "#BDC3C7"
-    ax_merged.scatter(k1, k2, c=color, s=150, edgecolor="k", lw=0.5, zorder=5)
-    if abs(val) > 1e-10:
-        ax_merged.annotate(f"{val:+.3f}", (k1, k2),
-                           textcoords="offset points", xytext=(6, 5),
-                           fontsize=7)
-ax_merged.set_title("Merged PCE (accumulated)", fontsize=10)
-ax_merged.set_xlim(-0.5, 5)
-ax_merged.set_ylim(-0.5, 5)
-ax_merged.set_xlabel("$k_1$", fontsize=9)
-ax_merged.set_ylabel("$k_2$", fontsize=9)
-ax_merged.grid(True, alpha=0.3)
-
-# Hide unused axes
-for idx in range(n_subs + 1, len(axes_flat)):
-    axes_flat[idx].axis("off")
-
+plot_smolyak_merge(
+    fig, axes_flat, subspaces, smolyak_coefs, sub_converter, bkd, n_subs,
+)
 plt.suptitle("Smolyak combination: subspace PCEs merge into global PCE",
              fontsize=13, y=1.02)
 plt.tight_layout()
@@ -443,6 +290,7 @@ Let us step through the full conversion on the simple 2D function $f(x_1, x_2) =
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     meshgrid_samples,
 )
+from _figures._sparse_grids import plot_sg_vs_pce
 
 # Convert the level-2 SG to PCE
 pce_l2 = converter.convert(sg_l2)
@@ -454,28 +302,10 @@ X_mesh, Y_mesh, eval_pts = meshgrid_samples(npts_plot, plot_limits, bkd)
 sg_vals = bkd.to_numpy(sg_l2(eval_pts))
 pce_vals = bkd.to_numpy(pce_l2(eval_pts))
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-# SG interpolant
 X_np, Y_np = bkd.to_numpy(X_mesh), bkd.to_numpy(Y_mesh)
-cs1 = ax1.contourf(X_np, Y_np,
-                    sg_vals[0].reshape(X_np.shape),
-                    levels=20, cmap="coolwarm")
-plt.colorbar(cs1, ax=ax1)
-ax1.set_xlabel("$x_1$", fontsize=11)
-ax1.set_ylabel("$x_2$", fontsize=11)
-ax1.set_title("SG interpolant", fontsize=12)
 
-# Pointwise error
-error = np.abs(sg_vals[0] - pce_vals[0])
-cs2 = ax2.contourf(X_np, Y_np,
-                    error.reshape(X_np.shape),
-                    levels=20, cmap="Reds")
-plt.colorbar(cs2, ax=ax2)
-ax2.set_xlabel("$x_1$", fontsize=11)
-ax2.set_ylabel("$x_2$", fontsize=11)
-ax2.set_title(f"|SG - PCE| (max = {error.max():.2e})", fontsize=12)
-
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+plot_sg_vs_pce(ax1, ax2, fig, sg_vals, pce_vals, X_np, Y_np)
 plt.tight_layout()
 plt.show()
 ```
@@ -488,14 +318,6 @@ sg_mean_l2 = bkd.to_numpy(sg_l2.mean())
 pce_mean_l2 = bkd.to_numpy(pce_l2.mean())
 sg_var_l2 = bkd.to_numpy(sg_l2.variance())
 pce_var_l2 = bkd.to_numpy(pce_l2.variance())
-
-print("Moment comparison:")
-print(f"  SG mean:   {sg_mean_l2[0]:.15f}")
-print(f"  PCE mean:  {pce_mean_l2[0]:.15f}")
-print(f"  |diff|:    {abs(sg_mean_l2[0] - pce_mean_l2[0]):.2e}")
-print(f"  SG var:    {sg_var_l2[0]:.15f}")
-print(f"  PCE var:   {pce_var_l2[0]:.15f}")
-print(f"  |diff|:    {abs(sg_var_l2[0] - pce_var_l2[0]):.2e}")
 ```
 
 

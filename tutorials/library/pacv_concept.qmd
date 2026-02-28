@@ -107,63 +107,12 @@ $\gamma_j$ is drawn explicitly.
 #| fig-cap: "All valid recursion DAGs for a four-model ensemble ($f_0$ HF, $f_1$–$f_3$ LF). Each panel is one recursion index $\\boldsymbol{\\gamma}$. Edges point from LF model $j$ to its target $f_{\\gamma_j}$. Top-left: chain ($\\boldsymbol{\\gamma}=[0,1,2]$, MLMC/MFMC). Bottom-left: star ($\\boldsymbol{\\gamma}=[0,0,0]$, ACVMF/ACVIS). All others are intermediate mixed structures."
 #| label: fig-dags
 
-import numpy as np
 import matplotlib.pyplot as plt
-import networkx as nx
-
-def all_recursion_indices(M):
-    """Generate all valid recursion indices for M LF models (entry j in 0..j-1)."""
-    if M == 0:
-        yield []
-        return
-    for gamma_prev in all_recursion_indices(M - 1):
-        for g in range(M):     # gamma_M in {0, ..., M-1}
-            yield gamma_prev + [g]
-
-def draw_dag(ax, gamma, title, node_colors=None):
-    M = len(gamma)
-    G = nx.DiGraph()
-    nodes = list(range(M + 1))
-    G.add_nodes_from(nodes)
-    for j, g in enumerate(gamma):
-        G.add_edge(j + 1, g)   # LF model j+1 -> its target g
-
-    # Layout: HF at top, LF models spread below
-    pos = {0: (0.5, 1.0)}
-    for j in range(1, M + 1):
-        pos[j] = (j / (M + 1), 0.15)
-
-    nc = node_colors or (["#e74c3c"] + ["#2C7FB8"] * M)
-    labels = {0: "$f_0$"} | {j: f"$f_{j}$" for j in range(1, M + 1)}
-
-    nx.draw_networkx_nodes(G, pos, nodelist=nodes, node_color=nc,
-                           node_size=700, ax=ax)
-    nx.draw_networkx_labels(G, pos, labels=labels, font_size=10,
-                            font_color="white", ax=ax)
-    nx.draw_networkx_edges(G, pos, edge_color="#555", width=2,
-                           arrows=True, arrowsize=18,
-                           connectionstyle="arc3,rad=0.1", ax=ax)
-    ax.set_title(f"$\\boldsymbol{{\\gamma}}={list(gamma)}$\n{title}",
-                 fontsize=9, pad=4)
-    ax.axis("off")
-
-gammas = list(all_recursion_indices(3))
-n = len(gammas)   # 9 for M=3
-
-# Map to estimator name
-def label(g):
-    if g == [0, 1, 2]: return "MLMC/MFMC"
-    if g == [0, 0, 0]: return "ACVMF/ACVIS"
-    return "Mixed"
+from _figures._multifidelity_advanced import plot_pacv_dags
 
 nrows, ncols = 3, 3
 fig, axes = plt.subplots(nrows, ncols, figsize=(12, 10))
-axes = axes.ravel()
-for i, g in enumerate(gammas):
-    draw_dag(axes[i], g, label(g))
-for ax in axes[n:]:
-    ax.set_visible(False)
-fig.suptitle("All valid recursion DAGs — four-model ensemble ($M=3$)", fontsize=12, y=1.01)
+plot_pacv_dags(fig, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -203,57 +152,10 @@ $\boldsymbol{\gamma} = \mathbf{0}$.
 #| label: fig-family-matrix
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from _figures._multifidelity_advanced import plot_pacv_family_matrix
 
 fig, ax = plt.subplots(figsize=(10, 4))
-ax.axis("off")
-
-rows = ["GMF", "GRD", "GIS"]
-cols = ["Chain: " + r"$\boldsymbol{\gamma}=[0,1,\ldots,M{-}1]$",
-        "Star: " + r"$\boldsymbol{\gamma}=[0,0,\ldots,0]$"]
-data = [["MFMC", "ACVMF"],
-        ["MLMC", "(novel)"],
-        ["(novel)", "ACVIS"]]
-colors = [["#E67E22", "#8E44AD"],
-          ["#2C7FB8", "#bdc3c7"],
-          ["#bdc3c7", "#27AE60"]]
-
-col_w, row_h = 0.38, 0.20
-x0, y0 = 0.18, 0.05
-
-# Column headers
-for c, col in enumerate(cols):
-    ax.text(x0 + col_w * (c + 0.5), y0 + row_h * len(rows) + 0.06,
-            col, ha="center", va="bottom", fontsize=9, fontweight="bold")
-
-# Row label header
-ax.text(x0 - 0.04, y0 + row_h * (len(rows) + 0.3),
-        "Family", ha="center", va="bottom", fontsize=10, style="italic")
-
-# Column label header
-ax.text(x0 + col_w, y0 + row_h * len(rows) + 0.14,
-        "Recursion index", ha="center", va="bottom", fontsize=10, style="italic")
-
-for r, row in enumerate(rows):
-    yc = y0 + row_h * (len(rows) - r - 0.5)
-    ax.text(x0 - 0.04, yc, row, ha="center", va="center",
-            fontsize=11, fontweight="bold")
-    for c, (cell, clr) in enumerate(zip(data[r], colors[r])):
-        xc = x0 + col_w * c
-        rect = mpatches.FancyBboxPatch(
-            (xc + 0.01, yc - row_h * 0.45),
-            col_w - 0.02, row_h - 0.02,
-            boxstyle="round,pad=0.02", fc=clr, ec="white", lw=2, alpha=0.85
-        )
-        ax.add_patch(rect)
-        ax.text(xc + col_w * 0.5, yc,
-                cell, ha="center", va="center", fontsize=12,
-                fontweight="bold", color="white" if cell != "(novel)" else "#333")
-
-ax.set_xlim(0, 1.05)
-ax.set_ylim(0, 1)
-ax.set_title("PACV family grid: three base families × two recursion indices",
-             fontsize=11, pad=12)
+plot_pacv_family_matrix(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -278,87 +180,11 @@ covariance structure.
 #| fig-cap: "Predicted variance (relative to MC) for all valid recursion indices of the GMF family on the four-model polynomial benchmark, at budget $P = 100$. The best recursion index achieves the lowest variance for this correlation structure, but the ordering shifts at other budgets and for different benchmarks."
 #| label: fig-enumeration
 
-import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-)
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.acv import GMFEstimator
-from pyapprox.statest.acv.search import ACVSearch
-from pyapprox.statest.acv.allocation import ACVAllocator, default_allocator_factory
-from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
-from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
-
-bkd = NumpyBkd()
-np.random.seed(1)
-benchmark = polynomial_ensemble_5model(bkd)
-nmodels   = 4
-costs     = benchmark.costs()[:nmodels]
-cov       = benchmark.ensemble_covariance()[:nmodels, :nmodels]
-nqoi      = benchmark.models()[0].nqoi()
-
-stat = MultiOutputMean(nqoi, bkd)
-stat.set_pilot_quantities(cov)
-
-# MC baseline
-mc_est = MCEstimator(stat, costs[:1])
-mc_est.allocate_samples(100.0)
-mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
-
-_slsqp = ScipySLSQPOptimizer(maxiter=200)
-def _fast_allocator(est):
-    alloc = default_allocator_factory(est)
-    if isinstance(alloc, ACVAllocator):
-        return ACVAllocator(est, optimizer=_slsqp)
-    return alloc
-
-# Enumerate all GMF recursion indices via ACVSearch
-search = ACVSearch(
-    stat, costs,
-    recursion_strategy=TreeDepthRecursionStrategy(max_depth=nmodels - 1),
-    allocator_factory=_fast_allocator,
-)
-result = search.search(100.0, allow_failures=True)
-
-variances, labels_ri = [], []
-for est, alloc in result.all_allocations:
-    if alloc.success:
-        try:
-            est.set_allocation(alloc)
-            var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
-        except np.linalg.LinAlgError:
-            var = mc_var
-    else:
-        var = mc_var
-    variances.append(var / mc_var)
-    ri = bkd.to_numpy(est._recursion_index).astype(int)
-    labels_ri.append(str(list(ri.tolist())))
-
-colors_bar = ["#8E44AD" if v == min(variances) else "#2C7FB8"
-              for v in variances]
+from _figures._multifidelity_advanced import plot_pacv_enumeration
 
 fig, ax = plt.subplots(figsize=(10, 4.5))
-x = np.arange(len(variances))
-bars = ax.bar(x, variances, color=colors_bar, edgecolor="k", lw=0.5, alpha=0.85)
-ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.4, label="MC baseline")
-ax.set_xticks(x)
-ax.set_xticklabels([f"$\\gamma={l}$" for l in labels_ri],
-                   rotation=30, ha="right", fontsize=9)
-ax.set_ylabel("Predicted variance / MC variance", fontsize=11)
-ax.set_title(f"GMF estimators — all {len(variances)} recursion indices  (P=100, M={nmodels-1} LF models)",
-             fontsize=11)
-ax.legend(fontsize=10)
-best_lbl = labels_ri[np.argmin(variances)]
-ax.annotate(f"Best: $\\gamma={best_lbl}$",
-            xy=(np.argmin(variances), min(variances)),
-            xytext=(np.argmin(variances) + 0.5, min(variances) + 0.08),
-            fontsize=9, color="#8E44AD",
-            arrowprops=dict(arrowstyle="->", color="#8E44AD"))
-ax.grid(True, alpha=0.2, axis="y")
+plot_pacv_enumeration(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -382,108 +208,11 @@ limit, while MLMC and MFMC plateau at CV-1.
 #| fig-cap: "Variance relative to MC ($N_0 = 1$ HF sample fixed) as LF sample counts grow, for MLMC, MFMC, ACVMF, and the best GMF estimator (selected over all valid recursion indices at each cost) on the five-model polynomial benchmark. MLMC and MFMC both plateau at the CV-1 limit. ACVMF and the best GMF converge toward the much lower CV-4 limit. Dashed lines mark the four CV-$k$ limits."
 #| label: fig-pacv-ceiling
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-)
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.acv import MLMCEstimator, MFMCEstimator, GMFEstimator
-from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
-
-bkd       = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-models    = benchmark.models()
-costs     = benchmark.costs()
-nqoi      = models[0].nqoi()
-cov       = bkd.to_numpy(benchmark.ensemble_covariance())
-sigma2_hf = cov[0, 0]
-n_models  = len(models)
-M         = n_models - 1
-
-# CV-k limits
-cv_limits = []
-for k in range(1, n_models):
-    sub = cov[:k + 1, :k + 1]
-    c0l = sub[0, 1:]
-    Sl  = sub[1:, 1:]
-    r2  = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
-    cv_limits.append(1 - r2)
-
-stat = MultiOutputMean(nqoi, bkd)
-stat.set_pilot_quantities(bkd.asarray(cov))
-
-nhf_samples = 1
-mc_var = sigma2_hf / nhf_samples
-partition_ratio_base = np.array([2, 2, 2, 2])
-factors = np.arange(22)
-
-def compute_variance_vs_cost(estimator):
-    nparts = estimator._npartitions
-    est_costs, est_ratios = [], []
-    for factor in factors:
-        ratios = bkd.asarray(
-            partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
-        )
-        model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
-        target_cost = float(
-            nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
-        )
-        est_cov = estimator.covariance_from_ratios(target_cost, ratios)
-        est_var = float(est_cov[0, 0])
-        est_costs.append(target_cost)
-        est_ratios.append(est_var / mc_var)
-    return est_costs, est_ratios
-
-mlmc_costs,  mlmc_ratio  = compute_variance_vs_cost(MLMCEstimator(stat, costs))
-mfmc_costs,  mfmc_ratio  = compute_variance_vs_cost(MFMCEstimator(stat, costs))
-acvmf_costs, acvmf_ratio = compute_variance_vs_cost(
-    GMFEstimator(stat, costs, recursion_index=bkd.zeros(M, dtype=int)))
-
-# Best GMF: enumerate all valid recursion indices at each cost point
-all_ri = TreeDepthRecursionStrategy(max_depth=M).indices(n_models, bkd)
-best_costs, best_ratio = [], []
-for factor in factors:
-    best_var = np.inf
-    for ri in all_ri:
-        est = GMFEstimator(stat, costs, recursion_index=ri)
-        nparts = est._npartitions
-        ratios = bkd.asarray(
-            partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
-        )
-        model_ratios = est._partition_ratios_to_model_ratios(ratios)
-        target_cost = float(
-            nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
-        )
-        est_cov = est.covariance_from_ratios(target_cost, ratios)
-        est_var = float(est_cov[0, 0])
-        if est_var < best_var:
-            best_var = est_var
-    best_costs.append(target_cost)
-    best_ratio.append(best_var / mc_var)
-
-cv_colors = ["#e74c3c", "#8e44ad", "#16a085", "#2c3e50"]
-cv_ls     = ["--", "-.", ":", (0, (5, 1))]
+from _figures._multifidelity_advanced import plot_pacv_ceiling
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(mlmc_costs,  mlmc_ratio,  "-",  color="#2C7FB8", lw=2, label="MLMC")
-ax.loglog(mfmc_costs,  mfmc_ratio,  "--", color="#E67E22", lw=2, label="MFMC")
-ax.loglog(acvmf_costs, acvmf_ratio, "-.", color="#27AE60", lw=2, label="ACVMF")
-ax.loglog(best_costs,  best_ratio,  "-",  color="#c0392b", lw=2.5,
-          label="Best GMF")
-
-for k, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
-    ax.axhline(lim, color=col, ls=ls, lw=1.5,
-               label=f"CV-{k+1} limit ({k+1} LF)")
-
-ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
-ax.set_xlabel("Total cost", fontsize=11)
-ax.set_ylabel("Variance / MC variance", fontsize=11)
-ax.set_title("PACV best-GMF converges to the multi-model CV ceiling",
-             fontsize=11)
-ax.legend(fontsize=8, loc="lower left")
-ax.grid(True, alpha=0.2, which="both")
+plot_pacv_ceiling(ax)
 plt.tight_layout()
 plt.show()
 ```

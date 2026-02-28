@@ -96,10 +96,6 @@ samples = fitter.get_samples()
 values = model(samples)
 result = fitter.fit(values)
 surrogate = result.surrogate
-
-print(f"Sparse grid level {level}: {samples.shape[1]} points, "
-      f"{surrogate.nsubspaces()} subspaces")
-print(f"Input variables: {nvars}, QoIs: {nqoi}")
 ```
 
 
@@ -118,11 +114,6 @@ where $c_k$ are Smolyak coefficients and each integral is exact for the polynomi
 ```{python}
 sg_mean = bkd.to_numpy(surrogate.mean())
 sg_var = bkd.to_numpy(surrogate.variance())
-
-print("Sparse grid native moments (Smolyak quadrature):")
-for k in range(nqoi):
-    print(f"  {qoi_labels[k]}: mean = {sg_mean[k]:.6f},  "
-          f"std = {np.sqrt(sg_var[k]):.6f}")
 ```
 
 ::: {.callout-important}
@@ -154,8 +145,6 @@ from pyapprox.surrogates.sparsegrids.converters.pce import (
 bases_1d = create_bases_1d(marginals, bkd)
 converter = SparseGridToPCEConverter(bkd, bases_1d)
 pce = converter.convert(surrogate)
-
-print(f"Converted PCE: {pce.nterms()} terms")
 ```
 
 The converted PCE gives us the full analytical moment toolkit. Let us verify that its mean and variance match the native sparse grid moments:
@@ -164,16 +153,6 @@ The converted PCE gives us the full analytical moment toolkit. Let us verify tha
 pce_mean = bkd.to_numpy(pce.mean())
 pce_var = bkd.to_numpy(pce.variance())
 pce_cov = bkd.to_numpy(pce.covariance())
-
-print("Comparison: SG native vs. converted PCE")
-print(f"{'QoI':<20} {'SG mean':>10} {'PCE mean':>10} "
-      f"{'SG std':>10} {'PCE std':>10}")
-print("-" * 62)
-for k in range(nqoi):
-    print(f"{qoi_labels[k]:<20} {sg_mean[k]:>10.6f} {pce_mean[k]:>10.6f} "
-          f"{np.sqrt(sg_var[k]):>10.6f} {np.sqrt(pce_var[k]):>10.6f}")
-
-print(f"\nCovariance matrix (from converted PCE):\n{pce_cov}")
 ```
 
 The SG and PCE moments should agree to near machine precision, since both represent the same polynomial interpolant --- just in different bases.
@@ -188,36 +167,14 @@ The SG and PCE moments should agree to near machine precision, since both repres
 #| label: fig-sg-sobol
 
 from pyapprox.sensitivity import SparseGridSensitivityAnalysis
-from pyapprox.sensitivity.plots import (
-    plot_main_effects,
-    plot_total_effects,
-)
+from _figures._sparse_grids import plot_sg_sobol
 
 sa = SparseGridSensitivityAnalysis(surrogate, bases_1d)
 main_effects = sa.main_effects()   # (nvars, nqoi)
 total_effects = sa.total_effects()  # (nvars, nqoi)
 
-input_labels = [rf"$\xi_{{{ii+1}}}$" for ii in range(nvars)]
-
-print("Sobol indices for each QoI:")
-for k in range(nqoi):
-    print(f"\n  {qoi_labels[k]}:")
-    for i in range(nvars):
-        me_val = float(main_effects[i, k])
-        te_val = float(total_effects[i, k])
-        print(f"    {input_labels[i]}: S = {me_val:.4f},  S^T = {te_val:.4f}")
-
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
-
-# Main effects pie chart (tip deflection)
-plot_main_effects(main_effects, axes[0], bkd, rv=r"\xi", qoi=0)
-axes[0].set_title(f"Main Effects ({qoi_labels[0]})", fontsize=12)
-
-# Total effects bar chart (tip deflection)
-plot_total_effects(total_effects, axes[1], bkd, rv=r"\xi", qoi=0)
-axes[1].set_ylabel("Sobol Index", fontsize=11)
-axes[1].set_title(f"Total Effects ({qoi_labels[0]})", fontsize=12)
-
+plot_sg_sobol(axes, main_effects, total_effects, bkd, qoi_labels)
 plt.tight_layout()
 plt.show()
 ```
@@ -238,6 +195,7 @@ $$
 #| label: fig-sg-marginals
 
 from pyapprox.interface.functions.timing import timed
+from _figures._sparse_grids import plot_sg_marginals
 
 # Measure per-evaluation cost
 timed_model = timed(model)
@@ -250,17 +208,11 @@ timed_sg = timed(surrogate)
 _ = timed_sg(warmup_samples)
 sg_cost = timed_sg.timer().get("__call__").median()
 
-speedup = beam_cost / sg_cost
 N_sg = samples.shape[1]
-print(f"Beam model: {beam_cost:.6f} s/eval")
-print(f"SG surrogate: {sg_cost:.6f} s/eval")
-print(f"Speedup: {speedup:.0f}x")
 
 # Equal-cost sample sizes
 N_mc = 500
 M_sg = int((N_mc - N_sg) * beam_cost / sg_cost)
-print(f"\nMC budget:  {N_mc} beam evaluations")
-print(f"SG budget:  {N_sg} beam evals (training) + {M_sg:,} SG evals")
 
 # MC reference
 np.random.seed(123)
@@ -273,19 +225,7 @@ samples_sg_eval = prior.rvs(M_sg)
 preds_sg = bkd.to_numpy(surrogate(samples_sg_eval))
 
 fig, axes = plt.subplots(1, nqoi, figsize=(14, 4))
-
-for k, ax in enumerate(axes):
-    ax.hist(vals_mc[k, :], bins=40, density=True, alpha=0.5,
-            color="#2C7FB8", edgecolor="k", lw=0.2,
-            label=f"MC ({N_mc} beam evals)")
-    ax.hist(preds_sg[k, :], bins=80, density=True, alpha=0.4,
-            color="#E67E22", edgecolor="k", lw=0.1,
-            label=f"SG ({N_sg}+{M_sg:,} evals)")
-    ax.set_xlabel(qoi_labels[k], fontsize=11)
-    ax.set_ylabel("Density", fontsize=11)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-
+plot_sg_marginals(axes, vals_mc, preds_sg, N_mc, N_sg, M_sg, nqoi, qoi_labels)
 plt.tight_layout()
 plt.show()
 ```
@@ -306,6 +246,7 @@ from pyapprox.surrogates.quadrature import (
     TensorProductQuadratureRule,
     gauss_quadrature_rule,
 )
+from _figures._sparse_grids import plot_sg_vs_mc
 
 # True moments via tensor-product Gauss quadrature
 nquad = 20
@@ -365,47 +306,11 @@ for lev, N_bud in zip(sg_levels, sg_npts_list):
             abs(sg_va - true_var) / abs(true_var)
         )
 
-
-def _plot_convergence(ax, N_vals, mc_errs, sg_errs, ylabel, title,
-                      level_labels):
-    mc_med = [np.nanmedian(mc_errs[N]) for N in N_vals]
-    mc_lo = [np.nanpercentile(mc_errs[N], 10) for N in N_vals]
-    mc_hi = [np.nanpercentile(mc_errs[N], 90) for N in N_vals]
-    sg_med = [np.nanmedian(sg_errs[N]) for N in N_vals]
-    sg_lo = [np.nanpercentile(sg_errs[N], 10) for N in N_vals]
-    sg_hi = [np.nanpercentile(sg_errs[N], 90) for N in N_vals]
-
-    ax.fill_between(N_vals, mc_lo, mc_hi, alpha=0.15, color="#2C7FB8")
-    ax.semilogy(N_vals, mc_med, "o-", ms=5, color="#2C7FB8", lw=1.5,
-                label="Monte Carlo")
-    ax.fill_between(N_vals, sg_lo, sg_hi, alpha=0.15, color="#E67E22")
-    ax.semilogy(N_vals, sg_med, "s-", ms=5, color="#E67E22", lw=1.5,
-                label="Sparse Grid")
-    for N, lbl in zip(N_vals, level_labels):
-        idx = N_vals.index(N)
-        ax.annotate(f"l={lbl}", (N, sg_med[idx]),
-                    textcoords="offset points", xytext=(6, -12),
-                    fontsize=7, color="#E67E22")
-    ax.set_xlabel("Number of model evaluations $N$", fontsize=11)
-    ax.set_ylabel(ylabel, fontsize=11)
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.2, which="both")
-
-
-level_labels = [str(lev) for lev in sg_levels]
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-_plot_convergence(
-    ax1, sg_npts_list, mc_mean_errors, sg_mean_errors,
-    "Relative error in mean",
-    f"Mean of {qoi_labels[qoi_plot]}",
-    level_labels,
-)
-_plot_convergence(
-    ax2, sg_npts_list, mc_var_errors, sg_var_errors,
-    "Relative error in variance",
-    f"Variance of {qoi_labels[qoi_plot]}",
-    level_labels,
+plot_sg_vs_mc(
+    fig, ax1, ax2,
+    sg_npts_list, mc_mean_errors, sg_mean_errors,
+    mc_var_errors, sg_var_errors, sg_levels, qoi_labels, qoi_plot,
 )
 plt.tight_layout()
 plt.show()

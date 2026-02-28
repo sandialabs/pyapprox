@@ -307,23 +307,11 @@ mo_trials = run_trials_mo(est_mo, n_trials)   # (n_trials, nqoi)
 so_vars_emp = [run_trials_so(ests_so[qi], qi, n_trials).var() for qi in range(nqoi)]
 mo_vars_emp = [mo_trials[:, qi].var() for qi in range(nqoi)]
 
-x     = np.arange(nqoi)
-width = 0.2
+from _figures._multifidelity_advanced import plot_mo_theory_vs_empirical
+
 fig, ax = plt.subplots(figsize=(7, 4))
-ax.bar(x - width * 1.5, [cov_mo_np[qi, qi] for qi in range(nqoi)],
-       width, color="#8E44AD", alpha=0.8, edgecolor="k", lw=0.5, label="MOACV theory")
-ax.scatter(x - width * 1.5, mo_vars_emp,
-           s=70, color="#8E44AD", edgecolors="k", lw=1, zorder=4)
-ax.bar(x - width * 0.5, [cov_so_np[qi, qi] for qi in range(nqoi)],
-       width, color="#2C7FB8", alpha=0.8, edgecolor="k", lw=0.5, label="SOACV theory")
-ax.scatter(x - width * 0.5, so_vars_emp,
-           s=70, color="#2C7FB8", edgecolors="k", lw=1, zorder=4, label="Empirical (dots)")
-ax.set_xticks(x)
-ax.set_xticklabels([f"QoI {qi}" for qi in range(nqoi)], fontsize=11)
-ax.set_ylabel("Estimator variance", fontsize=11)
-ax.set_title(f"MOACV vs SOACV  |  P=100  |  {n_trials} trials", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2, axis="y")
+plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,
+                            so_vars_emp, n_trials, ax)
 plt.tight_layout()
 plt.show()
 ```

@@ -93,16 +93,17 @@ $$\gamma \leftrightarrow \text{diffusion}, \quad
 ```{python}
 #| label: fig-matern-kernels-paths
 #| fig-cap: "Left: Matern kernel functions for four smoothness values $\\nu$, all with $\\ell = 0.4$. Centre and right: sample paths from Matern-1/2 (rough, non-differentiable) and Matern-3/2 (once differentiable). The SPDE bilaplacian prior produces Matern-3/2 in 1D."
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+from scipy.special import kv
+from _figures._kle import plot_matern_kernels_paths
+
 x_plot = np.linspace(0, 2, 200)
 mesh_plot = bkd.array(x_plot[None, :])
 x0 = 1.0
 ell = 0.4
 
-# Show Matern kernels with different smoothness
-ax = axes[0]
-from scipy.special import kv
+# Compute Matern kernel curves
 r = np.abs(x_plot - x0)
+kernel_curves = []
 for nu, name, color in [(0.5, "Matern-1/2\n(exponential)", "steelblue"),
                          (1.0, "Matern-1  \n(SPDE 2D)", "darkorange"),
                          (1.5, "Matern-3/2\n(SPDE 1D)", "green"),
@@ -111,35 +112,30 @@ for nu, name, color in [(0.5, "Matern-1/2\n(exponential)", "steelblue"),
     z = sqrt2nu * np.maximum(r, 1e-14) / ell
     k = (2**(1-nu) / gamma_fn(nu)) * z**nu * kv(nu, z)
     k[r < 1e-12] = 1.0
-    ax.plot(x_plot, k, color=color, lw=2, label=name)
-ax.axvline(x0, color="k", ls=":", lw=1)
-ax.set_xlabel("$x$", fontsize=12)
-ax.set_ylabel("$k(x_0, x)$", fontsize=12)
-ax.set_title(f"Matern kernels  ($\\ell={ell}$)", fontsize=12)
-ax.legend(fontsize=9)
+    kernel_curves.append((r, k, name, color))
 
-# Smoothness visible in sample paths using MeshKLE
+# Compute sample paths for two smoothness values
 dx_plot = x_plot[1] - x_plot[0]
 w_plot = np.ones(200) * dx_plot; w_plot[0] /= 2; w_plot[-1] /= 2
 quad_plot = bkd.array(w_plot)
 
-for ax_idx, (nu, name, kernel_class) in enumerate([
+sample_paths_list = []
+path_labels = []
+for nu, name, kernel_class in [
     (0.5, "Matern-1/2", ExponentialKernel),
     (1.5, "Matern-3/2", Matern32Kernel),
-]):
-    ax = axes[ax_idx + 1]
+]:
     kern = kernel_class(bkd.array([ell]), (0.01, 10.0), 1, bkd)
     kle_plot = MeshKLE(
         mesh_plot, kern, sigma=1.0, nterms=50,
         quad_weights=quad_plot, bkd=bkd,
     )
     coef = bkd.array(rng.standard_normal((50, 5)))
-    fields = bkd.to_numpy(kle_plot(coef))
-    for s in range(5):
-        ax.plot(x_plot, fields[:, s], lw=1.2, alpha=0.8)
-    ax.set_title(f"{name} sample paths", fontsize=12)
-    ax.set_xlabel("$x$")
+    sample_paths_list.append(bkd.to_numpy(kle_plot(coef)))
+    path_labels.append(name)
 
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_matern_kernels_paths(x_plot, kernel_curves, sample_paths_list, path_labels, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -160,6 +156,8 @@ This uses only sparse matrices, giving $O(N)$ memory instead of $O(N^2)$.
 ```{python}
 #| label: fig-spde-overview
 #| fig-cap: "Left: SPDE eigenfunctions on $[0, 2]$. Centre: five sample paths with $\\pm 2\\sigma$ envelope from `pointwise_variance()`. Right: eigenvalue comparison between the sparse SPDE KLE and the dense `MeshKLE` with Matern-3/2 kernel. They agree at low modes but differ near the boundary."
+from _figures._kle import plot_spde_overview
+
 # Parameters for ell_c = 0.5 in 1D
 ell_c = 0.5
 gamma = 1.0
@@ -177,15 +175,11 @@ kle_spde = create_spde_matern_kle(
     sigma=1.0, bkd=bkd,
 )
 
-print(f"Correlation length: {kle_spde.correlation_length():.3f}")
-print(f"Number of terms: {kle_spde.nterms()}")
-
 lam_spde = bkd.to_numpy(kle_spde.eigenvalues())
 phi_spde = bkd.to_numpy(kle_spde.eigenvectors())
 x_nodes = bkd.to_numpy(basis.dof_coordinates())[0]
 
 # Compare with dense Matern-3/2 MeshKLE
-# Matern-3/2 range parameter: rho = sqrt(2*nu) / kappa where kappa = sqrt(delta/gamma)
 nu = 1.5
 kappa = np.sqrt(delta / gamma)
 rho = np.sqrt(2 * nu) / kappa
@@ -198,41 +192,18 @@ kle_nystrom = create_fem_nystrom_nodes_kle(
 )
 lam_dense = bkd.to_numpy(kle_nystrom.eigenvalues())
 
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-# Sparsity of the SPDE operator (shown via the eigenvectors)
-colors = plt.cm.tab10(np.linspace(0, 0.55, nterms))
-for k in range(nterms):
-    sign = np.sign(phi_spde[1, k])
-    axes[0].plot(x_nodes, sign * phi_spde[:, k], color=colors[k],
-                 label=f"$\\phi_{k+1}$")
-axes[0].axhline(0, color="k", lw=0.5)
-axes[0].set_title("SPDE eigenfunctions", fontsize=12)
-axes[0].set_xlabel("$x$"); axes[0].legend(fontsize=9)
-
-# SPDE sample paths
 nsamples_show = 5
 Z_s = bkd.array(rng.standard_normal((nterms, nsamples_show)))
 fields_spde = bkd.to_numpy(kle_spde(Z_s))
-for s in range(nsamples_show):
-    axes[1].plot(x_nodes, fields_spde[:, s], lw=1.5, alpha=0.9)
 var_spde = bkd.to_numpy(kle_spde.pointwise_variance())
-axes[1].fill_between(x_nodes,
-                     -2*np.sqrt(var_spde), 2*np.sqrt(var_spde),
-                     alpha=0.15, color="gray", label="$\\pm 2\\sigma$")
-axes[1].set_title(f"SPDE KLE sample paths  ($\\ell_c={ell_c}$, $K={nterms}$)",
-                  fontsize=11)
-axes[1].set_xlabel("$x$"); axes[1].legend(fontsize=10)
+k_idx = np.arange(1, nterms + 1)
 
-# Eigenvalue comparison: SPDE vs dense Matern-3/2
-k_idx = np.arange(1, nterms+1)
-axes[2].semilogy(k_idx, lam_dense, "bs-", lw=2, ms=7, label="MeshKLE (dense)")
-axes[2].semilogy(k_idx, lam_spde, "r^--", lw=2, ms=7, label="SPDE KLE")
-axes[2].set_xlabel("Mode $k$", fontsize=12)
-axes[2].set_ylabel("$\\lambda_k$ (log scale)", fontsize=12)
-axes[2].set_title("Eigenvalue comparison  ($\\ell_c=0.5$)", fontsize=12)
-axes[2].legend(fontsize=11)
-axes[2].set_xticks(k_idx)
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_spde_overview(
+    x_nodes, phi_spde, nterms, fields_spde, var_spde,
+    k_idx, lam_dense, lam_spde, ell_c,
+    axes[0], axes[1], axes[2],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -251,11 +222,11 @@ grows relative to $\ell_c$.
 ```{python}
 #| label: fig-boundary-artefacts
 #| fig-cap: "Pointwise variance of the SPDE KLE for three domain sizes. On the short domain ($L/\\ell_c = 2$) the variance drops significantly near boundaries due to Robin BCs. As the domain grows relative to $\\ell_c$, the interior variance approaches the target $\\sigma^2 = 1$ and boundary effects become negligible."
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+from _figures._kle import plot_boundary_artefacts
 
-# Pointwise variance for different domain sizes
 ell_c_fixed = 0.5
-for ax, domain_len in zip(axes, [1.0, 2.0, 5.0]):
+domain_data = []
+for domain_len in [1.0, 2.0, 5.0]:
     nx_d = max(100, int(domain_len / 0.01))
     mesh_d = StructuredMesh1D(nx=nx_d, bounds=(0.0, domain_len), bkd=bkd)
     basis_d = LagrangeBasis(mesh_d, degree=1)
@@ -270,16 +241,10 @@ for ax, domain_len in zip(axes, [1.0, 2.0, 5.0]):
 
     x_d = bkd.to_numpy(basis_d.dof_coordinates())[0]
     var_d = bkd.to_numpy(kle_d.pointwise_variance())
-    ax.plot(x_d, var_d, "b-", lw=2, label="SPDE variance")
-    ax.axhline(1.0, color="r", ls="--", lw=1.5, label="target $\\sigma^2=1$")
-    ratio = domain_len / ell_c_fixed
-    ax.set_title(f"Domain $[0,{domain_len}]$\n"
-                 f"Domain$/\\ell_c = {ratio:.0f}$", fontsize=11)
-    ax.set_xlabel("$x$")
-    ax.set_ylim(0, 1.5)
+    domain_data.append((x_d, var_d, domain_len))
 
-axes[0].set_ylabel("Pointwise variance")
-axes[0].legend(fontsize=9)
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_boundary_artefacts(domain_data, ell_c_fixed, axes)
 fig.suptitle("Boundary artefact decreases as domain grows relative to $\\ell_c$",
              fontsize=12)
 plt.tight_layout()
@@ -301,36 +266,25 @@ The eigenvalue solve cost also differs significantly:
 ```{python}
 #| label: fig-memory-scaling
 #| fig-cap: "Left: memory and eigenvalue-solve cost scaling of the dense covariance matrix ($O(N^2)$) vs the sparse SPDE precision operator ($O(N)$). Right: SPDE sample paths for three correlation lengths $\\ell_c = 0.3, 0.5, 0.8$, showing shorter $\\ell_c$ produces rougher fields."
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+from _figures._kle import plot_memory_scaling
 
-# Scaling
+# Scaling data
 N_vals = np.array([100, 300, 500, 1000, 2000, 5000])
-K_modes = 20  # typical number of modes
-mem_dense = N_vals**2 * 8 / 1e6   # MB, float64
-mem_sparse = N_vals * 3 * 8 / 1e6  # tridiagonal: 3*N entries
-cost_dense = N_vals**2 * K_modes   # dense eigensolve O(N^2 K)
-cost_sparse = N_vals * K_modes     # sparse iterative eigensolve O(N K)
-
-axes[0].loglog(N_vals, mem_dense, "bs-", lw=2, ms=7, label="Dense $C$  ($O(N^2)$)")
-axes[0].loglog(N_vals, mem_sparse, "r^--", lw=2, ms=7, label="Sparse SPDE $A$  ($O(N)$)")
-axes[0].loglog(N_vals, cost_dense / cost_dense[0] * mem_dense[0],
-               "b:", lw=1.5, alpha=0.5, label="Dense solve  ($O(N^2 K)$)")
-axes[0].loglog(N_vals, cost_sparse / cost_sparse[0] * mem_sparse[0],
-               "r:", lw=1.5, alpha=0.5, label="Sparse solve  ($O(NK)$)")
-axes[0].set_xlabel("Mesh size $N$", fontsize=12)
-axes[0].set_ylabel("Memory (MB) / relative cost", fontsize=12)
-axes[0].set_title("Memory and solve cost scaling", fontsize=12)
-axes[0].legend(fontsize=9)
+K_modes = 20
+mem_dense = N_vals**2 * 8 / 1e6
+mem_sparse = N_vals * 3 * 8 / 1e6
+cost_dense = N_vals**2 * K_modes
+cost_sparse = N_vals * K_modes
 
 # Sample paths with different correlation lengths
 ells = [0.3, 0.5, 0.8]
-colors_ell = ["steelblue", "darkorange", "green"]
 nx_s = 200
 mesh_s = StructuredMesh1D(nx=nx_s, bounds=(0.0, 2.0), bkd=bkd)
 basis_s = LagrangeBasis(mesh_s, degree=1)
 x_s = bkd.to_numpy(basis_s.dof_coordinates())[0]
 
-for color, ell_target in zip(colors_ell, ells):
+fields_by_ell = []
+for ell_target in ells:
     gamma_t = 1.0
     delta_t = gamma_t / ell_target**2
     kle_t = create_spde_matern_kle(
@@ -338,15 +292,13 @@ for color, ell_target in zip(colors_ell, ells):
         sigma=1.0, bkd=bkd,
     )
     Z_t = bkd.array(rng.standard_normal((20, 3)))
-    fields_t = bkd.to_numpy(kle_t(Z_t))
-    for s in range(3):
-        lbl = f"$\\ell_c={ell_target}$" if s == 0 else None
-        axes[1].plot(x_s, fields_t[:, s], color=color, lw=1.5, alpha=0.8, label=lbl)
+    fields_by_ell.append(bkd.to_numpy(kle_t(Z_t)))
 
-axes[1].set_xlabel("$x$", fontsize=12)
-axes[1].set_title("SPDE sample paths for three correlation lengths", fontsize=12)
-axes[1].legend(fontsize=10)
-axes[1].axhline(0, color="k", lw=0.4)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+plot_memory_scaling(
+    N_vals, mem_dense, mem_sparse, cost_dense, cost_sparse,
+    x_s, fields_by_ell, ells, axes[0], axes[1],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -364,30 +316,22 @@ Given target correlation length $\ell_c$ and marginal std $\sigma$:
 ```{python}
 #| label: fig-spde-parameters
 #| fig-cap: "Left: max relative eigenvalue error between SPDE and dense KLE as the domain length $L$ increases, confirming asymptotic convergence. Right: empirical covariance at the domain midpoint from 2000 Monte Carlo samples for three correlation lengths."
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+from _figures._kle import plot_spde_parameters
 
-for color, ell_target in zip(colors_ell, ells):
+# Empirical covariance at midpoint for each correlation length
+mid = nx_s // 2
+cov_by_ell = []
+for ell_target in ells:
     gamma_t = 1.0
     delta_t = gamma_t / ell_target**2
     kle_t = create_spde_matern_kle(
         basis_s, n_modes=20, gamma=gamma_t, delta=delta_t,
         sigma=1.0, bkd=bkd,
     )
-
-    # Empirical covariance at midpoint
     nmc = 2000
     Z_mc = bkd.array(rng.standard_normal((20, nmc)))
     F = bkd.to_numpy(kle_t(Z_mc))
-    mid = nx_s // 2
-    cov_empirical = F[mid, :] @ F.T / nmc
-    axes[1].plot(x_s, cov_empirical, color=color, lw=2,
-                 label=f"$\\ell_c={ell_target}$")
-
-axes[1].axvline(x_s[mid], color="k", ls=":", lw=1)
-axes[1].set_xlabel("$x$", fontsize=12)
-axes[1].set_ylabel("Empirical $C(x_{\\mathrm{mid}}, x)$", fontsize=12)
-axes[1].set_title("Empirical covariance from 2000 MC samples", fontsize=12)
-axes[1].legend(fontsize=10)
+    cov_by_ell.append(F[mid, :] @ F.T / nmc)
 
 # Convergence of SPDE toward dense KLE as domain grows
 domain_sizes = [5, 10, 20, 40]
@@ -417,11 +361,11 @@ for L in domain_sizes:
     rel_err = np.abs(eig_spde - eig_nystrom) / eig_nystrom
     max_errors.append(np.max(rel_err))
 
-axes[0].semilogy(domain_sizes, max_errors, "bs-", lw=2, ms=7)
-axes[0].set_xlabel("Domain length $L$", fontsize=12)
-axes[0].set_ylabel("Max relative eigenvalue error", fontsize=12)
-axes[0].set_title("SPDE vs dense KLE convergence\n(first 5 modes)", fontsize=12)
-axes[0].set_xticks(domain_sizes)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+plot_spde_parameters(
+    domain_sizes, max_errors, x_s, cov_by_ell, ells, mid,
+    axes[0], axes[1],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -435,38 +379,10 @@ plt.show()
 #| label: fig-method-comparison
 #| fig-cap: "Summary comparison of the three KLE methods: `MeshKLE` (dense kernel), `DataDrivenKLE` (SVD of samples), and `SPDEMaternKLE` (sparse PDE operator)."
 #| echo: false
+from _figures._kle import plot_method_comparison
+
 fig, ax = plt.subplots(figsize=(11, 3.5))
-ax.set_axis_off()
-
-rows = [
-    ["", "MeshKLE", "DataDrivenKLE", "SPDEMaternKLE"],
-    ["Memory", "$O(N^2)$", "$O(N \\cdot N_s)$", "$O(N)$ sparse"],
-    ["Eigensolve cost", "$O(N^2 K)$ dense", "$O(N N_s K)$ SVD", "$O(NK)$ iterative"],
-    ["Known kernel needed", "Yes", "No", "No (Matern implicit)"],
-    ["Smoothness control", "Any kernel", "Empirical", "$\\nu = \\alpha - d/2$"],
-    ["Boundary artefacts", "Minimal", "None", "Yes (shrink with domain)"],
-    ["Scales to large $N$?", "No ($N \\lesssim 5000$)", "Moderate", "Yes"],
-    ["When to use", "Small mesh,\nknown kernel", "Data available,\nno kernel", "Large mesh,\nMatern family"],
-]
-
-table = ax.table(
-    cellText=rows[1:],
-    colLabels=rows[0],
-    loc="center",
-    cellLoc="center",
-)
-table.auto_set_font_size(False)
-table.set_fontsize(10)
-table.scale(1.1, 2.2)
-for (r, c), cell in table.get_celld().items():
-    if r == 0:
-        cell.set_facecolor("#4472C4")
-        cell.set_text_props(color="white", fontweight="bold")
-    elif c == 0:
-        cell.set_facecolor("#D9E1F2")
-    elif r % 2 == 0:
-        cell.set_facecolor("#F2F2F2")
-
+plot_method_comparison(ax)
 plt.tight_layout()
 plt.show()
 ```

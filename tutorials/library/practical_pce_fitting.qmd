@@ -83,8 +83,6 @@ prior = benchmark.prior()
 marginals = prior.marginals()
 nvars = model.nvars()
 nqoi = model.nqoi()
-
-print(f"nvars = {nvars}, nqoi = {nqoi}")
 ```
 
 We generate a fixed test set for evaluating all surrogates built in this tutorial:
@@ -115,55 +113,11 @@ A higher degree $p$ includes more basis terms and reduces the truncation error, 
 #| fig-cap: "Truncation error. Each curve shows the test-set $L_2$ error vs. number of training samples for a fixed total-degree. The error plateaus at a floor determined by the truncation error --- higher degrees reach lower floors but need more data. Bands show min/max over repetitions; lines show the mean."
 #| label: fig-truncation-error
 
-degrees_to_test = [4, 6, 8]
-N_train_values = [50, 75, 100, 150, 200, 300, 500]
-n_reps = 5
-colors_deg = ["#2C7FB8", "#E67E22", "#C0392B"]
+from _figures._pce import plot_truncation_error
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-
-for deg, color in zip(degrees_to_test, colors_deg):
-    indices_deg = compute_hyperbolic_indices(nvars, deg, 1.0, bkd)
-    nterms = indices_deg.shape[1]
-    mean_errors = []
-    min_errors = []
-    max_errors = []
-    valid_N = []
-
-    for N_tr in N_train_values:
-        if N_tr <= nterms + 2:
-            continue
-        valid_N.append(N_tr)
-        rep_errors = []
-        for rep in range(n_reps):
-            np.random.seed(2000 + N_tr * 100 + rep)
-            s_tr = prior.rvs(N_tr)
-            v_tr = model(s_tr)
-
-            pce_rep = create_pce_from_marginals(
-                marginals, deg, bkd, nqoi=nqoi
-            )
-            fitted_rep = ls_fitter.fit(pce_rep, s_tr, v_tr).surrogate()
-
-            preds = bkd.to_numpy(fitted_rep(samples_test))
-            l2_err = np.linalg.norm(vals_np[0, :] - preds[0, :])
-            l2_ref = np.linalg.norm(vals_np[0, :])
-            rep_errors.append(l2_err / l2_ref)
-
-        mean_errors.append(np.mean(rep_errors))
-        min_errors.append(np.min(rep_errors))
-        max_errors.append(np.max(rep_errors))
-
-    ax.fill_between(valid_N, min_errors, max_errors, alpha=0.15,
-                    color=color)
-    ax.semilogy(valid_N, mean_errors, "o-", ms=5, color=color, lw=1.5,
-                label=f"Degree {deg} ({nterms} terms)")
-
-ax.set_xlabel("Number of training samples $N$", fontsize=11)
-ax.set_ylabel("Relative $L_2$ error", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2, which="both")
-
+plot_truncation_error(model, prior, marginals, nvars, nqoi,
+                      samples_test, values_test, bkd, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -264,6 +218,8 @@ def _nterms_list(degrees):
 #| fig-cap: "Test error and 5-fold CV score vs. total polynomial degree for N = 75. Lines show the mean over 10 random training sets; bands show min/max. Test error has a U-shape: it decreases as more terms reduce truncation error, then rises as the oversampling ratio $N/P$ shrinks. The CV score tracks the test error and correctly identifies the optimal degree without a held-out test set. The condition number (bottom) tracks the error rise."
 #| label: fig-train-test-cv
 
+from _figures._pce import plot_train_test_cv
+
 degrees_sweep = list(range(1, 9))
 
 res = sweep_train_test_cv(
@@ -271,57 +227,12 @@ res = sweep_train_test_cv(
     samples_test=samples_test, values_test=values_test,
 )
 nterms_list = _nterms_list(degrees_sweep)
-degs = res["degrees"]
 
 fig, (ax, ax_cond) = plt.subplots(
     2, 1, figsize=(8, 7), sharex=True,
     gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08},
 )
-
-# --- Top panel: errors ---
-ax.fill_between(degs, res["te_min"], res["te_max"], alpha=0.15,
-                color="#C0392B")
-ax.semilogy(degs, res["te_mean"], "s--", ms=6, lw=2, color="#C0392B",
-            label="Test error")
-
-cv_ok = res["cv_any_valid"]
-cv_degs = np.array(degs)[cv_ok]
-ax.fill_between(cv_degs, res["cv_min"][cv_ok], res["cv_max"][cv_ok],
-                alpha=0.15, color="#E67E22")
-ax.semilogy(cv_degs, res["cv_mean"][cv_ok], "D-.", ms=6, lw=2,
-            color="#E67E22", label="5-fold CV score")
-
-best_i = np.argmin(res["cv_mean"][cv_ok])
-ax.plot(cv_degs[best_i], res["cv_mean"][cv_ok][best_i], "*", ms=18,
-        color="#E67E22", zorder=5, markeredgecolor="k", markeredgewidth=0.5)
-
-# Annotate nterms
-for i, (d, nt) in enumerate(zip(degs, nterms_list)):
-    ax.annotate(f"P={nt}", (d, res["te_mean"][i]),
-                textcoords="offset points", xytext=(6, 6),
-                fontsize=7, color="#C0392B")
-
-# Mark the underdetermined boundary
-for i, (d, nt) in enumerate(zip(degs, nterms_list)):
-    if nt >= 75:
-        ax.axvline(d - 0.5, color="gray", ls=":", lw=1, alpha=0.6)
-        ax.text(d - 0.35, ax.get_ylim()[1] * 0.3,
-                r"$P \geq N$", fontsize=9, color="gray", va="top")
-        break
-
-ax.set_ylabel("Relative $L_2$ error", fontsize=11)
-ax.set_title("N = 75 training samples  (mean over 10 random draws)",
-             fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2, which="both")
-
-# --- Bottom panel: condition number ---
-ax_cond.semilogy(degs, res["cond_mean"], "^-", ms=5, lw=1.5,
-                 color="#7B2D8E")
-ax_cond.set_xlabel("Total polynomial degree", fontsize=11)
-ax_cond.set_ylabel("cond($\\mathbf{\\Phi}$)", fontsize=11)
-ax_cond.grid(True, alpha=0.2, which="both")
-
+plot_train_test_cv(res, nterms_list, N_train=75, axes=[ax, ax_cond])
 plt.tight_layout()
 plt.show()
 ```
@@ -350,45 +261,21 @@ With more training samples, we can afford higher-degree polynomials before the o
 #| fig-cap: "Test error and 5-fold CV score vs. total polynomial degree for N = 75 (left) and N = 200 (right), each averaged over 10 random training sets. With more data the error minimum shifts to a higher degree and a lower error floor."
 #| label: fig-train-test-cv-2panel
 
+from _figures._pce import plot_train_test_cv_2panel
+
+res_75 = sweep_train_test_cv(
+    N_train=75, degrees=degrees_sweep,
+    samples_test=samples_test, values_test=values_test,
+)
+res_200 = sweep_train_test_cv(
+    N_train=200, degrees=degrees_sweep,
+    samples_test=samples_test, values_test=values_test,
+)
+nterms_list = _nterms_list(degrees_sweep)
+
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.5))
-
-for ax, N_tr in [(ax1, 75), (ax2, 200)]:
-    res = sweep_train_test_cv(
-        N_train=N_tr, degrees=degrees_sweep,
-        samples_test=samples_test, values_test=values_test,
-    )
-    degs = res["degrees"]
-    nterms = _nterms_list(degrees_sweep)
-
-    ax.fill_between(degs, res["te_min"], res["te_max"], alpha=0.15,
-                    color="#C0392B")
-    ax.semilogy(degs, res["te_mean"], "s--", ms=6, lw=2, color="#C0392B",
-                label="Test error")
-
-    cv_ok = res["cv_any_valid"]
-    cv_d = np.array(degs)[cv_ok]
-    ax.fill_between(cv_d, res["cv_min"][cv_ok], res["cv_max"][cv_ok],
-                    alpha=0.15, color="#E67E22")
-    ax.semilogy(cv_d, res["cv_mean"][cv_ok], "D-.", ms=6, lw=2,
-                color="#E67E22", label="5-fold CV score")
-
-    best_i = np.argmin(res["cv_mean"][cv_ok])
-    ax.plot(cv_d[best_i], res["cv_mean"][cv_ok][best_i], "*", ms=18,
-            color="#E67E22", zorder=5, markeredgecolor="k",
-            markeredgewidth=0.5)
-
-    # Annotate nterms
-    for i, (d, nt) in enumerate(zip(degs, nterms)):
-        ax.annotate(f"P={nt}", (d, res["te_mean"][i]),
-                    textcoords="offset points", xytext=(6, 6),
-                    fontsize=7, color="#C0392B")
-
-    ax.set_xlabel("Total polynomial degree", fontsize=11)
-    ax.set_ylabel("Relative $L_2$ error", fontsize=11)
-    ax.set_title(f"N = {N_tr} training samples", fontsize=11)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.2, which="both")
-
+plot_train_test_cv_2panel(res_75, res_200, nterms_list,
+                          N_left=75, N_right=200, axes=[ax1, ax2])
 plt.tight_layout()
 plt.show()
 ```
@@ -432,8 +319,7 @@ pce_base = create_pce_from_marginals(
 )
 cv_result = fitter.fit(pce_base, samples_cv, values_cv)
 
-print(f"CV scores by level: {np.round(bkd.to_numpy(cv_result.cv_scores()), 4)}")
-print(f"Best level: {cv_result.best_label()}")
+best_level = cv_result.best_label()
 ```
 
 We can verify that the selected degree matches the visual minimum and check the test-set error:
@@ -444,7 +330,6 @@ preds_cv = bkd.to_numpy(best_pce(samples_test))
 
 l2_err = np.linalg.norm(vals_np[0, :] - preds_cv[0, :])
 l2_ref = np.linalg.norm(vals_np[0, :])
-print(f"Relative L2 error = {l2_err / l2_ref:.4e}")
 ```
 
 
@@ -462,9 +347,6 @@ fitter_loo = PCEDegreeSelectionFitter(
 
 np.random.seed(77)
 cv_result_loo = fitter_loo.fit(pce_base, samples_cv, values_cv)
-
-print(f"LOO CV best level:    {cv_result_loo.best_label()}")
-print(f"5-fold CV best level: {cv_result.best_label()}")
 ```
 
 

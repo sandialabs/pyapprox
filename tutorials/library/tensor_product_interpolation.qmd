@@ -110,8 +110,6 @@ nterms_1d = [M] * nvars
 
 # Construct the tensor product interpolant
 tp = TensorProductInterpolant(bkd, bases_1d, nterms_1d)
-print(f"Dimensions:  {tp.nvars()}")
-print(f"Grid points: {tp.nsamples()} (= {M}^{nvars})")
 
 # Get the grid points and evaluate the function
 grid = tp.get_samples()   # (2, M^2)
@@ -126,42 +124,20 @@ z1g, z2g = np.meshgrid(z1f, z2f)
 eval_pts = bkd.array(np.vstack([z1g.ravel(), z2g.ravel()]))
 tp_vals = bkd.to_numpy(tp(eval_pts))              # (1, nfine^2)
 true_vals = fun_2d(np.vstack([z1g.ravel(), z2g.ravel()]))
-
-err = np.max(np.abs(tp_vals - true_vals))
-print(f"Max error on {nfine}x{nfine} grid: {err:.2e}")
 ```
 
 ```{python}
 #| fig-cap: "True function, tensor product interpolant, and pointwise error for f(z1,z2) = cos(pi*z1)*cos(pi*z2/2). Interpolant is indistinguishable from truth at M=5 per dimension."
 #| label: fig-tp-2d
 
-grid_np = bkd.to_numpy(grid)
+from _figures._interpolation import plot_tp_2d
 
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+grid_np = bkd.to_numpy(grid)
 Z_true  = true_vals.reshape(nfine, nfine)
 Z_interp = tp_vals.reshape(nfine, nfine)
-Z_err   = np.abs(Z_true - Z_interp)
 
-kw = dict(cmap="coolwarm", extent=[-1, 1, -1, 1], origin="lower",
-          aspect="equal", interpolation="bilinear")
-
-im0 = axs[0].imshow(Z_true,   vmin=Z_true.min(), vmax=Z_true.max(), **kw)
-im1 = axs[1].imshow(Z_interp, vmin=Z_true.min(), vmax=Z_true.max(), **kw)
-im2 = axs[2].imshow(Z_err,    vmin=0, vmax=max(Z_err.max(), 1e-16),
-                    cmap="Reds", extent=[-1, 1, -1, 1],
-                    origin="lower", aspect="equal", interpolation="bilinear")
-
-# Overlay grid points
-axs[1].plot(grid_np[0], grid_np[1], "k.", ms=4, alpha=0.6)
-
-for ax, title in zip(axs, ["True $f$", f"TP Interpolant $M={M}$", "Pointwise error"]):
-    ax.set_title(title, fontsize=12)
-    ax.set_xlabel("$z_1$", fontsize=11)
-
-axs[0].set_ylabel("$z_2$", fontsize=11)
-plt.colorbar(im0, ax=axs[0])
-plt.colorbar(im1, ax=axs[1])
-plt.colorbar(im2, ax=axs[2])
+fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+plot_tp_2d(Z_true, Z_interp, grid_np, M, nfine, axs)
 plt.tight_layout()
 plt.show()
 ```
@@ -175,38 +151,13 @@ The fundamental problem with tensor products is captured in the point-count tabl
 #| fig-cap: "Number of tensor product grid points vs. refinement level for several dimensions. Log scale reveals exponential growth."
 #| label: fig-curse
 
-def double_plus_one(level):
-    """Map level to number of points: 1, 3, 5, 9, 17, ..."""
-    if level == 0:
-        return 1
-    return 2**level + 1
-
+from _figures._interpolation import plot_curse_of_dimensionality
 
 dims  = [2, 3, 4, 6, 10]
 levels = np.arange(0, 6)
 
-print("Tensor product point counts (M = 2^l + 1 nodes per dim)")
-header = "Level  " + "  ".join(f"D={d:2d}" for d in dims)
-print(header)
-print("-" * len(header))
-for ell in levels:
-    M = double_plus_one(ell)
-    counts = [M**d for d in dims]
-    row = f"  {ell}    " + "  ".join(f"{c:>8,}" for c in counts)
-    print(row)
-
-# Plot
 fig, ax = plt.subplots(figsize=(9, 5))
-colors = plt.cm.plasma(np.linspace(0.1, 0.9, len(dims)))
-for d, col in zip(dims, colors):
-    counts = [double_plus_one(ell)**d for ell in levels]
-    ax.semilogy(levels, counts, "o-", color=col, lw=2, ms=6, label=f"$D = {d}$")
-
-ax.set_xlabel("Refinement level $\\ell$", fontsize=12)
-ax.set_ylabel("Number of grid points $M^D$", fontsize=12)
-ax.set_title("Curse of dimensionality: TP point counts grow as $M^D$", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_curse_of_dimensionality(levels, dims, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -243,10 +194,6 @@ vals_q_np = bkd.to_numpy(vals_q).ravel()
 integral_tp = ww @ vals_q_np
 # True E[f] = E[cos(pi*z1)] * E[cos(pi*z2/2)] = 0 * (2/pi) = 0
 true_int = 0.0
-
-print(f"TP quadrature (CC, M={M_q}^2 = {M_q**2} pts): {integral_tp:.6e}")
-print(f"True expectation E[f]:                            {true_int:.6e}")
-print(f"Error: {abs(integral_tp - true_int):.2e}")
 ```
 
 
@@ -259,6 +206,7 @@ We compare the convergence of tensor product interpolants based on Clenshaw-Curt
 #| label: fig-2d-convergence
 
 from pyapprox.surrogates.affine.univariate import PiecewiseLinear
+from _figures._interpolation import plot_2d_convergence
 
 def fun_smooth_2d(zz):
     return np.exp(-0.5 * (zz[0:1]**2 + zz[1:2]**2))
@@ -284,9 +232,11 @@ Ms_cc = [3, 5, 9, 17]
 # Piecewise linear: any M works
 Ms_pw = [3, 5, 9, 17, 33]
 
-fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+err_cc_smooth, err_cc_nonsmooth = [], []
+err_pw_smooth, err_pw_nonsmooth = [], []
+func_labels = []
 
-for ax, (func, label) in zip(axs, funcs):
+for func, label in funcs:
     true_ref2d = func(eval_ref_np)
     err_cc, err_pw = [], []
 
@@ -314,14 +264,16 @@ for ax, (func, label) in zip(axs, funcs):
         interp_pw = np.einsum("ni,nj,ij->n", phi1, phi2, gv_pw)
         err_pw.append(np.max(np.abs(interp_pw - true_ref2d.ravel())))
 
-    ax.semilogy(Ms_cc, err_cc, "o-", color="#2C7FB8", lw=2, ms=6, label="CC Lagrange (nested)")
-    ax.semilogy(Ms_pw, err_pw, "s-", color="#E67E22", lw=2, ms=6, label="Piecewise linear")
-    ax.set_xlabel("Nodes per dimension $M$", fontsize=12)
-    ax.set_ylabel("Max error", fontsize=12)
-    ax.set_title(label, fontsize=11)
-    ax.legend(fontsize=10)
-    ax.grid(True, which="both", alpha=0.3)
+    if "analytic" in label:
+        err_cc_smooth, err_pw_smooth = err_cc, err_pw
+    else:
+        err_cc_nonsmooth, err_pw_nonsmooth = err_cc, err_pw
+    func_labels.append(label)
 
+fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+plot_2d_convergence(Ms_cc, err_cc_smooth, err_cc_nonsmooth,
+                    Ms_pw, err_pw_smooth, err_pw_nonsmooth,
+                    func_labels, axs)
 plt.suptitle("2D tensor product convergence", fontsize=13, y=1.01)
 plt.tight_layout()
 plt.show()

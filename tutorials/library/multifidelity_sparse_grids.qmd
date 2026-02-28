@@ -92,37 +92,6 @@ where $\epsilon_0 = 0.5$ (low fidelity, biased) and $\epsilon_1 = 0$ (high fidel
 #| fig-cap: "A simple two-level model hierarchy. Left: low-fidelity (biased) and high-fidelity models. Center: the discrepancy is smoother than either model. Right: multi-level reconstruction using 5 cheap + 3 expensive evaluations."
 #| label: fig-model-hierarchy
 
-epsilons = {0: 0.5, 1: 0.0}
-
-z_plot = np.linspace(-1, 1, 300)
-
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-
-# Left: both models
-ax = axes[0]
-for alpha in [0, 1]:
-    f_alpha = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[alpha])
-    ax.plot(z_plot, f_alpha, lw=2, label=f"$f_{alpha}$ ($\\epsilon={epsilons[alpha]}$)")
-ax.set_xlabel("$z$", fontsize=12)
-ax.set_ylabel("$f_\\alpha(z)$", fontsize=12)
-ax.set_title("Model hierarchy", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.3)
-
-# Middle: discrepancy
-ax = axes[1]
-f0 = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[0])
-f1 = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[1])
-delta = f1 - f0
-ax.plot(z_plot, f1, "--", lw=2, color="#E74C3C", label="$f_1$ (exact)")
-ax.plot(z_plot, delta, lw=2, color="#2C7FB8", label="$\\delta = f_1 - f_0$")
-ax.set_xlabel("$z$", fontsize=12)
-ax.set_title("Discrepancy is smoother", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.3)
-
-# Right: reconstruction
-ax = axes[2]
 from pyapprox.surrogates.sparsegrids import (
     IsotropicSparseGridFitter,
     create_basis_factories,
@@ -130,6 +99,10 @@ from pyapprox.surrogates.sparsegrids import (
 )
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from _figures._sparse_grids import plot_model_hierarchy
+
+epsilons = {0: 0.5, 1: 0.0}
+z_plot = np.linspace(-1, 1, 300)
 
 margs_1d = [UniformMarginal(-1.0, 1.0, bkd)]
 facs_1d = create_basis_factories(margs_1d, bkd, "gauss")
@@ -154,25 +127,12 @@ vd = bkd.reshape(
 result_delta = grid_delta.fit(vd)
 
 z_eval = bkd.array(z_plot.reshape(1, -1))
-approx_f0 = bkd.to_numpy(result_f0.surrogate(z_eval)).ravel()
-approx_delta = bkd.to_numpy(result_delta.surrogate(z_eval)).ravel()
-approx_ml = approx_f0 + approx_delta
 
-ax.plot(z_plot, f1, "--", lw=2, color="#E74C3C", label="$f_1$ (exact)")
-ax.plot(z_plot, approx_ml, lw=2, color="#27AE60",
-        label="$\\hat{f}_0 + \\hat{\\delta}$ (8 evals)")
-pts0 = bkd.to_numpy(s0[0])
-ptsd = bkd.to_numpy(sd[0])
-ax.plot(pts0, np.cos(np.pi * (pts0 + 1) / 2 + epsilons[0]), "ko", ms=7,
-        label=f"$f_0$ evals ({len(pts0)})")
-ax.plot(ptsd, np.cos(np.pi * (ptsd + 1) / 2 + epsilons[1])
-        - np.cos(np.pi * (ptsd + 1) / 2 + epsilons[0]), "bs", ms=7,
-        label=f"$\\delta$ evals ({len(ptsd)})")
-ax.set_xlabel("$z$", fontsize=12)
-ax.set_title("Multi-level reconstruction", fontsize=12)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.3)
-
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+plot_model_hierarchy(
+    z_plot, epsilons, bkd, result_f0, result_delta, s0, sd, z_eval,
+    axes[0], axes[1], axes[2],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -204,26 +164,10 @@ Configuration variables parameterize the *solver settings* that control model fi
 #| fig-cap: "Configuration variables as mesh refinement levels. Each panel shows a different combination of $x$- and $y$-mesh resolution, illustrating how two independent configuration variables control solver fidelity."
 #| label: fig-config-vars
 
+from _figures._sparse_grids import plot_config_vars
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-for ax_i, (nx, ny, label) in zip(axes, [
-    (3, 3, "$\\alpha_x=0,\\; \\alpha_y=0$\n(coarse $\\times$ coarse)"),
-    (7, 3, "$\\alpha_x=1,\\; \\alpha_y=0$\n(fine $x$ $\\times$ coarse $y$)"),
-    (7, 7, "$\\alpha_x=1,\\; \\alpha_y=1$\n(fine $\\times$ fine)"),
-]):
-    for i in range(nx):
-        for j in range(ny):
-            ax_i.add_patch(plt.Rectangle(
-                (i / nx, j / ny), 1 / nx, 1 / ny,
-                facecolor="white", edgecolor="steelblue", linewidth=1.2,
-            ))
-    ax_i.set_xlim(0, 1)
-    ax_i.set_ylim(0, 1)
-    ax_i.set_aspect("equal")
-    ax_i.set_title(label, fontsize=11)
-    ax_i.set_xlabel("$x$", fontsize=11)
-    ax_i.set_ylabel("$y$", fontsize=11)
-
+plot_config_vars(axes)
 plt.suptitle("Configuration variables as mesh refinement levels", fontsize=13, y=1.02)
 plt.tight_layout()
 plt.show()
@@ -264,14 +208,6 @@ models = {
     (1,): make_cosine_model(epsilons[1]),  # high fidelity
 }
 factory = DictModelFactory(models)
-
-# Verify it satisfies the protocol
-print(f"Satisfies protocol: {isinstance(factory, ModelFactoryProtocol)}")
-
-# Quick test
-test_z = bkd.array([[0.5]])
-print(f"f_0(0.5) = {float(factory.get_model((0,))(test_z)[0, 0]):.6f}")
-print(f"f_1(0.5) = {float(factory.get_model((1,))(test_z)[0, 0]):.6f}")
 ```
 
 ::: {.callout-tip}
@@ -328,7 +264,6 @@ admis = CompositeCriteria(
 mf_fitter = MultiFidelityAdaptiveSparseGridFitter(
     bkd, tp_factory, admis, nconfig_vars=1,
 )
-print(mf_fitter)
 ```
 
 ::: {.callout-note}
@@ -344,17 +279,6 @@ Pass a `ModelFactoryProtocol` to `refine_to_tolerance()` and the fitter automati
 
 ```{python}
 result = mf_fitter.refine_to_tolerance(factory, tol=1e-6, max_steps=15)
-print(f"Steps: {result.nsteps}")
-print(f"Subspaces: {result.indices.shape[1]}")
-print(f"Total samples: {result.nsamples}")
-print(f"Converged: {result.converged}")
-
-# Evaluate the surrogate
-z_test = bkd.array(np.linspace(-1, 1, 200).reshape(1, -1))
-approx = result.surrogate(z_test)
-exact = factory.get_model((1,))(z_test)
-max_err = float(bkd.max(bkd.abs(approx - exact)))
-print(f"Max error on test grid: {max_err:.2e}")
 ```
 
 
@@ -366,24 +290,13 @@ The selected subspace indices show how the algorithm balances physical resolutio
 #| fig-cap: "Selected multi-indices for the 1D physical + 1 config variable problem. Blue boxes are cheap model evaluations ($\\alpha=0$); red boxes are expensive model evaluations ($\\alpha=1$). The algorithm uses many physical levels for the cheap model and few for the expensive one."
 #| label: fig-mf-indices-1d
 
-from pyapprox.surrogates.affine.indices import (
-    plot_indices_2d, format_index_axes,
-)
+from _figures._sparse_grids import plot_mf_indices_1d
 
 sel = result.indices
 sel_np = bkd.to_numpy(sel).astype(int)
 
 fig, ax = plt.subplots(figsize=(8, 4))
-plot_indices_2d(
-    ax, sel_np,
-    colors=lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C",
-    labels=True, box_height=0.6, label_fontsize=9,
-)
-format_index_axes(
-    ax, sel_np,
-    axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
-)
-ax.set_title("Selected multi-indices [physical, config]", fontsize=12)
+plot_mf_indices_1d(ax, sel_np)
 plt.tight_layout()
 plt.show()
 ```
@@ -400,10 +313,7 @@ The animation below shows how the adaptive algorithm builds the multi-index set 
 #| fig-cap: "Animated multi-index refinement. Solid boxes are selected subspaces; dashed boxes are candidates. The algorithm alternates between cheap ($\\alpha=0$, blue) and expensive ($\\alpha=1$, red) model evaluations."
 #| label: fig-mf-animation
 
-import matplotlib.animation as animation
-from matplotlib.patches import Patch
-from IPython.display import HTML
-from pyapprox.surrogates.affine.indices import plot_index_sets
+from _figures._sparse_grids import plot_mf_animation
 
 # Build a fresh fitter for animation
 tp_factory_anim = TensorProductSubspaceFactory(bkd, phys_factories, growth)
@@ -436,64 +346,12 @@ for _ in range(15):
     err = fitter_anim.current_error()
     snapshots.append((sel_idx.copy(), cand_idx.copy(), approx_vals.copy(), err))
 
-_mf_color = lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
-_mf_cand_color = lambda idx: "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
-
-# Compute fixed axis limits from the union of all frames
-_all_idx = np.hstack(
-    [s[0] for s in snapshots]
-    + [s[1] for s in snapshots if s[1].shape[1] > 0]
-)
-_anim_max_indices = list(_all_idx.max(axis=1).astype(int))
-
 fig, (ax_idx, ax_fn) = plt.subplots(1, 2, figsize=(14, 4.5))
-
-legend_handles = [
-    Patch(facecolor="#2C7FB8", edgecolor="black", alpha=0.7,
-          label="Selected ($\\alpha=0$)"),
-    Patch(facecolor="#E74C3C", edgecolor="black", alpha=0.7,
-          label="Selected ($\\alpha=1$)"),
-    Patch(facecolor="#93C5E8", edgecolor="black", alpha=0.4,
-          linestyle="--", label="Candidate ($\\alpha=0$)"),
-    Patch(facecolor="#F5A9A9", edgecolor="black", alpha=0.4,
-          linestyle="--", label="Candidate ($\\alpha=1$)"),
-]
-
-def animate(ii):
-    ax_idx.clear()
-    ax_fn.clear()
-    sel_idx, cand_idx, approx_vals, err = snapshots[ii]
-
-    # Left: multi-index set
-    plot_index_sets(
-        ax_idx, sel_idx, cand_idx,
-        selected_colors=_mf_color, candidate_colors=_mf_cand_color,
-        selected_labels=True, candidate_labels=True,
-        box_height=0.6, selected_alpha=0.7, candidate_alpha=0.4,
-        axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
-        max_indices=_anim_max_indices,
-    )
-    ax_idx.legend(handles=legend_handles, fontsize=8, loc="upper right")
-    ax_idx.set_title(f"Step {ii + 1}: {sel_idx.shape[1]} selected, "
-                     f"{cand_idx.shape[1]} candidates", fontsize=12)
-
-    # Right: approximation vs true
-    ax_fn.plot(np.linspace(-1, 1, 300), f1_exact, "--", lw=2,
-               color="#E74C3C", label="$f_1$ (exact)")
-    ax_fn.plot(np.linspace(-1, 1, 300), approx_vals, lw=2,
-               color="#27AE60", label="surrogate")
-    ax_fn.set_xlabel("$z$", fontsize=12)
-    ax_fn.set_ylabel("$f(z)$", fontsize=12)
-    ax_fn.set_title(f"Error estimate: {err:.2e}", fontsize=12)
-    ax_fn.legend(fontsize=10, loc="upper right")
-    ax_fn.set_ylim(-1.3, 1.3)
-    ax_fn.grid(True, alpha=0.3)
-
-ani = animation.FuncAnimation(
-    fig, animate, frames=len(snapshots), interval=800, repeat_delay=2000,
+html_anim = plot_mf_animation(
+    fig, ax_idx, ax_fn, snapshots, f1_exact, np.linspace(-1, 1, 300),
 )
 plt.close(fig)
-HTML(ani.to_jshtml())
+html_anim
 ```
 
 
@@ -540,27 +398,17 @@ for step in range(15):
 
     if test_err < 1e-14:
         break
-
-print(f"Manual mode: {res2.indices.shape[1]} subspaces after {step+1} steps")
-print(f"Final test error: {test_errors[-1]:.2e}")
 ```
 
 ```{python}
 #| fig-cap: "Multi-index refinement convergence in manual mode. The error estimate (blue) tracks the true test error (red) closely, validating the built-in error indicator."
 #| label: fig-mf-manual-convergence
 
+from _figures._sparse_grids import plot_mf_manual_convergence
+
 fig, ax = plt.subplots(figsize=(8, 4))
 steps = range(1, len(error_estimates) + 1)
-ax.semilogy(steps, error_estimates, "o-", lw=2, ms=6, color="steelblue",
-            label="Error estimate")
-ax.semilogy(steps, test_errors, "s--", lw=2, ms=6, color="#E74C3C",
-            label="True test error")
-ax.axhline(1e-5, color="gray", ls=":", lw=1, label="$10^{-5}$ target")
-ax.set_xlabel("Refinement step", fontsize=12)
-ax.set_ylabel("Error", fontsize=12)
-ax.set_title("Multi-index refinement convergence", fontsize=12)
-ax.legend(fontsize=10)
-ax.grid(True, which="both", alpha=0.3)
+plot_mf_manual_convergence(ax, steps, error_estimates, test_errors)
 plt.tight_layout()
 plt.show()
 ```
@@ -578,10 +426,6 @@ from pyapprox.surrogates.sparsegrids import (
 )
 
 cost_model = ExponentialConfigCostModel(base=4.0)
-
-# Cost for each fidelity level
-for alpha in range(2):
-    print(f"Config alpha={alpha}: cost = {cost_model((alpha,)):.1f}")
 ```
 
 With base 4.0, model $f_1$ costs 4x more than $f_0$.  The animation below compares the **refinement paths** of the unweighted (equal-cost) and cost-weighted algorithms side by side.  Both reach similar final index sets, but the cost-weighted algorithm builds up the cheap model first, deferring the expensive model until its contribution justifies its cost.  The cumulative cost shown in each title reveals the practical benefit: the same accuracy is reached at a lower total cost.
@@ -659,55 +503,14 @@ while len(snaps_cw) < n_frames:
 #| fig-cap: "Side-by-side comparison of unweighted (left) and cost-weighted (right) refinement paths. The cost-weighted algorithm defers expensive model evaluations, reaching the same accuracy at lower total cost."
 #| label: fig-cost-weighted-animation
 
-from matplotlib.patches import Patch
-
-# Compute fixed axis limits from the union of all frames in both runs
-_cw_all = np.hstack(
-    [s[0] for snaps in [snaps_uw, snaps_cw] for s in snaps]
-    + [s[1] for snaps in [snaps_uw, snaps_cw] for s in snaps if s[1].shape[1] > 0]
-)
-_cw_max_indices = list(_cw_all.max(axis=1).astype(int))
+from _figures._sparse_grids import plot_cost_weighted_animation
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
-
-legend_handles_cw = [
-    Patch(facecolor="#2C7FB8", edgecolor="black", alpha=0.7,
-          label="Selected ($\\alpha=0$)"),
-    Patch(facecolor="#E74C3C", edgecolor="black", alpha=0.7,
-          label="Selected ($\\alpha=1$)"),
-    Patch(facecolor="#93C5E8", edgecolor="black", alpha=0.4,
-          linestyle="--", label="Candidate ($\\alpha=0$)"),
-    Patch(facecolor="#F5A9A9", edgecolor="black", alpha=0.4,
-          linestyle="--", label="Candidate ($\\alpha=1$)"),
-]
-
-def animate_cw(ii):
-    axes[0].clear()
-    axes[1].clear()
-    sel_uw, cand_uw, _, err_uw, cost_uw = snaps_uw[ii]
-    sel_cw, cand_cw, _, err_cw, cost_cw = snaps_cw[ii]
-    for ax_i, sel_i, cand_i, title_i in [
-        (axes[0], sel_uw, cand_uw,
-         f"Unweighted — step {ii+1}\ncost={cost_uw:.1f}, error={err_uw:.1e}"),
-        (axes[1], sel_cw, cand_cw,
-         f"Cost-weighted (base=4) — step {ii+1}\ncost={cost_cw:.1f}, error={err_cw:.1e}"),
-    ]:
-        plot_index_sets(
-            ax_i, sel_i, cand_i,
-            selected_colors=_mf_color, candidate_colors=_mf_cand_color,
-            selected_labels=True, candidate_labels=True,
-            box_height=0.6, selected_alpha=0.7, candidate_alpha=0.4,
-            axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
-            max_indices=_cw_max_indices,
-        )
-        ax_i.set_title(title_i, fontsize=11)
-    axes[1].legend(handles=legend_handles_cw, fontsize=7, loc="upper right")
-
-ani_cw = animation.FuncAnimation(
-    fig, animate_cw, frames=n_frames, interval=800, repeat_delay=2000,
+html_cw = plot_cost_weighted_animation(
+    fig, axes, snaps_uw, snaps_cw, n_frames,
 )
 plt.close(fig)
-HTML(ani_cw.to_jshtml())
+html_cw
 ```
 
 The cost-weighted algorithm delays promoting $\alpha=1$ candidates because their priority is divided by the cost factor (4$\times$).  This means it can build up physical resolution with the cheap model before investing in the expensive correction, reaching the same accuracy at lower total cost.
@@ -727,18 +530,10 @@ from pyapprox.surrogates.sparsegrids import (
 timed_factory = TimedModelFactory(factory)
 measured_cost = MeasuredCostModel(timed_factory)
 
-# Before any evaluations, all configs have unit cost
-print(f"Cost of config (0,) before evals: {measured_cost((0,)):.1f}")
-print(f"Cost of config (1,) before evals: {measured_cost((1,)):.1f}")
-
 # Evaluate some samples to generate timing data
 test_samples = bkd.array(np.random.uniform(-1, 1, (1, 100)))
 _ = timed_factory.get_model((0,))(test_samples)
 _ = timed_factory.get_model((1,))(test_samples)
-
-# After evaluations, costs reflect measured wall times
-print(f"\nCost of config (0,) after evals: {measured_cost((0,)):.2e} s/sample")
-print(f"Cost of config (1,) after evals: {measured_cost((1,)):.2e} s/sample")
 ```
 
 In a real application where different fidelity levels have genuinely different costs (e.g., coarse vs fine mesh PDE solves), the measured costs would differ significantly, and the cost-weighted indicator would automatically favor the cheaper model.
@@ -764,13 +559,6 @@ fitter_mc = MultiFidelityAdaptiveSparseGridFitter(
 
 # The timed_factory is both the model source and the timing recorder
 result_mc = fitter_mc.refine_to_tolerance(timed_factory2, tol=1e-6, max_steps=15)
-
-# Show final timing data
-for cfg, timer in timed_factory2.all_timers().items():
-    call_timer = timer.get("__call__")
-    if call_timer.call_count() > 0:
-        print(f"Config {cfg}: {call_timer.call_count()} calls, "
-              f"median={call_timer.median():.2e} s/sample")
 ```
 
 
@@ -817,16 +605,6 @@ fitter_2d = MultiFidelityAdaptiveSparseGridFitter(
 )
 
 result_2d = fitter_2d.refine_to_tolerance(factory_2d, tol=1e-8, max_steps=50)
-print(f"2D+config: {result_2d.indices.shape[1]} subspaces, "
-      f"{result_2d.nsteps} steps")
-print(f"Converged: {result_2d.converged}")
-
-# Test accuracy
-z_test_2d = bkd.array(np.random.uniform(-1, 1, (2, 1000)))
-exact_2d = factory_2d.get_model((1,))(z_test_2d)
-approx_2d = result_2d.surrogate(z_test_2d)
-rms_err = float(bkd.sqrt(bkd.sum((exact_2d - approx_2d) ** 2) / 1000))
-print(f"RMS error vs exact model: {rms_err:.2e}")
 ```
 
 ### Visualizing the 2D Multi-Index Set
@@ -837,36 +615,14 @@ With two physical variables and one configuration variable, each selected subspa
 #| fig-cap: "Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$ for the 2D physical + 1 config variable problem, shown as 3D voxels. Blue voxels ($\\alpha=0$) represent cheap model evaluations spanning many physical levels; red voxels ($\\alpha=1$) represent expensive model evaluations at fewer physical levels."
 #| label: fig-mf-indices-2d
 
-from pyapprox.surrogates.affine.indices import (
-    plot_indices_3d, format_index_axes,
-)
-from matplotlib.patches import Patch
+from _figures._sparse_grids import plot_mf_indices_2d
 
 sel_2d = result_2d.indices
 sel_2d_np = bkd.to_numpy(sel_2d).astype(int)
 
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection="3d")
-plot_indices_3d(
-    ax, sel_2d_np,
-    colors=lambda idx: "#2C7FB8CC" if idx[-1] == 0 else "#E74C3CCC",
-    labels=True,
-)
-format_index_axes(
-    ax, sel_2d_np,
-    axis_labels=[
-        "$\\beta_1$ (physical dim 1)",
-        "$\\beta_2$ (physical dim 2)",
-        "$\\alpha$ (config level)",
-    ],
-)
-
-legend_handles = [
-    Patch(facecolor="#2C7FB8", edgecolor="black", label="$\\alpha=0$ (cheap)"),
-    Patch(facecolor="#E74C3C", edgecolor="black", label="$\\alpha=1$ (expensive)"),
-]
-ax.legend(handles=legend_handles, fontsize=10, loc="upper left")
-ax.set_title("Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$", fontsize=12)
+plot_mf_indices_2d(ax, sel_2d_np)
 plt.tight_layout()
 plt.show()
 ```
@@ -884,11 +640,11 @@ We compare the multi-fidelity surrogate against the true high-fidelity model $f_
 
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
-    meshgrid_samples,
 )
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from _figures._sparse_grids import plot_mf_2d_accuracy
 
 plot_limits = [-1.0, 1.0, -1.0, 1.0]
 
@@ -900,39 +656,14 @@ def surrogate_2d_fn(samples):
 
 surr_fn = FunctionFromCallable(1, 2, surrogate_2d_fn, bkd)
 
-# Create plotters
 plotter_true = Plotter2DRectangularDomain(true_fn, plot_limits)
 plotter_surr = Plotter2DRectangularDomain(surr_fn, plot_limits)
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-
-# Panel 1: True function
-plotter_true.plot_contours(axes[0], qoi=0, npts_1d=80, cmap="viridis")
-axes[0].set_title("True $f_1(z_1, z_2)$", fontsize=12)
-axes[0].set_xlabel("$z_1$", fontsize=11)
-axes[0].set_ylabel("$z_2$", fontsize=11)
-
-# Panel 2: Surrogate
-plotter_surr.plot_contours(axes[1], qoi=0, npts_1d=80, cmap="viridis")
-axes[1].set_title("Multi-fidelity surrogate", fontsize=12)
-axes[1].set_xlabel("$z_1$", fontsize=11)
-axes[1].set_ylabel("$z_2$", fontsize=11)
-
-# Panel 3: Pointwise error
-X, Y, pts = meshgrid_samples(80, plot_limits, bkd)
-true_vals = true_fn(pts)
-surr_vals = result_2d.surrogate(pts)
-error = bkd.to_numpy(bkd.abs(true_vals - surr_vals)).reshape(
-    bkd.to_numpy(X).shape
+plot_mf_2d_accuracy(
+    axes, fig, plotter_true, plotter_surr, bkd, result_2d,
+    true_fn, plot_limits,
 )
-cs = axes[2].contourf(
-    bkd.to_numpy(X), bkd.to_numpy(Y), error, levels=20, cmap="inferno"
-)
-fig.colorbar(cs, ax=axes[2])
-axes[2].set_title("Pointwise error $|f_1 - \\hat{f}|$", fontsize=12)
-axes[2].set_xlabel("$z_1$", fontsize=11)
-axes[2].set_ylabel("$z_2$", fontsize=11)
-
 plt.tight_layout()
 plt.show()
 ```

@@ -242,24 +242,16 @@ theoretical_reductions = np.array(theoretical_reductions)
 #| fig-cap: "Empirical variance reduction (dots) versus the theoretical prediction $1 - \\rho^2$ (line) across a range of model correlations. The agreement confirms @eq-variance-reduction."
 #| label: fig-verification
 
+from _figures._cv_acv import plot_cv_verification
+
 # Recover rho values for x-axis
 rho_vals = np.sqrt(1 - theoretical_reductions)
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.plot(rho_vals, theoretical_reductions, "--", color="#C0392B", lw=1.8,
-        label=r"Theory: $1 - \rho^2$")
-ax.scatter(rho_vals, empirical_reductions, color="#2C7FB8", s=60, zorder=4,
-           label=f"Empirical ({n_trials} trials, $N={N}$)")
-ax.set_xlabel(r"Correlation $\rho_{\alpha\kappa}$", fontsize=12)
-ax.set_ylabel("Variance reduction factor", fontsize=12)
-ax.set_title("Theoretical vs empirical CVMC variance reduction", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2)
+plot_cv_verification(rho_vals, theoretical_reductions, empirical_reductions,
+                     n_trials, N, ax)
 plt.tight_layout()
 plt.show()
-
-max_err = np.max(np.abs(empirical_reductions - theoretical_reductions))
-print(f"Maximum deviation from theory: {max_err:.4f}")
 ```
 
 

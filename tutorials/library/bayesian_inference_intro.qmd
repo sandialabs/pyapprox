@@ -68,150 +68,15 @@ Bayesian inference provides the mathematical framework for flipping this arrow. 
 #| echo: false
 #| fig-cap: "Forward UQ (top, faded) propagates a prior distribution through the model to predict the QoI. Bayesian inference (bottom, vivid) reverses the arrow: a single observation is combined with the model via Bayes' theorem to produce an updated posterior distribution over the parameter."
 #| label: fig-forward-inverse-schematic
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-from scipy.stats import norm
+from _figures._bayesian import plot_forward_inverse_schematic
 
 fig, axes = plt.subplots(
     2, 3, figsize=(11, 6),
     gridspec_kw={"width_ratios": [1, 0.5, 1], "height_ratios": [1, 1],
                  "hspace": 0.35, "wspace": 0.25},
 )
-
-# --- Shared data for the schematic ---
-E_grid_s = np.linspace(6_000, 18_000, 300)
-mu_s, sig_s = 12_000, 2_000
-prior_s = norm.pdf(E_grid_s, mu_s, sig_s)
-
-# Push-forward: use the beam formula directly for the schematic
-q_grid = np.linspace(-1, 5, 300)
-pdf_out = 0.7 * norm.pdf(q_grid, 1.5, 0.8) + 0.3 * norm.pdf(q_grid, 3.0, 0.5)
-
-# Posterior (narrower, shifted toward E_true = 10000)
-mu_post, sig_post = 10_200, 800
-posterior_s = norm.pdf(E_grid_s, mu_post, sig_post)
-
-# =====================================================================
-# TOP ROW: Forward UQ (faded)
-# =====================================================================
-fade = 0.35
-
-# Top-left: prior p(E)
-ax = axes[0, 0]
-ax.fill_between(E_grid_s, prior_s, alpha=0.15, color="#2C7FB8")
-ax.plot(E_grid_s, prior_s, color="#2C7FB8", lw=2, alpha=fade)
-ax.set_xlabel(r"$E$", fontsize=11, alpha=fade)
-ax.set_ylabel("Density", fontsize=11, alpha=fade)
-ax.set_title(r"Prior $p(E)$", fontsize=11, alpha=fade)
-ax.set_yticks([])
-ax.grid(True, alpha=0.1)
-ax.tick_params(colors=(0, 0, 0, fade))
-for spine in ax.spines.values():
-    spine.set_alpha(fade)
-
-# Top-center: model box with right arrow
-ax = axes[0, 1]
-ax.axis("off")
-box = FancyBboxPatch((0.15, 0.35), 0.7, 0.3, boxstyle="round,pad=0.05",
-                      facecolor="#F0F0F0", edgecolor="gray", linewidth=1.5,
-                      alpha=fade)
-ax.add_patch(box)
-ax.text(0.5, 0.5, r"$f(E)$", ha="center", va="center",
-        fontsize=14, color="gray", alpha=fade, transform=ax.transAxes)
-ax.annotate("", xy=(0.12, 0.5), xytext=(-0.15, 0.5),
-            xycoords="axes fraction", textcoords="axes fraction",
-            arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8", alpha=fade))
-ax.annotate("", xy=(1.15, 0.5), xytext=(0.88, 0.5),
-            xycoords="axes fraction", textcoords="axes fraction",
-            arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8", alpha=fade))
-
-# Top-right: push-forward distribution
-ax = axes[0, 2]
-ax.fill_between(q_grid, pdf_out, alpha=0.1, color="#E67E22")
-ax.plot(q_grid, pdf_out, color="#E67E22", lw=2, alpha=fade)
-ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=11, alpha=fade)
-ax.set_ylabel("Density", fontsize=11, alpha=fade)
-ax.set_title("Push-forward distribution", fontsize=11, alpha=fade)
-ax.set_yticks([])
-ax.grid(True, alpha=0.1)
-ax.tick_params(colors=(0, 0, 0, fade))
-for spine in ax.spines.values():
-    spine.set_alpha(fade)
-
-# =====================================================================
-# BOTTOM ROW: Bayesian inference (vivid)
-# =====================================================================
-
-# Bottom-left: posterior overlaid on faded prior
-ax = axes[1, 0]
-ax.fill_between(E_grid_s, prior_s, alpha=0.12, color="#2C7FB8")
-ax.plot(E_grid_s, prior_s, color="#2C7FB8", lw=1.5, alpha=0.3,
-        label="Prior (faded)")
-ax.fill_between(E_grid_s, posterior_s, alpha=0.3, color="#E67E22")
-ax.plot(E_grid_s, posterior_s, color="#E67E22", lw=2.5,
-        label=r"Posterior $p(E \mid y_{\mathrm{obs}})$")
-ax.set_xlabel(r"$E$", fontsize=11)
-ax.set_ylabel("Density", fontsize=11)
-ax.set_title("Updated belief", fontsize=11)
-ax.legend(fontsize=8, loc="upper right")
-ax.set_yticks([])
-ax.grid(True, alpha=0.2)
-
-# Bottom-center: model box with LEFT arrow + "Bayes' theorem"
-ax = axes[1, 1]
-ax.axis("off")
-box = FancyBboxPatch((0.15, 0.35), 0.7, 0.3, boxstyle="round,pad=0.05",
-                      facecolor="#F0F0F0", edgecolor="k", linewidth=1.5)
-ax.add_patch(box)
-ax.text(0.5, 0.5, r"$f(E)$", ha="center", va="center",
-        fontsize=14, transform=ax.transAxes)
-# Left-pointing arrows (reversed)
-ax.annotate("", xy=(-0.15, 0.5), xytext=(0.12, 0.5),
-            xycoords="axes fraction", textcoords="axes fraction",
-            arrowprops=dict(arrowstyle="->", lw=2, color="#E67E22"))
-ax.annotate("", xy=(0.88, 0.5), xytext=(1.15, 0.5),
-            xycoords="axes fraction", textcoords="axes fraction",
-            arrowprops=dict(arrowstyle="->", lw=2, color="#C0392B"))
-ax.text(0.5, 0.15, "Bayes' theorem", ha="center", va="center",
-        fontsize=10, fontstyle="italic", color="#333",
-        transform=ax.transAxes)
-
-# Bottom-right: observation with noise bell
-ax = axes[1, 2]
-y_obs_s = 2.0  # schematic observation point on same q_grid scale
-noise_std_s = 0.25
-obs_bell = norm.pdf(q_grid, y_obs_s, noise_std_s)
-obs_bell_scaled = obs_bell / obs_bell.max() * 0.8
-ax.fill_between(q_grid, obs_bell_scaled, alpha=0.2, color="#C0392B")
-ax.plot(q_grid, obs_bell_scaled, color="#C0392B", lw=1.5, ls="--",
-        label="Noise model")
-ax.plot(y_obs_s, 0, "o", color="#C0392B", ms=10, zorder=5,
-        label=r"$y_{\mathrm{obs}}$", clip_on=False)
-ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=11)
-ax.set_ylabel("")
-ax.set_title("Observed data", fontsize=11)
-ax.legend(fontsize=8, loc="upper right")
-ax.set_yticks([])
-ax.set_xlim(q_grid[0], q_grid[-1])
-ax.grid(True, alpha=0.2)
-
-# =====================================================================
-# Connecting element: dashed line from top-right to bottom-right
-# =====================================================================
-# Use figure-level coordinates via fig.transFigure
-from matplotlib.patches import ConnectionPatch
-con = ConnectionPatch(
-    xyA=(y_obs_s, 0), coordsA=axes[0, 2].transData,
-    xyB=(y_obs_s, obs_bell_scaled.max()), coordsB=axes[1, 2].transData,
-    color="gray", ls="--", lw=1.5, alpha=0.6,
-)
-fig.add_artist(con)
-# Annotation near the connecting line
-mid_fig_y = 0.5 * (axes[0, 2].get_position().y0 + axes[1, 2].get_position().y1)
-fig.text(0.92, mid_fig_y, "observe", ha="center", va="center",
-         fontsize=9, color="gray", fontstyle="italic", rotation=90)
-
+plot_forward_inverse_schematic(fig, axes)
 plt.show()
 ```
 
@@ -230,7 +95,6 @@ with fixed values $q_0 = 10$, $L = 100$, $I = H^3/12$, $H = 30$. The only uncert
 #| echo: false
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm
 rng = np.random.default_rng(42)
 ```
 
@@ -340,29 +204,12 @@ What we want is not a single number, but an **updated distribution** over $E$ th
 #| echo: false
 #| fig-cap: "A point estimate (red dashed line) gives a single value, but ignores measurement noise and prior information. Multiple noisy measurements of the same beam would give different point estimates (gray lines), showing the inherent uncertainty in the inversion."
 #| label: fig-point-estimate-problem
-
-# Generate several noisy observations to show spread
-n_repeat = 20
-y_repeats = model_likelihood.rvs(np.full((1, n_repeat), E_true))[0, :]
-E_repeats = (11 * q0 * L**4) / (120 * y_repeats * I_rect)
-
-E_grid = np.linspace(6_000, 18_000, 500)
-prior_pdf = prior.pdf(E_grid[np.newaxis, :])[0, :]
+from _figures._bayesian import plot_point_estimate_problem
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.plot(E_grid, prior_pdf, color="#2C7FB8", lw=2, label="Prior")
-ax.axvline(E_true, color="#27AE60", ls="-", lw=2, label=f"True $E$ = {E_true}")
-ax.axvline(E_point_estimate, color="#C0392B", ls="--", lw=2,
-           label=f"Point estimate = {E_point_estimate:.0f}")
-for i, E_r in enumerate(E_repeats):
-    ax.axvline(E_r, color="#8E44AD", ls="-", lw=1, alpha=0.4,
-               label="Repeat estimates" if i == 0 else None)
-
-ax.set_xlabel(r"$E$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Point estimates from repeated experiments", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.1)
+plot_point_estimate_problem(
+    ax, model_likelihood, prior, E_true, E_point_estimate, q0, L, H, bkd,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -390,28 +237,20 @@ This is called the **likelihood function**. It is *not* a probability distributi
 #| echo: false
 #| fig-cap: "The prior distribution (blue) encodes our belief before seeing data. The likelihood function (red) peaks where the model prediction matches the observation. The two disagree: the data suggests $E$ is lower than the prior mean."
 #| label: fig-likelihood
+from _figures._bayesian import plot_likelihood
 
 # Evaluate likelihood on grid using the composed model+likelihood object
-obs_col = np.array([[y_obs]])                          # shape (1, 1)
+E_grid = np.linspace(6_000, 18_000, 500)
+prior_pdf = prior.pdf(E_grid[np.newaxis, :])[0, :]
+obs_col = np.array([[y_obs]])
 log_lik_grid = model_likelihood.logpdf_vectorized(
     E_grid[np.newaxis, :], obs_col,
-)  # (ngrid, 1)
-lik_grid = np.exp(log_lik_grid[:, 0])                  # shape (ngrid,)
-
-# Normalize for visual comparison (likelihood is not a density over E)
+)
+lik_grid = np.exp(log_lik_grid[:, 0])
 lik_grid_scaled = lik_grid / lik_grid.max() * prior_pdf.max()
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.plot(E_grid, prior_pdf, color="#2C7FB8", lw=2, label="Prior $p(E)$")
-ax.plot(E_grid, lik_grid_scaled, color="#C0392B", lw=2,
-        label="Likelihood $\\mathcal{L}(E)$ (scaled)")
-ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7,
-           label=f"True $E$ = {E_true}")
-ax.set_xlabel(r"$E$", fontsize=12)
-ax.set_ylabel("Density / scaled likelihood", fontsize=12)
-ax.set_title("Prior vs. likelihood", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2)
+plot_likelihood(ax, E_grid, prior_pdf, lik_grid_scaled, E_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -464,32 +303,11 @@ print(f"Evidence (normalizing constant): {evidence:.6e}")
 #| echo: false
 #| fig-cap: "Bayes' theorem in action. The posterior (orange) combines the prior (blue) and the likelihood (red, scaled). It sits between the two, shifted toward the data-consistent region but shaped by the prior. The true parameter value (green dashed) falls within the posterior's support."
 #| label: fig-bayes-update
+from _figures._bayesian import plot_bayes_update
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-
-# Prior
-ax.plot(E_grid, prior_vals, color="#2C7FB8", lw=2, label="Prior $p(E)$")
-ax.fill_between(E_grid, prior_vals, alpha=0.1, color="#2C7FB8")
-
-# Likelihood (scaled to same visual height as posterior)
-lik_scaled = likelihood_vals / likelihood_vals.max() * posterior_vals.max() * 0.9
-ax.plot(E_grid, lik_scaled, color="#C0392B", lw=1.5, ls="--",
-        label="Likelihood (scaled)")
-
-# Posterior
-ax.plot(E_grid, posterior_vals, color="#E67E22", lw=2.5,
-        label="Posterior $p(E \\mid y_{\\mathrm{obs}})$")
-ax.fill_between(E_grid, posterior_vals, alpha=0.2, color="#E67E22")
-
-# True value
-ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.8,
-           label=f"True $E$ = {E_true}")
-
-ax.set_xlabel(r"$E$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Bayesian update: prior → posterior", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2)
+plot_bayes_update(ax, E_grid, prior_vals, likelihood_vals,
+                  posterior_vals, E_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -526,31 +344,11 @@ To build intuition, @fig-prior-likelihood-balance shows how the posterior change
 #| echo: false
 #| fig-cap: "The balance between prior and data. Left: a vague prior (large $\\sigma_{\\text{prior}}$) lets the data dominate --- the posterior nearly coincides with the likelihood. Right: a tight prior (small $\\sigma_{\\text{prior}}$) resists the data --- the posterior stays close to the prior even though the data disagrees."
 #| label: fig-prior-likelihood-balance
+from _figures._bayesian import plot_prior_likelihood_balance
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-for ax, sig_p, title in [
-    (ax1, 5_000, "Vague prior ($\\sigma_{\\text{prior}} = 5{,}000$)"),
-    (ax2, 500, "Tight prior ($\\sigma_{\\text{prior}} = 500$)"),
-]:
-    prior_v = norm.pdf(E_grid, mu_prior, sig_p)
-    post_unnorm = likelihood_vals * prior_v
-    post_v = post_unnorm / np.trapz(post_unnorm, E_grid)
-
-    ax.plot(E_grid, prior_v / prior_v.max() * post_v.max(),
-            color="#2C7FB8", lw=1.5, ls=":", label="Prior (scaled)")
-    lik_sc = likelihood_vals / likelihood_vals.max() * post_v.max() * 0.9
-    ax.plot(E_grid, lik_sc, color="#C0392B", lw=1.5, ls="--",
-            label="Likelihood (scaled)")
-    ax.plot(E_grid, post_v, color="#E67E22", lw=2.5, label="Posterior")
-    ax.fill_between(E_grid, post_v, alpha=0.15, color="#E67E22")
-    ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7)
-    ax.set_xlabel(r"$E$", fontsize=11)
-    ax.set_ylabel("Density", fontsize=11)
-    ax.set_title(title, fontsize=10)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.2)
-
+plot_prior_likelihood_balance(ax1, ax2, E_grid, likelihood_vals,
+                              mu_prior, E_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -572,6 +370,7 @@ $$
 #| echo: false
 #| fig-cap: "More data narrows the posterior. Blue: prior. Light orange: posterior after one observation. Dark orange: posterior after two independent observations. Each observation provides additional information, reducing the remaining uncertainty about $E$."
 #| label: fig-multiple-observations
+from _figures._bayesian import plot_multiple_observations
 
 # Posterior after one observation (already computed)
 post_1 = posterior_vals
@@ -580,17 +379,17 @@ post_1 = posterior_vals
 y_obs_2 = float(model_likelihood.rvs(bkd.asarray([[E_true]])))
 
 # Joint likelihood from two observations via logpdf_vectorized
-obs_2 = np.array([[y_obs, y_obs_2]])                  # shape (1, 2)
+obs_2 = np.array([[y_obs, y_obs_2]])
 
 # Evidence for 2 observations (quadrature)
-log_lik_2q = model_likelihood.logpdf_vectorized(quad_points, obs_2)  # (nquad, 2)
+log_lik_2q = model_likelihood.logpdf_vectorized(quad_points, obs_2)
 lik_joint_q = np.exp(log_lik_2q[:, 0] + log_lik_2q[:, 1])
 evidence_2 = float(lik_joint_q @ quad_weights[:, 0])
 
 # Posterior on fine grid
 log_lik_2g = model_likelihood.logpdf_vectorized(
     E_grid[np.newaxis, :], obs_2,
-)  # (ngrid, 2)
+)
 lik_joint_g = np.exp(log_lik_2g[:, 0] + log_lik_2g[:, 1])
 post_2 = lik_joint_g * prior_vals / evidence_2
 
@@ -600,37 +399,23 @@ y_extra = model_likelihood.rvs(
     np.full((1, n_extra), E_true),
 )[0, :]
 all_obs = np.concatenate([[y_obs, y_obs_2], y_extra])
-obs_5 = all_obs[np.newaxis, :]                         # shape (1, 5)
+obs_5 = all_obs[np.newaxis, :]
 
 # Evidence for 5 observations (quadrature)
-log_lik_5q = model_likelihood.logpdf_vectorized(quad_points, obs_5)  # (nquad, 5)
+log_lik_5q = model_likelihood.logpdf_vectorized(quad_points, obs_5)
 lik_5_q = np.exp(log_lik_5q.sum(axis=1))
 evidence_5 = float(lik_5_q @ quad_weights[:, 0])
 
 # Posterior on fine grid
 log_lik_5g = model_likelihood.logpdf_vectorized(
     E_grid[np.newaxis, :], obs_5,
-)  # (ngrid, 5)
+)
 lik_5_g = np.exp(log_lik_5g.sum(axis=1))
 post_5 = lik_5_g * prior_vals / evidence_5
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.plot(E_grid, prior_vals, color="#2C7FB8", lw=2, label="Prior")
-ax.fill_between(E_grid, prior_vals, alpha=0.08, color="#2C7FB8")
-ax.plot(E_grid, post_1, color="#F5B041", lw=2, label="Posterior (1 obs.)")
-ax.fill_between(E_grid, post_1, alpha=0.15, color="#F5B041")
-ax.plot(E_grid, post_2, color="#E67E22", lw=2, label="Posterior (2 obs.)")
-ax.fill_between(E_grid, post_2, alpha=0.15, color="#E67E22")
-ax.plot(E_grid, post_5, color="#C0392B", lw=2.5, label="Posterior (5 obs.)")
-ax.fill_between(E_grid, post_5, alpha=0.15, color="#C0392B")
-ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.8,
-           label=f"True $E$ = {E_true}")
-
-ax.set_xlabel(r"$E$", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Sequential Bayesian update with increasing data", fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_multiple_observations(ax, E_grid, prior_vals, post_1, post_2,
+                           post_5, E_true)
 plt.tight_layout()
 plt.show()
 ```
@@ -646,49 +431,11 @@ Once we have a posterior distribution, we can propagate it forward through the m
 #| echo: false
 #| fig-cap: "Push-forward distributions using the prior (blue) and the posterior after 5 observations (orange). The posterior-based push-forward is much narrower and centered closer to the true tip deflection, because the data has reduced parameter uncertainty."
 #| label: fig-posterior-pushforward
-
-nsamples = 10_000
-
-# Sample from prior
-np.random.seed(0)
-E_prior_samples = prior.rvs(nsamples)[0, :]  # shape (nsamples,)
-E_prior_samples = E_prior_samples[E_prior_samples > 0]
-delta_prior = beam_model(E_prior_samples[np.newaxis, :])[0, :]
-
-# Sample from posterior (via inverse CDF on grid)
-post_cdf = np.cumsum(post_5) * (E_grid[1] - E_grid[0])
-post_cdf = post_cdf / post_cdf[-1]
-u_samples = rng.uniform(size=nsamples)
-E_post_samples = np.interp(u_samples, post_cdf, E_grid)
-delta_post = beam_model(E_post_samples[np.newaxis, :])[0, :]
+from _figures._bayesian import plot_posterior_pushforward
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-# Parameter distributions
-ax1.hist(E_prior_samples, bins=60, density=True, color="#2C7FB8", alpha=0.4,
-         edgecolor="none", label="Prior")
-ax1.hist(E_post_samples, bins=60, density=True, color="#E67E22", alpha=0.5,
-         edgecolor="none", label="Posterior (5 obs.)")
-ax1.axvline(E_true, color="#27AE60", ls="--", lw=1.5)
-ax1.set_xlabel(r"$E$", fontsize=12)
-ax1.set_ylabel("Density", fontsize=12)
-ax1.set_title("Parameter distributions", fontsize=11)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.2)
-
-# Push-forward distributions
-ax2.hist(delta_prior, bins=60, density=True, color="#2C7FB8", alpha=0.4,
-         edgecolor="none", label="Prior push-forward")
-ax2.hist(delta_post, bins=60, density=True, color="#E67E22", alpha=0.5,
-         edgecolor="none", label="Posterior push-forward")
-ax2.axvline(delta_true, color="#27AE60", ls="--", lw=1.5,
-            label=f"True $\\delta_{{\\text{{tip}}}}$")
-ax2.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
-ax2.set_ylabel("Density", fontsize=12)
-ax2.set_title("Push-forward distributions", fontsize=11)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+plot_posterior_pushforward(ax1, ax2, beam_model, prior, post_5, E_grid,
+                           E_true, delta_true, rng)
 plt.tight_layout()
 plt.show()
 ```

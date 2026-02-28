@@ -96,41 +96,17 @@ sample = prior.rvs(1)
 # Observations vs. predictions on the same trajectory
 observations  = obs_model(sample).reshape((2, -1))
 predictions   = pred_model(sample)
-
-print(f"Observation model output dim: {obs_model.nqoi()}")
-print(f"Prediction model output dim:  {pred_model.nqoi()}")
 ```
 
 ```{python}
 #| echo: false
 #| fig-cap: "Observation times (circles, states 1 and 3) and prediction targets (crosses, red) for the Lotka-Volterra model. The goal-oriented OED will concentrate observation budget at times that reduce posterior uncertainty at the red crosses."
 #| label: fig-lv-pred-target
+from _figures import plot_lv_pred_target
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-sample_np = bkd.to_numpy(sample)
-sol = obs_model.solve_trajectory(sample)[0]
-ax.plot(benchmark.solution_times(), bkd.to_numpy(sol).T, lw=2)
-
-# Observations (two states)
-obs_times = bkd.to_numpy(benchmark.observation_times())
-for ii, state_idx in enumerate([0, 2]):
-    ax.plot(
-        obs_times,
-        bkd.to_numpy(observations[ii]),
-        "o", ms=8, label=f"Obs. state {state_idx+1}", alpha=0.8
-    )
-
-# Predictions (mark on trajectory)
-pred_times = bkd.to_numpy(benchmark.prediction_times()).ravel()
-pred_vals  = bkd.to_numpy(predictions).ravel()
-ax.plot(pred_times, pred_vals, "rx", ms=12, mew=2.5,
-        label="Prediction targets", zorder=5)
-
-ax.set_xlabel("Time (s)", fontsize=11)
-ax.set_ylabel("Population", fontsize=11)
-ax.legend(fontsize=9, loc="upper right")
-ax.set_title("Observation vs. prediction times", fontsize=11)
-ax.grid(True, alpha=0.2)
+plot_lv_pred_target(ax, benchmark, obs_model, sample, observations,
+                    predictions, bkd)
 plt.tight_layout()
 plt.show()
 ```
@@ -192,7 +168,6 @@ weights_std, utility_std = solve_prediction_oed(
     risk_type="mean",
     config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
-print(f"Std dev objective value: {utility_std:.6f}")
 ```
 
 ## Design 2: Entropic Deviation Utility
@@ -212,7 +187,6 @@ weights_ent, utility_ent = solve_prediction_oed(
     risk_type="mean",
     config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
-print(f"Entropic deviation objective value: {utility_ent:.6f}")
 ```
 
 ::: {.callout-note}
@@ -227,30 +201,10 @@ The solver is otherwise identical.
 ```{python}
 #| fig-cap: "Optimal design weights for standard-deviation (blue) and entropic-deviation (orange) objectives, for states 1 and 3 of the Lotka-Volterra ODE. Differences between the two panels indicate that risk preferences influence which observation times are deemed most valuable."
 #| label: fig-lv-design-comparison
-
-weights_std_np = bkd.to_numpy(weights_std).reshape((2, -1))
-weights_ent_np = bkd.to_numpy(weights_ent).reshape((2, -1))
-obs_times      = bkd.to_numpy(benchmark.observation_times())
+from _figures import plot_pred_design_weights
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 8), sharey="row")
-titles = ["State 1 (prey)", "State 3 (predator)"]
-row_labels = ["Std dev. objective", "Entropic deviation"]
-colors = ["#2C7FB8", "#D95F02"]
-
-for row, (w, rl) in enumerate(
-    zip([weights_std_np, weights_ent_np], row_labels)
-):
-    for col in range(2):
-        ax = axes[row][col]
-        ax.bar(obs_times, w[col], color=colors[row], alpha=0.8)
-        ax.set_xlabel("Time (s)", fontsize=10)
-        if col == 0:
-            ax.set_ylabel("Design weight", fontsize=10)
-            ax.set_title(f"{rl} — {titles[col]}", fontsize=10)
-        else:
-            ax.set_title(titles[col], fontsize=10)
-        ax.grid(True, axis="y", alpha=0.25)
-
+plot_pred_design_weights(axes, benchmark, weights_std, weights_ent, bkd)
 plt.suptitle("Goal-oriented OED: deviation measure comparison", fontsize=12)
 plt.tight_layout()
 plt.show()
@@ -273,13 +227,10 @@ obj_ent = create_prediction_oed_objective(
     qoi_vals, bkd, deviation_type="entropic", risk_type="mean",
 )
 
-print("Utility matrix (lower is better):")
 std_std = float(bkd.to_numpy(obj_std(weights_std))[0, 0])
 std_ent = float(bkd.to_numpy(obj_std(weights_ent))[0, 0])
 ent_std = float(bkd.to_numpy(obj_ent(weights_std))[0, 0])
 ent_ent = float(bkd.to_numpy(obj_ent(weights_ent))[0, 0])
-print(f"  Std-dev utility:  std design = {std_std:.4f}, ent design = {std_ent:.4f}")
-print(f"  Entropic utility: std design = {ent_std:.4f}, ent design = {ent_ent:.4f}")
 ```
 
 If the entropic design also has lower standard deviation utility, it is

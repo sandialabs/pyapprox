@@ -75,6 +75,13 @@ from pyapprox.interface.functions.plot.plot2d_rectangular import (
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from _figures._quadrature import (
+    plot_additive_function,
+    plot_index_set,
+    plot_points_compare,
+    plot_adaptive_vs_iso,
+    plot_4d_adaptive,
+)
 
 bkd = NumpyBkd()
 np.random.seed(42)
@@ -105,10 +112,7 @@ func_2d = FunctionFromCallable(
 
 fig, ax = plt.subplots(figsize=(7, 5))
 plotter = Plotter2DRectangularDomain(func_2d, [-1, 1, -1, 1])
-plotter.plot_contours(ax, qoi=0, npts_1d=100, levels=21, cmap="coolwarm")
-ax.set_xlabel("$z_1$", fontsize=12)
-ax.set_ylabel("$z_2$", fontsize=12)
-ax.set_title(r"$f(z_1, z_2) = \cos(5z_1) + 0.1z_2$", fontsize=12)
+plot_additive_function(ax, plotter)
 plt.tight_layout()
 plt.show()
 ```
@@ -176,7 +180,6 @@ tol = 1e-12
 for step in range(100):
     new_samples = fitter.step_samples()
     if new_samples is None:
-        print(f"No more candidates after {step} steps")
         break
 
     new_values = additive_function(new_samples, bkd)
@@ -195,12 +198,9 @@ for step in range(100):
 
     # Stop when the fitter's built-in error estimate is small
     if fitter.current_error() < tol:
-        print(f"Converged at step {step}: error = {fitter.current_error():.2e}")
         break
 
 ada_result = fitter.result()
-print(f"Final grid: {ada_result.nsamples} samples, "
-      f"{ada_result.surrogate.nsubspaces()} subspaces")
 ```
 
 ```{python}
@@ -226,19 +226,11 @@ Because $f$ is **additive** ($f = g_1(z_1) + g_2(z_2)$), no mixed terms are need
 #| fig-cap: "Selected index set after adaptive refinement. The algorithm allocates far more levels along z_1 (the dominant dimension) than z_2, demonstrating automatic anisotropy detection."
 #| label: fig-index-set
 
-from pyapprox.surrogates.affine.indices import plot_index_sets
-
 selected = ada_result.indices
-print(f"Number of selected subspaces: {selected.shape[1]}")
 sel_np = bkd.to_numpy(selected).astype(int)
 
 fig, ax = plt.subplots(figsize=(8, 6))
-plot_index_sets(
-    ax, sel_np,
-    selected_colors="steelblue", selected_labels=True,
-    axis_labels=["$k_1$ (level in $z_1$)", "$k_2$ (level in $z_2$)"],
-)
-ax.set_title("Selected Index Set (Adaptive)", fontsize=12)
+plot_index_set(ax, sel_np)
 plt.tight_layout()
 plt.show()
 ```
@@ -251,19 +243,9 @@ Notice that the index set contains only axis-aligned indices --- no cross-terms 
 #| fig-cap: "Point distribution for adaptive (left) vs. isotropic (right) sparse grids. The adaptive grid concentrates more points along the first variable. Blue circles are points from selected subspaces; light blue squares are points from candidate subspaces awaiting prioritisation."
 #| label: fig-points-compare
 
-from pyapprox.surrogates.sparsegrids import plot_sparse_grid_points
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
 # Adaptive points --- selected vs candidate
 ada_selected = bkd.to_numpy(fitter.get_samples("selected"))
 ada_candidate = bkd.to_numpy(fitter.get_samples("candidate"))
-plot_sparse_grid_points(
-    axes[0], ada_selected, ada_candidate,
-    axis_labels=["$z_1$", "$z_2$"],
-    title=f"Adaptive: {ada_result.nsamples} samples",
-)
-axes[0].legend(fontsize=9)
 
 # Isotropic with comparable point count
 iso_level = 4
@@ -271,14 +253,12 @@ iso_tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
 iso_fitter = IsotropicSparseGridFitter(bkd, iso_tp_factory, iso_level)
 iso_samples = bkd.to_numpy(iso_fitter.get_samples())
 iso_nsamples = iso_samples.shape[1]
-plot_sparse_grid_points(
-    axes[1], iso_samples,
-    selected_color="coral",
-    axis_labels=["$z_1$", "$z_2$"],
-    title=f"Isotropic (L={iso_level}): {iso_nsamples} samples",
-    selected_label="Isotropic",
-)
 
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+plot_points_compare(
+    axes, ada_selected, ada_candidate, ada_result.nsamples,
+    iso_samples, iso_nsamples, iso_level,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -308,21 +288,8 @@ for level in range(7):
     iso_errors.append(error)
 
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.semilogy(
-    nsamples_history, error_history, "o-", color="#2C7FB8", lw=2, ms=5,
-    label="Adaptive SG",
-)
-ax.semilogy(
-    iso_nsamples_list, iso_errors, "--s", color="#E67E22", lw=2, ms=5,
-    label="Isotropic SG",
-)
-ax.set_xlabel("Number of function evaluations", fontsize=12)
-ax.set_ylabel("RMS error", fontsize=12)
-ax.set_title(
-    "Adaptive vs. isotropic --- additive function ($D=2$)", fontsize=12
-)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_adaptive_vs_iso(ax, nsamples_history, error_history,
+                     iso_nsamples_list, iso_errors)
 plt.tight_layout()
 plt.show()
 ```
@@ -364,8 +331,6 @@ for _ in range(25):
         break
 
 custom_result = custom_fitter.result()
-print(f"Custom criteria grid: {custom_result.nsamples} samples, "
-      f"{custom_result.surrogate.nsubspaces()} subspaces")
 ```
 
 
@@ -427,25 +392,9 @@ for level in range(5):
     iso_nsamples_4d.append(iso_samp4.shape[1])
     iso_errors_4d.append(err)
 
-r4_final = adaptive_4d.result()
-print(f"Adaptive 4D: {r4_final.nsamples} samples, "
-      f"{r4_final.surrogate.nsubspaces()} subspaces")
-print(f"Isotropic L=4: {iso_nsamples_4d[-1]} samples")
-
 fig, ax = plt.subplots(figsize=(8, 5))
-ax.semilogy(
-    adapt_nsamples, adapt_errors, "o-", color="#2C7FB8", lw=2, ms=5,
-    label="Adaptive SG",
-)
-ax.semilogy(
-    iso_nsamples_4d, iso_errors_4d, "--s", color="#E67E22", lw=2, ms=5,
-    label="Isotropic SG",
-)
-ax.set_xlabel("Number of function evaluations", fontsize=12)
-ax.set_ylabel("RMS error", fontsize=12)
-ax.set_title("4D: adaptive vs. isotropic on additive function", fontsize=12)
-ax.legend(fontsize=11)
-ax.grid(True, which="both", alpha=0.3)
+plot_4d_adaptive(ax, adapt_nsamples, adapt_errors,
+                 iso_nsamples_4d, iso_errors_4d)
 plt.tight_layout()
 plt.show()
 ```

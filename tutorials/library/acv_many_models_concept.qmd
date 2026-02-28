@@ -106,87 +106,10 @@ with $\hat{\mu}_0(\mathcal{Z}_0)$, and each one can reduce HF variance independe
 #| label: fig-direct-vs-indirect
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from _figures._cv_acv import plot_direct_vs_indirect
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-colors = ["#e74c3c", "#2C7FB8", "#27AE60", "#8E44AD"]
-labels = [r"$f_0$ (HF)", r"$f_1$ (LF)", r"$f_2$ (LF)", r"$f_3$ (LF)"]
-bw, bh = 0.9, 0.40  # box width, height
-
-def draw_box(ax, x, y, text, fc, ec, lw=1.2, bold=False):
-    ax.add_patch(mpatches.FancyBboxPatch(
-        (x - bw/2, y - bh/2), bw, bh, boxstyle="round,pad=0.05",
-        fc=fc, ec=ec, lw=lw, zorder=3))
-    ax.text(x, y, text, ha="center", va="center", fontsize=9,
-            fontweight="bold" if bold else "normal", zorder=4)
-
-def draw_arrow(ax, x0, y0, x1, y1, color):
-    ax.annotate("", xy=(x1, y1), xytext=(x0, y0),
-                arrowprops=dict(arrowstyle="->, head_width=0.2",
-                                color=color, lw=1.8))
-
-# ── Left panel: MFMC (vertical chain) ────────────────────────────────────────
-ax = axes[0]
-chain_x_z, chain_x_p = 0.8, 2.0
-chain_ys = [3.0, 2.0, 1.0, 0.0]
-for i, (y, col, lbl) in enumerate(zip(chain_ys, colors, labels)):
-    fc = colors[0] if i == 0 else "white"
-    ec = colors[0] if i == 0 else col
-    ztxt = (r"$\mathcal{Z}_0$" if i == 0
-            else r"$\mathcal{Z}_{" + str(i) + r"}^*$")
-    draw_box(ax, chain_x_z, y, ztxt, fc, ec, lw=2.0 if i == 0 else 1.2,
-             bold=(i == 0))
-    if i > 0:
-        draw_box(ax, chain_x_p, y,
-                 r"$\mathcal{P}_{" + str(i) + r"}$",
-                 col, col, lw=1.2)
-    ax.text(chain_x_z - bw/2 - 0.08, y, lbl, ha="right", va="center",
-            fontsize=9, color=col, fontweight="bold")
-# chain arrows: each model corrects the one above
-for i in range(1, 4):
-    draw_arrow(ax, chain_x_z - 0.15, chain_ys[i] + bh/2 + 0.04,
-               chain_x_z - 0.15, chain_ys[i-1] - bh/2 - 0.04, colors[i])
-ax.set_xlim(-0.7, 2.8)
-ax.set_ylim(-0.6, 3.6)
-ax.set_title("MFMC: indirect (chained)", fontsize=11, fontweight="bold")
-ax.axis("off")
-
-# ── Right panel: ACVMF (flat LF row) ─────────────────────────────────────────
-ax = axes[1]
-hf_x, hf_y = 1.1, 2.8  # HF at the top, centred
-lf_xs = [0.0, 1.1, 2.2]  # three LF models side-by-side
-lf_y_z, lf_y_p = 1.2, 0.2  # star-set row / partition row
-
-# HF box
-draw_box(ax, hf_x, hf_y, r"$\mathcal{Z}_0$", colors[0], colors[0],
-         lw=2.0, bold=True)
-ax.text(hf_x, hf_y + bh/2 + 0.15, labels[0], ha="center", va="bottom",
-        fontsize=9, color=colors[0], fontweight="bold")
-
-# LF boxes and arrows
-for j, (lx, col, lbl) in enumerate(zip(lf_xs, colors[1:], labels[1:])):
-    alpha = j + 1
-    # Star-set box (shares Z_0)
-    draw_box(ax, lx, lf_y_z,
-             r"$\mathcal{Z}_{" + str(alpha) + r"}^*$",
-             "white", col)
-    # Exclusive partition box
-    draw_box(ax, lx, lf_y_p,
-             r"$\mathcal{P}_{" + str(alpha) + r"}$",
-             col, col)
-    # Label
-    ax.text(lx, lf_y_z + bh/2 + 0.12, lbl, ha="center", va="bottom",
-            fontsize=9, color=col, fontweight="bold")
-    # Arrow from LF star-set up to HF
-    draw_arrow(ax, lx, lf_y_z + bh/2 + 0.04,
-               hf_x, hf_y - bh/2 - 0.04, col)
-
-ax.set_xlim(-0.8, 3.0)
-ax.set_ylim(-0.4, 3.6)
-ax.set_title(r"ACVMF: direct (all $\rightarrow\,f_0$)",
-             fontsize=11, fontweight="bold")
-ax.axis("off")
-
+plot_direct_vs_indirect(axes)
 plt.suptitle("Indirect vs direct correction structure", fontsize=12, y=1.01)
 plt.tight_layout()
 plt.show()
@@ -215,82 +138,13 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest import MLMCEstimator, MFMCEstimator, GMFEstimator
+from _figures._cv_acv import plot_acv_ceiling
 
-bkd       = NumpyBkd()
+bkd = NumpyBkd()
 benchmark = polynomial_ensemble_5model(bkd)
-models    = benchmark.models()
-costs     = benchmark.costs()
-nqoi      = models[0].nqoi()
-cov       = bkd.to_numpy(benchmark.ensemble_covariance())
-sigma2_hf = cov[0, 0]
-n_models  = len(models)
-M         = n_models - 1
 
-# ── Multi-model CV limits ─────────────────────────────────────────────────────
-cv_limits = []
-for k in range(1, n_models):
-    sub = cov[:k + 1, :k + 1]
-    c0l = sub[0, 1:]
-    Sl  = sub[1:, 1:]
-    r2  = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
-    cv_limits.append(1 - r2)
-
-# ── Scan: fix nhf=1, grow LF partition sizes by powers of 2 ──────────────────
-nhf_samples = 1
-mc_var = sigma2_hf / nhf_samples
-partition_ratio_base = np.array([2, 2, 2, 2])
-factors = np.arange(22)
-
-stat = MultiOutputMean(nqoi, bkd)
-stat.set_pilot_quantities(bkd.asarray(cov))
-ri_zeros = bkd.zeros(M, dtype=int)
-
-def compute_variance_vs_cost(estimator):
-    """Compute estimator variance at increasing LF partition ratios."""
-    nparts = estimator._npartitions
-    est_costs, est_ratios = [], []
-    for factor in factors:
-        ratios = bkd.asarray(
-            partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
-        )
-        # Compute target_cost that gives nhf_samples=1 at these ratios
-        model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
-        target_cost = float(
-            nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
-        )
-        est_cov = estimator.covariance_from_ratios(target_cost, ratios)
-        est_var = float(est_cov[0, 0])
-        est_costs.append(target_cost)
-        est_ratios.append(est_var / mc_var)
-    return est_costs, est_ratios
-
-mlmc_costs, mlmc_ratio = compute_variance_vs_cost(MLMCEstimator(stat, costs))
-mfmc_costs, mfmc_ratio = compute_variance_vs_cost(MFMCEstimator(stat, costs))
-acvmf_costs, acvmf_ratio = compute_variance_vs_cost(
-    GMFEstimator(stat, costs, recursion_index=ri_zeros))
-
-# ── Plot ───────────────────────────────────────────────────────────────────────
-cv_colors = ["#e74c3c", "#8e44ad", "#16a085", "#2c3e50"]
-cv_ls     = ["--", "-.", ":", (0, (5, 1))]
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.loglog(mlmc_costs,  mlmc_ratio,  "-",  color="#2C7FB8", lw=2.5, label="MLMC")
-ax.loglog(mfmc_costs,  mfmc_ratio,  "--", color="#E67E22", lw=2.5, label="MFMC")
-ax.loglog(acvmf_costs, acvmf_ratio, "-.", color="#27AE60", lw=2.5,
-          label="ACVMF (direct correction)")
-
-for k, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
-    ax.axhline(lim, color=col, ls=ls, lw=1.5,
-               label=f"CV-{k+1} limit ({k+1} LF model{'s' if k else ''})")
-
-ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
-
-ax.set_xlabel("Total cost", fontsize=12)
-ax.set_ylabel("Variance / MC variance", fontsize=12)
-ax.set_title("Direct correction breaks the CV-1 ceiling", fontsize=11)
-ax.legend(fontsize=8, loc="lower left")
-ax.grid(True, alpha=0.2, which="both")
+plot_acv_ceiling(benchmark, bkd, ax)
 plt.tight_layout()
 plt.show()
 ```

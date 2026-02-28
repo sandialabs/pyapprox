@@ -66,83 +66,11 @@ would have been better spent on the remaining models, pushing the estimator cova
 #| fig-cap: "Predicted ACVMF variance (relative to single-fidelity MC) as a function of the HF–LF1 correlation $\\rho_{01}$, controlled by the parameter $\\theta_1$ of the tunable benchmark. When $\\rho_{01}$ is small, the three-model estimator (blue) is *worse* than the best two-model subset (orange dashed). The shaded region marks where using all three models hurts."
 #| label: fig-bad-model
 
-import numpy as np
-np.random.seed(42)
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import tunable_ensemble_3model
-from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
-
-bkd = NumpyBkd()
-P = 100.0
-
-theta_vals = np.linspace(0.5, 1.5, 40)
-two_model_vars = []
-three_model_vars = []
-rho01_vals = []
-mc_vars = []
-
-for theta1 in theta_vals:
-    bm = tunable_ensemble_3model(bkd, theta1=theta1)
-    cov = bm.ensemble_covariance()
-    costs = bm.costs()
-    cov_np = bkd.to_numpy(cov)
-
-    D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
-    corr = D @ cov_np @ D
-    rho01_vals.append(corr[0, 1])
-
-    # MC baseline
-    stat_mc = MultiOutputMean(1, bkd)
-    stat_mc.set_pilot_quantities(cov)
-    mc_est = MCEstimator(stat_mc, costs[:1])
-    mc_est.allocate_samples(P)
-    mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
-    mc_vars.append(mc_var)
-
-    # Best 2-model subset (HF + f1 or HF + f2)
-    best2 = mc_var
-    for idx2 in ([0, 1], [0, 2]):
-        sub_cov = cov_np[np.ix_(idx2, idx2)]
-        sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
-        stat2 = MultiOutputMean(1, bkd)
-        stat2.set_pilot_quantities(bkd.array(sub_cov))
-        est2 = GMFEstimator(stat2, sub_costs,
-                            recursion_index=bkd.asarray([0]))
-        est2.allocate_samples(P)
-        v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
-        best2 = min(best2, v)
-    two_model_vars.append(best2)
-
-    # 3-model ACVMF: recursion_index=[0,0] means both LF models point to HF
-    stat3 = MultiOutputMean(1, bkd)
-    stat3.set_pilot_quantities(cov)
-    est3 = GMFEstimator(stat3, costs,
-                        recursion_index=bkd.asarray([0, 0]))
-    est3.allocate_samples(P)
-    v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
-    three_model_vars.append(v3)
-
-rho01_arr = np.array(rho01_vals)
-ratio_2m = np.array(two_model_vars) / np.array(mc_vars)
-ratio_3m = np.array(three_model_vars) / np.array(mc_vars)
+from _figures._multifidelity_advanced import plot_bad_model
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.plot(rho01_arr, ratio_3m, color="#2C7FB8", lw=2.5,
-        label="Three-model ACVMF  $\\{f_0,f_1,f_2\\}$")
-ax.plot(rho01_arr, ratio_2m, color="#E67E22", ls="--", lw=2,
-        label="Best two-model ACVMF")
-ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
-ax.fill_between(rho01_arr, ratio_3m, ratio_2m,
-                where=ratio_3m > ratio_2m,
-                color="#e74c3c", alpha=0.18,
-                label="Region where $f_1$ *hurts*")
-ax.set_xlabel(r"$\rho_{01}$ — correlation of $f_1$ with HF model", fontsize=12)
-ax.set_ylabel("Predicted variance / MC variance", fontsize=12)
-ax.set_title("ACVMF: two-model vs three-model  (tunable benchmark, $P=100$)",
-             fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_bad_model(ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -191,40 +119,11 @@ correlation structure controls which models are worth including.
 #| fig-cap: "Correlation matrices for two configurations of the tunable benchmark. Left ($\\theta_1 = 1.4$): $f_1$ is strongly correlated with $f_0$ ($\\rho_{01} = 0.96$) — both LF models help. Right ($\\theta_1 = 0.6$): $f_1$ is weakly correlated ($\\rho_{01} = 0.55$) — only $f_2$ contributes meaningful variance reduction."
 #| label: fig-heatmap
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import tunable_ensemble_3model
-
-bkd = NumpyBkd()
-nmodels = 3
-
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+from _figures._multifidelity_advanced import plot_correlation_heatmaps
 
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.8))
-
-for ax, theta1, title in zip(axes, [1.4, 0.6],
-                              [r"$\theta_1 = 1.4$", r"$\theta_1 = 0.6$"]):
-    bm = tunable_ensemble_3model(bkd, theta1=theta1)
-    cov_np = bkd.to_numpy(bm.ensemble_covariance())
-    D_inv = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
-    corr = D_inv @ cov_np @ D_inv
-
-    im = ax.imshow(corr, vmin=-1, vmax=1, cmap="RdBu_r", aspect="equal")
-    labels = [f"$f_{i}$" for i in range(nmodels)]
-    ax.set_xticks(range(nmodels)); ax.set_xticklabels(labels, fontsize=11)
-    ax.set_yticks(range(nmodels)); ax.set_yticklabels(labels, fontsize=11)
-    for i in range(nmodels):
-        for j in range(nmodels):
-            ax.text(j, i, f"{corr[i,j]:.2f}", ha="center", va="center",
-                    fontsize=10,
-                    color="black" if abs(corr[i,j]) < 0.85 else "white")
-    ax.set_title(title, fontsize=11)
-
-# Colorbar attached to the right panel only
-divider = make_axes_locatable(axes[1])
-cax = divider.append_axes("right", size="8%", pad=0.15)
-fig.colorbar(im, cax=cax, label="Correlation")
+plot_correlation_heatmaps(axes, fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -248,73 +147,11 @@ $\rho_{01}$, the full three-model ensemble wins.
 #| fig-cap: "ACVMF variance ratio for the best one-LF subset (orange) and the two-LF ensemble (blue) across different HF–LF1 correlation strengths. At low $\\rho_{01}$ the single-model subset $\\{f_0, f_2\\}$ outperforms the full ensemble; at high $\\rho_{01}$ the three-model estimator is clearly better. The crossover identifies the correlation threshold below which $f_1$ should be excluded."
 #| label: fig-nmodels
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import tunable_ensemble_3model
-from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
-
-bkd = NumpyBkd()
-P = 100.0
-
-theta_vals = np.linspace(0.5, 1.5, 30)
-best_1lf = []
-two_lf = []
-rho01_vals = []
-
-for theta1 in theta_vals:
-    bm = tunable_ensemble_3model(bkd, theta1=theta1)
-    cov = bm.ensemble_covariance()
-    costs = bm.costs()
-    cov_np = bkd.to_numpy(cov)
-
-    D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
-    corr = D @ cov_np @ D
-    rho01_vals.append(corr[0, 1])
-
-    stat_mc = MultiOutputMean(1, bkd)
-    stat_mc.set_pilot_quantities(cov)
-    mc_est = MCEstimator(stat_mc, costs[:1])
-    mc_est.allocate_samples(P)
-    mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
-
-    # Best 1-LF subset
-    best1 = mc_var
-    for idx2 in ([0, 1], [0, 2]):
-        sub_cov = cov_np[np.ix_(idx2, idx2)]
-        sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
-        stat2 = MultiOutputMean(1, bkd)
-        stat2.set_pilot_quantities(bkd.array(sub_cov))
-        est2 = GMFEstimator(stat2, sub_costs,
-                            recursion_index=bkd.asarray([0]))
-        est2.allocate_samples(P)
-        v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
-        best1 = min(best1, v)
-    best_1lf.append(best1 / mc_var)
-
-    # 2-LF (all three models) — ACVMF
-    stat3 = MultiOutputMean(1, bkd)
-    stat3.set_pilot_quantities(cov)
-    est3 = GMFEstimator(stat3, costs,
-                        recursion_index=bkd.asarray([0, 0]))
-    est3.allocate_samples(P)
-    v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
-    two_lf.append(v3 / mc_var)
-
-rho01_arr = np.array(rho01_vals)
+from _figures._multifidelity_advanced import plot_ensemble_nmodels
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.plot(rho01_arr, two_lf, color="#2C7FB8", lw=2.5, marker="o", ms=4,
-        label="2 LF models  $\\{f_0,f_1,f_2\\}$")
-ax.plot(rho01_arr, best_1lf, color="#E67E22", lw=2.5, marker="s", ms=4,
-        label="Best 1 LF model")
-ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
-ax.set_xlabel(r"$\rho_{01}$ — correlation of $f_1$ with HF model", fontsize=12)
-ax.set_ylabel("Best variance / MC variance", fontsize=11)
-ax.set_title("ACVMF: optimal ensemble size depends on correlation  ($P=100$)",
-             fontsize=11)
-ax.legend(fontsize=9)
-ax.grid(True, alpha=0.2)
+plot_ensemble_nmodels(ax)
 plt.tight_layout()
 plt.show()
 ```

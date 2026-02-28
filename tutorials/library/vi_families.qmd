@@ -307,79 +307,15 @@ print(f"Negative ELBO: {result_full.neg_elbo():.4f}")
 #| echo: false
 #| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam posterior. Left: the diagonal (mean-field) Gaussian has axis-aligned ellipses --- it cannot represent the posterior's tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior correlation, producing a substantially better fit and a lower negative ELBO."
 #| label: fig-family-comparison
-from matplotlib.patches import Ellipse
-
-# Extract diagonal params (standardized, then transform to physical)
-diag_means = []
-diag_stds = []
-for ii, cd in enumerate(conds_diag):
-    dummy = bkd.zeros((cd.nvars(), 1))
-    z_mu = float(cd._mean_func(dummy)[0, 0])
-    z_sig = math.exp(float(cd._log_stdev_func(dummy)[0, 0]))
-    diag_means.append(mu_prior_2d[ii] + sigma_prior_2d[ii] * z_mu)
-    diag_stds.append(sigma_prior_2d[ii] * z_sig)
-
-# Extract full-covariance params (standardized, then transform)
-dummy_full = bkd.zeros((var_dist_full.nvars(), 1))
-full_z_mean = bkd.to_numpy(
-    var_dist_full.reparameterize(dummy_full, bkd.zeros((2, 1)))
-).flatten()
-full_z_cov = bkd.to_numpy(var_dist_full.covariance(dummy_full)[0])
-
-full_mean = mu_prior_2d + sigma_prior_2d * full_z_mean
-S = np.diag(sigma_prior_2d)
-full_cov = S @ full_z_cov @ S
+from _figures._vi import plot_family_comparison
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-for ax, title, neg_elbo in [
-    (ax1, f"Diagonal Gaussian (neg ELBO = {result_diag.neg_elbo():.2f})",
-     result_diag.neg_elbo()),
-    (ax2, f"Full-covariance Gaussian (neg ELBO = {result_full.neg_elbo():.2f})",
-     result_full.neg_elbo()),
-]:
-    ax.contourf(E1_m, E2_m, p_grid, levels=10, cmap="Oranges", alpha=0.4)
-    ax.contour(E1_m, E2_m, p_grid, levels=8, colors="#E67E22",
-               linewidths=0.5, alpha=0.5)
-    ax.scatter(E1_true, E2_true, marker="D", s=80, color="#27AE60",
-               edgecolors="k", lw=1, zorder=5)
-    ax.set_xlabel(r"$E_1$ (skin)", fontsize=12)
-    ax.set_ylabel(r"$E_2$ (core)", fontsize=12)
-    ax.set_title(title, fontsize=10, fontweight="bold")
-    ax.grid(True, alpha=0.15)
-
-# Diagonal ellipses
-for n_std in [1, 2]:
-    ell = Ellipse(
-        xy=(diag_means[0], diag_means[1]),
-        width=2 * n_std * diag_stds[0],
-        height=2 * n_std * diag_stds[1],
-        angle=0,
-        facecolor="none", edgecolor="#2C7FB8",
-        lw=2 if n_std == 1 else 1.5,
-        ls="-" if n_std == 1 else "--",
-    )
-    ax1.add_patch(ell)
-ax1.scatter(diag_means[0], diag_means[1], marker="+", s=150,
-            color="#2C7FB8", lw=3, zorder=5)
-
-# Full-covariance ellipses
-eigenvalues, eigenvectors = np.linalg.eigh(full_cov)
-angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
-for n_std in [1, 2]:
-    ell = Ellipse(
-        xy=(full_mean[0], full_mean[1]),
-        width=2 * n_std * np.sqrt(eigenvalues[0]),
-        height=2 * n_std * np.sqrt(eigenvalues[1]),
-        angle=angle,
-        facecolor="none", edgecolor="#2C7FB8",
-        lw=2 if n_std == 1 else 1.5,
-        ls="-" if n_std == 1 else "--",
-    )
-    ax2.add_patch(ell)
-ax2.scatter(full_mean[0], full_mean[1], marker="+", s=150,
-            color="#2C7FB8", lw=3, zorder=5)
-
+plot_family_comparison(
+    E1_m, E2_m, p_grid, E1_true, E2_true,
+    conds_diag, var_dist_full,
+    mu_prior_2d, sigma_prior_2d,
+    result_diag, result_full, bkd, ax1, ax2,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -508,26 +444,11 @@ print(f"VI posterior mean: {rec_mean:.4f}")
 #| echo: false
 #| fig-cap: "Beta VI on the coin-flip problem. The VI approximation (blue dashed) closely matches the exact conjugate posterior (orange). The Beta variational family naturally respects the parameter bounds $p \\in (0, 1)$."
 #| label: fig-beta-vi
-from scipy.stats import beta as beta_dist
-
-p_grid = np.linspace(0.001, 0.999, 300)
-exact_pdf = beta_dist.pdf(p_grid, exact_posterior_alpha, exact_posterior_beta)
-vi_pdf = beta_dist.pdf(p_grid, rec_alpha, rec_beta)
-prior_pdf = beta_dist.pdf(p_grid, prior_alpha, prior_beta)
+from _figures._vi import plot_beta_vi
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.plot(p_grid, prior_pdf, color="#2C7FB8", lw=1.5, ls=":", alpha=0.5,
-        label=f"Prior: Beta({prior_alpha}, {prior_beta})")
-ax.plot(p_grid, exact_pdf, color="#E67E22", lw=2.5,
-        label=f"Exact: Beta({exact_posterior_alpha:.0f}, {exact_posterior_beta:.0f})")
-ax.fill_between(p_grid, exact_pdf, alpha=0.12, color="#E67E22")
-ax.plot(p_grid, vi_pdf, color="#2C7FB8", lw=2.5, ls="--",
-        label=f"VI: Beta({rec_alpha:.1f}, {rec_beta:.1f})")
-ax.set_xlabel("$p$ (probability of heads)", fontsize=12)
-ax.set_ylabel("Density", fontsize=12)
-ax.set_title("Beta VI recovers the conjugate posterior", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2)
+plot_beta_vi(prior_alpha, prior_beta, exact_posterior_alpha,
+             exact_posterior_beta, rec_alpha, rec_beta, ax)
 plt.tight_layout()
 plt.show()
 ```

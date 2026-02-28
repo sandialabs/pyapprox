@@ -86,6 +86,8 @@ where $W = \mathrm{diag}(w_i)$ are quadrature weights.
 ```{python}
 #| label: fig-mesh-kle-overview
 #| fig-cap: "Left: covariance matrix $C(x,x')$ for the exponential kernel with $\\ell = 0.5$. Centre: the first five `MeshKLE` eigenfunctions. Right: the Gram matrix $\\Phi^T W \\Phi$ verifying weighted orthonormality (should be the identity)."
+from _figures._kle import plot_mesh_kle_overview
+
 nterms = 5
 ell = 0.5
 
@@ -97,30 +99,10 @@ kle_mesh = MeshKLE(
 
 lam_mesh = bkd.to_numpy(kle_mesh.eigenvalues())
 phi_mesh = bkd.to_numpy(kle_mesh.eigenvectors())
+C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
 
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-# Covariance matrix
-C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
-im = axes[0].imshow(C, extent=[0, 2, 2, 0], cmap="RdBu_r", vmin=0, vmax=1)
-plt.colorbar(im, ax=axes[0])
-axes[0].set_title("Covariance matrix $C(x,x')$", fontsize=12)
-axes[0].set_xlabel("$x'$"); axes[0].set_ylabel("$x$")
-
-# Eigenfunctions
-colors = plt.cm.tab10(np.linspace(0, 0.55, nterms))
-for k in range(nterms):
-    axes[1].plot(x, phi_mesh[:, k], color=colors[k],
-                 label=f"$\\phi_{k+1}$")
-axes[1].axhline(0, color="k", lw=0.5)
-axes[1].set_title("MeshKLE eigenfunctions", fontsize=12)
-axes[1].set_xlabel("$x$"); axes[1].legend(fontsize=9)
-
-# Orthonormality check: phi^T W phi = I
-G = phi_mesh.T @ (w[:, None] * phi_mesh)
-im2 = axes[2].imshow(G, cmap="RdBu_r", vmin=-1.1, vmax=1.1)
-plt.colorbar(im2, ax=axes[2])
-axes[2].set_title("$\\Phi^T W \\Phi$ (should be $I$)", fontsize=12)
+plot_mesh_kle_overview(x, C, phi_mesh, nterms, w, axes[0], axes[1], axes[2], fig=fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -137,35 +119,24 @@ the eigenvalues are $\lambda_k = \sigma_k^2 / (N_s - 1)$.
 ```{python}
 #| label: fig-data-driven-eigenfunctions
 #| fig-cap: "`DataDrivenKLE` eigenfunctions (solid) vs `MeshKLE` reference (dashed) for increasing sample counts $N_s = 50, 500, 5000$. With few samples the empirical modes are noisy; by $N_s = 5000$ they closely match the kernel-based reference."
+from _figures._kle import plot_data_driven_eigenfunctions
+
 # Generate samples from the MeshKLE to use as "data"
 N_samples_list = [50, 500, 5000]
 max_Ns = max(N_samples_list)
 Z_big = bkd.array(rng.standard_normal((nterms, max_Ns)))
 field_samples_big = bkd.to_numpy(kle_mesh(Z_big))
 
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-for ax, Ns in zip(axes, N_samples_list):
+phi_dd_list = []
+for Ns in N_samples_list:
     samples = bkd.array(field_samples_big[:, :Ns])
     kle_dd = DataDrivenKLE(
         samples, nterms=nterms, quad_weights=quad_weights, bkd=bkd,
     )
-    phi_dd = bkd.to_numpy(kle_dd.eigenvectors())
+    phi_dd_list.append(bkd.to_numpy(kle_dd.eigenvectors()))
 
-    for k in range(nterms):
-        # Align signs with mesh_kle reference
-        sign = np.sign(np.dot(phi_dd[:, k], phi_mesh[:, k]))
-        ax.plot(x, sign * phi_dd[:, k], color=colors[k],
-                lw=1.5, alpha=0.9)
-    for k in range(nterms):
-        ax.plot(x, phi_mesh[:, k], color=colors[k],
-                lw=2, ls="--", alpha=0.4)
-
-    ax.axhline(0, color="k", lw=0.5)
-    ax.set_title(f"$N_s = {Ns}$ samples", fontsize=12)
-    ax.set_xlabel("$x$")
-
-axes[0].set_ylabel("Eigenfunction $\\phi_k(x)$")
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_data_driven_eigenfunctions(x, phi_mesh, phi_dd_list, N_samples_list, nterms, axes)
 fig.suptitle("DataDrivenKLE eigenfunctions (solid) vs MeshKLE reference (dashed)",
              fontsize=12)
 plt.tight_layout()
@@ -181,6 +152,8 @@ match the analytical eigenfunctions closely.
 ```{python}
 #| label: fig-eigenvalue-convergence
 #| fig-cap: "Left: relative eigenvalue error of `DataDrivenKLE` vs sample count $N_s$, decaying as $1/\\sqrt{N_s}$. Right: effect of quadrature weights on the first two eigenfunctions at $N_s = 500$. Weights improve accuracy when the mesh spacing is non-uniform."
+from _figures._kle import plot_eigenvalue_convergence
+
 Ns_range = np.logspace(1.5, 4, 25, dtype=int)
 errors = np.zeros((len(Ns_range), nterms))
 max_Ns2 = int(max(Ns_range))
@@ -195,21 +168,7 @@ for i, Ns in enumerate(Ns_range):
     lam_dd = bkd.to_numpy(kle_dd.eigenvalues())
     errors[i] = np.abs(lam_dd - lam_mesh) / lam_mesh
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-
-# Relative eigenvalue error vs sample count
-for k in range(nterms):
-    axes[0].loglog(Ns_range, errors[:, k], lw=1.8,
-                   label=f"$\\lambda_{k+1}$")
-# Reference 1/sqrt(N) line
-ns_ref = np.array([100, 10000])
-axes[0].loglog(ns_ref, 0.3 / np.sqrt(ns_ref), "k--", lw=1, label="$1/\\sqrt{N}$")
-axes[0].set_xlabel("Number of samples $N_s$", fontsize=12)
-axes[0].set_ylabel("Relative eigenvalue error", fontsize=12)
-axes[0].set_title("DataDrivenKLE eigenvalue convergence", fontsize=12)
-axes[0].legend(fontsize=9)
-
-# Effect of quadrature weights on eigenvectors
+# Eigenvectors with and without quadrature weights
 Ns = 500
 samples_500 = bkd.array(field_samples_big[:, :Ns])
 kle_dd_w = DataDrivenKLE(
@@ -221,18 +180,11 @@ kle_dd_no_w = DataDrivenKLE(
 phi_dd_w = bkd.to_numpy(kle_dd_w.eigenvectors())
 phi_dd_no_w = bkd.to_numpy(kle_dd_no_w.eigenvectors())
 
-# Show first two eigenfunctions with and without weights
-for k in range(2):
-    sign_w = np.sign(np.dot(phi_dd_w[:, k], phi_mesh[:, k]))
-    sign_nw = np.sign(np.dot(phi_dd_no_w[:, k], phi_mesh[:, k]))
-    axes[1].plot(x, sign_w * phi_dd_w[:, k], lw=2,
-                 label=f"$\\phi_{k+1}$ with weights")
-    axes[1].plot(x, sign_nw * phi_dd_no_w[:, k], lw=2, ls="--",
-                 label=f"$\\phi_{k+1}$ no weights")
-axes[1].plot(x, phi_mesh[:, 0], "k:", lw=1.5, label="reference")
-axes[1].set_xlabel("$x$", fontsize=12)
-axes[1].set_title("Effect of quadrature weights  ($N_s=500$)", fontsize=12)
-axes[1].legend(fontsize=9)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+plot_eigenvalue_convergence(
+    x, Ns_range, errors, nterms, phi_mesh,
+    phi_dd_w, phi_dd_no_w, axes[0], axes[1],
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -252,6 +204,7 @@ The error in eigenvalue $k$ scales as $O(h^2)$ for the trapezoid rule.
 #| label: fig-mesh-convergence
 #| fig-cap: "Left: `MeshKLE` eigenvalue convergence with mesh refinement (relative to the analytical solution), showing $O(h^2)$ convergence for the trapezoid rule. Right: summary comparison of `MeshKLE` vs `DataDrivenKLE` properties."
 from pyapprox.surrogates.kle import AnalyticalExponentialKLE1D
+from _figures._kle import plot_mesh_convergence
 
 npts_list = [20, 40, 80, 160, 320]
 
@@ -260,8 +213,6 @@ kle_exact = AnalyticalExponentialKLE1D(
     corr_len=ell, sigma2=1.0, dom_len=2.0, nterms=nterms,
 )
 lam_ref = np.array(kle_exact.eigenvalues())
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
 eig_errors_mesh = np.zeros((len(npts_list), nterms))
 for i, npts_i in enumerate(npts_list):
@@ -273,51 +224,21 @@ for i, npts_i in enumerate(npts_list):
         bkd.array(xi[None, :]), kernel_i, sigma=1.0, nterms=nterms,
         quad_weights=bkd.array(wi), bkd=bkd,
     )
-    lam_i = bkd.to_numpy(kle_i.eigenvalues())
-    eig_errors_mesh[i] = lam_i
+    eig_errors_mesh[i] = bkd.to_numpy(kle_i.eigenvalues())
 
-# Convert to relative errors vs analytical solution
 eig_errors_rel = np.abs(eig_errors_mesh - lam_ref) / lam_ref
 
-for k in range(nterms):
-    axes[0].loglog(npts_list, eig_errors_rel[:, k],
-                   lw=1.8, label=f"$\\lambda_{k+1}$")
-# O(h^2) reference
-nref = np.array([20, 320])
-h_ref = 2.0 / nref
-axes[0].loglog(nref, 0.5 * (h_ref/h_ref[0])**2 * eig_errors_rel[0, 0],
-               "k--", lw=1, label="$O(h^2)$")
-axes[0].set_xlabel("Number of mesh points $N$", fontsize=12)
-axes[0].set_ylabel("Relative eigenvalue error", fontsize=12)
-axes[0].set_title("MeshKLE convergence with mesh refinement", fontsize=12)
-axes[0].legend(fontsize=9)
-
-# Cost comparison table
-axes[1].set_axis_off()
 table_data = [
     ["", "MeshKLE", "DataDrivenKLE"],
     ["Input required", "Kernel function", "Field samples"],
     ["Memory", "$O(N^2)$ dense", "$O(N \\cdot N_s)$"],
     ["Main error source", "Quadrature $O(h^2)$", "Stats $O(1/\\sqrt{N_s})$"],
-    ["Extrapolate beyond data?", "Yes — any $x$", "Only on training mesh"],
+    ["Extrapolate beyond data?", "Yes \u2014 any $x$", "Only on training mesh"],
     ["Unknown kernel?", "No", "Yes"],
 ]
-table = axes[1].table(
-    cellText=table_data[1:],
-    colLabels=table_data[0],
-    loc="center",
-    cellLoc="center",
-)
-table.auto_set_font_size(False)
-table.set_fontsize(10)
-table.scale(1.2, 2.0)
-for (r, c), cell in table.get_celld().items():
-    if r == 0:
-        cell.set_facecolor("#4472C4")
-        cell.set_text_props(color="white", fontweight="bold")
-    elif c == 0:
-        cell.set_facecolor("#D9E1F2")
-axes[1].set_title("Method comparison", fontsize=12, pad=20)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+plot_mesh_convergence(npts_list, eig_errors_rel, nterms, table_data, axes[0], axes[1])
 plt.tight_layout()
 plt.show()
 ```
@@ -333,33 +254,26 @@ The reconstruction with $K$ terms is $\hat{f}(x) = \sum_{k=1}^K c_k\, \sqrt{\lam
 ```{python}
 #| label: fig-field-reconstruction
 #| fig-cap: "Reconstruction of a test field from its KLE projection using $K = 1, 3, 5$ terms. The shaded area shows the pointwise error. The RMSE decreases as $K$ increases, driven by the eigenvalue spectrum."
+from _figures._kle import plot_field_reconstruction
+
 # Generate a "new" realization for reconstruction
 z_new = bkd.array(rng.standard_normal((nterms, 1)))
 f_true = bkd.to_numpy(kle_mesh(z_new))[:, 0]
 
 # Reconstruct using increasing number of terms
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 K_list = [1, 3, 5]
-for ax, K in zip(axes, K_list):
+reconstructions = []
+for K in K_list:
     kle_K = MeshKLE(
         mesh_coords, kernel, sigma=1.0, nterms=K,
         quad_weights=quad_weights, bkd=bkd,
     )
     phi_K = bkd.to_numpy(kle_K.eigenvectors())
-    # Project onto first K eigenfunctions using weighted inner product
     coeffs = (phi_K * w[:, None]).T @ f_true
-    f_recon = phi_K @ coeffs
+    reconstructions.append(phi_K @ coeffs)
 
-    ax.plot(x, f_true, "k-", lw=2, label="true field")
-    ax.plot(x, f_recon, "r--", lw=1.8, label=f"$K={K}$ terms")
-    ax.fill_between(x, f_true, f_recon, alpha=0.2, color="red",
-                    label="error")
-    rmse = np.sqrt(np.mean((f_true - f_recon)**2))
-    ax.set_title(f"$K={K}$ terms  (RMSE={rmse:.3f})", fontsize=11)
-    ax.set_xlabel("$x$")
-    ax.legend(fontsize=9)
-
-axes[0].set_ylabel("$f(x)$")
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_field_reconstruction(x, f_true, K_list, reconstructions, axes)
 fig.suptitle("Field reconstruction from KLE projection", fontsize=12)
 plt.tight_layout()
 plt.show()

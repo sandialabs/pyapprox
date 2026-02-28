@@ -375,38 +375,13 @@ for fam, result_fam in [("gmf", result_gmf), ("grd", result_grd), ("gis", result
     if ri_list is None:
         ri_list = fam_ri
 
-x     = np.arange(len(ri_list))
-width = 0.28
+from _figures._multifidelity_advanced import plot_pacv_cross_family
+
 fig, ax = plt.subplots(figsize=(11, 5))
-offsets = [-1, 0, 1]
-for offset, fam in zip(offsets, fam_names):
-    vals = results[fam]
-    ax.bar(x + offset * width, vals, width * 0.92, color=fam_cols[fam],
-           alpha=0.85, edgecolor="k", lw=0.4, label=fam_names[fam])
-
-# Mark the global best
-all_vals = [(v, fam, i)
-            for fam in fam_names for i, v in enumerate(results[fam])]
-best_v, best_fam, best_i = min(all_vals)
-best_offset = offsets[list(fam_names).index(best_fam)]
-ax.scatter(best_i + best_offset * width, best_v,
-           s=140, marker="*", color="gold", edgecolors="k", lw=0.8,
-           zorder=5, label=f"Best: {fam_names[best_fam]} γ={list(ri_list[best_i])}")
-
-ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.4, label="MC")
-ax.set_xticks(x)
-ax.set_xticklabels([str(list(ri)) for ri in ri_list], rotation=30, ha="right", fontsize=8)
-ax.set_xlabel("Recursion index $\\boldsymbol{\\gamma}$", fontsize=11)
-ax.set_ylabel("Predicted variance / MC variance", fontsize=11)
-ax.set_title(f"All PACV estimators — three families × {len(ri_list)} indices  (P=500, M={nmodels-1})",
-             fontsize=11)
-ax.legend(fontsize=9, loc="upper right")
-ax.grid(True, alpha=0.2, axis="y")
+plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,
+                       nmodels, ax)
 plt.tight_layout()
 plt.show()
-
-print(f"\nBest estimator: {fam_names[best_fam]}, γ={[int(x) for x in ri_list[best_i]]}, "
-      f"variance ratio = {best_v:.4f}")
 ```
 
 

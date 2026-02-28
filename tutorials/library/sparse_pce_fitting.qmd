@@ -110,14 +110,9 @@ The sparse fitters (`OMPFitter`, `BPDNFitter`) currently support only nqoi=1. Fo
 For a total-degree polynomial basis in $d$ variables at degree $p$, the number of terms grows as $\binom{d + p}{p}$. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:
 
 ```{python}
-print(f"{'d (vars)':<10} {'Degree 3':<12} {'Degree 5':<12} {'Degree 7':<12}")
-print("-" * 46)
 for d in [3, 5, 10, 20]:
-    terms = []
     for p in [3, 5, 7]:
-        n = compute_hyperbolic_indices(d, p, 1.0, bkd).shape[1]
-        terms.append(n)
-    print(f"{d:<10} {terms[0]:<12} {terms[1]:<12} {terms[2]:<12}")
+        _ = compute_hyperbolic_indices(d, p, 1.0, bkd).shape[1]
 ```
 
 For $d = 10$ at degree 5, a standard least-squares fit would require at least $2 \times 3003 = 6006$ training samples. But in many applications, the true model depends primarily on a small subset of the basis terms --- most coefficients are negligibly small. **Sparse recovery** methods exploit this structure to produce accurate approximations with far fewer samples.
@@ -131,6 +126,8 @@ To see sparsity in action, let's fit a least-squares PCE at degree 5 and examine
 #| fig-cap: "Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse."
 #| label: fig-coefficient-decay
 
+from _figures._pce import plot_coefficient_decay
+
 degree_large = 5
 pce_ls = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
 nterms_large = pce_ls.nterms()
@@ -140,18 +137,9 @@ coef_ls = bkd.to_numpy(ls_result.params())[:, 0]
 sorted_abs = np.sort(np.abs(coef_ls))[::-1]
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.bar(range(len(sorted_abs)), sorted_abs, color="#2C7FB8", alpha=0.7, width=1.0)
-ax.set_yscale("log")
-ax.set_xlabel("Rank (sorted by magnitude)", fontsize=11)
-ax.set_ylabel("|Coefficient|", fontsize=11)
-ax.set_title(f"Degree-{degree_large} LS PCE: {nterms_large} terms, "
-             f"N = {N_train} samples", fontsize=11)
-ax.grid(True, alpha=0.2, which="both")
+plot_coefficient_decay(sorted_abs, degree_large, nterms_large, N_train, ax)
 plt.tight_layout()
 plt.show()
-
-n_significant = np.sum(np.abs(coef_ls) > 0.01 * np.max(np.abs(coef_ls)))
-print(f"Terms with |c| > 1% of max: {n_significant} / {nterms_large}")
 ```
 
 The rapid decay in coefficient magnitudes shows that only a handful of terms carry most of the information. This motivates sparse fitters that identify and retain only the important terms.
@@ -173,9 +161,6 @@ pce_omp = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
 
 omp_fitter = OMPFitter(bkd, max_nonzeros=15, rtol=1e-4)
 omp_result = omp_fitter.fit(pce_omp, samples_train, values_train)
-
-print(f"OMP selected {omp_result.n_nonzero()} / {nterms_large} terms")
-print(f"Termination: {omp_result.termination_flag()}")
 ```
 
 The residual history shows how the fit improves as terms are added:
@@ -184,15 +169,12 @@ The residual history shows how the fit improves as terms are added:
 #| fig-cap: "OMP residual history. The residual norm decreases as each new basis term is added to the active set."
 #| label: fig-omp-residual
 
+from _figures._pce import plot_omp_residual
+
 res_hist = bkd.to_numpy(omp_result.residual_history())
 
 fig, ax = plt.subplots(figsize=(7, 4))
-ax.semilogy(range(1, len(res_hist) + 1), res_hist, "o-", ms=6, lw=1.5,
-            color="#E67E22")
-ax.set_xlabel("Number of selected terms", fontsize=11)
-ax.set_ylabel("Residual norm", fontsize=11)
-ax.set_title("OMP residual history", fontsize=11)
-ax.grid(True, alpha=0.2, which="both")
+plot_omp_residual(res_hist, ax)
 plt.tight_layout()
 plt.show()
 ```
@@ -215,8 +197,6 @@ pce_bpdn = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
 
 bpdn_fitter = BPDNFitter(bkd, penalty=0.01)
 bpdn_result = bpdn_fitter.fit(pce_bpdn, samples_train, values_train)
-
-print(f"BPDN: {bpdn_result.n_nonzero()} / {nterms_large} non-zero coefficients")
 ```
 
 
@@ -228,23 +208,13 @@ print(f"BPDN: {bpdn_result.n_nonzero()} / {nterms_large} non-zero coefficients")
 #| fig-cap: "Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."
 #| label: fig-sparse-coefficients
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+from _figures._pce import plot_sparse_coefficients
+
 fitter_names = ["Least Squares", "OMP", "BPDN"]
 results = [ls_result, omp_result, bpdn_result]
-colors = ["#2C7FB8", "#E67E22", "#C0392B"]
 
-for ax, name, result, color in zip(axes, fitter_names, results, colors):
-    coef = bkd.to_numpy(result.params())[:, 0]
-    ax.bar(range(len(coef)), np.abs(coef), color=color, alpha=0.7, width=1.0)
-    ax.set_yscale("log")
-    ax.set_xlabel("Basis term index", fontsize=11)
-    ax.set_title(f"{name}", fontsize=11)
-    n_nz = np.sum(np.abs(coef) > 1e-12)
-    ax.annotate(f"{n_nz} non-zero", xy=(0.95, 0.95), xycoords="axes fraction",
-                ha="right", va="top", fontsize=10,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray"))
-
-axes[0].set_ylabel("|Coefficient|", fontsize=11)
+fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+plot_sparse_coefficients(results, fitter_names, bkd, axes)
 plt.tight_layout()
 plt.show()
 ```
@@ -255,16 +225,11 @@ plt.show()
 Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:
 
 ```{python}
-print("Test-set relative L2 error (tip deflection):")
-print(f"{'Fitter':<18} {'Non-zero':<12} {'Rel. L2 error'}")
-print("-" * 45)
-
 for name, result in zip(fitter_names, results):
     preds = bkd.to_numpy(result.surrogate()(samples_test))
     l2_err = np.linalg.norm(vals_test_np[0, :] - preds[0, :])
     l2_ref = np.linalg.norm(vals_test_np[0, :])
     n_nz = np.sum(np.abs(bkd.to_numpy(result.params())[:, 0]) > 1e-12)
-    print(f"  {name:<16} {n_nz:<12} {l2_err / l2_ref:.4e}")
 ```
 
 The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. @fig-accuracy-vs-n compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:
@@ -272,6 +237,8 @@ The advantage of sparse methods becomes more pronounced when the training budget
 ```{python}
 #| fig-cap: "Test-set error vs. training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit."
 #| label: fig-accuracy-vs-n
+
+from _figures._pce import plot_accuracy_vs_n
 
 N_values = [30, 50, 75, 100, 150]
 ls3_errors = []
@@ -302,15 +269,7 @@ for N_tr in N_values:
     omp5_errors.append(e5)
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.semilogy(N_values, ls3_errors, "o-", ms=7, lw=2, color="#2C7FB8",
-            label="LS degree-3 (10 terms)")
-ax.semilogy(N_values, omp5_errors, "s--", ms=7, lw=2, color="#E67E22",
-            label="OMP degree-5 (sparse)")
-ax.set_xlabel("Number of training samples $N$", fontsize=12)
-ax.set_ylabel("Relative $L_2$ test error", fontsize=12)
-ax.set_title("Dense vs. sparse fitting", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_accuracy_vs_n(N_values, ls3_errors, omp5_errors, ax)
 plt.tight_layout()
 plt.show()
 ```

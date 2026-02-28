@@ -97,9 +97,6 @@ ft  = als.fit(ft_raw, samples_train, values_train).surrogate()
 
 # Wrap in PCEFunctionTrain for analytical UQ
 pce_ft = PCEFunctionTrain(ft)
-
-print(f"Fitted FT: nvars={pce_ft.nvars()}, rank=3, degree=5")
-print(f"Total parameters: {ft.nparams()}")
 ```
 
 
@@ -143,11 +140,6 @@ these constant matrices.
 moments = FunctionTrainMoments(pce_ft)
 ft_mean = bkd.to_numpy(moments.mean())       # scalar (nqoi=1)
 ft_var  = bkd.to_numpy(moments.variance())   # scalar
-
-print(f"FT analytical moments for {qoi_label}:")
-print(f"  mean = {float(ft_mean):.6f}")
-print(f"  std  = {float(np.sqrt(ft_var)):.6f}")
-print(f"  var  = {float(ft_var):.6e}")
 ```
 
 ::: {.callout-important}
@@ -279,114 +271,10 @@ median error with 10th/90th percentile bands.
 #| echo: false
 #| fig-cap: "FT vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of beam evaluations. For the FT, polynomial degree increases with budget at oversampling ratio 3. Lines show medians over 10 repetitions; bands show 10th--90th percentiles."
 #| label: fig-ft-vs-mc
+from _figures._function_train import plot_ft_vs_mc
 
-from pyapprox.surrogates.quadrature import (
-    TensorProductQuadratureRule,
-    gauss_quadrature_rule,
-)
-
-# True moments via tensor-product Gauss quadrature
-nquad = 20
-quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
-quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * nvars)
-quad_pts, quad_wts = quad_rule()
-qoi_quad    = bkd.to_numpy(model(quad_pts))[0]   # (nquad^nvars,)
-quad_wts_np = bkd.to_numpy(quad_wts)
-true_mean = float(quad_wts_np @ qoi_quad)
-true_var  = float(quad_wts_np @ (qoi_quad - true_mean) ** 2)
-
-print(f"Reference moments (quadrature):")
-print(f"  mean = {true_mean:.6f}")
-print(f"  var  = {true_var:.6e}")
-
-# (degree, budget) pairs at oversampling ratio 3
-rank = 3
-degrees = [2, 3, 4, 5]
-budget_degree_pairs = []
-for deg in degrees:
-    ft_probe = create_pce_functiontrain(
-        marginals, max_level=deg, ranks=[rank] * (nvars - 1), bkd=bkd
-    )
-    N_bud = 3 * ft_probe.nparams()
-    budget_degree_pairs.append((N_bud, deg))
-
-N_budget_values = [pair[0] for pair in budget_degree_pairs]
-n_reps = 10
-
-mc_mean_errors  = {N: [] for N in N_budget_values}
-mc_var_errors   = {N: [] for N in N_budget_values}
-ft_mean_errors  = {N: [] for N in N_budget_values}
-ft_var_errors   = {N: [] for N in N_budget_values}
-
-for N_bud, deg in budget_degree_pairs:
-    for rep in range(n_reps):
-        np.random.seed(1000 * N_bud + rep)
-        s = prior.rvs(N_bud)
-        v = bkd.to_numpy(model(s))[0:1, :]   # (1, N_bud)
-
-        # MC estimates
-        mc_mu = np.mean(v[0, :])
-        mc_va = np.var(v[0, :], ddof=1)
-        mc_mean_errors[N_bud].append(abs(mc_mu - true_mean) / abs(true_mean))
-        mc_var_errors[N_bud].append(abs(mc_va - true_var) / abs(true_var))
-
-        # FT: ALS fit, then extract analytical moments
-        ft_rep = create_pce_functiontrain(
-            marginals, max_level=deg, ranks=[rank] * (nvars - 1), bkd=bkd
-        )
-        try:
-            ft_fitted = ALSFitter(bkd, max_sweeps=50, tol=1e-14).fit(
-                ft_rep, s, v
-            ).surrogate()
-            pce_ft_rep = PCEFunctionTrain(ft_fitted)
-            mom_rep = FunctionTrainMoments(pce_ft_rep)
-            ft_mu = float(bkd.to_numpy(mom_rep.mean()))
-            ft_va = float(bkd.to_numpy(mom_rep.variance()))
-            ft_mean_errors[N_bud].append(abs(ft_mu - true_mean) / abs(true_mean))
-            ft_var_errors[N_bud].append(abs(ft_va - true_var) / abs(true_var))
-        except Exception:
-            ft_mean_errors[N_bud].append(np.nan)
-            ft_var_errors[N_bud].append(np.nan)
-
-
-def _plot_convergence(ax, N_vals, mc_errs, ft_errs, ylabel, title, deg_labels):
-    mc_med = [np.nanmedian(mc_errs[N]) for N in N_vals]
-    mc_lo  = [np.nanpercentile(mc_errs[N], 10) for N in N_vals]
-    mc_hi  = [np.nanpercentile(mc_errs[N], 90) for N in N_vals]
-    ft_med = [np.nanmedian(ft_errs[N]) for N in N_vals]
-    ft_lo  = [np.nanpercentile(ft_errs[N], 10) for N in N_vals]
-    ft_hi  = [np.nanpercentile(ft_errs[N], 90) for N in N_vals]
-
-    ax.fill_between(N_vals, mc_lo, mc_hi, alpha=0.15, color="#2C7FB8")
-    ax.semilogy(N_vals, mc_med, "o-", ms=5, color="#2C7FB8", lw=1.5,
-                label="Monte Carlo")
-    ax.fill_between(N_vals, ft_lo, ft_hi, alpha=0.15, color="#E67E22")
-    ax.semilogy(N_vals, ft_med, "s-", ms=5, color="#E67E22", lw=1.5,
-                label="Function Train")
-    for N, dlbl in zip(N_vals, deg_labels):
-        idx = N_vals.index(N)
-        ax.annotate(f"p={dlbl}", (N, ft_med[idx]),
-                    textcoords="offset points", xytext=(6, -12),
-                    fontsize=7, color="#E67E22")
-    ax.set_xlabel("Number of model evaluations $N$", fontsize=11)
-    ax.set_ylabel(ylabel, fontsize=11)
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.2, which="both")
-
-
-deg_labels = [str(d) for _, d in budget_degree_pairs]
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-_plot_convergence(
-    ax1, N_budget_values, mc_mean_errors, ft_mean_errors,
-    "Relative error in mean",
-    f"Mean of {qoi_label}", deg_labels,
-)
-_plot_convergence(
-    ax2, N_budget_values, mc_var_errors, ft_var_errors,
-    "Relative error in variance",
-    f"Variance of {qoi_label}", deg_labels,
-)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+plot_ft_vs_mc(model, prior, marginals, bkd, axes)
 plt.tight_layout()
 plt.show()
 ```

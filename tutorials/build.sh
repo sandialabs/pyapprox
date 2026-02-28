@@ -13,7 +13,6 @@
 #                   Use -j auto to detect CPU count automatically
 #   --html-fast     Build HTML site from freeze cache only (skips all execution)
 #   --pdf           Generate PDF user manual (uses freeze cache, executes if needed)
-#   --pdf-fast      Generate PDF from freeze cache only (skips all execution)
 #   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
 #   --timings       Render each tutorial individually, clear its freeze cache
@@ -39,7 +38,6 @@ NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
 GEN_PDF=""
-PDF_FAST=""
 HTML_FAST=""
 SERVE=""
 TIMINGS=""
@@ -69,10 +67,6 @@ for arg in "$@"; do
         --pdf)
             GEN_PDF="yes"
             ;;
-        --pdf-fast)
-            GEN_PDF="yes"
-            PDF_FAST="yes"
-            ;;
         --timings)
             TIMINGS="yes"
             ;;
@@ -83,7 +77,7 @@ for arg in "$@"; do
             SKIP_FILES+=("${arg#--skip=}")
             ;;
         --help)
-            head -24 "$0" | tail -22
+            head -23 "$0" | tail -21
             exit 0
             ;;
         *)
@@ -292,13 +286,13 @@ fi
 if [ -n "$GEN_PDF" ] && [ "$SITE" = "library" ]; then
     echo ""
     echo "Generating PDF user manual..."
-    if [ -n "$PDF_FAST" ]; then
-        echo "  (using frozen outputs only)"
-        quarto render --profile pdf --use-freezer
-    else
-        echo "  (using freeze cache, executing if needed)"
-        quarto render --profile pdf
-    fi
+    # Note: --use-freezer is broken with Quarto book project type
+    # (renameSync error). We rely on freeze: auto instead, which
+    # skips execution for any tutorial with cached tex.json.
+    echo "  (using freeze cache, executing if needed)"
+    # Clean stale index.html from website build (causes renameSync error)
+    rm -f "$BUILD_DIR/index.html"
+    quarto render --profile pdf
     echo "PDF saved to: $BUILD_DIR/_book/pyapprox-user-manual.pdf"
 fi
 

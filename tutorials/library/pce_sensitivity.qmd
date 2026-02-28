@@ -86,12 +86,8 @@ gt = benchmark.ground_truth()
 marginals = prior.marginals()
 nvars = 3
 
-# Print ground truth
-print("Ground truth Sobol indices:")
 gt_main = bkd.to_numpy(gt.main_effects).flatten()
 gt_total = bkd.to_numpy(gt.total_effects).flatten()
-for i in range(nvars):
-    print(f"  x_{i+1}: S = {gt_main[i]:.4f},  S^T = {gt_total[i]:.4f}")
 ```
 
 ```{python}
@@ -104,8 +100,6 @@ degree = 8
 pce = create_pce_from_marginals(marginals, degree, bkd, nqoi=1)
 ls_fitter = LeastSquaresFitter(bkd)
 pce = ls_fitter.fit(pce, samples_train, values_train).surrogate()
-
-print(f"Fitted PCE: {pce.nterms()} terms, degree {degree}")
 ```
 
 
@@ -120,15 +114,9 @@ sa = PolynomialChaosSensitivityAnalysis(pce)
 
 # Main effects (first-order indices)
 main_effects = sa.main_effects()  # shape (nvars, nqoi)
-print("First-order Sobol indices:")
-for i in range(nvars):
-    print(f"  S_{i+1} = {float(main_effects[i, 0]):.4f}  (truth: {gt_main[i]:.4f})")
 
 # Total effects
 total_effects = sa.total_effects()  # shape (nvars, nqoi)
-print("\nTotal-order Sobol indices:")
-for i in range(nvars):
-    print(f"  S^T_{i+1} = {float(total_effects[i, 0]):.4f}  (truth: {gt_total[i]:.4f})")
 ```
 
 The PCE-based estimates closely match the analytical ground truth. Note that $\Sobol{3} \approx 0$ (no main effect for $x_3$) but $\SobolT{3} > 0$ (due to the $x_1 x_3$ interaction).
@@ -148,13 +136,6 @@ interaction_terms = bkd.asarray([
 
 sa.set_interaction_terms_of_interest(interaction_terms)
 sobol_all = sa.sobol_indices()  # shape (nterms, nqoi)
-
-labels = ["S_1", "S_2", "S_3", "S_12", "S_13", "S_23", "S_123"]
-print("All Sobol indices:")
-for label, val in zip(labels, bkd.to_numpy(sobol_all).flatten()):
-    print(f"  {label:>6} = {val:.4f}")
-
-print(f"\nSum of all indices = {float(bkd.to_numpy(sobol_all).sum()):.4f} (should be ~1)")
 ```
 
 The $\Sobol{13}$ interaction is substantial, capturing the $x_1$-$x_3$ coupling in the $0.1 x_3^4 \sin(x_1)$ term. The other pairwise and triple interactions are near zero.
@@ -203,52 +184,11 @@ The accuracy of PCE-based Sobol indices depends on how well the surrogate approx
 #| fig-cap: "Convergence of PCE-based Sobol indices with polynomial degree. As the degree increases, the estimates approach the analytical ground truth (dashed lines). The x_1-x_3 interaction requires higher degree to resolve because it involves a degree-4 polynomial in x_3."
 #| label: fig-convergence
 
-degrees = [2, 3, 4, 5, 6, 8, 10]
-S_vs_degree = {i: [] for i in range(nvars)}
-T_vs_degree = {i: [] for i in range(nvars)}
-oversampling = 2
+from _figures._pce import plot_pce_convergence
 
-for deg in degrees:
-    pce_deg = create_pce_from_marginals(marginals, deg, bkd, nqoi=1)
-    n_train_deg = max(oversampling * pce_deg.nterms(), 50)
-    np.random.seed(42)
-    s = prior.rvs(n_train_deg)
-    v = func(s)
-    try:
-        fitted = ls_fitter.fit(pce_deg, s, v).surrogate()
-        sa_deg = PolynomialChaosSensitivityAnalysis(fitted)
-        me = bkd.to_numpy(sa_deg.main_effects()).flatten()
-        te = bkd.to_numpy(sa_deg.total_effects()).flatten()
-        for i in range(nvars):
-            S_vs_degree[i].append(me[i])
-            T_vs_degree[i].append(te[i])
-    except Exception:
-        for i in range(nvars):
-            S_vs_degree[i].append(np.nan)
-            T_vs_degree[i].append(np.nan)
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-colors = ["#2C7FB8", "#E67E22", "#27AE60"]
-input_labels = [f"$x_{i+1}$" for i in range(nvars)]
-
-for i in range(nvars):
-    ax1.plot(degrees, S_vs_degree[i], "o-", color=colors[i], label=input_labels[i])
-    ax1.axhline(gt_main[i], color=colors[i], linestyle="--", alpha=0.5)
-ax1.set_xlabel("PCE degree", fontsize=11)
-ax1.set_ylabel("$S_i$", fontsize=11)
-ax1.set_title("First-order indices vs. degree", fontsize=12)
-ax1.legend(fontsize=9)
-ax1.grid(True, alpha=0.2)
-
-for i in range(nvars):
-    ax2.plot(degrees, T_vs_degree[i], "o-", color=colors[i], label=input_labels[i])
-    ax2.axhline(gt_total[i], color=colors[i], linestyle="--", alpha=0.5)
-ax2.set_xlabel("PCE degree", fontsize=11)
-ax2.set_ylabel("$S_i^T$", fontsize=11)
-ax2.set_title("Total-order indices vs. degree", fontsize=12)
-ax2.legend(fontsize=9)
-ax2.grid(True, alpha=0.2)
-
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+plot_pce_convergence(func, prior, marginals, nvars, gt_main, gt_total,
+                     bkd, axes)
 plt.tight_layout()
 plt.show()
 ```

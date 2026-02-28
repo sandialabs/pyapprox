@@ -158,30 +158,12 @@ B_true = bkd.to_numpy(
 #| echo: false
 #| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."
 #| label: fig-mean-mse-convergence
-
-n_reps = 500
-M_values = [10, 20, 50, 100, 200, 500, 1000]
-
-empirical_var_of_mean = np.empty(len(M_values))
-for j, M in enumerate(M_values):
-    means = np.empty(n_reps)
-    for i in range(n_reps):
-        np.random.seed(i + j * n_reps)
-        s = variable.rvs(M)
-        means[i] = np.mean(bkd.to_numpy(model(s))[0])
-    empirical_var_of_mean[j] = np.var(means)
+from _figures._forward_uq import plot_mean_mse_convergence
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(M_values, empirical_var_of_mean, "o", ms=7, color="#2C7FB8",
-          label="Empirical Var[$\\hat{\\mu}_M$]", zorder=3)
-M_theory = np.array([5, 2000])
-ax.loglog(M_theory, true_var / M_theory, "--", color="#C0392B", lw=1.5,
-          label=r"$\sigma^2 / M$")
-ax.set_xlabel("$M$ (number of samples)", fontsize=12)
-ax.set_ylabel("Var[$\\hat{\\mu}_M$]", fontsize=12)
-ax.set_title("Convergence of the MC mean estimator", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+empirical_var_of_mean, M_values = plot_mean_mse_convergence(
+    model, variable, true_var, bkd, ax,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -215,32 +197,13 @@ The key observation: **the variance estimator also converges at rate $1/M$**, bu
 #| echo: false
 #| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."
 #| label: fig-mean-vs-var-convergence
-
-empirical_var_of_var = np.empty(len(M_values))
-for j, M in enumerate(M_values):
-    variances = np.empty(n_reps)
-    for i in range(n_reps):
-        np.random.seed(i + j * n_reps + 100000)
-        s = variable.rvs(M)
-        q = bkd.to_numpy(model(s))[0]
-        variances[i] = np.var(q, ddof=1)
-    empirical_var_of_var[j] = np.var(variances)
+from _figures._forward_uq import plot_mean_vs_var_convergence
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-ax.loglog(M_values, empirical_var_of_mean, "o", ms=7, color="#2C7FB8",
-          label="Var[$\\hat{\\mu}_M$] (empirical)", zorder=3)
-ax.loglog(M_theory, true_var / M_theory, "--", color="#2C7FB8", lw=1.5,
-          label=r"$\sigma^2 / M$")
-ax.loglog(M_values, empirical_var_of_var, "s", ms=7, color="#E67E22",
-          label="Var[$\\hat{\\sigma}^2_M$] (empirical)", zorder=3)
-ax.loglog(M_theory, (true_kappa4 - true_var**2) / M_theory, "--",
-          color="#E67E22", lw=1.5,
-          label=r"$(\kappa_4 - \sigma^4) / M$")
-ax.set_xlabel("$M$ (number of samples)", fontsize=12)
-ax.set_ylabel("Estimator variance", fontsize=12)
-ax.set_title("Mean vs. variance estimator convergence", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_mean_vs_var_convergence(
+    model, variable, true_var, true_kappa4,
+    empirical_var_of_mean, M_values, bkd, ax,
+)
 plt.tight_layout()
 plt.show()
 ```
@@ -395,7 +358,7 @@ theoretical_est_cov = np.block([
     [block_mv.T,  block_vv],
 ])
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+from _figures._forward_uq import plot_estimator_covariance
 
 labels = (
     [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(K)]
@@ -403,27 +366,9 @@ labels = (
        for j in range(K) for k in range(K)]
 )
 
-vmin = min(empirical_est_cov.min(), theoretical_est_cov.min())
-vmax = max(empirical_est_cov.max(), theoretical_est_cov.max())
-
-im1 = ax1.imshow(empirical_est_cov, cmap="RdBu_r", aspect="equal",
-                 vmin=vmin, vmax=vmax)
-ax1.set_xticks(range(n_stats))
-ax1.set_xticklabels(labels, fontsize=7, rotation=45)
-ax1.set_yticks(range(n_stats))
-ax1.set_yticklabels(labels, fontsize=7)
-ax1.set_title("Empirical", fontsize=11)
-fig.colorbar(im1, ax=ax1, shrink=0.7)
-
-im2 = ax2.imshow(theoretical_est_cov, cmap="RdBu_r", aspect="equal",
-                 vmin=vmin, vmax=vmax)
-ax2.set_xticks(range(n_stats))
-ax2.set_xticklabels(labels, fontsize=7, rotation=45)
-ax2.set_yticks(range(n_stats))
-ax2.set_yticklabels(labels, fontsize=7)
-ax2.set_title("Theoretical", fontsize=11)
-fig.colorbar(im2, ax=ax2, shrink=0.7)
-
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+plot_estimator_covariance(empirical_est_cov, theoretical_est_cov,
+                           labels, ax1, ax2, fig=fig)
 plt.tight_layout()
 plt.show()
 ```
@@ -435,24 +380,10 @@ plt.show()
 #| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."
 #| label: fig-diagonal-variances
 
+from _figures._forward_uq import plot_diagonal_variances
+
 fig, ax = plt.subplots(figsize=(12, 4))
-
-empirical_diag = np.diag(empirical_est_cov)
-theoretical_diag = np.diag(theoretical_est_cov)
-
-x = np.arange(n_stats)
-width = 0.35
-ax.bar(x - width/2, empirical_diag, width, color="#2C7FB8", alpha=0.7,
-       label="Empirical", edgecolor="k", lw=0.3)
-ax.bar(x + width/2, theoretical_diag, width, color="#E67E22", alpha=0.7,
-       label="Theoretical", edgecolor="k", lw=0.3)
-ax.set_xticks(x)
-ax.set_xticklabels(labels, fontsize=10)
-ax.set_ylabel("Estimator variance", fontsize=12)
-ax.set_title("Individual estimator variances (diagonal of Cov[$\\hat{\\mathbf{Q}}_M$])",
-             fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, axis="y")
+plot_diagonal_variances(empirical_est_cov, theoretical_est_cov, labels, ax)
 plt.tight_layout()
 plt.show()
 ```

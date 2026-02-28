@@ -106,83 +106,11 @@ QoIs jointly and is uniformly better for QoI 0.
 #| fig-cap: "Estimator variance for QoI 0 vs target cost, comparing MOACV (joint estimation of both QoIs), SOACV (independent scalar ACV for each QoI), and plain MC. All three decay with increasing budget; MOACV is uniformly lowest because the QoI 1 corrections carry additional signal for QoI 0."
 #| label: fig-moacv-soacv
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
-    multioutput_ensemble_3x3,
-)
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.acv import GMFEstimator
-from pyapprox.statest.acv.search import ACVSearch
-
-bkd = NumpyBkd()
-np.random.seed(1)
-benchmark = multioutput_ensemble_3x3(bkd)
-costs     = benchmark.costs()
-nqoi      = 2   # use first 2 of the 3 QoIs for cleaner optimization
-nmodels   = benchmark.nmodels()
-full_nqoi = benchmark.models()[0].nqoi()
-
-# Extract the 2-QoI covariance subset from the full 9×9 covariance
-cov_full = benchmark.ensemble_covariance()
-idx = []
-for a in range(nmodels):
-    for q in range(nqoi):
-        idx.append(a * full_nqoi + q)
-cov_true = cov_full[np.ix_(idx, idx)]
-
-# Full multi-output statistic (2 QoIs)
-stat_mo = MultiOutputMean(nqoi, bkd)
-stat_mo.set_pilot_quantities(cov_true)
-search_mo = ACVSearch(stat_mo, costs)
-
-# Single-output statistic for QoI 0
-qoi_idx  = [0]
-(cov_so,) = stat_mo.get_pilot_quantities_subset(nmodels, nqoi, list(range(nmodels)), qoi_idx)
-stat_so  = MultiOutputMean(len(qoi_idx), bkd)
-stat_so.set_pilot_quantities(cov_so)
-search_so = ACVSearch(stat_so, costs)
-
-cov_true_np = bkd.to_numpy(cov_true)
-mc_var_q0   = cov_true_np[0, 0]
-
-target_costs_all = np.logspace(1, 3.5, 50)
-
-target_costs, mo_vars, so_vars, mc_vars = [], [], [], []
-for P in target_costs_all:
-    try:
-        result_mo = search_mo.search(float(P))
-        result_so = search_so.search(float(P))
-    except RuntimeError:
-        continue
-    cov_mo_P = bkd.to_numpy(result_mo.estimator.optimized_covariance())
-    target_costs.append(P)
-    mo_vars.append(cov_mo_P[0, 0])
-    so_vars.append(float(bkd.to_numpy(result_so.estimator.optimized_covariance())[0, 0]))
-    mc_vars.append(mc_var_q0 / float(P))
+from _figures._multifidelity_advanced import plot_moacv_vs_soacv
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
-ax.loglog(target_costs, mo_vars, "-",  color="#8E44AD", lw=2.5,
-          label="MOACV (joint: both QoIs)")
-ax.loglog(target_costs, so_vars, "--", color="#2C7FB8", lw=2.5,
-          label="SOACV (QoI 0 only)")
-ax.loglog(target_costs, mc_vars, ":", color="k", lw=1.5, alpha=0.6,
-          label="MC")
-
-# Annotate the gap
-mid_i = len(target_costs) // 2
-ax.annotate("", xy=(target_costs[mid_i], mo_vars[mid_i]),
-            xytext=(target_costs[mid_i], so_vars[mid_i]),
-            arrowprops=dict(arrowstyle="<->", color="#e74c3c", lw=1.5))
-ax.text(target_costs[mid_i] * 1.15, (mo_vars[mid_i] * so_vars[mid_i]) ** 0.5,
-        "MOACV\ngain", fontsize=9, color="#e74c3c", va="center")
-
-ax.set_xlabel("Target cost $P$", fontsize=12)
-ax.set_ylabel("Estimator variance (QoI 0)", fontsize=12)
-ax.set_title("MOACV vs SOACV: joint estimation improves each QoI", fontsize=11)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, which="both")
+plot_moacv_vs_soacv(ax)
 plt.tight_layout()
 plt.show()
 ```
