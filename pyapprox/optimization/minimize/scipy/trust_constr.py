@@ -1,4 +1,4 @@
-from typing import Generic, Optional, Self, Union, cast
+from typing import Callable, Generic, Optional, Self, Union, cast
 
 import numpy as np
 from scipy.optimize import Bounds
@@ -76,6 +76,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         gtol: Optional[float] = None,
         xtol: Optional[float] = None,
         barrier_tol: Optional[float] = None,
+        callback: Optional[Callable] = None,
     ):
         """Initialize the optimizer.
 
@@ -99,6 +100,10 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
             Step tolerance for termination. Defaults to SciPy's default.
         barrier_tol : Optional[float], optional
             Barrier tolerance for termination. Defaults to SciPy's default.
+        callback : Optional[Callable], optional
+            Callback function called after each iteration. For trust-constr,
+            signature is ``callback(x, state) -> bool`` where returning
+            True stops the optimizer. Defaults to None.
         """
         # Store options for copy()
         self._verbosity = verbosity
@@ -106,6 +111,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         self._gtol = gtol
         self._xtol = xtol
         self._barrier_tol = barrier_tol
+        self._callback = callback
         self._init_constraints = constraints
 
         # Build SciPy options dict
@@ -198,6 +204,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
                 gtol=self._gtol,
                 xtol=self._xtol,
                 barrier_tol=self._barrier_tol,
+                callback=self._callback,
             ),
         )
 
@@ -296,6 +303,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
             bounds=self._bounds,
             constraints=self._constraints,
             options=self._opts,
+            callback=self._callback,
         )
         # Wrap the SciPy result
         return ScipyOptimizerResultWrapper(scipy_result, self.bkd())

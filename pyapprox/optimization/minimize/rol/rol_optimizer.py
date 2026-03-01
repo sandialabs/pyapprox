@@ -61,10 +61,12 @@ class ROLOptimizer(Generic[Array]):
         constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
         verbosity: int = 0,
         parameters: Optional[object] = None,
+        status_test: Optional[object] = None,
     ) -> None:
         _require_pyrol()
         self._verbosity = verbosity
         self._parameters = parameters
+        self._status_test = status_test
         self._init_constraints = constraints
 
         self._objective: Optional[ObjectiveProtocol[Array]] = None
@@ -111,6 +113,7 @@ class ROLOptimizer(Generic[Array]):
                 constraints=self._init_constraints,
                 verbosity=self._verbosity,
                 parameters=self._parameters,
+                status_test=self._status_test,
             ),
         )
 
@@ -230,7 +233,12 @@ class ROLOptimizer(Generic[Array]):
             else self.default_parameters()
         )
         solver = pyrol.Solver(problem, params)
-        if self._verbosity > 0:
+        if self._status_test is not None:
+            if self._verbosity > 0:
+                solver.solve(self._status_test, True, stream)
+            else:
+                solver.solve(self._status_test, True)
+        elif self._verbosity > 0:
             solver.solve(stream)
         else:
             solver.solve()
