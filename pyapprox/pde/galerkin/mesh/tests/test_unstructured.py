@@ -34,7 +34,7 @@ class TestUnstructuredMesh2D:
 
     def setup_method(self):
         if not os.path.exists(_BEAM_MESH_PATH):
-            self.skipTest(f"Beam mesh not found at {_BEAM_MESH_PATH}")
+            pytest.skip(f"Beam mesh not found at {_BEAM_MESH_PATH}")
 
     def test_load_geometry(self, numpy_bkd):
         bkd = numpy_bkd

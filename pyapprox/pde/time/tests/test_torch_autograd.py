@@ -15,6 +15,7 @@ versions for comparison.
 """
 
 
+import pytest
 import torch
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
@@ -261,7 +262,7 @@ class TestTorchAutogradComparison:
         # Check HVP is available
         time_residual = operator._integrator._newton_solver._residual
         if not hasattr(time_residual, "state_state_hvp"):
-            self.skipTest(f"HVP not available for {stepper_class.__name__}")
+            pytest.skip(f"HVP not available for {stepper_class.__name__}")
 
         # Compute analytical HVP via second-order adjoints
         ode_residual.set_param(param)
