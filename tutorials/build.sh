@@ -189,6 +189,20 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         echo "tutorial,seconds,status" > "$TIMINGS_FILE"
     fi
 
+    # Bootstrap Quarto project scaffolding (site_libs/, etc.) before
+    # parallel rendering.  A no-execute render of a single small file
+    # creates the shared directories that parallel workers expect.
+    echo "  Bootstrapping project scaffolding..."
+    quarto render index.qmd --no-execute > /dev/null 2>&1 || true
+
+    # Pre-create *_files/mediabag stubs so Quarto's project-level glob
+    # resolution doesn't fail when a tutorial is rendered before another
+    # tutorial that produces figures.
+    for f in "${QMD_FILES[@]}"; do
+        name="${f%.qmd}"
+        mkdir -p "${name}_files/mediabag"
+    done
+
     # Render individual files using xargs
     EXECUTE_FLAG=""
     [ -n "$FORCE_EXECUTE" ] && EXECUTE_FLAG="--execute"
@@ -221,7 +235,7 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         echo ""
         echo "ERROR: Some tutorials failed to render. Check logs in $LOG_DIR/"
         echo "Failed logs:"
-        grep -l "ERROR\|error\|Error" "$LOG_DIR"/*.log 2>/dev/null | while read -r logf; do
+        grep -l "^.*ERROR:" "$LOG_DIR"/*.log 2>/dev/null | while read -r logf; do
             echo "  $logf"
         done
         if [ -n "$TIMINGS" ]; then
@@ -230,6 +244,13 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         fi
         exit 1
     fi
+
+    # Clean up empty mediabag stubs created for parallel safety
+    for f in "${QMD_FILES[@]}"; do
+        name="${f%.qmd}"
+        rmdir "${name}_files/mediabag" 2>/dev/null || true
+        rmdir "${name}_files" 2>/dev/null || true
+    done
 
     # Assemble full site (no execution needed, _freeze/ is populated)
     echo ""
