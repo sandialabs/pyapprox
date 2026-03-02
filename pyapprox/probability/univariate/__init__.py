@@ -16,6 +16,8 @@ GammaMarginal
     Gamma distribution with analytical implementation.
 GaussianMarginal
     Gaussian (normal) distribution with analytical implementation.
+SASNormalMarginal
+    Sinh-arcsinh normal distribution with analytical implementation.
 UniformMarginal
     Uniform distribution with analytical implementation.
 ScipyContinuousMarginal
@@ -28,6 +30,7 @@ from .beta import BetaMarginal
 from .discrete import CustomDiscreteMarginal, DiscreteChebyshevMarginal
 from .gamma import GammaMarginal
 from .gaussian import GaussianMarginal
+from .sas_normal import SASNormalMarginal
 from .scipy_continuous import ScipyContinuousMarginal
 from .scipy_discrete import ScipyDiscreteMarginal
 from .uniform import UniformMarginal
@@ -38,6 +41,7 @@ __all__ = [
     "DiscreteChebyshevMarginal",
     "GammaMarginal",
     "GaussianMarginal",
+    "SASNormalMarginal",
     "UniformMarginal",
     "ScipyContinuousMarginal",
     "ScipyDiscreteMarginal",

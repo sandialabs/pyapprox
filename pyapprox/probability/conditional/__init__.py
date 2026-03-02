@@ -6,6 +6,7 @@ parameters are functions of conditioning variables.
 """
 
 from pyapprox.probability.conditional.beta import ConditionalBeta
+from pyapprox.probability.conditional.copula_sas import ConditionalCopulaSAS
 from pyapprox.probability.conditional.gamma import ConditionalGamma
 from pyapprox.probability.conditional.gaussian import ConditionalGaussian
 from pyapprox.probability.conditional.joint import (
@@ -22,6 +23,7 @@ from pyapprox.probability.conditional.protocols import (
 __all__ = [
     "ConditionalDistributionProtocol",
     "ConditionalGaussian",
+    "ConditionalCopulaSAS",
     "ConditionalBeta",
     "ConditionalGamma",
     "ConditionalIndependentJoint",

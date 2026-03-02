@@ -120,7 +120,7 @@ class ELBOObjective(Generic[Array]):
         if hasattr(self._var_dist, "kl_divergence"):
             kl_terms = self._var_dist.kl_divergence(label_nodes, self._prior)
         else:
-            # MC fallback
+            # Quadrature-based KL: log_q - log_prior at same nodes/weights
             log_q = self._var_dist.logpdf(label_nodes, z)
             log_prior = self._prior.logpdf(z)
             kl_terms = log_q - log_prior

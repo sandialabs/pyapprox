@@ -87,27 +87,38 @@ class CholeskyCorrelationParameterization(Generic[Array]):
         Build the full Cholesky factor L from free parameters.
 
         The diagonal is derived: L_ii = sqrt(1 - sum_{j<i} L_ij^2).
+        Uses stack-based construction (no in-place mutation) to preserve
+        the PyTorch autograd computation graph.
 
         Returns
         -------
         Array
             Lower triangular Cholesky factor. Shape: (nvars, nvars)
         """
+        bkd = self._bkd
         d = self._nvars
-        L = self._bkd.zeros((d, d))
         values = self._hyp.get_values()
 
+        rows = []
         idx = 0
         for i in range(d):
-            # Fill strict lower-triangular elements
-            for j in range(i):
-                L[i, j] = values[idx]
-                idx += 1
-            # Derive diagonal from unit-diagonal constraint
-            row_sum = self._bkd.sum(L[i, :i] ** 2)
-            L[i, i] = self._bkd.sqrt(self._bkd.clip(1.0 - row_sum, 1e-15, 1.0))
-
-        return L
+            elems = []
+            for j in range(d):
+                if j < i:
+                    elems.append(values[idx : idx + 1])
+                    idx += 1
+                elif j == i:
+                    if elems:
+                        row_sum = sum(e**2 for e in elems)
+                    else:
+                        row_sum = bkd.asarray(0.0)
+                    diag = bkd.sqrt(bkd.clip(1.0 - row_sum, 1e-15, 1.0))
+                    diag = bkd.reshape(diag, (1,))
+                    elems.append(diag)
+                else:
+                    elems.append(bkd.zeros((1,)))
+            rows.append(bkd.concatenate(elems))
+        return bkd.stack(rows, axis=0)
 
     def correlation_matrix(self) -> Array:
         """
