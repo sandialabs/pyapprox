@@ -158,8 +158,8 @@ class TestGradientEnhancedPCEFitter:
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
 
-        # Generate samples (overdetermined)
-        nsamples = nterms + 10
+        # Generate samples (well-overdetermined for KKT conditioning)
+        nsamples = 3 * nterms
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
 
         # Get exact function values and gradients

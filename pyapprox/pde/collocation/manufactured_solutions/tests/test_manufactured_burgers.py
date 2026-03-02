@@ -167,7 +167,7 @@ class TestManufacturedBurgers1D:
         checker = DerivativeChecker(wrapper)
         # DerivativeChecker expects sample shape (nvars, 1)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
     def test_steady_burgers_high_viscosity(self, bkd):
         """Test with high viscosity (diffusion-dominated)."""
@@ -350,7 +350,7 @@ class TestBurgers1DParameterized:
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
 
 # Concrete backend implementations

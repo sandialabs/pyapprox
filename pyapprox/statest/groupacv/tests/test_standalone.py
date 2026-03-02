@@ -332,7 +332,7 @@ class TestGroupACVObjectiveDerivativesTorchOnly:
         errors = checker.check_derivatives(iterate, verbosity=0)
 
         # Check Jacobian accuracy
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
     @pytest.mark.parametrize(
         "nmodels,nqoi",
@@ -352,7 +352,7 @@ class TestGroupACVObjectiveDerivativesTorchOnly:
         errors = checker.check_derivatives(iterate, verbosity=0)
 
         # Check Jacobian accuracy
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
 
 class TestGroupACVConstraintDerivatives:

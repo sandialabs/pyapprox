@@ -42,6 +42,22 @@ from pyapprox.util.test_utils import (
 )
 
 
+def _allocate_with_slsqp(est, target_cost: float):
+    """Allocate using SLSQP optimizer (more robust for larger problems)."""
+    from pyapprox.optimization.minimize.scipy.slsqp import (
+        ScipySLSQPOptimizer,
+    )
+    from pyapprox.statest.acv.allocation import default_allocator_factory
+
+    optimizer = ScipySLSQPOptimizer(maxiter=500)
+    allocator = default_allocator_factory(est, optimizer=optimizer)
+    result = allocator.allocate(target_cost)
+    if not result.success:
+        raise RuntimeError(f"Allocation failed: {result.message}")
+    est.set_allocation(result)
+    return result
+
+
 def _get_stat(stat_type: str, nqoi: int, bkd):
     """Create statistic object by type."""
     if stat_type == "mean":
@@ -523,7 +539,10 @@ class TestPolynomialEnsemble:
             kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
 
         est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        allocate_with_allocator(est, target_cost)
+        if est_type == "gmf" and nmodels >= 5:
+            _allocate_with_slsqp(est, target_cost)
+        else:
+            allocate_with_allocator(est, target_cost)
 
         analytical_cov = est.optimized_covariance()
         mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)

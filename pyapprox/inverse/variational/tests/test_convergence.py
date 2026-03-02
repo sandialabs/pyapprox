@@ -78,7 +78,8 @@ def _make_gaussian_vi_setup(bkd, obs_value=2.0, noise_var=0.5, nsamples=100):
         prior_mean / prior_var + obs_value / noise_var
     )
 
-    cond = _make_cond_gaussian(bkd, mean=posterior_mean, log_stdev=math.log(math.sqrt(posterior_var)))
+    log_std = math.log(math.sqrt(posterior_var))
+    cond = _make_cond_gaussian(bkd, mean=posterior_mean, log_stdev=log_std)
     prior = GaussianMarginal(prior_mean, math.sqrt(prior_var), bkd)
 
     obs = bkd.asarray([[obs_value]])

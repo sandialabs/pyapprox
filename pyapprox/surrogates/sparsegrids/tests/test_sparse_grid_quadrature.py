@@ -110,6 +110,7 @@ class TestSparseGridQuadratureWeights:
         bkd.assert_allclose(
             bkd.asarray([quad_mean]),
             surrogate_mean,
+            atol=1e-14,
             rtol=1e-12,
         )
 

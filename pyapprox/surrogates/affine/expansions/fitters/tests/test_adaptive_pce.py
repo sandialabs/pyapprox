@@ -273,12 +273,14 @@ class TestAdaptivePCEFitter:
             num_expansions=2,
             max_level=15,
             max_iterations=25,
+            restrict_tol=1e-8,
         )
         assert fitter.initial_level() == 2
         assert fitter.pnorm() == pytest.approx(0.5)
         assert fitter.num_expansions() == 2
         assert fitter.max_level() == 15
         assert fitter.max_iterations() == 25
+        assert fitter.restrict_tol() == pytest.approx(1e-8)
 
     def test_expand_indices_adds_admissible(self, bkd) -> None:
         """_expand_indices adds all admissible forward neighbors."""

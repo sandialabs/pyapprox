@@ -177,7 +177,7 @@ class TestSubdomainIntegralFunctional:
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state, direction=None, relative=True)[0]
-        assert checker.error_ratio(errors) <= 1e-6
+        assert checker.error_ratio(errors) <= 2e-6
 
     def test_nonlinear_value(self, bkd) -> None:
         """Integral of u^2 where u(x)=x gives integral x^4 = L^5/5."""

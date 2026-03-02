@@ -98,8 +98,9 @@ class TestAdvectionDiffusionOEDBenchmark:
         assert np.all(locs_np <= 1.0 + 1e-12)
 
     @slow_test
-    def test_observation_model_evaluation(self, bkd):
-        """Test observation model returns correct shape."""
+    def test_observation_model_evaluation(self, numpy_bkd):
+        """Test observation model returns correct shape (NumPy only: sparse solve)."""
+        bkd = numpy_bkd
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
@@ -110,8 +111,9 @@ class TestAdvectionDiffusionOEDBenchmark:
         assert np.all(np.isfinite(obs_np))
 
     @slow_test
-    def test_prediction_model_evaluation(self, bkd):
-        """Test prediction model returns correct shape."""
+    def test_prediction_model_evaluation(self, numpy_bkd):
+        """Test prediction model returns correct shape (NumPy only: sparse solve)."""
+        bkd = numpy_bkd
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
         np.random.seed(42)

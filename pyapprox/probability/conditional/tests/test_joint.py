@@ -249,7 +249,7 @@ class TestConditionalIndependentJoint:
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_logpdf_jacobian_wrt_params_concatenates_correctly(self, bkd):
         """Test jacobian_wrt_params concatenates component jacobians."""

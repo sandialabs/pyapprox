@@ -227,10 +227,10 @@ class TestGaussianConjugateMCMC:
                 x = samples_np[:, i : i + 1]
                 # Log prior
                 diff = x - bkd.to_numpy(prior_mean)
-                log_prior = -0.5 * float(diff.T @ prior_prec @ diff)
+                log_prior = -0.5 * float((diff.T @ prior_prec @ diff)[0, 0])
                 # Log likelihood
                 residual = obs_np - A_np @ x
-                log_like = -0.5 * float(residual.T @ noise_prec @ residual)
+                log_like = -0.5 * float((residual.T @ noise_prec @ residual)[0, 0])
                 log_pdf[i] = log_prior + log_like
 
             return bkd.asarray(log_pdf)

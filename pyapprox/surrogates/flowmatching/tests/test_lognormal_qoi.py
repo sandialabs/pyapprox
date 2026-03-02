@@ -154,8 +154,8 @@ def _analytical_lognormal_moments(conjugate, test_y, a_np, bkd):
     Sigma_post_np = bkd.to_numpy(conjugate.posterior_covariance())  # (d, d)
 
     # a'mu_post and a'Sigma_post a
-    mu_ln = float(a_np.T @ mu_post_np)  # scalar
-    sigma2_ln = float(a_np.T @ Sigma_post_np @ a_np)  # scalar
+    mu_ln = float((a_np.T @ mu_post_np)[0, 0])
+    sigma2_ln = float((a_np.T @ Sigma_post_np @ a_np)[0, 0])
 
     # LogNormal moments
     mean = np.exp(mu_ln + sigma2_ln / 2.0)

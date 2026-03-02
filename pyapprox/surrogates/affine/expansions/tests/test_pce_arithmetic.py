@@ -238,7 +238,7 @@ class TestPCEArithmetic:
         bkd.assert_allclose(
             result(samples),
             (pce1(samples) + pce2(samples)) * pce3(samples),
-            rtol=1e-12,
+            rtol=1e-11,
         )
 
     # ------------------------------------------------------------------

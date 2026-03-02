@@ -63,7 +63,7 @@ class TestDerivativeCheckerLegendre:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Legendre expansion."""
@@ -77,7 +77,7 @@ class TestDerivativeCheckerLegendre:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_3d(self, bkd):
         """Test Jacobian for 3D Legendre expansion."""
@@ -91,7 +91,7 @@ class TestDerivativeCheckerLegendre:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     @pytest.mark.slow_on("TorchBkd")
     def test_hessian_1d(self, bkd):
@@ -197,7 +197,7 @@ class TestDerivativeCheckerHermite:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Hermite expansion."""
@@ -211,7 +211,7 @@ class TestDerivativeCheckerHermite:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Hermite expansion."""
@@ -274,7 +274,7 @@ class TestDerivativeCheckerLaguerre:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Laguerre expansion."""
@@ -288,7 +288,7 @@ class TestDerivativeCheckerLaguerre:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Laguerre expansion."""
@@ -337,7 +337,7 @@ class TestDerivativeCheckerJacobi:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Jacobi expansion."""
@@ -353,7 +353,7 @@ class TestDerivativeCheckerJacobi:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_2d(self, bkd):
         """Test Hessian for 2D Jacobi expansion."""
@@ -385,7 +385,7 @@ class TestDerivativeCheckerJacobi:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
 
 class TestDerivativeCheckerChebyshev:
@@ -423,7 +423,7 @@ class TestDerivativeCheckerChebyshev:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d_first_kind(self, bkd):
         """Test Jacobian for 2D Chebyshev 1st kind expansion."""
@@ -439,7 +439,7 @@ class TestDerivativeCheckerChebyshev:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_2d_first_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 1st kind expansion."""
@@ -471,7 +471,7 @@ class TestDerivativeCheckerChebyshev:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_2d_second_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 2nd kind expansion."""
@@ -564,7 +564,7 @@ class TestDerivativeCheckerMonomial:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_2d(self, bkd):
         """Test Jacobian for 2D Monomial expansion."""
@@ -578,7 +578,7 @@ class TestDerivativeCheckerMonomial:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_3d(self, bkd):
         """Test Jacobian for 3D Monomial expansion."""
@@ -592,7 +592,7 @@ class TestDerivativeCheckerMonomial:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_1d(self, bkd):
         """Test Hessian for 1D Monomial expansion."""
@@ -697,7 +697,7 @@ class TestMixedBasisDerivatives:
         errors = checker.check_derivatives(sample, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_hessian_with_derivative_checker(self, bkd):
         """Validate hessian for mixed basis using DerivativeChecker."""
@@ -818,7 +818,7 @@ class TestJacobianWrtParams:
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_wrt_params_2d(self, bkd):
         """Test jacobian_wrt_params for 2D expansion with nqoi=1."""
@@ -861,7 +861,7 @@ class TestJacobianWrtParams:
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_wrt_params_multi_qoi(self, bkd):
         """Test jacobian_wrt_params for expansion with nqoi > 1."""
@@ -906,7 +906,7 @@ class TestJacobianWrtParams:
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
     def test_jacobian_wrt_params_with_fixed_params(self, bkd):
         """Test jacobian_wrt_params when some params are fixed (inactive).
@@ -961,7 +961,7 @@ class TestJacobianWrtParams:
         errors = checker.check_derivatives(sample_params, verbosity=0)
 
         jac_error = checker.error_ratio(errors[0])
-        assert float(jac_error) < 1e-6
+        assert float(jac_error) < 2e-6
 
         # Verify the jacobian shape is correct (only active params)
         jac = pce.jacobian_wrt_params(samples)

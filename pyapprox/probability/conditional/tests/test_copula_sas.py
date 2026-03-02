@@ -80,7 +80,8 @@ class TestConditionalCopulaSAS:
         bkd.assert_allclose(logpdf_copula, expected, rtol=1e-10)
 
     def test_gaussian_reduction(self) -> None:
-        """At eps=0, delta=1 with identity correlation, matches IndependentJoint Gaussian."""
+        """At eps=0, delta=1 with identity correlation,
+        matches IndependentJoint Gaussian."""
         bkd = self._bkd
         d = self._d
         from pyapprox.probability.joint.independent import IndependentJoint
@@ -212,7 +213,6 @@ class TestCholeskyAutograd:
         import torch
 
         d = 3
-        nchol = d * (d - 1) // 2
         chol_vals = bkd.asarray(np.array([0.3, 0.1, -0.2]))
         corr_param = CholeskyCorrelationParameterization(chol_vals, d, bkd)
         copula = GaussianCopula(corr_param, bkd)

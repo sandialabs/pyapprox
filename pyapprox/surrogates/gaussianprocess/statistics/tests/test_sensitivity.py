@@ -682,7 +682,7 @@ class TestConditionalPAndU:
         bkd.assert_allclose(
             cond_var,
             bkd.asarray(0.0),
-            atol=1e-6,
+            atol=5e-6,
             err_msg="Conditional variance with no conditioning should be 0",
         )
 

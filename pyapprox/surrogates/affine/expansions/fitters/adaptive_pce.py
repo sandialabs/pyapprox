@@ -237,6 +237,9 @@ class AdaptivePCEFitter(Generic[Array]):
         Ridge regularization for OMP CV. Default: 0.0.
     omp_nfolds : int, optional
         Number of folds for LMO CV. None means LOO.
+    restrict_tol : float
+        Absolute threshold below which OMP coefficients are treated as zero
+        in the restrict step. Default: 1e-10.
     verbosity : int
         Verbosity level. Default: 0.
     """
@@ -252,6 +255,7 @@ class AdaptivePCEFitter(Generic[Array]):
         omp_max_nonzeros: Optional[int] = None,
         omp_alpha: float = 0.0,
         omp_nfolds: Optional[int] = None,
+        restrict_tol: float = 1e-10,
         verbosity: int = 0,
     ):
         self._bkd = bkd
@@ -263,6 +267,7 @@ class AdaptivePCEFitter(Generic[Array]):
         self._omp_max_nonzeros = omp_max_nonzeros
         self._omp_alpha = omp_alpha
         self._omp_nfolds = omp_nfolds
+        self._restrict_tol = restrict_tol
         self._verbosity = verbosity
 
     def bkd(self) -> Backend[Array]:
@@ -288,6 +293,10 @@ class AdaptivePCEFitter(Generic[Array]):
     def max_iterations(self) -> int:
         """Return maximum outer iterations."""
         return self._max_iterations
+
+    def restrict_tol(self) -> float:
+        """Return restrict-step zero threshold."""
+        return self._restrict_tol
 
     def _run_omp_cv(
         self,
@@ -399,7 +408,7 @@ class AdaptivePCEFitter(Generic[Array]):
             nterms = current_indices.shape[1]
             nonzero_idx = []
             for ii in range(nterms):
-                if abs(float(bkd.to_numpy(current_params[ii, 0]))) > 1e-14:
+                if abs(float(bkd.to_numpy(current_params[ii, 0]))) > self._restrict_tol:
                     nonzero_idx.append(ii)
 
             if len(nonzero_idx) == 0:

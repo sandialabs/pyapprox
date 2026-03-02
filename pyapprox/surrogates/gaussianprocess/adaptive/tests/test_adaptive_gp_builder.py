@@ -293,9 +293,7 @@ class TestAdaptiveGPBuilder:
         test_X = bkd.asarray(np.linspace(-1.0, 1.0, 20).reshape(1, -1))
         test_y = _quadratic_function(test_X, bkd)
         pred = gp(test_X)
-        max_err = float(
-            bkd.to_numpy(bkd.reshape(bkd.max(bkd.abs(pred - test_y)), (1,)))
-        )
+        max_err = float(bkd.to_numpy(bkd.max(bkd.abs(pred - test_y))))
         assert max_err < 0.1
 
     @slow_test
@@ -404,9 +402,7 @@ class TestAdaptiveGPBuilder:
         pred = gp(test_X)
 
         # Should give reasonable predictions
-        max_err = float(
-            bkd.to_numpy(bkd.reshape(bkd.max(bkd.abs(pred - test_y)), (1,)))
-        )
+        max_err = float(bkd.to_numpy(bkd.max(bkd.abs(pred - test_y))))
         assert max_err < 0.5
 
     @slow_test

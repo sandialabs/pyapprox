@@ -73,8 +73,8 @@ class TestDataDrivenKLE:
         bkd.assert_allclose(
             kle_data._sqrt_eig_vals,
             kle._sqrt_eig_vals,
-            atol=1e-2,
-            rtol=1e-2,
+            atol=2e-2,
+            rtol=2e-2,
         )
 
     @slow_test

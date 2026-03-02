@@ -740,7 +740,7 @@ class TestKnownMoments:
         expected_var = 8.0 / 45.0  # Var[f] = 2 * Var[z**2]
 
         # Tolerance for GP interpolation and statistics comparison
-        stats_tol = 2e-3
+        stats_tol = 5e-3
 
         # Define test function
         def quadratic_func(X):

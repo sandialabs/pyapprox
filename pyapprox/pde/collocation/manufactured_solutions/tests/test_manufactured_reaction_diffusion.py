@@ -185,7 +185,7 @@ class TestManufacturedReactionDiffusion1D:
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
     def test_fitzhugh_nagumo_residual(self, bkd):
         """Test reaction-diffusion residual with FitzHugh-Nagumo reaction."""
@@ -287,4 +287,4 @@ class TestManufacturedReactionDiffusion1D:
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6

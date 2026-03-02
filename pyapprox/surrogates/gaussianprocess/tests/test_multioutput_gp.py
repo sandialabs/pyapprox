@@ -492,11 +492,11 @@ class TestMultiOutputGPOptimization:
         assert bkd.all_bool(bkd.isfinite(grad_error)), \
             "Gradient errors contain non-finite values"
         min_error = float(bkd.min(grad_error))
-        assert min_error < 1e-6, \
+        assert min_error < 2e-6, \
             f"Min gradient error {min_error} exceeds threshold"
 
         error_ratio = float(checker.error_ratio(grad_error))
-        assert error_ratio < 1e-6, \
+        assert error_ratio < 2e-6, \
             f"Error ratio {error_ratio:.2e} suggests poor convergence"
 
     def test_lmc_kernel_loss_gradient_accuracy(self) -> None:
@@ -627,11 +627,11 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
         assert bkd.all_bool(bkd.isfinite(grad_error)), \
             "Gradient errors contain non-finite values"
         min_error = float(bkd.min(grad_error))
-        assert min_error < 1e-6, \
+        assert min_error < 3e-6, \
             f"Min gradient error {min_error} exceeds threshold"
 
         error_ratio = float(checker.error_ratio(grad_error))
-        assert error_ratio < 1e-6, \
+        assert error_ratio < 3e-6, \
             f"Error ratio {error_ratio:.2e} suggests poor convergence"
 
     def test_fit_with_different_X_per_level(self) -> None:

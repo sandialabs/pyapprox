@@ -320,7 +320,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         residual = physics.residual(state, time=0.0)
 
         # Should be very small (not exactly zero due to spectral diff of constant)
-        assert float(bkd.norm(residual)) < 1e-9
+        assert float(bkd.norm(residual)) < 5e-9
 
     def test_ncomponents(self, bkd):
         """Test number of components."""

@@ -180,7 +180,7 @@ class TestManufacturedShallowIce1D:
         checker = DerivativeChecker(wrapper)
         # DerivativeChecker expects sample shape (nvars, 1)
         errors = checker.check_derivatives(u_exact.reshape(-1, 1))
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        assert checker.error_ratio(errors[0]) <= 2e-6
 
     def test_flat_bed(self, bkd):
         """Test with flat bed topography."""

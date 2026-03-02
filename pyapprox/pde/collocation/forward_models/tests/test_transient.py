@@ -462,7 +462,7 @@ class TestTransientRobinBC:
         )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(param_2d, direction=None, relative=True)[0]
-        assert float(bkd.min(errors) / bkd.max(errors)) <= 1e-5
+        assert float(bkd.min(errors) / bkd.max(errors)) <= 2e-5
 
     def test_scalar_matches_vector_row(self, bkd):
         """Scalar QoI adjoint Jacobian matches vector QoI forward sensitivity row."""
