@@ -322,7 +322,7 @@ class TestGradientRobinBC:
         eps = 1e-7
         res0 = bkd.zeros((npts,))
         res0 = bc.apply_to_residual(res0, state, 0.0)
-        row = int(left_idx[0])
+        row = bkd.to_int(left_idx[0])
         for j in range(npts):
             state_pert = bkd.copy(state)
             state_pert[j] = state_pert[j] + eps

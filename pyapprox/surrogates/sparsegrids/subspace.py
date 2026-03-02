@@ -86,7 +86,7 @@ class TensorProductSubspace(Generic[Array]):
         self._growth_rules = growth_rules
 
         # Compute number of points per dimension from growth rule(s)
-        self._npts_1d = compute_npts_from_growth_rule(index, growth_rules)
+        self._npts_1d = compute_npts_from_growth_rule(index, growth_rules, bkd)
 
         # Create independent bases for each dimension
         # Each dimension needs its own basis instance because different

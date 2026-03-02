@@ -220,7 +220,7 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
             # Create unit vectors
             vectors = self._bkd.zeros((self._nvars, nvectors))
             for jj in range(nvectors):
-                idx = int(active_indices[cnt + jj])
+                idx = self._bkd.to_int(active_indices[cnt + jj])
                 vectors[idx, jj] = 1.0
 
             # Apply Cov = L @ L.T
@@ -229,7 +229,7 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
 
             # Extract diagonal terms
             for jj in range(nvectors):
-                idx = int(active_indices[cnt + jj])
+                idx = self._bkd.to_int(active_indices[cnt + jj])
                 diagonal[cnt + jj] = result[idx, jj]
 
             cnt += nvectors

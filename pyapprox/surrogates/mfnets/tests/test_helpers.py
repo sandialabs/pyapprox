@@ -56,7 +56,7 @@ class TestBuildChainMFNet:
             noise_std=[0.1, 0.2, 0.3],
         )
         for i, expected in enumerate([0.1, 0.2, 0.3]):
-            actual = float(bkd.to_numpy(net.node(i).noise_std()))
+            actual = bkd.to_float(net.node(i).noise_std())
             assert abs(actual - expected) < 1e-6
 
     def test_chain_noise_std_wrong_length_raises(self, bkd) -> None:
@@ -167,7 +167,7 @@ class TestBuildDAGMFNet:
                 1: {"noise_std": 0.5},
             },
         )
-        actual_noise = float(bkd.to_numpy(net.node(1).noise_std()))
+        actual_noise = bkd.to_float(net.node(1).noise_std())
         assert abs(actual_noise - 0.5) < 1e-6
 
     def test_empty_edges_raises(self, bkd) -> None:

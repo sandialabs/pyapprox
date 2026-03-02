@@ -224,8 +224,8 @@ class SampleBasedSensitivityAnalysis(
                 self._bkd.mean(valuesB * (valuesAB[ii] - valuesA), axis=1)
                 / self._variance
             )
-            if int(sobol_index.sum()) == 1:
-                idx = int(self._bkd.where(sobol_index == 1)[0][0])
+            if self._bkd.to_int(sobol_index.sum()) == 1:
+                idx = self._bkd.to_int(self._bkd.where(sobol_index == 1)[0][0])
                 # Jansen estimator (entry f in Table 2 of Saltelli, Annoni et al.)
                 self._total_effects_[idx] = (
                     0.5

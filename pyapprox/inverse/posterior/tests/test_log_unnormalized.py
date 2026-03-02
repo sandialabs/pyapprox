@@ -135,7 +135,7 @@ class TestLogUnNormalizedPosteriorAnalytical:
         logpost = posterior(theta)
 
         # Just verify it's finite and reasonable
-        logpost_np = float(bkd.to_numpy(logpost))
+        logpost_np = bkd.to_float(logpost)
         assert np.isfinite(logpost_np)
 
 

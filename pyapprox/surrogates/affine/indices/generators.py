@@ -526,7 +526,7 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator[Array], Generic[Array]):
         norms = indices_pnorm(
             candidates, self._level_criteria._pnorm, self._bkd
         )
-        return int(self._bkd.to_numpy(self._bkd.argmin(norms)))
+        return self._bkd.to_int(self._bkd.argmin(norms))
 
     def _compute_indices(self) -> None:
         """Compute all indices by iteratively refining smallest norm."""

@@ -247,8 +247,8 @@ class TestModelBasedDiagonalGaussian:
         logpdf_unweighted = composed.logpdf(params)
         # They should differ
         assert not np.allclose(
-            float(logpdf_weighted),
-            float(logpdf_unweighted),
+            bkd.to_float(logpdf_weighted),
+            bkd.to_float(logpdf_unweighted),
             atol=1e-14,
         )
 

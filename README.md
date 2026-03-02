@@ -1,5 +1,6 @@
 [![Tests](https://github.com/sandialabs/pyapprox/actions/workflows/tests.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/tests.yml)
 [![Lint](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml)
+[![Docs](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 

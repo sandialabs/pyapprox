@@ -133,15 +133,19 @@ class TestManufacturedShallowWave1D:
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
 
-        bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
+        li = bkd.to_int(left_idx)
+        ri = bkd.to_int(right_idx)
+        bc_h_left = constant_dirichlet_bc(
+            bkd, left_idx, bkd.to_float(h_exact[li])
+        )
         bc_h_right = constant_dirichlet_bc(
-            bkd, right_idx, float(h_exact[int(right_idx)])
+            bkd, right_idx, bkd.to_float(h_exact[ri])
         )
         bc_hu_left = constant_dirichlet_bc(
-            bkd, left_idx + npts, float(hu_exact[int(left_idx)])
+            bkd, left_idx + npts, bkd.to_float(hu_exact[li])
         )
         bc_hu_right = constant_dirichlet_bc(
-            bkd, right_idx + npts, float(hu_exact[int(right_idx)])
+            bkd, right_idx + npts, bkd.to_float(hu_exact[ri])
         )
         physics.set_boundary_conditions(
             [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]
@@ -230,15 +234,19 @@ class TestManufacturedShallowWave1D:
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
+        li = bkd.to_int(left_idx)
+        ri = bkd.to_int(right_idx)
+        bc_h_left = constant_dirichlet_bc(
+            bkd, left_idx, bkd.to_float(h_exact[li])
+        )
         bc_h_right = constant_dirichlet_bc(
-            bkd, right_idx, float(h_exact[int(right_idx)])
+            bkd, right_idx, bkd.to_float(h_exact[ri])
         )
         bc_hu_left = constant_dirichlet_bc(
-            bkd, left_idx + npts, float(hu_exact[int(left_idx)])
+            bkd, left_idx + npts, bkd.to_float(hu_exact[li])
         )
         bc_hu_right = constant_dirichlet_bc(
-            bkd, right_idx + npts, float(hu_exact[int(right_idx)])
+            bkd, right_idx + npts, bkd.to_float(hu_exact[ri])
         )
         physics.set_boundary_conditions(
             [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]
@@ -336,15 +344,19 @@ class TestShallowWave1DParameterized:
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
+        li = bkd.to_int(left_idx)
+        ri = bkd.to_int(right_idx)
+        bc_h_left = constant_dirichlet_bc(
+            bkd, left_idx, bkd.to_float(h_exact[li])
+        )
         bc_h_right = constant_dirichlet_bc(
-            bkd, right_idx, float(h_exact[int(right_idx)])
+            bkd, right_idx, bkd.to_float(h_exact[ri])
         )
         bc_hu_left = constant_dirichlet_bc(
-            bkd, left_idx + npts, float(hu_exact[int(left_idx)])
+            bkd, left_idx + npts, bkd.to_float(hu_exact[li])
         )
         bc_hu_right = constant_dirichlet_bc(
-            bkd, right_idx + npts, float(hu_exact[int(right_idx)])
+            bkd, right_idx + npts, bkd.to_float(hu_exact[ri])
         )
         physics.set_boundary_conditions(
             [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]

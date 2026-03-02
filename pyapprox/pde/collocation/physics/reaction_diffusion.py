@@ -547,7 +547,7 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         flux0 = bkd.zeros((nboundary,))
         for dim, D1 in enumerate(self._D1_matrices):
             grad_u0_dim = D1 @ u0
-            flux0 = flux0 + grad_u0_dim[boundary_indices] * float(normal[dim])
+            flux0 = flux0 + grad_u0_dim[boundary_indices] * bkd.to_float(normal[dim])
 
         # Scale by diffusion coefficient
         if self._is_variable_diffusion0:
@@ -559,7 +559,7 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         flux1 = bkd.zeros((nboundary,))
         for dim, D1 in enumerate(self._D1_matrices):
             grad_u1_dim = D1 @ u1
-            flux1 = flux1 + grad_u1_dim[boundary_indices] * float(normal[dim])
+            flux1 = flux1 + grad_u1_dim[boundary_indices] * bkd.to_float(normal[dim])
 
         # Scale by diffusion coefficient
         if self._is_variable_diffusion1:

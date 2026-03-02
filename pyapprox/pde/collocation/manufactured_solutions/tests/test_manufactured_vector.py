@@ -297,9 +297,13 @@ class TestManufacturedShallowShelf:
         assert "effective_strain_rate" in man_sol.functions
 
     def test_shallow_shelf_evaluation(self, bkd):
-        """Test shallow shelf velocity evaluation."""
+        """Test shallow shelf velocity evaluation.
+
+        Uses velocity with nonzero strain rate everywhere to avoid
+        divide-by-zero in Glen's flow law viscosity (ε_eff^(-2/3)).
+        """
         man_sol = ManufacturedShallowShelfVelocityEquations(
-            sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*0.5"],
+            sol_strs=["1 + x + 0.3*y + 0.2*x**2", "1 + 0.3*x + y + 0.2*y**2"],
             nvars=2,
             bed_str="0.0",
             depth_str="1.0",
@@ -309,7 +313,6 @@ class TestManufacturedShallowShelf:
             bkd=bkd,
             oned=True,
         )
-        # Create test points (avoid boundary for strain rate singularity)
         x = bkd.linspace(-0.8, 0.8, 5)
         y = bkd.linspace(-0.8, 0.8, 5)
         xx, yy = bkd.meshgrid(x, y, indexing="xy")

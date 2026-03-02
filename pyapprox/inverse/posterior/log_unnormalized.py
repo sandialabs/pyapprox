@@ -350,7 +350,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Objective: negative log posterior (we minimize)
         def objective(x):
             x_arr = self._bkd.asarray(x.reshape(self._nvars, 1))
-            neg_logpost = -float(self.__call__(x_arr)[0])
+            neg_logpost = -self._bkd.to_float(self.__call__(x_arr))
             return neg_logpost
 
         # Setup bounds if provided

@@ -152,11 +152,11 @@ class TestSobolGSensitivityIndices:
         assert total.shape == (6, 1)
 
         # First variable (a=0) should be most important
-        assert int(self._bkd.argmax(main[:, 0])) == 0
-        assert int(self._bkd.argmax(total[:, 0])) == 0
+        assert self._bkd.to_int(self._bkd.argmax(main[:, 0])) == 0
+        assert self._bkd.to_int(self._bkd.argmax(total[:, 0])) == 0
 
         # Main effects should sum to less than 1 (interactions exist)
-        assert float(self._bkd.sum(main)) < 1.0
+        assert self._bkd.to_float(self._bkd.sum(main)) < 1.0
 
         # All indices should be non-negative
         assert self._bkd.all_bool(main >= 0)

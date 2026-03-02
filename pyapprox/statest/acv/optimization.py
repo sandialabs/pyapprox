@@ -38,14 +38,14 @@ def _combine_acv_values(
         for jj in range(nmodels):
             found = False
             if reorder_allocation_mat[jj, 2 * ii] == 1:
-                ub = lb + int(npartition_samples[jj])
+                ub = lb + bkd.to_int(npartition_samples[jj])
                 values_per_model[ii] += [acv_values[ii][0][lb:ub]]
                 lb = ub
                 found = True
             if reorder_allocation_mat[jj, 2 * ii + 1] == 1:
                 # there is no need to enter here is samle set has already
                 # been added by acv_values[ii][0], hence the use of elseif here
-                ub2 = lb2 + int(npartition_samples[jj])
+                ub2 = lb2 + bkd.to_int(npartition_samples[jj])
                 if not found:
                     values_per_model[ii] += [acv_values[ii][1][lb2:ub2]]
                 lb2 = ub2
@@ -74,12 +74,12 @@ def _combine_acv_samples(
         for jj in range(nmodels):
             found = False
             if reorder_allocation_mat[jj, 2 * ii] == 1:
-                ub = lb + int(npartition_samples[jj])
+                ub = lb + bkd.to_int(npartition_samples[jj])
                 samples_per_model[ii] += [acv_samples[ii][0][:, lb:ub]]
                 lb = ub
                 found = True
             if reorder_allocation_mat[jj, 2 * ii + 1] == 1:
-                ub2 = lb2 + int(npartition_samples[jj])
+                ub2 = lb2 + bkd.to_int(npartition_samples[jj])
                 if not found:
                     # Only add samples if they were not in Z_m^*
                     samples_per_model[ii] += [acv_samples[ii][1][:, lb2:ub2]]

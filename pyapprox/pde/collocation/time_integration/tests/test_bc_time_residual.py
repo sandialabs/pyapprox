@@ -114,8 +114,8 @@ class TestBCEnforcingTimeResidual:
         jac = s["bc_residual"].jacobian(y)
 
         # Check boundary rows are identity
-        left_idx = int(s["left_idx"][0])
-        right_idx = int(s["right_idx"][0])
+        left_idx = bkd.to_int(s["left_idx"][0])
+        right_idx = bkd.to_int(s["right_idx"][0])
 
         for idx in [left_idx, right_idx]:
             expected_row = bkd.zeros((npts,))
@@ -136,8 +136,8 @@ class TestBCEnforcingTimeResidual:
         res = s["bc_residual"](y)
 
         # For zero Dirichlet BCs: residual at boundary = u[boundary] - 0
-        left_idx = int(s["left_idx"][0])
-        right_idx = int(s["right_idx"][0])
+        left_idx = bkd.to_int(s["left_idx"][0])
+        right_idx = bkd.to_int(s["right_idx"][0])
 
         bkd.assert_allclose(
             bkd.asarray([res[left_idx]]),

@@ -77,7 +77,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
             for bc in self._physics.boundary_conditions():
                 bc_idx = bc.boundary_indices()
                 for ii in range(bc_idx.shape[0]):
-                    indices.append(int(bc_idx[ii]))
+                    indices.append(self._bkd.to_int(bc_idx[ii]))
         return indices
 
     def _zero_bc_rows(self, matrix: Array) -> Array:

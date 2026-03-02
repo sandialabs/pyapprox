@@ -141,8 +141,8 @@ class TestDenseCholeskyMultivariateGaussian:
             sample_minus = bkd.copy(sample)
             sample_minus[i] = sample_minus[i] - eps
             diff = (
-                float(dist.logpdf(sample_plus)[0])
-                - float(dist.logpdf(sample_minus)[0])
+                bkd.to_float(dist.logpdf(sample_plus))
+                - bkd.to_float(dist.logpdf(sample_minus))
             ) / (2 * eps)
             grad_fd[i, 0] = diff
 

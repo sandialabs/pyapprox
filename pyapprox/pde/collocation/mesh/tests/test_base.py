@@ -72,11 +72,11 @@ class TestMeshBase:
 
         # Left boundary: index 0
         assert len(boundaries[0]) == 1
-        assert int(boundaries[0][0]) == 0
+        assert bkd.to_int(boundaries[0][0]) == 0
 
         # Right boundary: index 4
         assert len(boundaries[1]) == 1
-        assert int(boundaries[1][0]) == npts - 1
+        assert bkd.to_int(boundaries[1][0]) == npts - 1
 
     def test_boundary_indices_2d(self, bkd):
         """Test 2D boundary indices."""
@@ -89,25 +89,25 @@ class TestMeshBase:
         left = boundaries[0]
         assert len(left) == npts_y
         for j, idx in enumerate(left):
-            assert int(idx) == j * npts_x
+            assert bkd.to_int(idx) == j * npts_x
 
         # Right boundary: x=2, all y -> indices 2, 5, 8, 11
         right = boundaries[1]
         assert len(right) == npts_y
         for j, idx in enumerate(right):
-            assert int(idx) == j * npts_x + (npts_x - 1)
+            assert bkd.to_int(idx) == j * npts_x + (npts_x - 1)
 
         # Bottom boundary: y=0, all x -> indices 0, 1, 2
         bottom = boundaries[2]
         assert len(bottom) == npts_x
         for i, idx in enumerate(bottom):
-            assert int(idx) == i
+            assert bkd.to_int(idx) == i
 
         # Top boundary: y=3, all x -> indices 9, 10, 11
         top = boundaries[3]
         assert len(top) == npts_x
         for i, idx in enumerate(top):
-            assert int(idx) == (npts_y - 1) * npts_x + i
+            assert bkd.to_int(idx) == (npts_y - 1) * npts_x + i
 
     def test_boundary_indices_3d(self, bkd):
         """Test 3D boundary indices."""

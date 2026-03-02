@@ -68,7 +68,7 @@ class MFNetEdge(Generic[Array]):
             self._child_output_ids = self._bkd.asarray(
                 list(range(child_nqoi)), dtype=int
             )
-        max_id = int(self._bkd.to_numpy(self._bkd.max(self._child_output_ids)))
+        max_id = self._bkd.to_int(self._bkd.max(self._child_output_ids))
         if max_id >= child_nqoi:
             raise ValueError(
                 f"child_output_ids max ({max_id}) >= child nqoi ({child_nqoi})"

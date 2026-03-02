@@ -127,19 +127,21 @@ def _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, ndim, bkd):
     for side in range(nboundaries):
         boundary_idx = mesh_bc.boundary_indices(side)
         for comp in range(ndim):
-            bc_idx = bkd.asarray([int(idx) + comp * npts for idx in boundary_idx])
+            bc_idx = bkd.asarray(
+                [bkd.to_int(idx) + comp * npts for idx in boundary_idx]
+            )
             bcs.append(zero_dirichlet_bc(bkd, bc_idx))
     physics.set_boundary_conditions(bcs)
 
 
-def _get_interior_indices(mesh_bc, npts, ndim):
+def _get_interior_indices(mesh_bc, npts, ndim, bkd):
     """Get interior indices (exclude all boundary points for all components)."""
     nboundaries = mesh_bc.nboundaries()
     boundary_indices = set()
     for side in range(nboundaries):
         for idx in mesh_bc.boundary_indices(side):
             for comp in range(ndim):
-                boundary_indices.add(int(idx) + comp * npts)
+                boundary_indices.add(bkd.to_int(idx) + comp * npts)
     return [i for i in range(ndim * npts) if i not in boundary_indices]
 
 
@@ -189,7 +191,7 @@ class TestHyperelasticity1D:
             residual, jacobian, u_exact_flat, 0.0
         )
 
-        interior = _get_interior_indices(mesh_bc, npts, 1)
+        interior = _get_interior_indices(mesh_bc, npts, 1, bkd)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
@@ -290,7 +292,7 @@ class TestHyperelasticity2D:
             residual, jacobian, u_exact_flat, 0.0
         )
 
-        interior = _get_interior_indices(mesh_bc, npts, 2)
+        interior = _get_interior_indices(mesh_bc, npts, 2, bkd)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
@@ -397,7 +399,7 @@ class TestHyperelasticity3D:
         for bc in physics.boundary_conditions():
             residual = bc.apply_to_residual(residual, u_exact_flat, 0.0)
 
-        interior = _get_interior_indices(mesh_bc, npts, 3)
+        interior = _get_interior_indices(mesh_bc, npts, 3, bkd)
         interior_res = bkd.asarray([residual[i] for i in interior])
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-7)
@@ -449,7 +451,7 @@ class TestHyperelasticityParameterized:
             residual, jacobian, u_exact_flat, 0.0
         )
 
-        interior = _get_interior_indices(mesh_bc, basis.npts(), 1)
+        interior = _get_interior_indices(mesh_bc, basis.npts(), 1, bkd)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
@@ -506,7 +508,7 @@ class TestHyperelasticityParameterized:
             residual, jacobian, u_exact_flat, 0.0
         )
 
-        interior = _get_interior_indices(mesh_bc, npts, 2)
+        interior = _get_interior_indices(mesh_bc, npts, 2, bkd)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
         bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)

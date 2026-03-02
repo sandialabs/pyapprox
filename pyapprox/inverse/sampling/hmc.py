@@ -111,7 +111,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
             Kinetic energy.
         """
         Minv_p = self._mass_matrix_inv @ momentum
-        return 0.5 * float(momentum.T @ Minv_p)
+        return 0.5 * self._bkd.to_float(momentum.T @ Minv_p)
 
     def _leapfrog(
         self,
@@ -182,7 +182,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
         float
             Hamiltonian value.
         """
-        log_post = float(self._log_posterior_fn(position)[0])
+        log_post = self._bkd.to_float(self._log_posterior_fn(position))
         kinetic = self._kinetic_energy(momentum)
         return -log_post + kinetic
 
@@ -260,7 +260,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
 
             # Store sample
             samples_np[:, i] = self._bkd.to_numpy(current_q)[:, 0]
-            logposts_np[i] = float(self._log_posterior_fn(current_q)[0])
+            logposts_np[i] = self._bkd.to_float(self._log_posterior_fn(current_q))
 
         # Remove burn-in
         samples_np = samples_np[:, burn:]

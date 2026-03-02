@@ -180,7 +180,7 @@ def solve_poisson_1d(npts_per_subdomain: int = 10, verbose: bool = False):
 
     # Compute error at interface
     # Exact solution at x=1: sin(pi) = 0
-    interface_error = abs(float(result.interface_dofs[0]) - math.sin(math.pi))
+    interface_error = abs(bkd.to_float(result.interface_dofs[0]) - math.sin(math.pi))
 
     return {
         "result": result,
@@ -210,7 +210,8 @@ def main():
     print(f"  Converged: {results['converged']}")
     print(f"  Iterations: {results['iterations']}")
     print(f"  Final residual norm: {results['residual_norm']:.2e}")
-    print(f"  Interface value: {float(results['interface_dofs'][0]):.10f}")
+    iface_val = results['interface_dofs'][0]
+    print(f"  Interface value: {iface_val:.10f}")
     print(f"  Interface error: {results['interface_error']:.2e}")
 
 

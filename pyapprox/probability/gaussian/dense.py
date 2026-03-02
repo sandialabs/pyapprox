@@ -238,7 +238,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         trace_term = self._bkd.sum(cov2_inv * cov1)
 
         # (m2-m1)^T C2^{-1} (m2-m1)
-        quad_term = float((mean_diff.T @ (cov2_inv @ mean_diff)).squeeze())
+        quad_term = self._bkd.to_float(mean_diff.T @ (cov2_inv @ mean_diff))
 
         # log|C2| - log|C1| = 2*(log|L2| - log|L1|)
         log_det_term = 2.0 * (

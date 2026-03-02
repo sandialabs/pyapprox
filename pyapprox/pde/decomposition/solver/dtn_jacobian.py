@@ -142,15 +142,15 @@ class DtNJacobianExact(Generic[Array]):
 
         # For each interface where flux is computed
         for i_row, interface_id_row in enumerate(interface_ids):
-            row_start = int(offsets[i_row])
-            int(offsets[i_row + 1])
+            row_start = bkd.to_int(offsets[i_row])
+            bkd.to_int(offsets[i_row + 1])
             interface = interfaces[interface_id_row]
             left_id, right_id = interface.subdomain_ids()
 
             # For each interface DOF that is perturbed
             for i_col, interface_id_col in enumerate(interface_ids):
-                col_start = int(offsets[i_col])
-                col_end = int(offsets[i_col + 1])
+                col_start = bkd.to_int(offsets[i_col])
+                col_end = bkd.to_int(offsets[i_col + 1])
                 n_dofs_col = col_end - col_start
 
                 for local_dof in range(n_dofs_col):

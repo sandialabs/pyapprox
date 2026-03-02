@@ -339,7 +339,7 @@ class TransformedMesh2D(Generic[Array]):
         # Extract boundary values
         normals = self._bkd.zeros((nboundary, 2))
         for i in range(nboundary):
-            idx = int(self._bkd.to_numpy(boundary_idx[i]))
+            idx = self._bkd.to_int(boundary_idx[i])
             J = jac_all[idx]  # (2, 2)
             det = det_all[idx]
 
@@ -527,7 +527,7 @@ class TransformedMesh3D(Generic[Array]):
         # For curvilinear: n = J^{-T} @ n_ref / |...|
         normals = self._bkd.zeros((nboundary, 3))
         for i in range(nboundary):
-            idx = int(self._bkd.to_numpy(boundary_idx[i]))
+            idx = self._bkd.to_int(boundary_idx[i])
             J = self._jacobian_matrix[idx]  # (3, 3)
 
             # Compute J^{-T} using adjugate/det

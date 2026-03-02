@@ -455,10 +455,10 @@ class TestStatisticsWithBothTransformsVsMC:
         # Marginals defined in original input space
         # The training data has x1 in [0, 1000], x2 in [0, 0.01]
         # Use uniform marginals covering the training range
-        x1_min = float(bkd.to_numpy(bkd.min(X_train[0:1, :])))
-        x1_max = float(bkd.to_numpy(bkd.max(X_train[0:1, :])))
-        x2_min = float(bkd.to_numpy(bkd.min(X_train[1:2, :])))
-        x2_max = float(bkd.to_numpy(bkd.max(X_train[1:2, :])))
+        x1_min = bkd.to_float(bkd.min(X_train[0:1, :]))
+        x1_max = bkd.to_float(bkd.max(X_train[0:1, :]))
+        x2_min = bkd.to_float(bkd.min(X_train[1:2, :]))
+        x2_max = bkd.to_float(bkd.max(X_train[1:2, :]))
         marginals: List[Any] = [
             UniformMarginal(x1_min, x1_max, bkd),
             UniformMarginal(x2_min, x2_max, bkd),
@@ -489,18 +489,10 @@ class TestStatisticsWithBothTransformsVsMC:
 
         sh = input_scaler.shift()
         sc = input_scaler.scale()
-        s_x1_min = (x1_min - float(bkd.to_numpy(sh[0:1]))) / float(
-            bkd.to_numpy(sc[0:1])
-        )
-        s_x1_max = (x1_max - float(bkd.to_numpy(sh[0:1]))) / float(
-            bkd.to_numpy(sc[0:1])
-        )
-        s_x2_min = (x2_min - float(bkd.to_numpy(sh[1:2]))) / float(
-            bkd.to_numpy(sc[1:2])
-        )
-        s_x2_max = (x2_max - float(bkd.to_numpy(sh[1:2]))) / float(
-            bkd.to_numpy(sc[1:2])
-        )
+        s_x1_min = (x1_min - bkd.to_float(sh[0:1])) / bkd.to_float(sc[0:1])
+        s_x1_max = (x1_max - bkd.to_float(sh[0:1])) / bkd.to_float(sc[0:1])
+        s_x2_min = (x2_min - bkd.to_float(sh[1:2])) / bkd.to_float(sc[1:2])
+        s_x2_max = (x2_max - bkd.to_float(sh[1:2])) / bkd.to_float(sc[1:2])
         marginals_ref: List[Any] = [
             UniformMarginal(s_x1_min, s_x1_max, bkd),
             UniformMarginal(s_x2_min, s_x2_max, bkd),

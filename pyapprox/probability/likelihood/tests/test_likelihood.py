@@ -58,7 +58,7 @@ class TestGaussianLogLikelihood:
         model_perturbed = obs + 0.1
         logpdf_perturbed = likelihood.logpdf(model_perturbed)
 
-        assert float(logpdf_at_obs) > float(logpdf_perturbed)
+        assert bkd.to_float(logpdf_at_obs) > bkd.to_float(logpdf_perturbed)
 
     def test_logpdf_vs_scipy(self, bkd) -> None:
         """Test logpdf matches scipy multivariate normal."""
@@ -200,7 +200,7 @@ class TestDiagonalGaussianLogLikelihood:
         model_perturbed = obs + 0.1
         logpdf_perturbed = likelihood.logpdf(model_perturbed)
 
-        assert float(logpdf_at_obs) > float(logpdf_perturbed)
+        assert bkd.to_float(logpdf_at_obs) > bkd.to_float(logpdf_perturbed)
 
     def test_logpdf_vs_full_gaussian(self, bkd) -> None:
         """Test diagonal matches full Gaussian with diagonal cov."""
@@ -310,7 +310,7 @@ class TestDesignWeights:
         logpdf_with_weights = likelihood.logpdf(model)
 
         # With zero weight on third obs, logpdf should be higher
-        assert float(logpdf_with_weights) > float(logpdf_no_weights)
+        assert bkd.to_float(logpdf_with_weights) > bkd.to_float(logpdf_no_weights)
 
 
 class TestVectorizedLogLikelihood:

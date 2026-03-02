@@ -211,7 +211,7 @@ class MetropolisHastingsSampler(Generic[Array]):
                 )
             current = initial_state
 
-        current_logpost = float(self._log_posterior_fn(current)[0])
+        current_logpost = self._bkd.to_float(self._log_posterior_fn(current))
 
         # Storage
         samples_np = np.zeros((self._nvars, total_samples))
@@ -236,7 +236,7 @@ class MetropolisHastingsSampler(Generic[Array]):
                     continue
 
             # Evaluate log posterior at proposal
-            proposal_logpost = float(self._log_posterior_fn(proposal)[0])
+            proposal_logpost = self._bkd.to_float(self._log_posterior_fn(proposal))
 
             # Acceptance probability (log scale)
             log_alpha = proposal_logpost - current_logpost
@@ -362,7 +362,7 @@ class AdaptiveMetropolisSampler(MetropolisHastingsSampler[Array]):
                 )
             current = initial_state
 
-        current_logpost = float(self._log_posterior_fn(current)[0])
+        current_logpost = self._bkd.to_float(self._log_posterior_fn(current))
 
         # Storage
         samples_np = np.zeros((self._nvars, total_samples))
@@ -394,7 +394,7 @@ class AdaptiveMetropolisSampler(MetropolisHastingsSampler[Array]):
                     continue
 
             # Evaluate log posterior at proposal
-            proposal_logpost = float(self._log_posterior_fn(proposal)[0])
+            proposal_logpost = self._bkd.to_float(self._log_posterior_fn(proposal))
 
             # Acceptance probability
             log_alpha = proposal_logpost - current_logpost

@@ -236,7 +236,7 @@ class SubdomainWrapper(Generic[Array]):
             residual, jacobian = self._apply_all_bcs(residual, jacobian, state, time)
 
             # Check convergence
-            res_norm = float(bkd.norm(residual))
+            res_norm = bkd.to_float(bkd.norm(residual))
             if res_norm < tol:
                 break
 
@@ -402,7 +402,7 @@ class SubdomainWrapper(Generic[Array]):
 
             flux = self._bkd.zeros((nboundary,))
             for dim in range(ndim):
-                flux = flux + grad_u_at_boundary[dim] * float(normal[dim])
+                flux = flux + grad_u_at_boundary[dim] * self._bkd.to_float(normal[dim])
             return flux
 
         # Vector case: compute flux for each component
@@ -423,7 +423,8 @@ class SubdomainWrapper(Generic[Array]):
             # Compute flux = grad(u_c) · n
             comp_flux = self._bkd.zeros((nboundary,))
             for dim in range(ndim):
-                comp_flux = comp_flux + grad_at_boundary[dim] * float(normal[dim])
+                n_d = self._bkd.to_float(normal[dim])
+                comp_flux = comp_flux + grad_at_boundary[dim] * n_d
 
             all_flux[c * nboundary : (c + 1) * nboundary] = comp_flux
 

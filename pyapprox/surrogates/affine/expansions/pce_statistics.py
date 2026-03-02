@@ -31,7 +31,7 @@ def get_constant_index(pce: PCEStatisticsProtocol[Array]) -> int:
     const_indices = bkd.nonzero(const_mask)
     if len(const_indices[0]) == 0:
         raise ValueError("Basis does not contain constant term")
-    return int(const_indices[0][0])
+    return bkd.to_int(const_indices[0][0])
 
 
 def mean(pce: PCEStatisticsProtocol[Array]) -> Array:

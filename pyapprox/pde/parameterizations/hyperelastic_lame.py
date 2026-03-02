@@ -154,7 +154,7 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
         # 2D: bc_indices are state indices (mesh_idx + component*npts)
         npts = physics.npts()
         # Determine component from state indices
-        comp = int(bc_indices[0]) // npts  # 0 or 1
+        comp = self._bkd.to_int(bc_indices[0]) // npts  # 0 or 1
         mesh_idx = bc_indices - comp * npts
         # Compute deformation gradient at boundary mesh points
         Dx, Dy = self._D_matrices[0], self._D_matrices[1]

@@ -361,7 +361,8 @@ class QuadraticODEResidual(Generic[Array]):
 
         Returns shape (nstates,).
         """
-        v0 = float(vvec[0, 0]) if vvec.ndim == 2 else float(vvec[0])
+        _to_f = self._bkd.to_float
+        v0 = _to_f(vvec[0, 0]) if vvec.ndim == 2 else _to_f(vvec[0])
         return 2.0 * adj_state * state * v0
 
     def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:

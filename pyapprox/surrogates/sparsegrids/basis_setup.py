@@ -7,7 +7,7 @@ in tensor product constructions, handling:
 - Growth rule application to multi-indices
 """
 
-from typing import Callable, List, Tuple, Union, cast
+from typing import Callable, List, Optional, Tuple, Union, cast
 
 from pyapprox.surrogates.affine.protocols import (
     Basis1DProtocol,
@@ -20,6 +20,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 def compute_npts_from_growth_rule(
     index: Array,
     growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
+    bkd: Optional[Backend[Array]] = None,
 ) -> List[int]:
     """Compute number of points per dimension from a multi-index and growth rule(s).
 
@@ -44,16 +45,19 @@ def compute_npts_from_growth_rule(
     """
     nvars = len(index)
 
+    def _to_int(val: Array) -> int:
+        return bkd.to_int(val) if bkd is not None else int(val)
+
     # Handle single growth rule (apply to all dimensions)
     if not isinstance(growth_rules, list):
-        return [growth_rules(int(index[dim])) for dim in range(nvars)]
+        return [growth_rules(_to_int(index[dim])) for dim in range(nvars)]
 
     # Handle per-dimension growth rules
     if len(growth_rules) != nvars:
         raise ValueError(
             f"growth_rules list length ({len(growth_rules)}) must match nvars ({nvars})"
         )
-    return [growth_rules[dim](int(index[dim])) for dim in range(nvars)]
+    return [growth_rules[dim](_to_int(index[dim])) for dim in range(nvars)]
 
 
 def get_quadrature_rule(

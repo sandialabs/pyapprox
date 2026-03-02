@@ -52,7 +52,17 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: Union[Sequence[Any], torch.Tensor, float, int],
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
-        return torch.tensor(array, dtype=dtype)
+        if isinstance(array, torch.Tensor):
+            return array.detach().clone().to(
+                dtype=dtype or array.dtype
+            )
+        arr_np = np.asarray(array)
+        result = torch.from_numpy(arr_np.copy())
+        if dtype is not None:
+            return result.to(dtype=dtype)
+        if result.is_floating_point():
+            return result.to(dtype=torch.float64)
+        return result
 
     @staticmethod
     def asarray(
@@ -139,6 +149,15 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
                 f" got shape {tuple(array.shape)}"
             )
         return array.detach().item()
+
+    @staticmethod
+    def to_int(array: torch.Tensor) -> int:
+        if array.numel() != 1:
+            raise ValueError(
+                "to_int requires a single-element tensor,"
+                f" got shape {tuple(array.shape)}"
+            )
+        return int(array.detach().item())
 
     @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
@@ -432,6 +451,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def searchsorted(
         sorted_array: torch.Tensor, values: torch.Tensor, side: str = "left"
     ) -> torch.Tensor:
+        if not sorted_array.is_contiguous():
+            sorted_array = sorted_array.contiguous()
         return torch.searchsorted(sorted_array, values, side=side)  # type: ignore
 
     @staticmethod

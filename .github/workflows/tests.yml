@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
       - name: Run slow tests only
         env:
           PYAPPROX_RUN_SLOW: "1"
-        run: pytest pyapprox -v --tb=short -m slow --timeout=600
+        run: pytest pyapprox -v --tb=short -m slow_on --timeout=600
 
   slower:
     name: Slower tests (>30s)
@@ -111,7 +111,7 @@ jobs:
       - name: Run slower tests only
         env:
           PYAPPROX_RUN_SLOWER: "1"
-        run: pytest pyapprox -v --tb=short -m slower --timeout=1200
+        run: pytest pyapprox -v --tb=short -m slower_on --timeout=1200
 
   slowest:
     name: Slowest tests (>60s)
@@ -135,4 +135,4 @@ jobs:
       - name: Run slowest tests only
         env:
           PYAPPROX_RUN_SLOWEST: "1"
-        run: pytest pyapprox -v --tb=short -m slowest --timeout=1800
+        run: pytest pyapprox -v --tb=short -m slowest_on --timeout=1800

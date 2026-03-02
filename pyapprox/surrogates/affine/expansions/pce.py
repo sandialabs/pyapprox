@@ -92,7 +92,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         const_indices = self._bkd.nonzero(const_mask)
         if len(const_indices[0]) == 0:
             raise ValueError("Basis does not contain constant term")
-        return int(const_indices[0][0])
+        return self._bkd.to_int(const_indices[0][0])
 
     def mean(self) -> Array:
         """Compute mean from PCE coefficients.

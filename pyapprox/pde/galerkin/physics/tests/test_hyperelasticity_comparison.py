@@ -93,7 +93,7 @@ def _solve_collocation_1d(sol_strs, stress, npts, bkd):
     bcs = []
     for side in range(mesh_bc.nboundaries()):
         boundary_idx = mesh_bc.boundary_indices(side)
-        bc_idx = bkd.asarray([int(idx) for idx in boundary_idx])
+        bc_idx = bkd.asarray([bkd.to_int(idx) for idx in boundary_idx])
         bcs.append(zero_dirichlet_bc(bkd, bc_idx))
     physics.set_boundary_conditions(bcs)
 
@@ -141,7 +141,9 @@ def _solve_collocation_2d(sol_strs, stress, npts_x, npts_y, bkd):
     for side in range(mesh_bc.nboundaries()):
         boundary_idx = mesh_bc.boundary_indices(side)
         for comp in range(ndim):
-            bc_idx = bkd.asarray([int(idx) + comp * npts for idx in boundary_idx])
+            bc_idx = bkd.asarray(
+                [bkd.to_int(idx) + comp * npts for idx in boundary_idx]
+            )
             bcs.append(zero_dirichlet_bc(bkd, bc_idx))
     physics.set_boundary_conditions(bcs)
 

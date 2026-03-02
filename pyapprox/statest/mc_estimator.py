@@ -111,7 +111,7 @@ class MCEstimator(Generic[Array]):
             estimator
         """
         self._rounded_nsamples_per_model = self._bkd.asarray(
-            [int(self._bkd.floor(target_cost / self._costs[0]))]
+            [self._bkd.to_int(self._bkd.floor(target_cost / self._costs[0]))]
         )
         self._rounded_npartition_samples = self._rounded_nsamples_per_model
         est_covariance = self._covariance_from_npartition_samples(

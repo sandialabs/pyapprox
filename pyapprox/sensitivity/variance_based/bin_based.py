@@ -266,7 +266,7 @@ class BinBasedSensitivityAnalysis(
         # Warn if many empty cells
         zero = self._bkd.zeros((1,))
         empty_mask = bin_counts == zero[0]
-        n_empty = int(self._bkd.to_numpy(self._bkd.sum(self._bkd.asarray(empty_mask))))
+        n_empty = self._bkd.to_int(self._bkd.sum(self._bkd.asarray(empty_mask)))
         if n_empty / total_bins > 0.3:
             warnings.warn(
                 f"{n_empty}/{total_bins} cells empty for order-{order} "

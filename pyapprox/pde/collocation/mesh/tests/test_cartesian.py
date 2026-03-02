@@ -57,8 +57,8 @@ class TestCartesianMesh:
 
         assert len(left) == 1
         assert len(right) == 1
-        assert int(left[0]) == 0
-        assert int(right[0]) == npts - 1
+        assert bkd.to_int(left[0]) == 0
+        assert bkd.to_int(right[0]) == npts - 1
 
     def test_create_uniform_mesh_1d(self, bkd):
         """Test uniform 1D mesh factory function."""

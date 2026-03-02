@@ -114,7 +114,7 @@ class DtNSolver(Generic[Array]):
         for iteration in range(self._max_iters):
             # Compute residual
             r = self._residual(lambda_n)
-            res_norm = float(bkd.norm(r))
+            res_norm = bkd.to_float(bkd.norm(r))
             residual_history.append(res_norm)
 
             if self._verbose:
@@ -135,7 +135,7 @@ class DtNSolver(Generic[Array]):
             lambda_n = lambda_n + delta
 
         # Final residual
-        final_res_norm = float(bkd.norm(self._residual(lambda_n)))
+        final_res_norm = bkd.to_float(bkd.norm(self._residual(lambda_n)))
 
         # Get subdomain solutions
         subdomain_solutions = {}

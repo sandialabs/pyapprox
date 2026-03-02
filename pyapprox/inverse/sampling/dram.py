@@ -147,7 +147,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
         second_proposal = current + increment
 
         # Evaluate log posterior at second proposal
-        second_logpost = float(self._log_posterior_fn(second_proposal)[0])
+        second_logpost = self._bkd.to_float(self._log_posterior_fn(second_proposal))
 
         # Compute log alpha for first proposal from second proposal
         # (reverse direction)
@@ -155,9 +155,11 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
 
         # Compute correction terms for detailed balance
         # See Haario et al. (2006) for derivation
-        log_one_minus_alpha1 = np.log(1.0 - min(1.0, np.exp(first_log_alpha)))
+        log_one_minus_alpha1 = np.log(
+            max(1e-300, 1.0 - min(1.0, np.exp(first_log_alpha)))
+        )
         log_one_minus_alpha1_rev = np.log(
-            1.0 - min(1.0, np.exp(first_from_second_log_alpha))
+            max(1e-300, 1.0 - min(1.0, np.exp(first_from_second_log_alpha)))
         )
 
         # Second stage acceptance probability
@@ -213,7 +215,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
                 )
             current = initial_state
 
-        current_logpost = float(self._log_posterior_fn(current)[0])
+        current_logpost = self._bkd.to_float(self._log_posterior_fn(current))
 
         # Storage
         samples_np = np.zeros((self._nvars, total_samples))
@@ -248,7 +250,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
                 continue
 
             # Evaluate log posterior at proposal
-            proposal_logpost = float(self._log_posterior_fn(proposal)[0])
+            proposal_logpost = self._bkd.to_float(self._log_posterior_fn(proposal))
 
             # First stage acceptance probability
             log_alpha = proposal_logpost - current_logpost

@@ -126,8 +126,10 @@ class TestManufacturedShallowIce1D:
         # Set Dirichlet BCs at boundaries
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
-        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
+        left_val = bkd.to_float(u_exact[bkd.to_int(left_idx)])
+        right_val = bkd.to_float(u_exact[bkd.to_int(right_idx)])
+        bc_left = constant_dirichlet_bc(bkd, left_idx, left_val)
+        bc_right = constant_dirichlet_bc(bkd, right_idx, right_val)
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
@@ -214,8 +216,10 @@ class TestManufacturedShallowIce1D:
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
-        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
+        left_val = bkd.to_float(u_exact[bkd.to_int(left_idx)])
+        right_val = bkd.to_float(u_exact[bkd.to_int(right_idx)])
+        bc_left = constant_dirichlet_bc(bkd, left_idx, left_val)
+        bc_right = constant_dirichlet_bc(bkd, right_idx, right_val)
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
@@ -286,8 +290,10 @@ class TestShallowIce1DParameterized:
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
-        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
+        left_val = bkd.to_float(u_exact[bkd.to_int(left_idx)])
+        right_val = bkd.to_float(u_exact[bkd.to_int(right_idx)])
+        bc_left = constant_dirichlet_bc(bkd, left_idx, left_val)
+        bc_right = constant_dirichlet_bc(bkd, right_idx, right_val)
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)

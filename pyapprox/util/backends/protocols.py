@@ -186,6 +186,27 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def to_int(array: Array) -> int:
+        """Convert a scalar array to a Python int.
+
+        Parameters
+        ----------
+        array : Array
+            A scalar or single-element array.
+
+        Returns
+        -------
+        int
+            The scalar value.
+
+        Raises
+        ------
+        ValueError
+            If the array has more than one element.
+        """
+        ...
+
+    @staticmethod
     def flatten(array: Array) -> Array: ...
 
     @staticmethod

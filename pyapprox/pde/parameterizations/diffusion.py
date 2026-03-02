@@ -60,9 +60,9 @@ class DiffusionParameterization(Generic[Array]):
     def apply(self, physics: object, params_1d: Array) -> None:
         """Apply parameterization: set diffusion field on physics."""
         field = self._field_map(params_1d)
-        min_val = float(self._bkd.min(field))
+        min_val = self._bkd.to_float(self._bkd.min(field))
         if min_val <= 0.0:
-            min_idx = int(self._bkd.argmin(field))
+            min_idx = self._bkd.to_int(self._bkd.argmin(field))
             raise ValueError(
                 f"Diffusion coefficient must be positive at all "
                 f"collocation nodes; found min value {min_val:.2e} "

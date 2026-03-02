@@ -117,12 +117,12 @@ class IsotropicSparseGridFitter(Generic[Array]):
         unique_local = tracker.get_unique_local_indices(pos)
         if len(unique_local) == 0:
             raise ValueError(
-                f"Subspace {_index_to_tuple(full_index)} contributes no "
+                f"Subspace {_index_to_tuple(full_index, self._bkd)} contributes no "
                 f"new samples. This indicates a problem with the growth "
                 f"rule or basis factory configuration."
             )
 
-        key = _index_to_tuple(full_index)
+        key = _index_to_tuple(full_index, self._bkd)
         self._subspaces.append(subspace)
         self._subspace_keys.append(key)
         self._subspace_config.append((config_idx, pos))
@@ -132,7 +132,10 @@ class IsotropicSparseGridFitter(Generic[Array]):
         if self._nconfig_vars == 0:
             return ()
         config_part = full_index[self._nvars_physical :]
-        return tuple(int(config_part[i]) for i in range(self._nconfig_vars))
+        return tuple(
+            self._bkd.to_int(config_part[i])
+            for i in range(self._nconfig_vars)
+        )
 
     def get_samples(self) -> Union[Array, Dict[ConfigIdx, Array]]:
         """Return unique sample locations.
@@ -270,7 +273,7 @@ class IsotropicSparseGridFitter(Generic[Array]):
             tp_weights = subspace.get_quadrature_weights()
             global_idx = tracker.get_subspace_value_indices(j)
             for k in range(len(tp_weights)):
-                idx = int(global_idx[k])
+                idx = self._bkd.to_int(global_idx[k])
                 weights[idx] = weights[idx] + c_j * tp_weights[k]
 
         return weights

@@ -615,7 +615,7 @@ class LejaSequence1D(Generic[Array]):
 
         # Select best result
         fun_arr = self._bkd.asarray(fun_vals)
-        best_idx = int(self._bkd.argmin(fun_arr))
+        best_idx = self._bkd.to_int(self._bkd.argmin(fun_arr))
         best_point = results[best_idx].optima()
 
         # Reshape to (1, nopt_vars) for hstack with sequence

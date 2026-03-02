@@ -261,8 +261,8 @@ class TestQuantileRegressionSolver:
 
         # Predictions at mean of samples
         x_mean = bkd.reshape(bkd.sum(A, axis=0) / nsamples, (1, -1))
-        pred_low = float(bkd.dot(x_mean, coef_low))
-        pred_high = float(bkd.dot(x_mean, coef_high))
+        pred_low = bkd.to_float(bkd.dot(x_mean, coef_low))
+        pred_high = bkd.to_float(bkd.dot(x_mean, coef_high))
 
         # Higher quantile should give higher prediction on average
         # This is a statistical test, may not always pass

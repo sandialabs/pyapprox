@@ -227,7 +227,7 @@ class TestManufacturedHelmholtz2D:
         boundary_indices = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
-                boundary_indices.add(int(idx))
+                boundary_indices.add(bkd.to_int(idx))
         interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
@@ -346,7 +346,7 @@ class TestHelmholtz2DParameterized:
         boundary_indices = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
-                boundary_indices.add(int(idx))
+                boundary_indices.add(bkd.to_int(idx))
         interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 

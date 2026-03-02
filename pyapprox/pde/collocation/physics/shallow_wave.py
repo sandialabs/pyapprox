@@ -399,7 +399,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
             hu_b = hu[boundary_indices]
             u_b = hu_b / h_b
 
-            n = float(normal[0])
+            n = bkd.to_float(normal[0])
 
             # Mass flux: hu * n
             flux_h = hu_b * n
@@ -417,8 +417,8 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
             u_b = hu_b / h_b
             v_b = hv_b / h_b
 
-            nx = float(normal[0])
-            ny = float(normal[1])
+            nx = bkd.to_float(normal[0])
+            ny = bkd.to_float(normal[1])
 
             g_hsq = 0.5 * g * h_b**2
 

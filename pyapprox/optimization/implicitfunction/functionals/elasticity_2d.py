@@ -61,7 +61,7 @@ class OuterWallRadialDisplacementFunctional(Generic[Array]):
         w = bkd.zeros((2 * npts,))
         inv_n = 1.0 / n_bnd
         for k in range(n_bnd):
-            idx = int(outer_indices[k])
+            idx = bkd.to_int(outer_indices[k])
             w[idx] = w[idx] + cos_theta[k] * inv_n
             w[idx + npts] = w[idx + npts] + sin_theta[k] * inv_n
         self._weight_vector = w  # (2*npts,)

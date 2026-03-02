@@ -58,7 +58,7 @@ class GradientNormalOperator(Generic[Array]):
         normal_deriv_matrix = bkd.zeros((self._nboundary_pts, npts))
         normal_deriv_matrix = bkd.copy(normal_deriv_matrix)
         for i in range(self._nboundary_pts):
-            idx = int(boundary_indices[i])
+            idx = bkd.to_int(boundary_indices[i])
             for d in range(self._ndim):
                 normal_deriv_matrix[i, :] = (
                     normal_deriv_matrix[i, :]
@@ -187,7 +187,7 @@ class FluxNormalOperator(Generic[Array]):
         result = bkd.zeros((self._nboundary_pts, npts))
         for d, jac_d in enumerate(flux_jac_components):
             for i in range(self._nboundary_pts):
-                idx = int(self._boundary_indices[i])
+                idx = self._bkd.to_int(self._boundary_indices[i])
                 result[i, :] = result[i, :] + self._normals[i, d] * jac_d[idx, :]
         return result
 
@@ -263,9 +263,9 @@ class TractionNormalOperator(Generic[Array]):
         jac = bkd.copy(jac)
 
         for i in range(nboundary):
-            idx = int(mesh_boundary_indices[i])
-            nx_i = float(normals[i, 0])
-            ny_i = float(normals[i, 1])
+            idx = bkd.to_int(mesh_boundary_indices[i])
+            nx_i = bkd.to_float(normals[i, 0])
+            ny_i = bkd.to_float(normals[i, 1])
 
             if component == 0:
                 # d(t_x)/d(u)

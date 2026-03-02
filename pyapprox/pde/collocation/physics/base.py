@@ -163,7 +163,7 @@ class AbstractPhysics(ABC, Generic[Array]):
         for bc in self._boundary_conditions:
             bc_idx = bc.boundary_indices()
             for ii in range(bc_idx.shape[0]):
-                idx = int(bc_idx[ii])
+                idx = self._bkd.to_int(bc_idx[ii])
                 row_replaced.append(idx)
                 if bc.is_essential():
                     essential.append(idx)

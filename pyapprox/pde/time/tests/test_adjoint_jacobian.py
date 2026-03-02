@@ -72,7 +72,9 @@ class TestAdjointJacobian:
             fwd_sols_minus, times = integrator.solve(init_state)
             qoi_minus = integrator._functional(fwd_sols_minus, param_minus)
 
-            fd_grad[0, ii] = float((qoi_plus - qoi_minus) / (2 * eps))
+            fd_grad[0, ii] = bkd.to_float(
+                (qoi_plus - qoi_minus) / (2 * eps)
+            )
 
         return fd_grad
 

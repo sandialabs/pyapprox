@@ -169,7 +169,7 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
                     # Contribution: n_J * A_{comp,J,k,L} * D_L[bdry, :]
                     # goes into block k (columns k_idx*npts:(k_idx+1)*npts)
                     for b in range(self._nboundary):
-                        mesh_idx = int(idx[b])
+                        mesh_idx = self._bkd.to_int(idx[b])
                         coeff = n_vec[J_idx][b] * A_vals[b]
                         jac[b, k_idx * npts : (k_idx + 1) * npts] = (
                             jac[b, k_idx * npts : (k_idx + 1) * npts]

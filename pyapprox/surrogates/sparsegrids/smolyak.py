@@ -24,21 +24,24 @@ from pyapprox.surrogates.sparsegrids.smolyak_dispatch import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _index_to_tuple(index: Array) -> Tuple[int, ...]:
+def _index_to_tuple(
+    index: Array, bkd: Backend[Array]
+) -> Tuple[int, ...]:
     """Convert array index to hashable tuple.
 
     Parameters
     ----------
     index : Array
         1D array of shape (nvars,)
+    bkd : Backend[Array]
+        Computational backend.
 
     Returns
     -------
     Tuple[int, ...]
         Hashable tuple representation of the index
     """
-    # Iterate directly over elements - works for 1D arrays
-    return tuple(int(index[i]) for i in range(index.shape[0]))
+    return tuple(bkd.to_int(index[i]) for i in range(index.shape[0]))
 
 
 def compute_smolyak_coefficients(
@@ -148,7 +151,7 @@ def is_downward_closed(subspace_indices: Array, bkd: Backend[Array]) -> bool:
     # Build set of index tuples for fast lookup
     index_set: Set[Tuple[int, ...]] = set()
     for j in range(nsubspaces):
-        index_set.add(_index_to_tuple(subspace_indices[:, j]))
+        index_set.add(_index_to_tuple(subspace_indices[:, j], bkd))
 
     # Check each index
     for j in range(nsubspaces):
@@ -156,8 +159,8 @@ def is_downward_closed(subspace_indices: Array, bkd: Backend[Array]) -> bool:
 
         # Check all predecessors (indices with one coordinate decremented)
         for dim in range(nvars):
-            if int(index[dim]) > 0:
-                predecessor = list(_index_to_tuple(index))
+            if bkd.to_int(index[dim]) > 0:
+                predecessor = list(_index_to_tuple(index, bkd))
                 predecessor[dim] -= 1
                 if tuple(predecessor) not in index_set:
                     return False
@@ -265,12 +268,12 @@ def check_admissibility(
     # Build set of existing indices
     index_set: Set[Tuple[int, ...]] = set()
     for j in range(nsubspaces):
-        index_set.add(_index_to_tuple(existing_indices[:, j]))
+        index_set.add(_index_to_tuple(existing_indices[:, j], bkd))
 
     # Check all predecessors
     for dim in range(nvars):
-        if int(candidate[dim]) > 0:
-            predecessor = list(_index_to_tuple(candidate))
+        if bkd.to_int(candidate[dim]) > 0:
+            predecessor = list(_index_to_tuple(candidate, bkd))
             predecessor[dim] -= 1
             if tuple(predecessor) not in index_set:
                 return False

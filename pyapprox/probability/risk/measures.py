@@ -197,7 +197,7 @@ class ValueAtRisk(RiskMeasureBase[Array]):
         weights_sum = self._bkd.sum(self._weights)
         ecdf = self._bkd.cumsum(self._weights) / weights_sum
         # Find first index where ecdf >= beta
-        idx = int(self._bkd.sum(ecdf < self._beta))
+        idx = self._bkd.to_int(self._bkd.sum(ecdf < self._beta))
         return self._samples[idx]
 
     def _value_with_index(self) -> tuple:
@@ -205,7 +205,7 @@ class ValueAtRisk(RiskMeasureBase[Array]):
         assert self._samples is not None and self._weights is not None
         weights_sum = self._bkd.sum(self._weights)
         ecdf = self._bkd.cumsum(self._weights) / weights_sum
-        idx = int(self._bkd.sum(ecdf < self._beta))
+        idx = self._bkd.to_int(self._bkd.sum(ecdf < self._beta))
         return self._samples[idx], idx
 
 

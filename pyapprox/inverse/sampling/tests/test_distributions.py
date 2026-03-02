@@ -181,11 +181,15 @@ class GaussianMixtureLogPosterior(Generic[Array]):
         log_p1 = self._log_norm - 0.5 * ((x - self._mu1) / self._sigma) ** 2
         log_p2 = self._log_norm - 0.5 * ((x - self._mu2) / self._sigma) ** 2
 
-        # Numerically stable log-sum-exp
-        log_half = np.log(0.5)
-        max_log = np.maximum(log_p1, log_p2)
-        result = max_log + np.log(np.exp(log_p1 - max_log) + np.exp(log_p2 - max_log))
-        return self._bkd.asarray(result + log_half)
+        # Numerically stable log-sum-exp (use bkd to avoid
+        # numpy __array_wrap__ deprecation with torch tensors)
+        bkd = self._bkd
+        log_half = bkd.log(bkd.asarray(0.5))
+        max_log = bkd.maximum(log_p1, log_p2)
+        result = max_log + bkd.log(
+            bkd.exp(log_p1 - max_log) + bkd.exp(log_p2 - max_log)
+        )
+        return result + log_half
 
     def true_mean(self) -> float:
         """

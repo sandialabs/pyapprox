@@ -41,9 +41,9 @@ def get_final_pivots_from_sequential_pivots(
     """
     pivots = bkd.arange(npivots, dtype=bkd.int64_dtype())
     for ii in range(sequential_pivots.shape[0]):
-        pivot = int(sequential_pivots[ii])
+        pivot = bkd.to_int(sequential_pivots[ii])
         # swap
-        tmp = int(pivots[ii])
+        tmp = bkd.to_int(pivots[ii])
         pivots[ii] = pivots[pivot]
         pivots[pivot] = tmp
     return pivots
@@ -123,16 +123,17 @@ class PivotedLUFactorizer(Generic[Array]):
             # Find where the requested pivot is in current pivot order
             target = int(self._init_pivots[it])
             for idx in range(it, self._nrows):
-                if int(self._pivots[idx]) == target:
+                if self._bkd.to_int(self._pivots[idx]) == target:
                     return idx
             return it  # fallback
         else:
             # Choose pivot with maximum magnitude
-            return int(self._bkd.argmax(self._bkd.abs(self._LU_factor[it:, it]))) + it
+            col_abs = self._bkd.abs(self._LU_factor[it:, it])
+            return self._bkd.to_int(self._bkd.argmax(col_abs)) + it
 
     def _terminate(self, it: int) -> bool:
         """Check if factorization should terminate at iteration it."""
-        pivot_val = float(self._bkd.abs(self._LU_factor[it, it]))
+        pivot_val = self._bkd.to_float(self._bkd.abs(self._LU_factor[it, it]))
         if pivot_val < self._tol:
             self._termination_msg = (
                 f"pivot {pivot_val:.2e} is too small. Stopping factorization."

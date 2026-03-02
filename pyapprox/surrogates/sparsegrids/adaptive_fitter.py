@@ -137,7 +137,10 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if self._nconfig_vars == 0:
             return _SF_KEY
         config_part = full_index[self._nvars_physical :]
-        return tuple(int(config_part[i]) for i in range(self._nconfig_vars))
+        return tuple(
+            self._bkd.to_int(config_part[i])
+            for i in range(self._nconfig_vars)
+        )
 
     def _create_subspace(self, full_index: Array) -> None:
         """Create a subspace and register with the appropriate tracker."""
@@ -155,10 +158,11 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         unique_local = tracker.get_unique_local_indices(pos)
         if len(unique_local) == 0:
             raise ValueError(
-                f"Subspace {_index_to_tuple(full_index)} contributes no new samples."
+                f"Subspace {_index_to_tuple(full_index, self._bkd)} "
+                f"contributes no new samples."
             )
 
-        key = _index_to_tuple(full_index)
+        key = _index_to_tuple(full_index, self._bkd)
         self._subspaces.append(subspace)
         self._subspace_keys.append(key)
         self._tracker_positions[config_idx][key] = pos
@@ -220,7 +224,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             best_index = self._index_gen._indices[:, best_idx]
 
             if self._verbosity >= 1:
-                idx_tuple = _index_to_tuple(best_index)
+                idx_tuple = _index_to_tuple(best_index, self._bkd)
                 print(
                     f"[Adaptive SG] Refining {idx_tuple}: "
                     f"priority={priority:.2e}, error={error:.2e}"
@@ -258,7 +262,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
         for j in range(new_indices.shape[1]):
             full_index = new_indices[:, j]
-            key = _index_to_tuple(full_index)
+            key = _index_to_tuple(full_index, self._bkd)
             config_idx = self._get_config_idx(full_index)
             tracker = self._trackers[config_idx]
 
@@ -334,7 +338,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         # For each candidate, build CandidateInfo and evaluate
         for j in range(cand_indices.shape[1]):
             cand_index = cand_indices[:, j]
-            cand_key = _index_to_tuple(cand_index)
+            cand_key = _index_to_tuple(cand_index, self._bkd)
 
             # Find the subspace
             if cand_key not in self._subspace_keys:
@@ -376,7 +380,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         tracker = self._trackers[config_idx]
 
         # Find position in tracker via stored mapping
-        cand_key = _index_to_tuple(candidate_index)
+        cand_key = _index_to_tuple(candidate_index, self._bkd)
         pos = self._tracker_positions[config_idx][cand_key]
 
         unique_local = tracker.get_unique_local_indices(pos)
@@ -424,7 +428,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Get subspaces corresponding to given indices."""
         result = []
         for j in range(indices.shape[1]):
-            key = _index_to_tuple(indices[:, j])
+            key = _index_to_tuple(indices[:, j], self._bkd)
             idx = self._subspace_keys.index(key)
             result.append(self._subspaces[idx])
         return result
@@ -559,7 +563,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             idx_config = self._get_config_idx(idx)
             if idx_config != config_idx:
                 continue
-            key = _index_to_tuple(idx)
+            key = _index_to_tuple(idx, self._bkd)
             if key in pos_map:
                 result.add(pos_map[key])
         return result

@@ -128,6 +128,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return float(array.flat[0])
 
     @staticmethod
+    def to_int(array: NDArray[Any]) -> int:
+        if array.size != 1:
+            raise ValueError(
+                f"to_int requires a single-element array, got shape {array.shape}"
+            )
+        return int(array.flat[0])
+
+    @staticmethod
     def flatten(array: NDArray[Any]) -> NDArray[Any]:
         return array.flatten()
 

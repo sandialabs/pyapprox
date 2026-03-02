@@ -248,7 +248,8 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         from pyapprox.statest.allocation import CVAllocationResult
 
         npartition_samples = [target_cost / self._costs.sum()]
-        rounded_npartition_samples = [int(self._bkd.floor(npartition_samples[0]))]
+        n_floor = self._bkd.floor(npartition_samples[0])
+        rounded_npartition_samples = [self._bkd.to_int(n_floor)]
         if isinstance(self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
             min_nhf_samples = 2
         else:

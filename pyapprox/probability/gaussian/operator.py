@@ -148,14 +148,14 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
             nvectors = min(batch_size, n_active - cnt)
             vectors = self._bkd.zeros((self._nvars, nvectors))
             for jj in range(nvectors):
-                idx = int(active_indices[cnt + jj])
+                idx = self._bkd.to_int(active_indices[cnt + jj])
                 vectors[idx, jj] = 1.0
 
             tmp = self._cov_op.apply_transpose(vectors)
             result = self._cov_op.apply(tmp)
 
             for jj in range(nvectors):
-                idx = int(active_indices[cnt + jj])
+                idx = self._bkd.to_int(active_indices[cnt + jj])
                 diagonal[cnt + jj] = result[idx, jj]
 
             cnt += nvectors

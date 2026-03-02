@@ -87,7 +87,7 @@ class FluxComputer(Generic[Array]):
 
         for dim in range(self._ndim):
             grad_dim_boundary = grad[dim][indices]
-            flux = flux + grad_dim_boundary * float(normal[dim])
+            flux = flux + grad_dim_boundary * self._bkd.to_float(normal[dim])
 
         # Scale by diffusion coefficient (flux = -D * grad·n, but we return
         # grad·n since the sign convention depends on residual formulation)
@@ -121,10 +121,11 @@ class FluxComputer(Generic[Array]):
             D_dim = self._D_matrices[dim]
             # Extract rows corresponding to boundary indices
             for i, idx in enumerate(indices):
-                idx_int = int(idx)
+                idx_int = self._bkd.to_int(idx)
                 for j in range(nstates):
+                    n_d = self._bkd.to_float(normal[dim])
                     flux_jac[i, j] = (
-                        flux_jac[i, j] + float(normal[dim]) * D_dim[idx_int, j]
+                        flux_jac[i, j] + n_d * D_dim[idx_int, j]
                     )
 
         return self._diffusion * flux_jac
@@ -176,4 +177,4 @@ def flux_mismatch_norm(
         L2 norm of flux mismatch.
     """
     mismatch = compute_flux_mismatch(flux_left, flux_right, bkd)
-    return float(bkd.norm(mismatch))
+    return bkd.to_float(bkd.norm(mismatch))

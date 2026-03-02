@@ -228,7 +228,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         h_final = final_state[:npts]
 
         assert bkd.isfinite(bkd.norm(final_state))
-        assert float(bkd.min(h_final)) > 0.0
+        assert bkd.to_float(bkd.min(h_final)) > 0.0
 
         # Quiescent state should remain nearly unchanged
         bkd.assert_allclose(h_final, h_init, rtol=1e-6, atol=1e-10)
@@ -270,7 +270,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         def get_bc_val(comp_idx, bnd_idx, t):
             sol = man_sol.functions["solution"](nodes[None, :], t)
-            return float(sol[int(bnd_idx), comp_idx])
+            return bkd.to_float(sol[bkd.to_int(bnd_idx), comp_idx])
 
         # h boundaries
         bc_h_left = constant_dirichlet_bc(bkd, left_idx, get_bc_val(0, left_idx, 0.0))
@@ -307,7 +307,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         )
 
         solutions, times = model.solve_transient(state0, config)
-        t_final = float(bkd.to_numpy(times[-1]))
+        t_final = bkd.to_float(times[-1])
         sol_exact = man_sol.functions["solution"](nodes[None, :], t_final)
         exact_final = bkd.hstack([sol_exact[:, 0], sol_exact[:, 1]])
 

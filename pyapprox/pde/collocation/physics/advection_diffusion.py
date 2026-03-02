@@ -410,7 +410,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         for dim in range(ndim):
             D_dim = self._D_matrices[dim]
             grad_u_dim = D_dim @ state
-            flux = flux + grad_u_dim[boundary_indices] * float(normal[dim])
+            flux = flux + grad_u_dim[boundary_indices] * self._bkd.to_float(normal[dim])
 
         # Scale by diffusion coefficient
         if self._is_variable_diffusion:

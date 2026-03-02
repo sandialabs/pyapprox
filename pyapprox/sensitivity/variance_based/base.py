@@ -132,11 +132,11 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
         for ii in range(idx.shape[0]):
             index = self._interaction_terms[:, idx[ii]]
             active_vars = self._bkd.where(index > 0)[0]
-            nactive_vars = int(index.sum())
+            nactive_vars = self._bkd.to_int(index.sum())
 
             # Store mapping from active variables to index
             key = hash_index(active_vars, self._bkd)
-            sobol_indices_dict[key] = int(idx[ii])
+            sobol_indices_dict[key] = self._bkd.to_int(idx[ii])
 
             # Subtract lower-order contributions
             if nactive_vars > 1:

@@ -55,7 +55,7 @@ class DtNResidual(Generic[Array]):
         self._n_interfaces = len(self._interface_ids)
 
         # Total interface DOFs
-        self._total_dofs = int(interface_dof_offsets[-1])
+        self._total_dofs = self._bkd.to_int(interface_dof_offsets[-1])
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -84,8 +84,8 @@ class DtNResidual(Generic[Array]):
         """
         interface_coeffs = {}
         for i, interface_id in enumerate(self._interface_ids):
-            start = int(self._interface_dof_offsets[i])
-            end = int(self._interface_dof_offsets[i + 1])
+            start = self._bkd.to_int(self._interface_dof_offsets[i])
+            end = self._bkd.to_int(self._interface_dof_offsets[i + 1])
             interface_coeffs[interface_id] = global_dofs[start:end]
         return interface_coeffs
 
@@ -105,8 +105,8 @@ class DtNResidual(Generic[Array]):
         bkd = self._bkd
         global_dofs = bkd.zeros((self._total_dofs,))
         for i, interface_id in enumerate(self._interface_ids):
-            start = int(self._interface_dof_offsets[i])
-            int(self._interface_dof_offsets[i + 1])
+            start = self._bkd.to_int(self._interface_dof_offsets[i])
+            self._bkd.to_int(self._interface_dof_offsets[i + 1])
             coeffs = interface_coeffs[interface_id]
             for j, val in enumerate(coeffs):
                 global_dofs[start + j] = val
@@ -196,8 +196,8 @@ class DtNResidual(Generic[Array]):
         # Pack into residual vector
         residual = self._bkd.zeros((self._total_dofs,))
         for i, interface_id in enumerate(self._interface_ids):
-            start = int(self._interface_dof_offsets[i])
-            end = int(self._interface_dof_offsets[i + 1])
+            start = self._bkd.to_int(self._interface_dof_offsets[i])
+            end = self._bkd.to_int(self._interface_dof_offsets[i + 1])
 
             flux_left, flux_right = fluxes[interface_id]
             # Flux mismatch: should be zero for conservation

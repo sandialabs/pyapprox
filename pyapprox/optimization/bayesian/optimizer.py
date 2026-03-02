@@ -524,7 +524,7 @@ class BayesianOptimizer(Generic[Array]):
         else:
             best_idx_arr = self._bkd.argmax(y)
 
-        best_idx = int(self._bkd.to_numpy(best_idx_arr).item())
+        best_idx = self._bkd.to_int(best_idx_arr)
         best_x = self._X_all[:, best_idx : best_idx + 1]
         best_y = self._y_all[:, best_idx : best_idx + 1]
         return best_x, best_y

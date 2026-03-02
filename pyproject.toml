@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "High-dimensional function approximation, uncertainty quantification, and experimental design"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
 ]
@@ -18,7 +18,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -47,7 +46,8 @@ rol = ["rol-python"]
 test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2"]
 lint = ["mypy>=1.8", "ruff>=0.3"]
 docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
-all = ["pyapprox[fem,umbridge,numba,parallel,cvxpy,rol,test,lint,docs]"]
+docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy]"]
+all = ["pyapprox[docs-build,rol,test,lint]"]
 
 [project.urls]
 Homepage = "https://github.com/sandialabs/pyapprox"
@@ -69,6 +69,10 @@ testpaths = ["pyapprox"]
 filterwarnings = [
     "ignore::DeprecationWarning:scipy.*:",
     "ignore::DeprecationWarning:torch.*:",
+    "ignore::DeprecationWarning:skfem.*:",
+    "ignore::UserWarning:scipy.optimize.*:",
+    "ignore::scipy.sparse.SparseEfficiencyWarning:",
+    "ignore:The balance properties of Sobol:UserWarning",
 ]
 markers = [
     "slow_on: marks tests as slow (>5s). Args: backend names or '*' for all.",

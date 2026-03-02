@@ -118,7 +118,7 @@ class MultiIndexBasis(ABC, Generic[Array]):
 
         # Update univariate bases to have enough terms
         for dd in range(self.nvars()):
-            max_degree = int(self._bkd.to_numpy(self._bkd.max(indices[dd, :])))
+            max_degree = self._bkd.to_int(self._bkd.max(indices[dd, :]))
             # Need at least max_degree + 1 terms (for degree 0 to max_degree)
             needed_terms = max_degree + 1
             if self._bases_1d[dd].nterms() < needed_terms:

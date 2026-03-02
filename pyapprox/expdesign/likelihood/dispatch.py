@@ -71,10 +71,37 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 # --- torch.compile wrapper factories ---
 
 
+def _check_torch_compile_available() -> None:
+    """Verify torch.compile can work (C++ compiler available).
+
+    Raises
+    ------
+    RuntimeError
+        If no working C++ compiler is found for torch inductor.
+    """
+    import subprocess
+
+    for cxx in ("clang++", "g++"):
+        try:
+            subprocess.check_output(
+                [cxx, "--version"], stderr=subprocess.DEVNULL
+            )
+            return
+        except (subprocess.SubprocessError, FileNotFoundError):
+            continue
+    raise RuntimeError(
+        "torch.compile requires a working C++ compiler (clang++ or g++) "
+        "but none was found. On macOS, run 'sudo xcodebuild -license' "
+        "and install Xcode Command Line Tools. On Linux, install g++ "
+        "(e.g. 'apt install g++' or 'conda install -c conda-forge gxx')."
+    )
+
+
 def _make_compiled_logpdf() -> LogpdfMatrixImpl:
     """Create a torch.compile-wrapped logpdf_matrix implementation."""
     import torch
 
+    _check_torch_compile_available()
     from pyapprox.expdesign.likelihood.compute_torch import (
         logpdf_matrix_torch,
     )
@@ -97,6 +124,7 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl:
     """Create a torch.compile-wrapped jacobian_matrix implementation."""
     import torch
 
+    _check_torch_compile_available()
     from pyapprox.expdesign.likelihood.compute_torch import (
         jacobian_matrix_torch,
     )
@@ -134,6 +162,7 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
     """Create a torch.compile-wrapped evidence jacobian implementation."""
     import torch
 
+    _check_torch_compile_available()
     from pyapprox.expdesign.likelihood.compute_torch import (
         evidence_jacobian_torch,
         jacobian_matrix_torch,

@@ -106,7 +106,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         mu_values : float or Array
             Shear modulus values. Must be positive.
         """
-        min_val = float(self._bkd.min(self._bkd.asarray(mu_values).ravel()))
+        mu_arr = self._bkd.asarray(mu_values).ravel()
+        min_val = self._bkd.to_float(self._bkd.min(mu_arr))
         if min_val <= 0.0:
             raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         if isinstance(mu_values, (int, float)):
@@ -125,7 +126,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda_values : float or Array
             Lame's first parameter values. Must be non-negative.
         """
-        min_val = float(self._bkd.min(self._bkd.asarray(lamda_values).ravel()))
+        lam_arr = self._bkd.asarray(lamda_values).ravel()
+        min_val = self._bkd.to_float(self._bkd.min(lam_arr))
         if min_val < 0.0:
             raise ValueError(f"lamda must be non-negative; found min {min_val:.2e}")
         if isinstance(lamda_values, (int, float)):
@@ -429,8 +431,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         sigma_yy = lam * trace_e + 2.0 * mu * eyy
 
         # Traction t = σ · n
-        nx = float(normal[0])
-        ny = float(normal[1])
+        nx = bkd.to_float(normal[0])
+        ny = bkd.to_float(normal[1])
         traction_x = sigma_xx * nx + sigma_xy * ny
         traction_y = sigma_xy * nx + sigma_yy * ny
 

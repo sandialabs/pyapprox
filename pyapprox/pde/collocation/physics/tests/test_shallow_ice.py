@@ -179,16 +179,20 @@ class TestShallowIcePhysics(PhysicsTestBase):
         if exact_solution.ndim == 2:
             exact_solution = exact_solution[:, 0]
 
-        bc_left = constant_dirichlet_bc(bkd, left_idx, float(exact_solution[left_idx]))
+        li = bkd.to_int(left_idx)
+        ri = bkd.to_int(right_idx)
+        bc_left = constant_dirichlet_bc(
+            bkd, left_idx, bkd.to_float(exact_solution[li])
+        )
         bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(exact_solution[right_idx])
+            bkd, right_idx, bkd.to_float(exact_solution[ri])
         )
         physics.set_boundary_conditions([bc_left, bc_right])
 
         # Small perturbation from exact solution
         np.random.seed(42)
-        perturbation = 0.01 * exact_solution * np.random.randn(npts)
-        initial_guess = exact_solution + bkd.array(perturbation)
+        pert_np = 0.01 * bkd.to_numpy(exact_solution) * np.random.randn(npts)
+        initial_guess = exact_solution + bkd.array(pert_np)
 
         # Solve with NewtonSolver
         residual_wrapper = PhysicsNewtonResidual(physics, time=0.0)
@@ -254,9 +258,13 @@ class TestShallowIcePhysics(PhysicsTestBase):
         exact_at_0 = man_sol.functions["solution"](nodes[None, :], 0.0)
         left_idx = bc_mesh.boundary_indices(0)
         right_idx = bc_mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(bkd, left_idx, float(exact_at_0[int(left_idx)]))
+        li = bkd.to_int(left_idx)
+        ri = bkd.to_int(right_idx)
+        bc_left = constant_dirichlet_bc(
+            bkd, left_idx, bkd.to_float(exact_at_0[li])
+        )
         bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(exact_at_0[int(right_idx)])
+            bkd, right_idx, bkd.to_float(exact_at_0[ri])
         )
         physics.set_boundary_conditions([bc_left, bc_right])
 

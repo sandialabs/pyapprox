@@ -280,8 +280,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Initial condition: w_0 = (dy_0/dp)·v
         # If initial condition depends on params via initial_param_jacobian
         if hasattr(self._time_residual, "initial_param_jacobian"):
-            deltat_0 = float(times[1] - times[0])
-            self._time_residual.set_time(float(times[0]), deltat_0, fwd_sols[:, 0])
+            deltat_0 = self._bkd.to_float(times[1] - times[0])
+            t0 = self._bkd.to_float(times[0])
+            self._time_residual.set_time(t0, deltat_0, fwd_sols[:, 0])
             dy0dp = self._time_residual.initial_param_jacobian()
             # Only use residual params (exclude functional params)
             n_unique = self._functional.nunique_params()
@@ -295,9 +296,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         # Forward sweep: propagate sensitivity
         for nn in range(1, ntimes):
-            deltat_n = float(times[nn] - times[nn - 1])
+            deltat_n = self._bkd.to_float(times[nn] - times[nn - 1])
             self._time_residual.set_time(
-                float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
+                self._bkd.to_float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
             )
 
             # dR_n/dy_n (diagonal block)
@@ -394,8 +395,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         s_sols = self._bkd.copy(s_sols)
 
         # Initial condition at final time
-        deltat_N = float(times[-1] - times[-2])
-        self._time_residual.set_time(float(times[-2]), deltat_N, fwd_sols[:, -2])
+        deltat_N = self._bkd.to_float(times[-1] - times[-2])
+        t_Nm1 = self._bkd.to_float(times[-2])
+        self._time_residual.set_time(t_Nm1, deltat_N, fwd_sols[:, -2])
 
         # Functional Hessian terms at final time
         # ∇_{yy}Q · w and ∇_{yu}Q · v
@@ -442,12 +444,12 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         # Backward sweep
         for nn in range(ntimes - 2, 0, -1):
-            deltat_np1 = float(times[nn + 1] - times[nn])
-            deltat_n = float(times[nn] - times[nn - 1])
+            deltat_np1 = self._bkd.to_float(times[nn + 1] - times[nn])
+            deltat_n = self._bkd.to_float(times[nn] - times[nn - 1])
 
             # Diagonal block (dR_n/dy_n)^T for solving s_n
             self._time_residual.set_time(
-                float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
+                self._bkd.to_float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
             )
             drduT_diag = self._time_residual.adjoint_diag_jacobian(fwd_sols[:, nn])
 
@@ -485,7 +487,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 # For explicit: Hessian at y_n comes from R_{n+1}
                 # Set time context for R_{n+1}
                 self._time_residual.set_time(
-                    float(times[nn]), deltat_np1, fwd_sols[:, nn]
+                    self._bkd.to_float(times[nn]), deltat_np1, fwd_sols[:, nn]
                 )
                 rss_hvp = self._time_residual.state_state_hvp(
                     fwd_sols[:, nn],  # y_{n} = prev state for R_{n+1}
@@ -521,7 +523,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
                 # Contribution from R_{n+1} (using prev_* methods)
                 # Set time to t_n for evaluating f at y_n
-                self._time_residual.native_residual.set_time(float(times[nn]))
+                self._time_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
                 rss_hvp_np1 = self._time_residual.prev_state_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}
@@ -562,8 +564,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             s_sols[:, nn] = self._bkd.solve(drduT_diag, rhs)
 
         # Final step at t=0
-        deltat_1 = float(times[1] - times[0])
-        self._time_residual.set_time(float(times[0]), deltat_1, fwd_sols[:, 0])
+        deltat_1 = self._bkd.to_float(times[1] - times[0])
+        t0 = self._bkd.to_float(times[0])
+        self._time_residual.set_time(t0, deltat_1, fwd_sols[:, 0])
         drduT_diag = self._time_residual.native_residual.mass_matrix(
             fwd_sols.shape[0]
         ).T
@@ -631,9 +634,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         # Contributions from each time step
         for nn in range(1, len(times)):
-            deltat_n = float(times[nn] - times[nn - 1])
+            deltat_n = self._bkd.to_float(times[nn] - times[nn - 1])
             self._time_residual.set_time(
-                float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
+                self._bkd.to_float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
             )
 
             # (dR_n/dp)^T · s_n
@@ -667,7 +670,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # For Crank-Nicolson: also add contribution from R_{n+1}
             # (λ_{n+1}^T · ∂²R_{n+1}/∂p ∂y_n · w_n)
             if self._is_crank_nicolson() and nn < len(times) - 1:
-                self._time_residual.native_residual.set_time(float(times[nn]))
+                self._time_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
                 rps_hvp_np1 = self._time_residual.prev_param_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}

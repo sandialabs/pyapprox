@@ -38,10 +38,11 @@ def _evaluate_sp_lambda(
     Array
         Function values. Shape: (npts,) if oned else (npts, 1).
     """
-    if len(xx.shape) == 1:
-        sp_args = (xx,)
+    xx_np = bkd.to_numpy(xx)
+    if len(xx_np.shape) == 1:
+        sp_args = (xx_np,)
     else:
-        sp_args = tuple(xx[ii, :] for ii in range(xx.shape[0]))
+        sp_args = tuple(xx_np[ii, :] for ii in range(xx_np.shape[0]))
     vals = sp_lambda(*sp_args)
     # Check if vals is array-like (has shape attribute)
     if hasattr(vals, "shape"):
@@ -51,9 +52,9 @@ def _evaluate_sp_lambda(
         return vals_arr[:, None] if vals_arr.ndim == 1 else vals_arr
     # vals is a scalar
     if oned:
-        npts = xx.shape[0] if len(xx.shape) == 1 else xx.shape[1]
+        npts = xx_np.shape[0] if len(xx_np.shape) == 1 else xx_np.shape[1]
         return bkd.full((npts,), float(vals))
-    npts = xx.shape[0] if len(xx.shape) == 1 else xx.shape[1]
+    npts = xx_np.shape[0] if len(xx_np.shape) == 1 else xx_np.shape[1]
     return bkd.full((npts, 1), float(vals))
 
 
@@ -84,10 +85,13 @@ def _evaluate_transient_sp_lambda(
     Array
         Function values. Shape: (npts,) if oned else (npts, 1).
     """
-    if len(xx.shape) == 1:
-        sp_args = (xx, time)
+    xx_np = bkd.to_numpy(xx)
+    if len(xx_np.shape) == 1:
+        sp_args = (xx_np, time)
     else:
-        sp_args = tuple(xx[ii, :] for ii in range(xx.shape[0])) + (time,)
+        sp_args = tuple(
+            xx_np[ii, :] for ii in range(xx_np.shape[0])
+        ) + (time,)
     vals = sp_lambda(*sp_args)
     # Check if vals is array-like (has shape attribute)
     if hasattr(vals, "shape"):
@@ -97,9 +101,9 @@ def _evaluate_transient_sp_lambda(
         return vals_arr[:, None] if vals_arr.ndim == 1 else vals_arr
     # vals is a scalar
     if oned:
-        npts = xx.shape[0] if len(xx.shape) == 1 else xx.shape[1]
+        npts = xx_np.shape[0] if len(xx_np.shape) == 1 else xx_np.shape[1]
         return bkd.full((npts,), float(vals))
-    npts = xx.shape[0] if len(xx.shape) == 1 else xx.shape[1]
+    npts = xx_np.shape[0] if len(xx_np.shape) == 1 else xx_np.shape[1]
     return bkd.full((npts, 1), float(vals))
 
 
