@@ -123,7 +123,9 @@ class TestLikelihoodValuesStandalone:
     def test_outer_likelihood_shape(self, bkd):
         """Test outer likelihood output shape is (1, nouter)."""
         self._setup_data(bkd)
-        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
+        likelihood, _, _, _ = self._create_outer_likelihood(
+            bkd, self._nobs, self._nouter
+        )
         weights = bkd.ones((self._nobs, 1)) / self._nobs
         result = likelihood(weights)
         assert result.shape == (1, self._nouter)
@@ -131,7 +133,9 @@ class TestLikelihoodValuesStandalone:
     def test_outer_likelihood_jacobian_shape(self, bkd):
         """Test outer likelihood Jacobian shape is (nouter, nobs)."""
         self._setup_data(bkd)
-        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
+        likelihood, _, _, _ = self._create_outer_likelihood(
+            bkd, self._nobs, self._nouter
+        )
         weights = bkd.ones((self._nobs, 1)) / self._nobs
         jac = likelihood.jacobian(weights)
         assert jac.shape == (self._nouter, self._nobs)
@@ -185,7 +189,9 @@ class TestLikelihoodValuesStandalone:
             for j in range(nouter):
                 residuals = observations[:, j] - shapes[:, i]
                 effective_variances = noise_variances / weights[:, 0]
-                expected = self._manual_gaussian_logpdf(bkd, residuals, effective_variances)
+                expected = self._manual_gaussian_logpdf(
+                    bkd, residuals, effective_variances
+                )
 
                 bkd.assert_allclose(
                     bkd.asarray([log_like_matrix[i, j]]),
@@ -215,9 +221,9 @@ class TestLikelihoodValuesStandalone:
 
         # Higher weights = smaller variance = likelihood values change
         # (not necessarily higher due to quadratic term)
-        assert not bkd.allclose(
-            log_like1, log_like2, rtol=1e-6
-        ), "Likelihood should change with different weights"
+        assert not bkd.allclose(log_like1, log_like2, rtol=1e-6), (
+            "Likelihood should change with different weights"
+        )
 
     def test_likelihood_heteroscedastic_variances(self, bkd):
         """Test likelihood handles different noise variance per observation."""
@@ -368,7 +374,9 @@ class TestLikelihoodValuesStandalone:
     def test_likelihood_values_finite(self, bkd):
         """Test all likelihood values are finite."""
         self._setup_data(bkd)
-        likelihood, _, _, _ = self._create_outer_likelihood(bkd, self._nobs, self._nouter)
+        likelihood, _, _, _ = self._create_outer_likelihood(
+            bkd, self._nobs, self._nouter
+        )
 
         np.random.seed(456)
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))

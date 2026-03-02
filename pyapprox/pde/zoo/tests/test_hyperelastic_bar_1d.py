@@ -1,8 +1,8 @@
 """Tests for the 1D hyperelastic bar zoo factory."""
 
 
-import pytest
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -20,6 +20,8 @@ from pyapprox.pde.field_maps.kle_factory import (
 from pyapprox.pde.zoo.hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
 )
+
+
 def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
     """Helper: create lognormal KLE field map on mesh nodes."""
     physical_pts = mesh.points()  # shape (1, npts)

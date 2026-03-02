@@ -23,8 +23,9 @@ from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedStokes,
     ManufacturedTwoSpeciesReactionDiffusion,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+
+
 class QuadraticLinearCoupledReaction(Generic[Array]):
     """Test reaction: R0 = u0² - u1, R1 = u1 + u0.
 

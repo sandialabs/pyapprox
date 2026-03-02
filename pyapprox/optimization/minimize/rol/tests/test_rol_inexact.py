@@ -195,7 +195,7 @@ class _ConstrainedModel:
 
     def jacobian(self, sample):
         z = sample[0, 0]
-        x1 = sample[1, 0]
+        _x1 = sample[1, 0]
         zero = 0.0 * z
         return self._bkd.asarray([
             [2.0 * z + zero, 1.0 + zero, zero],
@@ -510,9 +510,6 @@ class TestROLInexactQuadrature:
 
     def _solve_with_strategy(self, bkd, model, strategy, inexact=True):
         """Solve optimization with a given strategy."""
-        from pyapprox.optimization.minimize.inexact.quadrature import (
-            QuadratureStrategy,
-        )
 
         stat = SampleAverageMean(bkd)
         wrapper = InexactWrapper(
@@ -626,7 +623,7 @@ class TestROLInexactQuadrature:
         # Exact baseline at high level
         result_exact = self._solve_exact_baseline(bkd, model, tp_rule, level=5)
         assert result_exact.success()
-        x_exact = float(bkd.to_numpy(result_exact.optima())[0, 0])
+        _x_exact = float(bkd.to_numpy(result_exact.optima())[0, 0])
 
         # Convergence: collect errors at increasing max_level
         errors = []

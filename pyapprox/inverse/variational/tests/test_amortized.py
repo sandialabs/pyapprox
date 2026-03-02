@@ -10,9 +10,8 @@ All tests that require optimization or gradients are Torch-only, since
 NumPy does not yet support analytical or autograd derivatives.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.expdesign.quadrature.gaussian import (
     GaussianQuadratureSampler,

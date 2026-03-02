@@ -151,7 +151,7 @@ class TestTorchAutogradComparison:
         """Set up torch with float64 precision."""
         torch.set_default_dtype(torch.float64)
         torch.manual_seed(42)
-        bkd = TorchBkd()
+        _bkd = TorchBkd()
         self._tol = 1e-8
         self._Amat = torch.tensor([[-0.5, 0.1], [0.2, -0.3]], dtype=torch.float64)
         self._dt = 0.1

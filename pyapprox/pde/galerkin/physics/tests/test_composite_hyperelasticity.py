@@ -10,6 +10,7 @@ Tests:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,7 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 from skfem.models.elasticity import lame_parameters
+
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
@@ -80,6 +82,7 @@ def _get_exact_displacement(funcs, basis, bkd):
 class TestCompositeMatchesUniform:
     """Verify CompositeHyperelasticityPhysics with one material matches
     HyperelasticityPhysics."""
+
     def test_1d_residual_matches(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         E, nu = 2.0, 0.3
@@ -190,15 +193,13 @@ class TestCompositeMatchesUniform:
         )
 
 
-
-
 # =========================================================================
 # Manufactured solution tests (1D)
 # =========================================================================
 
 
 class TestCompositeHyperelasticity1D:
-    def _setup_1d_problem(self, bkd, E=2.0, nu=0.3, nx=20, degree=2) :
+    def _setup_1d_problem(self, bkd, E=2.0, nu=0.3, nx=20, degree=2):
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
         bounds = [0.0, 1.0]
@@ -254,9 +255,7 @@ class TestCompositeHyperelasticity1D:
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(
-                physics.residual(bkd.asarray(state_pert), 0.0)
-            )
+            res_pert = bkd.to_numpy(physics.residual(bkd.asarray(state_pert), 0.0))
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -277,15 +276,13 @@ class TestCompositeHyperelasticity1D:
         assert rel_error < 1e-6
 
 
-
-
 # =========================================================================
 # Manufactured solution tests (2D)
 # =========================================================================
 
 
 class TestCompositeHyperelasticity2D:
-    def _setup_2d_problem(self, bkd, E=1.0, nu=0.25, nx=8, ny=8, degree=2) :
+    def _setup_2d_problem(self, bkd, E=1.0, nu=0.25, nx=8, ny=8, degree=2):
         lam, mu = lame_parameters(E, nu)
         stress = NeoHookeanStress(lam, mu)
         bounds = [0.0, 1.0, 0.0, 1.0]
@@ -350,9 +347,7 @@ class TestCompositeHyperelasticity2D:
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(
-                physics.residual(bkd.asarray(state_pert), 0.0)
-            )
+            res_pert = bkd.to_numpy(physics.residual(bkd.asarray(state_pert), 0.0))
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -371,8 +366,6 @@ class TestCompositeHyperelasticity2D:
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_num - exact) / max(u_norm, 1e-10)
         assert rel_error < 1e-4
-
-
 
 
 # =========================================================================
@@ -426,7 +419,9 @@ class TestCompositeMultiMaterial:
         res_uniform = bkd.to_numpy(uniform.residual(state, 0.0))
         res_composite = bkd.to_numpy(composite.residual(state, 0.0))
 
-        assert not np.allclose(res_uniform, res_composite), "Two-material residual should differ from uniform"
+        assert not np.allclose(res_uniform, res_composite), (
+            "Two-material residual should differ from uniform"
+        )
 
     def test_zero_state_zero_residual(self, numpy_bkd) -> None:
         """With no body force, u=0 gives zero residual (F=I, P=0)."""

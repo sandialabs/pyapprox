@@ -17,7 +17,6 @@ from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
-    FunctionTrain,
     FunctionTrainMSELoss,
     create_additive_functiontrain,
 )
@@ -42,7 +41,8 @@ class TestFunctionTrainMSELoss:
     def _create_additive_ft(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create an additive FunctionTrain for testing."""
         univariate_bases = [
-            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi)
+            for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -204,15 +204,13 @@ class TestFunctionTrainMSELoss:
         grad_error = errors[0]
 
         # All errors should be finite
-        assert bkd.all_bool(
-            bkd.isfinite(grad_error)
-        ), "Gradient errors contain non-finite values"
+        assert bkd.all_bool(bkd.isfinite(grad_error)), (
+            "Gradient errors contain non-finite values"
+        )
 
         # Error ratio should indicate good convergence
         error_ratio = float(checker.error_ratio(grad_error))
-        assert (
-            error_ratio < 1e-6
-        ), f"Error ratio {error_ratio:.2e} exceeds threshold"
+        assert error_ratio < 1e-6, f"Error ratio {error_ratio:.2e} exceeds threshold"
 
     def test_gradient_derivative_checker_multi_qoi(self, bkd) -> None:
         """Test gradient with multiple QoIs using DerivativeChecker."""

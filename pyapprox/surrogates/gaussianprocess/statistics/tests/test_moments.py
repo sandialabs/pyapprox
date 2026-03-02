@@ -4,8 +4,8 @@ Tests for GP statistics moments.
 Tests the SeparableKernelIntegralCalculator and GaussianProcessStatistics
 classes for computing statistical quantities from fitted GPs.
 """
+
 import math
-from typing import List
 
 import numpy as np
 import pytest
@@ -28,7 +28,9 @@ from pyapprox.util.test_utils import slow_test
 
 
 def _create_quadrature_bases(
-    marginals, nquad_points, bkd,
+    marginals,
+    nquad_points,
+    bkd,
 ):
     """Helper to create quadrature bases from marginals."""
     factories = create_basis_factories(marginals, bkd, "gauss")
@@ -51,12 +53,7 @@ class TestSeparableKernelIntegralCalculator:
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel,
-            nvars=2,
-            bkd=bkd,
-            nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for these tests
         gp.hyp_list().set_all_inactive()
 
@@ -66,9 +63,7 @@ class TestSeparableKernelIntegralCalculator:
         X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         y_train = bkd.reshape(
-            bkd.sin(math.pi * X_train[0, :]) *
-            bkd.cos(math.pi * X_train[1, :]),
-            (1, -1)
+            bkd.sin(math.pi * X_train[0, :]) * bkd.cos(math.pi * X_train[1, :]), (1, -1)
         )
 
         gp.fit(X_train, y_train)
@@ -81,14 +76,10 @@ class TestSeparableKernelIntegralCalculator:
 
         # Create quadrature bases using sparse grid infrastructure
         nquad_points = 20
-        bases = _create_quadrature_bases(
-            marginals, nquad_points, bkd
-        )
+        bases = _create_quadrature_bases(marginals, nquad_points, bkd)
 
         # Create calculator
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         return calc, n_train
 
@@ -190,12 +181,7 @@ class TestGaussianProcessStatistics:
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel,
-            nvars=2,
-            bkd=bkd,
-            nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for these tests
         gp.hyp_list().set_all_inactive()
 
@@ -205,9 +191,7 @@ class TestGaussianProcessStatistics:
         X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         y_train = bkd.reshape(
-            bkd.sin(math.pi * X_train[0, :]) *
-            bkd.cos(math.pi * X_train[1, :]),
-            (1, -1)
+            bkd.sin(math.pi * X_train[0, :]) * bkd.cos(math.pi * X_train[1, :]), (1, -1)
         )
 
         gp.fit(X_train, y_train)
@@ -220,9 +204,7 @@ class TestGaussianProcessStatistics:
 
         # Create quadrature bases and calculator
         bases = _create_quadrature_bases(marginals, 30, bkd)
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
 
         return stats, gp, marginals
@@ -287,9 +269,7 @@ class TestGaussianProcessStatistics:
         X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         y_train = bkd.reshape(
-            bkd.sin(math.pi * X_train[0, :]) *
-            bkd.cos(math.pi * X_train[1, :]),
-            (1, -1)
+            bkd.sin(math.pi * X_train[0, :]) * bkd.cos(math.pi * X_train[1, :]), (1, -1)
         )
 
         k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
@@ -344,23 +324,16 @@ class TestMCComparison:
         k1 = SquaredExponentialKernel([0.3], (0.1, 10.0), 1, bkd)
         kernel = k1
 
-        gp = ExactGaussianProcess(
-            kernel,
-            nvars=1,
-            bkd=bkd,
-            nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=1, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for these tests
         gp.hyp_list().set_all_inactive()
 
         # SPARSE training data - only 3 points at boundaries and center
         # With short length scale, regions between points have high uncertainty
-        n_train = 3
+        _n_train = 3
         X_train = bkd.array([[-1.0, 0.0, 1.0]])  # Only 3 points
         # Use bkd.sin for backend compatibility
-        y_train = bkd.reshape(
-            bkd.sin(3.14159 * X_train[0, :]), (1, -1)
-        )
+        y_train = bkd.reshape(bkd.sin(3.14159 * X_train[0, :]), (1, -1))
 
         gp.fit(X_train, y_train)
 
@@ -370,9 +343,7 @@ class TestMCComparison:
         # Create quadrature bases and calculator
         nquad = 30
         bases = _create_quadrature_bases(marginals, nquad, bkd)
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
 
         # Verify posterior variance is non-negligible at quadrature points
@@ -447,7 +418,7 @@ class TestMCComparison:
 
         # Prior covariance matrices
         K_qq = gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
-        K_qt = gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
+        K_qt = gp.kernel()(quad_pts, X_train)  # (nquad, n_train)
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
         chol = gp.cholesky()
@@ -493,7 +464,8 @@ class TestMCComparison:
         rel_error = abs(var_quad_val - var_mc) / max(var_quad_val, 1e-10)
         assert rel_error < 0.1, (
             f"Relative error {rel_error:.4f} too large: "
-            f"quad={var_quad_val:.6f}, mc={var_mc:.6f}")
+            f"quad={var_quad_val:.6f}, mc={var_mc:.6f}"
+        )
 
     @slow_test
     def test_mc_convergence_variance_of_variance(self, bkd) -> None:
@@ -528,7 +500,7 @@ class TestMCComparison:
 
         # Prior covariance matrices
         K_qq = gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
-        K_qt = gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
+        K_qt = gp.kernel()(quad_pts, X_train)  # (nquad, n_train)
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
         chol = gp.cholesky()
@@ -558,13 +530,13 @@ class TestMCComparison:
             f_sample = m_star + L_star @ z  # (nquad,)
 
             # Compute kappa^(r) = Sum_j w_j [f^(r)(z_j)]**2
-            kappa_r = bkd.sum(quad_wts * f_sample ** 2)
+            kappa_r = bkd.sum(quad_wts * f_sample**2)
 
             # Compute mu^(r) = Sum_j w_j f^(r)(z_j)
             mu_r = bkd.sum(quad_wts * f_sample)
 
             # Compute gamma^(r) = kappa^(r) - [mu^(r)]**2
-            gamma_r = kappa_r - mu_r ** 2
+            gamma_r = kappa_r - mu_r**2
             gamma_samples.append(float(bkd.to_numpy(gamma_r)))
 
         # Compute variance across samples
@@ -581,7 +553,8 @@ class TestMCComparison:
         assert rel_error < 0.2, (
             f"Relative error {rel_error:.4f} too large: "
             f"quad={var_var_quad_val:.6f}, "
-            f"mc={var_var_mc:.6f}")
+            f"mc={var_var_mc:.6f}"
+        )
 
 
 class TestKnownMoments:
@@ -683,9 +656,7 @@ class TestKnownMoments:
 
         # Define test function
         def linear_func(X):
-            return bkd.reshape(
-                a * X[0, :] + b * X[1, :] + c, (1, -1)
-            )
+            return bkd.reshape(a * X[0, :] + b * X[1, :] + c, (1, -1))
 
         # Create GP with separable product kernel
         # Initial length scales - will be optimized
@@ -706,9 +677,7 @@ class TestKnownMoments:
         X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
 
         # Evaluate function
-        y_train = bkd.reshape(
-            a * X_train[0, :] + b * X_train[1, :] + c, (1, -1)
-        )
+        y_train = bkd.reshape(a * X_train[0, :] + b * X_train[1, :] + c, (1, -1))
 
         gp.fit(X_train, y_train)
 
@@ -758,7 +727,8 @@ class TestKnownMoments:
         - E[z_i**2] = 1/3
         - E[f] = E[z_1**2] + E[z_2**2] = 2/3
         - Var[z_i**2] = E[z_i**4] - E[z_i**2]**2 = 1/5 - 1/9 = 4/45
-        - Var[f] = Var[z_1**2] + Var[z_2**2] = 8/45 (since x_1**2, x_2**2 are independent)
+        - Var[f] = Var[z_1**2] + Var[z_2**2] = 8/45
+          (since x_1**2, x_2**2 are independent)
 
         Uses dense training grid and optimized hyperparameters so GP
         interpolates to within tolerance.
@@ -859,6 +829,7 @@ class TestKnownMoments:
 
         # Define test function using backend pi
         import math
+
         pi = math.pi
 
         def sin_func(X):

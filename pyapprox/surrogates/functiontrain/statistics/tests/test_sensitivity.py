@@ -2,7 +2,7 @@
 
 import math
 from itertools import chain, combinations
-from typing import List, Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 import pytest

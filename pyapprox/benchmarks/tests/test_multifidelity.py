@@ -36,7 +36,6 @@ from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestPolynomialModelFunction:

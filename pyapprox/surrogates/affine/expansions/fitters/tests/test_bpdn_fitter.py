@@ -23,7 +23,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.util.test_utils import slow_test
 
 
 class TestBPDNFitter:

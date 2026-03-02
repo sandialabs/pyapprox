@@ -88,7 +88,7 @@ class GPFixedFitterAdapter(Generic[Array]):
         SurrogateProtocol[Array]
             Fitted GP.
         """
-        from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (
+        from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (  # noqa: E501
             GPFixedHyperparameterFitter,
         )
 

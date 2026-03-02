@@ -1,10 +1,7 @@
 """Bayesian Optimization orchestrator with ask/tell/step/run workflows."""
 
-import copy
 import warnings
 from typing import Callable, Generic, List, Optional
-
-import numpy as np
 
 from pyapprox.optimization.bayesian.batch.greedy import KrigingBeliever
 from pyapprox.optimization.bayesian.convergence import (
@@ -19,8 +16,8 @@ from pyapprox.optimization.bayesian.protocols import (
     AcquisitionContext,
     AcquisitionFunctionProtocol,
     AcquisitionOptimizerProtocol,
-    BODomainProtocol,
     BatchStrategyProtocol,
+    BODomainProtocol,
     SurrogateFitterProtocol,
     SurrogateProtocol,
 )

@@ -12,7 +12,6 @@ import pytest
 
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
-from pyapprox.util.test_utils import slow_test
 
 
 class TestKLOEDObjective:

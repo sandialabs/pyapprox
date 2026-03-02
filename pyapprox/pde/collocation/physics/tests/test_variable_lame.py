@@ -8,14 +8,12 @@ Verifies:
 5. Dual backend support (NumPy and PyTorch)
 """
 
+import math
 from typing import Generic
 
-import math
-
-import pytest
 import numpy as np
+import pytest
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -29,6 +27,9 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.util.backends.protocols import Array
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker."""
 

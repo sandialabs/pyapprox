@@ -16,15 +16,11 @@ Configuration notes:
 - Tolerances: Looser than Cartesian due to curvilinear gradient factors
 """
 
+import math
 from typing import Generic
 
 import pytest
 
-import math
-
-
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -55,6 +51,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.test_utils import slow_test
 
 
@@ -124,7 +121,9 @@ class TestPolarADR:
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_manufactured_solution(self, bkd, diff: float = 4.0, vel=None, react=0.0):
+    def _create_manufactured_solution(
+        self, bkd, diff: float = 4.0, vel=None, react=0.0
+    ):
         """Create manufactured solution for ADR on polar domain."""
         vel_strs = ["0", "0"] if vel is None else [str(v) for v in vel]
         react_str = f"{react}*u" if react != 0.0 else "0"
@@ -140,7 +139,7 @@ class TestPolarADR:
         )
         return man_sol
 
-    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts):
         """Apply Dirichlet BCs using manufactured solution values."""
         bcs = []
         for side in range(4):
@@ -151,7 +150,7 @@ class TestPolarADR:
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, bkd, mesh, basis) :
+    def _get_interior_indices(self, bkd, mesh, basis):
         """Get indices of interior (non-boundary) points."""
         boundary_set = set()
         for side in range(4):
@@ -268,9 +267,7 @@ class TestPolarADR:
 
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-
     @pytest.mark.slow_on("TorchBkd")
-
     def test_polar_adr_solve(self, bkd):
         """Test numerical solve matches manufactured solution on polar domain."""
         mesh, basis = self._create_polar_mesh_and_basis(bkd)
@@ -307,7 +304,9 @@ class TestEllipticalADR:
     Manufactured solution: x**2*y**2
     """
 
-    def _create_elliptical_mesh_and_basis(self, bkd, npts_u: int = 25, npts_v: int = 25):
+    def _create_elliptical_mesh_and_basis(
+        self, bkd, npts_u: int = 25, npts_v: int = 25
+    ):
         """Create elliptical mesh and basis.
 
         Note: 25x25 gives ~1e-10 residual for x^2*y^2 solution on elliptical domain.
@@ -322,7 +321,9 @@ class TestEllipticalADR:
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_manufactured_solution(self, bkd, diff: float = 1.0, vel=None, react=0.0):
+    def _create_manufactured_solution(
+        self, bkd, diff: float = 1.0, vel=None, react=0.0
+    ):
         """Create manufactured solution for ADR on elliptical domain."""
         vel_strs = ["0", "0"] if vel is None else [str(v) for v in vel]
         react_str = f"{react}*u" if react != 0.0 else "0"
@@ -338,7 +339,7 @@ class TestEllipticalADR:
         )
         return man_sol
 
-    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts):
         """Apply Dirichlet BCs using manufactured solution values."""
         bcs = []
         for side in range(4):
@@ -349,7 +350,7 @@ class TestEllipticalADR:
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, bkd, mesh, basis) :
+    def _get_interior_indices(self, bkd, mesh, basis):
         """Get indices of interior (non-boundary) points."""
         boundary_set = set()
         for side in range(4):
@@ -433,7 +434,7 @@ class TestTransientPolarADR:
     For linear-in-time solutions, backward Euler and Crank-Nicolson are exact.
     """
 
-    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25) :
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25):
         """Create polar mesh and basis."""
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
@@ -444,7 +445,7 @@ class TestTransientPolarADR:
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _create_transient_manufactured_solution(self, bkd, diff: float = 1.0) :
+    def _create_transient_manufactured_solution(self, bkd, diff: float = 1.0):
         """Create time-dependent manufactured solution linear in time."""
         # Linear in time: backward Euler and Crank-Nicolson are exact
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -458,7 +459,9 @@ class TestTransientPolarADR:
         )
         return man_sol
 
-    def _apply_time_dependent_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
+    def _apply_time_dependent_dirichlet_bcs(
+        self, bkd, physics, mesh, man_sol, physical_pts
+    ):
         """Apply time-dependent Dirichlet BCs."""
         bcs = []
         for side in range(4):
@@ -492,7 +495,9 @@ class TestTransientPolarADR:
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=forcing_fn
         )
-        self._apply_time_dependent_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
+        self._apply_time_dependent_dirichlet_bcs(
+            bkd, physics, mesh, man_sol, physical_pts
+        )
 
         model = CollocationModel(physics, bkd)
 
@@ -517,9 +522,7 @@ class TestTransientPolarADR:
         # Tight tolerance - only spatial discretization error
         bkd.assert_allclose(u_final, u_exact_final, atol=1e-8)
 
-
     @pytest.mark.slow_on("TorchBkd")
-
     def test_transient_polar_crank_nicolson(self, bkd):
         """Test transient polar ADR with Crank-Nicolson.
 
@@ -537,7 +540,9 @@ class TestTransientPolarADR:
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, forcing=forcing_fn
         )
-        self._apply_time_dependent_dirichlet_bcs(bkd, physics, mesh, man_sol, physical_pts)
+        self._apply_time_dependent_dirichlet_bcs(
+            bkd, physics, mesh, man_sol, physical_pts
+        )
 
         model = CollocationModel(physics, bkd)
 
@@ -562,8 +567,6 @@ class TestTransientPolarADR:
 # =============================================================================
 # Phase 4: Parameterized Tests
 # =============================================================================
-
-
 
 
 class TestTransformADRConfigurations:
@@ -647,7 +650,7 @@ class TestPolarHelmholtz:
     - So we negate k^2 when passing to HelmholtzPhysics.
     """
 
-    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 30, npts_theta: int = 30) :
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 30, npts_theta: int = 30):
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -657,7 +660,7 @@ class TestPolarHelmholtz:
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts) :
+    def _apply_dirichlet_bcs(self, bkd, physics, mesh, man_sol, physical_pts):
         bcs = []
         for side in range(4):
             boundary_idx = mesh.boundary_indices(side)
@@ -667,7 +670,7 @@ class TestPolarHelmholtz:
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
-    def _get_interior_indices(self, bkd, mesh, basis) :
+    def _get_interior_indices(self, bkd, mesh, basis):
         boundary_set = set()
         for side in range(4):
             for idx in mesh.boundary_indices(side):
@@ -725,9 +728,7 @@ class TestPolarHelmholtz:
 
         assert checker.error_ratio(errors[0]) <= 1e-6
 
-
     @pytest.mark.slow_on("TorchBkd")
-
     def test_polar_helmholtz_solve(self, bkd):
         """Test numerical solve for Helmholtz on polar domain."""
         mesh, basis = self._create_polar_mesh_and_basis(bkd)
@@ -773,7 +774,7 @@ class TestPolarLinearElasticity:
     Boundary conditions applied to both displacement components.
     """
 
-    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25) :
+    def _create_polar_mesh_and_basis(self, bkd, npts_r: int = 25, npts_theta: int = 25):
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
             theta_bounds=(-math.pi / 2, math.pi / 2),
@@ -783,7 +784,7 @@ class TestPolarLinearElasticity:
         basis = ChebyshevBasis2D(mesh, bkd)
         return mesh, basis
 
-    def _get_interior_indices(self, bkd, mesh, npts) :
+    def _get_interior_indices(self, bkd, mesh, npts):
         """Get interior indices for vector-valued problem (2*npts state)."""
         boundary_set = set()
         for side in range(4):
@@ -861,9 +862,7 @@ class TestPolarLinearElasticity:
 
         assert checker.error_ratio(errors[0]) <= 1e-5
 
-
     @pytest.mark.slow_on("TorchBkd")
-
     def test_polar_elasticity_solve(self, bkd):
         """Test numerical solve for linear elasticity on polar domain."""
         mesh, basis = self._create_polar_mesh_and_basis(bkd)

@@ -2,7 +2,6 @@
 
 import pytest
 
-
 from pyapprox.pde.collocation.fields.sympy_field import (
     SympyField2D,
     create_beta_surface,
@@ -14,6 +13,8 @@ from pyapprox.pde.collocation.mesh.transformed import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
 )
+
+
 class TestSympyField2D:
     """Tests for SympyField2D."""
 

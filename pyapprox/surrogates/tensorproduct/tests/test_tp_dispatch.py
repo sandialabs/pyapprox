@@ -14,7 +14,6 @@ from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.cartesian import cartesian_product_indices
 from pyapprox.util.optional_deps import package_available

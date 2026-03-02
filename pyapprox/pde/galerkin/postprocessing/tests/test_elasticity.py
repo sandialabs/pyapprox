@@ -7,6 +7,7 @@ formula.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -14,14 +15,13 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import slow_test
-
 from pyapprox.pde.galerkin.postprocessing.elasticity import (
     strain_from_displacement_2d,
     stress_from_strain_2d,
     von_mises_stress_2d,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import slow_test
 
 
 class TestStrainRecoveryQuad:
@@ -36,7 +36,7 @@ class TestStrainRecoveryQuad:
 
     def test_uniform_x_extension(self, numpy_bkd):
         """Uniform exx=0.1 from ux=0.1*x, uy=0."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         ux = 0.1 * coordx
         uy = np.zeros_like(coordy)
@@ -53,7 +53,7 @@ class TestStrainRecoveryQuad:
 
     def test_uniform_y_extension(self, numpy_bkd):
         """Uniform eyy=0.2 from uy=0.2*y, ux=0."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         ux = np.zeros_like(coordx)
         uy = 0.2 * coordy
@@ -70,7 +70,7 @@ class TestStrainRecoveryQuad:
 
     def test_pure_shear(self, numpy_bkd):
         """Pure shear: ux=gamma*y, uy=0 gives exy=gamma/2."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         gamma = 0.05
         ux = gamma * coordy
@@ -88,7 +88,7 @@ class TestStrainRecoveryQuad:
 
     def test_rigid_body_rotation(self, numpy_bkd):
         """Small rigid rotation: ux=-theta*y, uy=theta*x gives zero strain."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_quad()
         theta = 0.01
         ux = -theta * coordy
@@ -106,7 +106,7 @@ class TestStrainRecoveryQuad:
 
     def test_non_unit_quad(self, numpy_bkd):
         """Strain recovery on a scaled/translated quad."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([2.0, 5.0, 5.0, 2.0])
         coordy = np.array([1.0, 1.0, 4.0, 4.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -135,7 +135,7 @@ class TestStrainRecoveryTri:
         return coordx, coordy, conn
 
     def test_uniform_x_extension(self, numpy_bkd):
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_tri()
         ux = 0.1 * coordx
         uy = np.zeros(3)
@@ -151,7 +151,7 @@ class TestStrainRecoveryTri:
         np.testing.assert_allclose(exy, [0.0], atol=1e-14)
 
     def test_pure_shear(self, numpy_bkd):
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx, coordy, conn = self._single_tri()
         gamma = 0.05
         ux = gamma * coordy
@@ -173,7 +173,7 @@ class TestStressFromStrain:
 
     def test_uniaxial_tension(self, numpy_bkd):
         """Uniaxial tension: exx=e, eyy=exy=0."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         e = 0.001
         E, nu = 1e4, 0.3
         lam = E * nu / ((1 + nu) * (1 - 2 * nu))
@@ -197,7 +197,7 @@ class TestStressFromStrain:
 
     def test_pure_shear_stress(self, numpy_bkd):
         """Pure shear: only exy nonzero."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         gamma_half = 0.01
         mu = 5000.0
         lam = 3000.0
@@ -217,7 +217,7 @@ class TestStressFromStrain:
 
     def test_multi_element(self, numpy_bkd):
         """Vectorized stress over multiple elements."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         nelems = 5
         exx = np.linspace(0.001, 0.005, nelems)
         eyy = np.zeros(nelems)
@@ -236,7 +236,7 @@ class TestVonMisesStress:
 
     def test_uniaxial_tension_vm(self, numpy_bkd):
         """Von Mises = |sigma_xx| for uniaxial tension."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -267,7 +267,7 @@ class TestVonMisesStress:
 
     def test_pure_shear_vm(self, numpy_bkd):
         """Von Mises = sqrt(3)*|tau| for pure shear."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -294,7 +294,7 @@ class TestVonMisesStress:
 
     def test_zero_displacement_vm_zero(self, numpy_bkd):
         """Von Mises = 0 when displacement is zero everywhere."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -320,7 +320,7 @@ class TestVonMisesStress:
         In plane stress szz=0, so VM is not zero even for sxx=syy.
         VM = sqrt(sxx^2 - sxx*syy + syy^2) = |sxx| for sxx=syy.
         """
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0])
         coordy = np.array([0.0, 0.0, 1.0, 1.0])
         conn = np.array([[0, 1, 2, 3]])
@@ -345,7 +345,7 @@ class TestVonMisesStress:
 
     def test_multi_element_mesh(self, numpy_bkd):
         """Von Mises on a 2x1 mesh (two quad elements)."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         # Two adjacent quads: [0,1,4,3] and [1,2,5,4]
         coordx = np.array([0.0, 1.0, 2.0, 0.0, 1.0, 2.0])
         coordy = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
@@ -378,7 +378,7 @@ class TestVonMisesStress:
 
     def test_unsupported_element_raises(self, numpy_bkd):
         """Elements with neither 3 nor 4 nodes raise ValueError."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         coordx = np.array([0.0, 1.0, 1.0, 0.0, 0.5])
         coordy = np.array([0.0, 0.0, 1.0, 1.0, 0.5])
         conn = np.array([[0, 1, 2, 3, 4]])
@@ -400,7 +400,7 @@ class TestVonMisesWithFEMSolve:
     @slow_test
     def test_cantilever_beam_stress_positive(self, numpy_bkd):
         """Von Mises stress is non-negative and nonzero for loaded beam."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         from skfem.models.elasticity import lame_parameters
 
         from pyapprox.benchmarks.instances.pde.cantilever_beam import (
@@ -416,7 +416,6 @@ class TestVonMisesWithFEMSolve:
             CompositeLinearElasticity,
         )
         from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-        from pyapprox.util.backends.numpy import NumpyBkd
 
         bkd = NumpyBkd()
         L, _H, q0 = 100.0, 30.0, 10.0

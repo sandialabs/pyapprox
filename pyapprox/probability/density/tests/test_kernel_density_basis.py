@@ -21,7 +21,6 @@ from pyapprox.surrogates.kernels.matern import (
 
 
 class TestKernelDensityBasis:
-
     def _make_basis(
         self,
         bkd,
@@ -56,7 +55,9 @@ class TestKernelDensityBasis:
     def test_analytical_mass_matrix_formula(self, bkd) -> None:
         """Verify mass matrix entries match the closed-form formula."""
         lenscale = 0.5
-        basis = self._make_basis(bkd, ncenters=3, lenscale=lenscale, y_min=0.0, y_max=2.0)
+        basis = self._make_basis(
+            bkd, ncenters=3, lenscale=lenscale, y_min=0.0, y_max=2.0
+        )
         M = basis.mass_matrix()
         centers = basis.kernel_basis().centers()
         mu = bkd.to_numpy(centers[0])

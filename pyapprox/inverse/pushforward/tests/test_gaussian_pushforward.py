@@ -2,9 +2,8 @@
 Tests for Gaussian pushforward.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
 

@@ -1,6 +1,7 @@
 """Tests for BraninFunction."""
 
 import math
+
 import pytest
 
 from pyapprox.benchmarks.functions.algebraic.branin import (

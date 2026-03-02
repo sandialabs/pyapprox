@@ -1,6 +1,5 @@
 
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.nonlinear_decoupled import (
     NonLinearDecoupledODE,
@@ -11,6 +10,7 @@ from pyapprox.pde.time.implicit_steppers.backward_euler import (
 from pyapprox.pde.time.implicit_steppers.integrator import (
     ImplicitTimeIntegrator,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestImplicitTimeIntegration:

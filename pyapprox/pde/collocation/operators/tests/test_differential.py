@@ -17,6 +17,8 @@ from pyapprox.pde.collocation.operators import (
     input_field,
     laplacian,
 )
+
+
 class TestGradient:
     """Base test class for Gradient operator."""
 

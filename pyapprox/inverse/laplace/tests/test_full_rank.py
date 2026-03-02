@@ -2,9 +2,8 @@
 Tests for full-rank Laplace posterior.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.laplace.full_rank import DenseLaplacePosterior

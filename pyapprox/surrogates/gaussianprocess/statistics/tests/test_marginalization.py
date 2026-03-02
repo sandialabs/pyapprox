@@ -6,7 +6,6 @@ out selected variables. Includes tests for 1D and 2D marginalization cases.
 """
 
 import math
-from typing import List
 
 import numpy as np
 import pytest
@@ -28,7 +27,9 @@ from pyapprox.util.test_utils import slow_test
 
 
 def _create_quadrature_bases(
-    marginals, nquad_points, bkd,
+    marginals,
+    nquad_points,
+    bkd,
 ):
     """Helper to create quadrature bases from marginals."""
     factories = create_basis_factories(marginals, bkd, "gauss")
@@ -53,9 +54,7 @@ class TestMarginalizedGP1D:
         k2 = SquaredExponentialKernel([0.8], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel, nvars=2, bkd=bkd, nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for these tests
         gp.hyp_list().set_all_inactive()
 
@@ -65,8 +64,7 @@ class TestMarginalizedGP1D:
         X_train = bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         y_train = bkd.reshape(
-            bkd.sin(math.pi * X_train[0, :])
-            + 0.5 * bkd.cos(math.pi * X_train[1, :]),
+            bkd.sin(math.pi * X_train[0, :]) + 0.5 * bkd.cos(math.pi * X_train[1, :]),
             (1, -1),
         )
 
@@ -80,14 +78,10 @@ class TestMarginalizedGP1D:
 
         # Create quadrature bases
         nquad_points = 30
-        bases = _create_quadrature_bases(
-            marginals, nquad_points, bkd
-        )
+        bases = _create_quadrature_bases(marginals, nquad_points, bkd)
 
         # Create integral calculator
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         # Create marginalized GP (keep dimension 0, integrate out dimension 1)
         marg_gp = MarginalizedGP(gp, calc, active_dims=[0])
@@ -220,9 +214,7 @@ class TestMarginalizedGP2D:
         k3 = SquaredExponentialKernel([0.6], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2, k3], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel, nvars=3, bkd=bkd, nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=3, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for these tests
         gp.hyp_list().set_all_inactive()
 
@@ -249,14 +241,10 @@ class TestMarginalizedGP2D:
 
         # Create quadrature bases
         nquad_points = 20
-        bases = _create_quadrature_bases(
-            marginals, nquad_points, bkd
-        )
+        bases = _create_quadrature_bases(marginals, nquad_points, bkd)
 
         # Create integral calculator
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         # Create marginalized GP (keep dims 0 and 2, integrate out dim 1)
         marg_gp = MarginalizedGP(gp, calc, active_dims=[0, 2])
@@ -318,9 +306,7 @@ class TestMarginalizedGP2D:
         z0 = bkd.linspace(-0.9, 0.9, n_1d)
         z2 = bkd.linspace(-0.9, 0.9, n_1d)
         Z0, Z2 = bkd.meshgrid(z0, z2)
-        z_test = bkd.vstack(
-            [bkd.flatten(Z0), bkd.flatten(Z2)]
-        )  # Shape (2, n_1d^2)
+        z_test = bkd.vstack([bkd.flatten(Z0), bkd.flatten(Z2)])  # Shape (2, n_1d^2)
 
         var = marg_gp.predict_variance(z_test)
         u_not_p = float(bkd.to_numpy(marg_gp.u_not_p()))
@@ -375,12 +361,10 @@ class TestMarginalizedGPNumerical:
         k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel, nvars=2, bkd=bkd, nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
 
         # Sparse training data (to have non-trivial posterior uncertainty)
-        n_train = 5
+        _n_train = 5
         X_train_np = np.array(
             [
                 [-0.8, -0.3, 0.0, 0.4, 0.9],
@@ -404,14 +388,10 @@ class TestMarginalizedGPNumerical:
 
         # Create quadrature bases with high accuracy
         nquad_points = 50
-        bases = _create_quadrature_bases(
-            marginals, nquad_points, bkd
-        )
+        bases = _create_quadrature_bases(marginals, nquad_points, bkd)
 
         # Create integral calculator
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         return gp, calc, bases
 
@@ -454,7 +434,8 @@ class TestMarginalizedGPNumerical:
             gp_mean = gp.predict(X_full)  # (nquad, 1)
             gp_mean = bkd.reshape(gp_mean, (-1,))  # (nquad,)
 
-            # Integrate: integral m*(z_0, z_1) rho(z_1) dz_1 approx Sum w_j m*(z_0, quad_j)
+            # Integrate: integral m*(z_0, z_1) rho(z_1) dz_1
+            # approx Sum w_j m*(z_0, quad_j)
             integral = bkd.sum(quad_wts_1 * gp_mean)
             numerical_mean.append(float(bkd.to_numpy(integral)))
 
@@ -507,9 +488,7 @@ class TestMarginalizedGPValidation:
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         kernel = SeparableProductKernel([k1, k2], bkd)
 
-        gp = ExactGaussianProcess(
-            kernel, nvars=2, bkd=bkd, nugget=1e-6
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
 
         X_train = bkd.array(np.random.rand(2, 5) * 2 - 1)
         y_train = bkd.array(np.random.rand(5).reshape(1, -1))
@@ -522,9 +501,7 @@ class TestMarginalizedGPValidation:
         ]
 
         bases = _create_quadrature_bases(marginals, 10, bkd)
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         return gp, calc, kernel
 
@@ -571,9 +548,7 @@ class TestMarginalizedGPValidation:
 
         # u_~p should be 1.0 (no dimensions marginalized)
         u_not_p = float(bkd.to_numpy(marg_gp.u_not_p()))
-        bkd.assert_allclose(
-            bkd.asarray([u_not_p]), bkd.asarray([1.0]), rtol=1e-12
-        )
+        bkd.assert_allclose(bkd.asarray([u_not_p]), bkd.asarray([1.0]), rtol=1e-12)
 
     def test_active_dims_sorted(self, bkd) -> None:
         """Test that active_dims are sorted regardless of input order."""

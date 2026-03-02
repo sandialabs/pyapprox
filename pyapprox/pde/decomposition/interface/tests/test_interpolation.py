@@ -1,15 +1,15 @@
 """Tests for interpolation operators."""
 
 
-import pytest
 import numpy as np
+import pytest
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.decomposition.interface.interpolation import (
     InterpolationOperator,
     RestrictionOperator,
     lagrange_interpolation_matrix,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestLagrangeInterpolationMatrix:

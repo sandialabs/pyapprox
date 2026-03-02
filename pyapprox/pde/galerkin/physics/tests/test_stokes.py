@@ -16,15 +16,15 @@ Euler (1st order) and Crank-Nicolson (2nd order) reproduce the exact solution.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Dict, Generic, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.collocation.manufactured_solutions.stokes import (
@@ -40,8 +40,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Backend
 
 # ---------------------------------------------------------------------------
 # Helpers

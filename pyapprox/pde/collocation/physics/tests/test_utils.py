@@ -6,7 +6,6 @@ and NewtonSolver.
 
 from typing import Generic
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

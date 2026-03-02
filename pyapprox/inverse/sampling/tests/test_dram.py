@@ -2,9 +2,8 @@
 Tests for Delayed Rejection Adaptive Metropolis (DRAM) sampler.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.sampling.dram import (
     DelayedRejectionAdaptiveMetropolis,

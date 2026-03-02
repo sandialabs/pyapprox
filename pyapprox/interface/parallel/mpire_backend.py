@@ -75,7 +75,9 @@ class MpireBackend:
         """
         from pyapprox.util.optional_deps import import_optional_dependency
 
-        import_optional_dependency("mpire", feature_name="MpireBackend", extra_name="parallel")
+        import_optional_dependency(
+            "mpire", feature_name="MpireBackend", extra_name="parallel"
+        )
         from mpire import WorkerPool
 
         n = self._get_n_jobs(n_jobs)
@@ -114,7 +116,9 @@ class MpireBackend:
         """
         from pyapprox.util.optional_deps import import_optional_dependency
 
-        import_optional_dependency("mpire", feature_name="MpireBackend", extra_name="parallel")
+        import_optional_dependency(
+            "mpire", feature_name="MpireBackend", extra_name="parallel"
+        )
         from mpire import WorkerPool
 
         n = self._get_n_jobs(n_jobs)

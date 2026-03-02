@@ -19,7 +19,6 @@ from pyapprox.expdesign.local.criteria import (
 from pyapprox.expdesign.local.design_matrices import (
     LeastSquaresDesignMatrices,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestCOptimalCriterion:

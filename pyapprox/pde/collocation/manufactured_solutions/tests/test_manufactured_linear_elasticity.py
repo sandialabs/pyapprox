@@ -13,7 +13,6 @@ residuals for interior points.
 
 import pytest
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -28,6 +27,8 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
+
+
 class PhysicsDerivativeWrapper:
     """Wrapper to adapt physics interface for DerivativeChecker.
 

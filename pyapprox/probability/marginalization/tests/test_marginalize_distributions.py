@@ -5,7 +5,6 @@ recovers the correct lower-dimensional marginals.
 """
 
 import numpy as np
-import pytest
 
 from pyapprox.interface.functions.marginalize import (
     FunctionMarginalizer,

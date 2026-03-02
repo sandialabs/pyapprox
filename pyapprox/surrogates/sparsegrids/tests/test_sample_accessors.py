@@ -8,7 +8,6 @@ Verifies:
 All tests run on both NumPy and PyTorch backends.
 """
 
-import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (

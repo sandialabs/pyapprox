@@ -6,8 +6,6 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from pyapprox.util.optional_deps import package_available
-
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
@@ -15,6 +13,7 @@ from pyapprox.probability.likelihood import (
     DiagonalGaussianLogLikelihood,
     GaussianLogLikelihood,
 )
+from pyapprox.util.optional_deps import package_available
 
 
 class TestGaussianLogLikelihood:

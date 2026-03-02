@@ -10,8 +10,6 @@ Verifies:
 
 import math
 
-
-from pyapprox.util.backends.protocols import Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

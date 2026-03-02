@@ -49,6 +49,8 @@ from pyapprox.pde.parameterizations.diffusion import (
     DiffusionParameterization,
     create_diffusion_parameterization,
 )
+
+
 def _create_parameterized_diffusion_problem(bkd, npts=20):
     """Create a parameterized diffusion problem for testing.
 

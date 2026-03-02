@@ -8,7 +8,6 @@ import pytest
 
 from pyapprox.util.backends.numpy import NumpyBkd
 
-
 # ---------- env vars ----------
 
 _RUN_SLOW = os.environ.get("PYAPPROX_RUN_SLOW", "").lower() in ("1", "true", "yes")

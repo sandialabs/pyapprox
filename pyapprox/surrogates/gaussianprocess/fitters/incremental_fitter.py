@@ -14,9 +14,6 @@ from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
 )
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    IdentityInputTransform,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
@@ -95,9 +92,7 @@ class GPIncrementalFitter(Generic[Array]):
         n_new = X_train.shape[1]
         return n_new == n_prev + 1
 
-    def _fit_incremental(
-        self, gp, X_train, y_train, prev_gp
-    ) -> Optional[GPFitResult]:
+    def _fit_incremental(self, gp, X_train, y_train, prev_gp) -> Optional[GPFitResult]:
         """Perform rank-1 Cholesky update.
 
         Returns None if the update fails (e.g., non-positive diagonal),
@@ -145,7 +140,7 @@ class GPIncrementalFitter(Generic[Array]):
         l_new = bkd.sqrt(bkd.reshape(l_new_sq, (1, 1)))
 
         # Build L_new = [[L_prev, 0], [v^T, l_new]]
-        n_total = n_prev + 1
+        _n_total = n_prev + 1
         zeros_col = bkd.zeros((n_prev, 1))
         top_row = bkd.hstack([L_prev, zeros_col])  # (n_prev, n_total)
         bottom_row = bkd.hstack([v.T, l_new])  # (1, n_total)
@@ -176,7 +171,7 @@ class GPIncrementalFitter(Generic[Array]):
 
     def _fit_full(self, gp, X_train, y_train) -> GPFitResult:
         """Fall back to full Cholesky factorization."""
-        from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (
+        from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (  # noqa: E501
             GPFixedHyperparameterFitter,
         )
 

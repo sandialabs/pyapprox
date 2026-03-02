@@ -20,6 +20,8 @@ from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter impor
     GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+
+
 class TestKrigingBeliever:
     def test_batch_well_separated(self, bkd) -> None:
         """Batch points from KB are well-separated in [0,1]."""

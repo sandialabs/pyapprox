@@ -9,7 +9,6 @@ from pyapprox.benchmarks.instances.quadrature import (
     genz_product_peak_2d,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestGenzOscillatory2D:

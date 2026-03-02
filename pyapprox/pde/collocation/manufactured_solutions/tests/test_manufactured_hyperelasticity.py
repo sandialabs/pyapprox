@@ -10,11 +10,9 @@ Verifies:
 
 from typing import Generic
 
-
 import numpy as np
 import pytest
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -45,6 +43,7 @@ from pyapprox.pde.collocation.physics.stress_models import (
     NeoHookeanStress,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.test_utils import slow_test
 
 

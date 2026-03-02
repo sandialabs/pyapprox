@@ -8,7 +8,9 @@ try:
 except ImportError:
     from pyapprox.util.optional_deps import import_optional_dependency
 
-    import_optional_dependency("skfem", feature_name="Galerkin module", extra_name="fem")
+    import_optional_dependency(
+        "skfem", feature_name="Galerkin module", extra_name="fem"
+    )
 
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.sparse_utils import solve_maybe_sparse

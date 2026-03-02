@@ -1,8 +1,7 @@
 """Tests for GaussianCopula."""
 
-import pytest
-
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.probability.copula.correlation.cholesky import (

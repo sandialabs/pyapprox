@@ -1,8 +1,8 @@
 """Tests for FunctionTrainMoments."""
 
-from typing import List, Optional
 
 import numpy as np
+import pytest
 
 from pyapprox.benchmarks.functions.genz import GaussianPeakFunction
 from pyapprox.probability import UniformMarginal
@@ -21,8 +21,6 @@ from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
 )
 from pyapprox.util.test_utils import slow_test
-
-import pytest
 
 
 class TestFunctionTrainMoments:

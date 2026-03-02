@@ -197,7 +197,9 @@ class TestGaussQuadrature1D:
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
-    def test_mean_exact(self, name: str, mtype: str, params: Dict[str, float], bkd) -> None:
+    def test_mean_exact(
+        self, name: str, mtype: str, params: Dict[str, float], bkd
+    ) -> None:
         """Test mean is exact: sum(w_i * x_i) = E[X] with 1+ points.
 
         Gauss quadrature with n points is exact for polynomials up to

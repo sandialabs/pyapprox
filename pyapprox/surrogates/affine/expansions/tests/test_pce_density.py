@@ -12,7 +12,6 @@ Tests include:
 import math
 
 import numpy as np
-import pytest
 from scipy import stats
 
 from pyapprox.probability import GaussianMarginal, UniformMarginal
@@ -273,7 +272,9 @@ class TestConvergenceGaussian:
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        assert max_approx_err < 1e-5, f"PCE approximation error too large: {max_approx_err}"
+        assert max_approx_err < 1e-5, (
+            f"PCE approximation error too large: {max_approx_err}"
+        )
 
         density = UnivariatePCEDensity(pce, marginal)
 
@@ -350,7 +351,9 @@ class TestConvergenceUniform:
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        assert max_approx_err < 1e-5, f"PCE approximation error too large: {max_approx_err}"
+        assert max_approx_err < 1e-5, (
+            f"PCE approximation error too large: {max_approx_err}"
+        )
 
         density = UnivariatePCEDensity(pce, marginal)
 

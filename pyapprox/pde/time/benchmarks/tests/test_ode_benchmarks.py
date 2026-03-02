@@ -6,12 +6,12 @@ and ChemicalReactionResidual using TimeAdjointDerivativeChecker.
 """
 
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.time.benchmarks import (
     ChemicalReactionResidual,
     CoupledSpringsResidual,
     HastingsEcologyResidual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestCoupledSpringsResidual:

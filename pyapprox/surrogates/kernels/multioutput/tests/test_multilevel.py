@@ -13,7 +13,6 @@ from pyapprox.surrogates.kernels.multioutput import (
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScaling,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 
 
@@ -102,14 +101,11 @@ class TestMultiLevelKernel:
         # f_2 = rho_1 * f_1 + delta_2 = rho_0*rho_1 * f_0 + rho_1 * delta_1 + delta_2
         #
         # K_22 = (rho_0*rho_1)^2 k_0 + rho_1^2 k_1 + k_2
-        K_22_expected = (
-            (0.9 * 0.85)**2 * k0(X, X) +
-            0.85**2 * k1(X, X) +
-            k2(X, X)
-        )
+        K_22_expected = (0.9 * 0.85) ** 2 * k0(X, X) + 0.85**2 * k1(X, X) + k2(X, X)
         np.testing.assert_allclose(K[4:, 4:], K_22_expected, rtol=1e-10)
 
-        # K_21 = Cov[f_2, f_1] = Cov[rho_0*rho_1*f_0 + rho_1*delta_1, rho_0*f_0 + delta_1]
+        # K_21 = Cov[f_2, f_1]
+        #      = Cov[rho_0*rho_1*f_0 + rho_1*delta_1, rho_0*f_0 + delta_1]
         #      = rho_0^2 * rho_1 * k_0 + rho_1 * k_1
         K_21_expected = 0.9**2 * 0.85 * k0(X, X) + 0.85 * k1(X, X)
         np.testing.assert_allclose(K[4:, 2:4], K_21_expected, rtol=1e-10)
@@ -283,15 +279,21 @@ class TestMultiLevelKernel:
         # Use constant scalings (PolynomialScaling with degree 0)
         scalings = [
             PolynomialScaling(  # 0 -> 1
-                [0.9], (0.5, 1.5), self._bkd,
+                [0.9],
+                (0.5, 1.5),
+                self._bkd,
                 nvars=self._nvars,
             ),
             PolynomialScaling(  # 1 -> 2
-                [0.85], (0.5, 1.5), self._bkd,
+                [0.85],
+                (0.5, 1.5),
+                self._bkd,
                 nvars=self._nvars,
             ),
             PolynomialScaling(  # 2 -> 3
-                [0.8], (0.5, 1.5), self._bkd,
+                [0.8],
+                (0.5, 1.5),
+                self._bkd,
                 nvars=self._nvars,
             ),
         ]
@@ -314,57 +316,69 @@ class TestMultiLevelKernel:
 
         # Extract off-diagonal blocks that should be zero
         # Each level has n_samples rows/cols
-        K_inv_02 = K_inv[0:n_samples, 2*n_samples:3*n_samples]
-        K_inv_20 = K_inv[2*n_samples:3*n_samples, 0:n_samples]
+        K_inv_02 = K_inv[0:n_samples, 2 * n_samples : 3 * n_samples]
+        K_inv_20 = K_inv[2 * n_samples : 3 * n_samples, 0:n_samples]
 
-        K_inv_03 = K_inv[0:n_samples, 3*n_samples:4*n_samples]
-        K_inv_30 = K_inv[3*n_samples:4*n_samples, 0:n_samples]
+        K_inv_03 = K_inv[0:n_samples, 3 * n_samples : 4 * n_samples]
+        K_inv_30 = K_inv[3 * n_samples : 4 * n_samples, 0:n_samples]
 
-        K_inv_13 = K_inv[n_samples:2*n_samples, 3*n_samples:4*n_samples]
-        K_inv_31 = K_inv[3*n_samples:4*n_samples, n_samples:2*n_samples]
+        K_inv_13 = K_inv[n_samples : 2 * n_samples, 3 * n_samples : 4 * n_samples]
+        K_inv_31 = K_inv[3 * n_samples : 4 * n_samples, n_samples : 2 * n_samples]
 
         # Verify conditional independence structure
         np.testing.assert_allclose(
-            K_inv_02, 0.0, atol=1e-10,
+            K_inv_02,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[0,2] should be zero",
         )
         np.testing.assert_allclose(
-            K_inv_20, 0.0, atol=1e-10,
+            K_inv_20,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[2,0] should be zero",
         )
 
         np.testing.assert_allclose(
-            K_inv_03, 0.0, atol=1e-10,
+            K_inv_03,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[0,3] should be zero",
         )
         np.testing.assert_allclose(
-            K_inv_30, 0.0, atol=1e-10,
+            K_inv_30,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[3,0] should be zero",
         )
 
         np.testing.assert_allclose(
-            K_inv_13, 0.0, atol=1e-10,
+            K_inv_13,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[1,3] should be zero",
         )
         np.testing.assert_allclose(
-            K_inv_31, 0.0, atol=1e-10,
+            K_inv_31,
+            0.0,
+            atol=1e-10,
             err_msg="K_inv[3,1] should be zero",
         )
 
         # Verify that adjacent blocks are NOT zero (sanity check)
-        K_inv_01 = K_inv[0:n_samples, n_samples:2*n_samples]
-        K_inv_12 = K_inv[n_samples:2*n_samples, 2*n_samples:3*n_samples]
-        K_inv_23 = K_inv[2*n_samples:3*n_samples, 3*n_samples:4*n_samples]
+        K_inv_01 = K_inv[0:n_samples, n_samples : 2 * n_samples]
+        K_inv_12 = K_inv[n_samples : 2 * n_samples, 2 * n_samples : 3 * n_samples]
+        K_inv_23 = K_inv[2 * n_samples : 3 * n_samples, 3 * n_samples : 4 * n_samples]
 
-        assert (
-            np.abs(K_inv_01).max() > 1e-5
-        ), "Adjacent block K_inv[0,1] should be non-zero"
-        assert (
-            np.abs(K_inv_12).max() > 1e-5
-        ), "Adjacent block K_inv[1,2] should be non-zero"
-        assert (
-            np.abs(K_inv_23).max() > 1e-5
-        ), "Adjacent block K_inv[2,3] should be non-zero"
+        assert np.abs(K_inv_01).max() > 1e-5, (
+            "Adjacent block K_inv[0,1] should be non-zero"
+        )
+        assert np.abs(K_inv_12).max() > 1e-5, (
+            "Adjacent block K_inv[1,2] should be non-zero"
+        )
+        assert np.abs(K_inv_23).max() > 1e-5, (
+            "Adjacent block K_inv[2,3] should be non-zero"
+        )
 
 
 class TestMultiLevelKernelOptimizeTorch:
@@ -391,7 +405,10 @@ class TestMultiLevelKernelOptimizeTorch:
         k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, bkd)
         k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, bkd)
         rho_0 = PolynomialScaling(
-            [0.8], (0.01, 5.0), bkd, nvars=self._nvars,
+            [0.8],
+            (0.01, 5.0),
+            bkd,
+            nvars=self._nvars,
         )
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
@@ -411,15 +428,13 @@ class TestMultiLevelKernelOptimizeTorch:
 
         # Fit with initial hyperparameters to get baseline NLL
         gp._fit_internal(X_list, y_train)
-        nll_before = float(bkd.to_numpy(
-            gp.neg_log_marginal_likelihood()
-        ))
+        nll_before = float(bkd.to_numpy(gp.neg_log_marginal_likelihood()))
 
         # Optimize via fitter
         fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, X_list, y_train)
 
         nll_after = float(result.neg_log_marginal_likelihood())
-        assert (
-            nll_after < nll_before
-        ), f"NLL should decrease: {nll_before:.4f} -> {nll_after:.4f}"
+        assert nll_after < nll_before, (
+            f"NLL should decrease: {nll_before:.4f} -> {nll_after:.4f}"
+        )

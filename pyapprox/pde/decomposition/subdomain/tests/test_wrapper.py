@@ -2,7 +2,6 @@
 
 import pytest
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -17,6 +16,9 @@ from pyapprox.pde.decomposition.subdomain.flux import (
 from pyapprox.pde.decomposition.subdomain.wrapper import (
     SubdomainWrapper,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+
+
 class TestSubdomainWrapperBasic:
     """Basic tests for SubdomainWrapper."""
 

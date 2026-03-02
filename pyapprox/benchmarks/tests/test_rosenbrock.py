@@ -1,8 +1,7 @@
 """Tests for RosenbrockFunction."""
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
     RosenbrockFunction,

@@ -1,10 +1,6 @@
 """Tests for 2D collocation quadrature weights."""
 
 import math
-from typing import Any
-
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
@@ -15,9 +11,8 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
 from pyapprox.pde.collocation.quadrature import (
     CollocationQuadrature2D,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+
+
 class TestCollocationQuadrature2D:
     def test_full_domain_weights_shape(self, bkd):
         """Full-domain weights have correct shape and are positive."""

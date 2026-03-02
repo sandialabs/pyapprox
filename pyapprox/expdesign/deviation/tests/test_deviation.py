@@ -13,13 +13,11 @@ import pytest
 
 from pyapprox.expdesign.deviation import (
     AVaRDeviationMeasure,
-    DeviationMeasure,
     EntropicDeviationMeasure,
     StandardDeviationMeasure,
 )
 from pyapprox.expdesign.evidence import Evidence
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
-from pyapprox.util.test_utils import slow_test
 
 
 class TestDeviationMeasures:

@@ -30,7 +30,7 @@ class TestTimeAdjointDerivativeChecker:
 
     def setup_method(self):
         """Set up test fixtures."""
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
         self._nstates = 2
         self._nparams = 2
         self._deltat = 0.1
@@ -185,7 +185,7 @@ class TestTimeAdjointDerivativeCheckerTimeResidual:
 
     def setup_method(self):
         """Set up test fixtures."""
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
         self._nstates = 2
         self._nparams = 2
         self._deltat = 0.1
@@ -277,7 +277,7 @@ class TestTimeAdjointDerivativeCheckerFullOperator:
 
     def setup_method(self):
         """Set up test fixtures."""
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
         self._nstates = 2
         self._nparams = 2
         self._deltat = 0.1

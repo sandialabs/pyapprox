@@ -14,7 +14,6 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ConstantMean,
     ZeroMean,
 )
-from pyapprox.util.backends.protocols import Backend
 
 
 class TestMeanFunctions:

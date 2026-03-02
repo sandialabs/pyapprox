@@ -2,9 +2,8 @@
 
 import math
 
-import pytest
-
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.probability.copula.bivariate.gaussian import (

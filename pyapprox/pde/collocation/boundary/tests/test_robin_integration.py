@@ -6,7 +6,6 @@ verifying that the numerical solution matches the exact solution.
 
 import math
 
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -42,6 +41,8 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+
+
 class TestGradientNeumannSolve:
     """Integration tests for gradient Neumann BCs."""
 

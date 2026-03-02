@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -8,8 +7,6 @@ from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestIIDGaussianNoise:
@@ -26,9 +23,7 @@ class TestIIDGaussianNoise:
         self.variance_bounds = (0.01, 1.0)
 
         # Create kernel
-        self.kernel = IIDGaussianNoise(
-            self.noise_variance, self.variance_bounds, bkd
-        )
+        self.kernel = IIDGaussianNoise(self.noise_variance, self.variance_bounds, bkd)
 
         # Create sample data
         self.X1 = bkd.array(np.random.randn(self.nvars, self.nsamples1))
@@ -169,7 +164,8 @@ class TestIIDGaussianNoise:
         """
         Test that parameter Jacobian has correct structure.
 
-        For IIDGaussianNoise: dK/d(log_sigma^2) should be diagonal with sigma^2 on diagonal.
+        For IIDGaussianNoise: dK/d(log_sigma^2) should be
+        diagonal with sigma^2 on diagonal.
         """
         self._setup_data(bkd)
         jac = self.kernel.jacobian_wrt_params(self.X1)

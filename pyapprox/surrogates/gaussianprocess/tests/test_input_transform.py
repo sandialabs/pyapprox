@@ -424,7 +424,7 @@ class TestStatisticsWithBothTransformsVsMC:
         """Set up GP, stats, and MC samples."""
         # Training data with different input scales
         X_train, y_train = _make_training_data_different_scales(bkd)
-        nvars = 2
+        _nvars = 2
         nquad = 30
         n_mc = 10000
 
@@ -506,7 +506,9 @@ class TestStatisticsWithBothTransformsVsMC:
             UniformMarginal(s_x2_min, s_x2_max, bkd),
         ]
         bases_ref = _create_quadrature_bases(marginals_ref, nquad, bkd)
-        calc_ref = SeparableKernelIntegralCalculator(gp_ref, bases_ref, marginals_ref, bkd=bkd)
+        calc_ref = SeparableKernelIntegralCalculator(
+            gp_ref, bases_ref, marginals_ref, bkd=bkd
+        )
         stats_ref = GaussianProcessStatistics(gp_ref, calc_ref)
 
         return gp, stats, stats_ref, X_mc, bkd

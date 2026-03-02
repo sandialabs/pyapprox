@@ -1,6 +1,5 @@
 """Tests for PCEFunctionTrain and create_pce_functiontrain."""
 
-from typing import List
 
 import numpy as np
 import pytest

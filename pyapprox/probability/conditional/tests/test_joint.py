@@ -8,9 +8,8 @@ Tests validate:
 5. Torch autograd compatibility
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,

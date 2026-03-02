@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-import pytest
 
 from pyapprox.surrogates.affine.univariate import (
     Chebyshev1stKindPolynomial1D,

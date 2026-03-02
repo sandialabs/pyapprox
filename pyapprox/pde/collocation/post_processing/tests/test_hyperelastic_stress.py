@@ -1,12 +1,9 @@
 """Tests for 2D hyperelastic stress post-processing."""
 
 import math
-from typing import Any
 
-import pytest
 import numpy as np
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
@@ -28,9 +25,7 @@ from pyapprox.pde.collocation.post_processing.stress import (
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+
 # ======================================================================
 # Helpers
 # ======================================================================

@@ -10,15 +10,15 @@ The periodic case is skipped (known legacy bug).
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Generic, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
@@ -40,8 +40,6 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
 
 # =========================================================================
 # Part A: Unit Tests

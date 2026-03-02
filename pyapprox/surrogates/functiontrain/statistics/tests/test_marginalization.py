@@ -1,7 +1,5 @@
 """Tests for FunctionTrainMarginalization."""
 
-from typing import List, Optional
-
 import numpy as np
 import pytest
 
@@ -184,7 +182,9 @@ class TestFunctionTrainMarginalization:
             var_1d = moments_1d.variance()
 
             bkd.assert_allclose(
-                var_1d, V_k, rtol=1e-10,
+                var_1d,
+                V_k,
+                rtol=1e-10,
             )
 
     # =========================================================================
@@ -375,9 +375,7 @@ class TestFunctionTrainMarginalization:
             sum_marginal_vars = sum_marginal_vars + V_k
 
         # Sigma V_k <= Var[f] always (with small tolerance for numerical error)
-        assert (
-            float(sum_marginal_vars[0]) <= float(total_var[0]) + 1e-10
-        ), (
+        assert float(sum_marginal_vars[0]) <= float(total_var[0]) + 1e-10, (
             f"Sum of marginal variances "
             f"{sum_marginal_vars} > total "
             f"variance {total_var}"
@@ -570,7 +568,8 @@ class TestFunctionTrainMarginalization:
         )
         marg = FunctionTrainMarginalization(pce_ft)
 
-        # Marginalize y -> f_bar(x, z) = p(x) * E[q(y)] * r(z) = p(x) * theta_y^{(0)} * r(z)
+        # Marginalize y -> f_bar(x, z) = p(x) * E[q(y)] * r(z)
+        #   = p(x) * theta_y^{(0)} * r(z)
         ft_xz = marg.marginalize([1])  # Keep x and z
 
         # Test at a few sample points
@@ -641,9 +640,7 @@ class TestFTDimensionReducer:
             if coefficients is not None:
                 bexp.set_coefficients(coefficients[dd])
             else:
-                coef = bkd.asarray(
-                    np.random.randn(max_level + 1, 1) * 0.5
-                )
+                coef = bkd.asarray(np.random.randn(max_level + 1, 1) * 0.5)
                 coef[0, 0] = 1.0 + np.random.rand()
                 bexp.set_coefficients(coef)
             core = FunctionTrainCore([[bexp]], bkd)

@@ -225,11 +225,15 @@ class TestVarianceOfVarianceFormulas:
 
         E[X**4] for X ~ N(mu, sigma**2) is: mu**4 + 6*mu**2*sigma**2 + 3*sigma**4
 
-        For mu_f ~ N(eta, s**2*varsigma**2), substitute mu = eta, sigma**2 = s**2*varsigma**2:
-        vartheta_3 = eta**4 + 6*eta**2*(s**2*varsigma**2) + 3*(s**2*varsigma**2)**2
-                   = eta**4 + 6*eta**2*varsigma**2*s**2 + 3*varsigma**4*s**4
+        For mu_f ~ N(eta, s**2*varsigma**2), substitute
+        mu = eta, sigma**2 = s**2*varsigma**2:
+        vartheta_3 = eta**4 + 6*eta**2*(s**2*varsigma**2)
+                     + 3*(s**2*varsigma**2)**2
+                   = eta**4 + 6*eta**2*varsigma**2*s**2
+                     + 3*varsigma**4*s**4
 
-        This verifies the correct formula is 3*varsigma**4*s**4, NOT 3*varsigma**2*s**2 (typo).
+        This verifies the correct formula is
+        3*varsigma**4*s**4, NOT 3*varsigma**2*s**2 (typo).
         """
         # E[X**4] for X ~ N(mu, sigma**2)
         mu, sigma_sq = symbols("mu sigma_sq", real=True, positive=True)
@@ -297,7 +301,9 @@ class TestVarianceOfVarianceFormulas:
         assert simplify(expanded - target) == 0
 
     def test_E_X4_for_gaussian(self) -> None:
-        """Verify E[X**4] = mu**4 + 6*mu**2*sigma**2 + 3*sigma**4 for X ~ N(mu, sigma**2).
+        """Verify E[X**4] for X ~ N(mu, sigma**2).
+
+        E[X**4] = mu**4 + 6*mu**2*sigma**2 + 3*sigma**4.
 
         This is a standard result (kurtosis formula).
         Using i=j=k=l in Isserlis' theorem:
@@ -316,7 +322,8 @@ class TestVarianceOfVarianceFormulas:
     def test_E_Xi2_Xk_Xl_from_isserlis(self) -> None:
         """Verify E[X_i**2 X_k X_l] from Isserlis' theorem for vartheta_2.
 
-        For E[kappa*mu**2] = E[integral f**2 dF * (integral f dF)**2], we need E[f(x)**2*f(w)*f(z)].
+        For E[kappa*mu**2] = E[int f**2 dF * (int f dF)**2],
+        we need E[f(x)**2*f(w)*f(z)].
         Using Isserlis with i=j (same point x), k (at w), l (at z):
 
         E[X_i X_j X_k X_l] with i=j gives E[X_i**2 X_k X_l]
@@ -334,7 +341,8 @@ class TestVarianceOfVarianceFormulas:
 
         Simplifying (note omega_ik omega_il appears twice):
         = mu_i**2 mu_k mu_l + omega_ii omega_kl + 2 omega_ik omega_il
-          + mu_i**2 omega_kl + 2 mu_i mu_k omega_il + 2 mu_i mu_l omega_ik + mu_k mu_l omega_ii
+          + mu_i**2 omega_kl + 2 mu_i mu_k omega_il
+          + 2 mu_i mu_l omega_ik + mu_k mu_l omega_ii
         """
         mu_i, mu_k, mu_l = symbols("mu_i mu_k mu_l", real=True)
         omega_ii, omega_kl, omega_ik, omega_il = symbols(
@@ -347,8 +355,14 @@ class TestVarianceOfVarianceFormulas:
             + omega_ii * omega_kl  # omega_ij omega_kl with i=j
             + 2 * omega_ik * omega_il  # omega_ik omega_jl + omega_il omega_jk with i=j
             + mu_i**2 * omega_kl  # mu_i mu_j omega_kl with i=j
-            + 2 * mu_i * mu_k * omega_il  # mu_i mu_k omega_jl + mu_j mu_k omega_il with i=j
-            + 2 * mu_i * mu_l * omega_ik  # mu_i mu_l omega_jk + mu_j mu_l omega_ik with i=j
+            + 2
+            * mu_i
+            * mu_k
+            * omega_il  # mu_i mu_k omega_jl + mu_j mu_k omega_il with i=j
+            + 2
+            * mu_i
+            * mu_l
+            * omega_ik  # mu_i mu_l omega_jk + mu_j mu_l omega_ik with i=j
             + mu_k * mu_l * omega_ii  # mu_k mu_l omega_ij with i=j
         )
 
@@ -362,7 +376,9 @@ class TestVarianceOfVarianceFormulas:
         assert coeff_omega_ii_omega_kl == 1
 
     def test_vartheta2_covariance_product_expansion(self) -> None:
-        """Verify the expansion of integral integral integral C*(x,w)*C*(x,z) dF**3 for vartheta_2.
+        """Verify C*(x,w)*C*(x,z) expansion for vartheta_2.
+
+        Expand integral integral integral C*(x,w)*C*(x,z) dF**3.
 
         The term 2*omega_ik*omega_il in E[X_i**2 X_k X_l] integrates to:
         2*s**4 integral integral integral C*(x,w)*C*(x,z) dF(x)dF(w)dF(z)
@@ -400,27 +416,38 @@ class TestVarianceOfVarianceFormulas:
     def test_vartheta2_integral_mapping(self) -> None:
         """Verify the mapping from C*(x,w)*C*(x,z) expansion to integral symbols.
 
-        After expanding C*(x,w)*C*(x,z) and integrating integral integral integral dF(x)dF(w)dF(z):
+        After expanding C*(x,w)*C*(x,z) and integrating
+        integral integral integral dF(x)dF(w)dF(z):
 
-        Term 1: integral integral integral C(x,w)*C(x,z) dF**3 = xi_1
-        Term 2: integral integral integral C(x,w) t(x)^T A^{-1} t(z) dF**3 = beta^T Gamma  (NOT xi_2!)
-        Term 3: integral integral integral C(x,z) t(x)^T A^{-1} t(w) dF**3 = beta^T Gamma  (same as Term 2 by symmetry)
-        Term 4: integral integral integral [t(x)^T A^{-1} t(w)][t(x)^T A^{-1} t(z)] dF**3 = beta^T P beta
+        Term 1: int^3 C(x,w)*C(x,z) dF**3 = xi_1
+        Term 2: int^3 C(x,w) t(x)^T A^{-1} t(z) dF**3
+                = beta^T Gamma  (NOT xi_2!)
+        Term 3: int^3 C(x,z) t(x)^T A^{-1} t(w) dF**3
+                = beta^T Gamma  (same as Term 2 by symmetry)
+        Term 4: int^3 [t(x)^T A^{-1} t(w)]
+                      [t(x)^T A^{-1} t(z)] dF**3
+                = beta^T P beta
 
         Combined: xi_1 - 2*beta^T Gamma + beta^T P beta
 
         where:
         - beta = A^{-1} tau
-        - Gamma_i = integral integral C(x_i,z)*C(z,v) dF(z)dF(v)
+        - Gamma_i = int int C(x_i,z)*C(z,v) dF(z)dF(v)
 
-        NOTE: The old wrong formula used xi = xi_1 - 2*xi_2 + xi_3 where xi_2 = lambda^T A^{-1} tau.
-        This is WRONG because xi_2 comes from integral integral integral C(w,x) t(w)^T A^{-1} t(z) dF**3
-        where the kernel C(w,x) has w as first argument, not x.
+        NOTE: The old wrong formula used
+        xi = xi_1 - 2*xi_2 + xi_3
+        where xi_2 = lambda^T A^{-1} tau.
+        This is WRONG because xi_2 comes from
+        int^3 C(w,x) t(w)^T A^{-1} t(z) dF**3
+        where the kernel C(w,x) has w as first arg, not x.
 
-        The correct Term 2 has C(x,w) with x as first argument, giving Gamma not lambda.
+        The correct Term 2 has C(x,w) with x as first
+        argument, giving Gamma not lambda.
         """
         # Define symbolic integral quantities
-        xi_1 = symbols("xi_1", real=True)  # integral integral integral C(x,w)*C(x,z) dF**3
+        xi_1 = symbols(
+            "xi_1", real=True
+        )  # integral integral integral C(x,w)*C(x,z) dF**3
         beta_Gamma = symbols("beta_Gamma", real=True)  # beta^T Gamma
         beta_P_beta = symbols("beta_P_beta", real=True)  # beta^T P beta
 
@@ -428,13 +455,17 @@ class TestVarianceOfVarianceFormulas:
         correct_term = xi_1 - 2 * beta_Gamma + beta_P_beta
 
         # Wrong combination that was used before (using xi)
-        xi_2 = symbols("xi_2", real=True)  # lambda^T A^{-1} tau (WRONG for this integral)
+        xi_2 = symbols(
+            "xi_2", real=True
+        )  # lambda^T A^{-1} tau (WRONG for this integral)
         xi_3 = symbols("xi_3", real=True)  # tau^T A^{-1} P A^{-1} tau = beta^T P beta
         wrong_term = xi_1 - 2 * xi_2 + xi_3
 
         # These are NOT equal because beta_Gamma != xi_2
-        # beta_Gamma = beta^T Gamma where Gamma_i = integral integral C(x_i,z)*C(z,v) dF**2
-        # xi_2 = lambda^T A^{-1} tau where lambda_i = integral integral C(x,z)*C(x,x_i) dF**2
+        # beta_Gamma = beta^T Gamma where
+        #   Gamma_i = int int C(x_i,z)*C(z,v) dF**2
+        # xi_2 = lambda^T A^{-1} tau where
+        #   lambda_i = int int C(x,z)*C(x,x_i) dF**2
         # The difference is which argument of C contains the training point
         assert correct_term.subs(beta_P_beta, xi_3) != wrong_term
 
@@ -445,15 +476,20 @@ class TestConditionalPFormulas:
     Reference: docs/plans/gp-stats-phase4-sensitivity-bugfix.md
 
     These tests verify the mathematical derivation that shows:
-    - Standard P_k: integral C(x, x^(i)) C(x, x^(j)) rho(x) dx (single integration point)
-    - Conditional P_tilde_k: integral integral C(x, x^(i)) C(z, x^(j)) rho(x)rho(z) dx dz = tau_i * tau_j
+    - Standard P_k: int C(x, x^(i)) C(x, x^(j)) rho(x) dx
+      (single integration point)
+    - Conditional P_tilde_k:
+      int int C(x, x^(i)) C(z, x^(j)) rho(x)rho(z) dx dz
+      = tau_i * tau_j
 
-    The key insight is that P_tilde factors into tau tau^T because x and z are independent.
+    The key insight is that P_tilde factors into tau tau^T
+    because x and z are independent.
     """
 
     def test_conditional_P_outer_product_factorization(self) -> None:
         """
-        Verify that P_tilde_{k,ij} = tau_{k,i} * tau_{k,j} for integrated-out dimensions.
+        Verify P_tilde_{k,ij} = tau_{k,i} * tau_{k,j}
+        for integrated-out dimensions.
 
         Mathematical derivation:
         P_tilde_{k,ij} = integral integral C(x, x^(i)) C(z, x^(j)) rho(x) rho(z) dx dz
@@ -491,7 +527,8 @@ class TestConditionalPFormulas:
         )
 
         # The key mathematical fact: since x and z don't interact in the integrand,
-        # the double integral factors: integral integral f(x)g(z) dx dz = (integral f(x) dx)(integral g(z) dz)
+        # the double integral factors:
+        # int int f(x)g(z) dx dz = (int f(x) dx)(int g(z) dz)
         # This is because P_tilde_integrand = tau_i_integrand * tau_j_integrand
 
         # Verify the factorization algebraically

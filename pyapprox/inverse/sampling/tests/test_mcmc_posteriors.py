@@ -5,9 +5,8 @@ These tests validate that MCMC samplers correctly sample from distributions
 with known analytical properties.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.sampling import (
     AdaptiveMetropolisSampler,
@@ -23,7 +22,6 @@ from pyapprox.inverse.sampling.tests.test_distributions import (
     GaussianMixtureLogPosterior,
 )
 from pyapprox.util.test_utils import (
-    slow_test,
     slower_test,
 )
 

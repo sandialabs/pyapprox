@@ -17,6 +17,8 @@ from pyapprox.pde.field_maps.kle_factory import (
 from pyapprox.pde.zoo.elastic_bar_1d import (
     create_linear_elastic_bar_1d,
 )
+
+
 def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
     """Helper: create lognormal KLE field map on mesh nodes."""
     physical_pts = mesh.points()  # shape (1, npts)

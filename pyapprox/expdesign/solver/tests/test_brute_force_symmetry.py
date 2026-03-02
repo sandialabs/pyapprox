@@ -13,7 +13,6 @@ import pytest
 
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.objective import (
-    KLOEDObjective,
     create_kl_oed_objective,
 )
 from pyapprox.expdesign.solver import BruteForceKLOEDSolver

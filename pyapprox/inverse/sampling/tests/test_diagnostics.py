@@ -2,9 +2,8 @@
 Tests for MCMC diagnostic functions.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.sampling.diagnostics import (
     MCMCDiagnostics,

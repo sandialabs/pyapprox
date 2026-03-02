@@ -19,7 +19,6 @@ from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 
 

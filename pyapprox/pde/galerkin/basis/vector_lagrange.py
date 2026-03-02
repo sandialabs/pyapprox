@@ -29,7 +29,9 @@ try:
 except ImportError:
     from pyapprox.util.optional_deps import import_optional_dependency
 
-    import_optional_dependency("skfem", feature_name="Galerkin module", extra_name="fem")
+    import_optional_dependency(
+        "skfem", feature_name="Galerkin module", extra_name="fem"
+    )
 
 
 class VectorLagrangeBasis(Generic[Array]):

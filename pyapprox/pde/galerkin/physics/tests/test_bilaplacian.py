@@ -1,6 +1,7 @@
 """Tests for BiLaplacianPrior."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,8 @@ from typing import Any, Generic
 
 import numpy as np
 from scipy.sparse import issparse
+from skfem import Basis, MeshQuad  # noqa: F401
+from skfem.element import ElementQuad1  # noqa: F401
 
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
@@ -20,8 +23,6 @@ from pyapprox.pde.galerkin.mesh.structured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from skfem import Basis, MeshQuad  # noqa: F401
-from skfem.element import ElementQuad1  # noqa: F401
 
 
 class _SkfemMeshWrapper(Generic[Array]):
@@ -62,9 +63,9 @@ class TestBiLaplacianPrior:
     """Tests for BiLaplacianPrior class."""
 
     def setup_method(self):
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
 
-    def _make_legacy_mesh_and_basis(self, bkd) :
+    def _make_legacy_mesh_and_basis(self, bkd):
         """Create mesh matching legacy get_mesh([0,1,0,1], 1)."""
         skfem_mesh = (
             MeshQuad.init_tensor(np.linspace(0, 1, 3), np.linspace(0, 1, 3))
@@ -249,7 +250,9 @@ class TestBiLaplacianPrior:
         # Anisotropic samples should have different variance than isotropic
         var_iso = np.var(samples_iso, axis=1)
         var_aniso = np.var(samples_aniso, axis=1)
-        assert not np.allclose(var_iso, var_aniso, rtol=0.1), "Anisotropic and isotropic should produce different variances"
+        assert not np.allclose(var_iso, var_aniso, rtol=0.1), (
+            "Anisotropic and isotropic should produce different variances"
+        )
 
     def test_parameter_scaling(self, numpy_bkd):
         """Different gamma*delta produces different sample variance.
@@ -297,7 +300,9 @@ class TestBiLaplacianPrior:
         rng2 = np.random.default_rng(42)
         samples_custom = bkd.to_numpy(prior_custom.rvs(3, rng=rng2))
 
-        assert not np.allclose(samples_default, samples_custom), "Custom robin_alpha should produce different samples"
+        assert not np.allclose(samples_default, samples_custom), (
+            "Custom robin_alpha should produce different samples"
+        )
 
     def test_custom_boundary_conditions(self, numpy_bkd):
         """Constructor accepts user-created RobinBC list."""

@@ -473,7 +473,9 @@ class TestJacobiBasisExpansion:
 
     def test_fit_polynomial_1d(self, bkd):
         """Test fitting a quadratic polynomial in 1D Jacobi basis."""
-        basis = self._create_jacobi_basis(bkd, nvars=1, max_level=4, alpha=0.5, beta=0.5)
+        basis = self._create_jacobi_basis(
+            bkd, nvars=1, max_level=4, alpha=0.5, beta=0.5
+        )
         exp = BasisExpansion(basis, bkd, nqoi=1)
 
         # Generate training data for f(x) = x^2 + x
@@ -496,7 +498,9 @@ class TestJacobiBasisExpansion:
 
     def test_fit_polynomial_2d(self, bkd):
         """Test fitting a quadratic polynomial in 2D Jacobi basis."""
-        basis = self._create_jacobi_basis(bkd, nvars=2, max_level=3, alpha=1.0, beta=2.0)
+        basis = self._create_jacobi_basis(
+            bkd, nvars=2, max_level=3, alpha=1.0, beta=2.0
+        )
         exp = BasisExpansion(basis, bkd, nqoi=1)
 
         # f(x,y) = x^2 + y^2 + x*y (quadratic)

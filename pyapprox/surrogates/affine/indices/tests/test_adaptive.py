@@ -19,7 +19,6 @@ from pyapprox.surrogates.affine.indices.refinement import (
     LevelRefinementCriteria,
     UnitCostFunction,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestPriorityQueue:

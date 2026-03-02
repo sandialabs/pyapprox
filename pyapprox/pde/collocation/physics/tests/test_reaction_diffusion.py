@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -35,6 +34,8 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+
+
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
     """Tests for TwoSpeciesReactionDiffusionPhysics."""
 

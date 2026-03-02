@@ -85,9 +85,7 @@ class TestIndependentJoint:
     def test_logpdf_sum_of_marginals(self, bkd) -> None:
         """Test logpdf equals sum of marginal logpdfs."""
         marginals, joint = self._setup(bkd)
-        samples = bkd.asarray(
-            [[0.0, 0.5, -1.0], [0.3, 0.5, 0.2], [0.5, 0.2, 0.8]]
-        )
+        samples = bkd.asarray([[0.0, 0.5, -1.0], [0.3, 0.5, 0.2], [0.5, 0.2, 0.8]])
 
         logpdf_joint = joint.logpdf(samples)
 
@@ -209,9 +207,7 @@ class TestIndependentJointGaussian:
     def _setup(self, bkd):
         means = [0.0, 1.0, 2.0]
         stds = [1.0, 2.0, 0.5]
-        marginals = [
-            GaussianMarginal(m, s, bkd) for m, s in zip(means, stds)
-        ]
+        marginals = [GaussianMarginal(m, s, bkd) for m, s in zip(means, stds)]
         joint = IndependentJoint(marginals, bkd)
         return means, stds, marginals, joint
 
@@ -228,9 +224,7 @@ class TestIndependentJointGaussian:
         cov = np.diag([s**2 for s in stds])
         scipy_dist = multivariate_normal(means, cov)
 
-        samples = bkd.asarray(
-            [[0.0, 0.5, -1.0], [1.0, 0.5, 2.0], [2.0, 2.5, 1.5]]
-        )
+        samples = bkd.asarray([[0.0, 0.5, -1.0], [1.0, 0.5, 2.0], [2.0, 2.5, 1.5]])
 
         logpdf_ours = joint.logpdf(samples)
         samples_np = bkd.to_numpy(samples)
@@ -382,12 +376,8 @@ class TestIndependentJointFunctionProtocol:
         bounded_joint, _ = self._setup(bkd)
         domain = bounded_joint.domain()
         # Beta has support [0, 1], uniform(0,1) has support [0, 1]
-        bkd.assert_allclose(
-            domain[0, :], bkd.asarray([0.0, 1.0]), atol=1e-10
-        )
-        bkd.assert_allclose(
-            domain[1, :], bkd.asarray([0.0, 1.0]), atol=1e-10
-        )
+        bkd.assert_allclose(domain[0, :], bkd.asarray([0.0, 1.0]), atol=1e-10)
+        bkd.assert_allclose(domain[1, :], bkd.asarray([0.0, 1.0]), atol=1e-10)
 
     def test_domain_values_unbounded(self, bkd) -> None:
         """Test domain returns [-inf, inf] for unbounded marginals."""
@@ -653,9 +643,7 @@ class TestIndependentJointPdfJacobian:
         # d/dx_1[p_0 * p_1] = p_0 * p'_1
         expected_1 = pdf_vals[0] * pdf_jacs[1]
 
-        bkd.assert_allclose(
-            jac[0, :], bkd.asarray([expected_0, expected_1])
-        )
+        bkd.assert_allclose(jac[0, :], bkd.asarray([expected_0, expected_1]))
 
 
 class TestIndependentJointJacobianCombinations:
@@ -729,7 +717,9 @@ class TestIndependentJointJacobianCombinations:
         "name,marginal_specs",
         MARGINAL_COMBOS,
     )
-    def test_logpdf_jacobian_batch_shape(self, bkd, name: str, marginal_specs: list) -> None:
+    def test_logpdf_jacobian_batch_shape(
+        self, bkd, name: str, marginal_specs: list
+    ) -> None:
         """Test logpdf_jacobian_batch shape for different marginal combinations."""
         nsamples = 5
         joint = self._create_joint(marginal_specs, bkd)
@@ -766,7 +756,9 @@ class TestIndependentJointJacobianCombinations:
         "name,marginal_specs",
         MARGINAL_COMBOS,
     )
-    def test_jacobian_batch_consistency(self, bkd, name: str, marginal_specs: list) -> None:
+    def test_jacobian_batch_consistency(
+        self, bkd, name: str, marginal_specs: list
+    ) -> None:
         """Test jacobian_batch matches single jacobian."""
         joint = self._create_joint(marginal_specs, bkd)
         samples = self._create_samples(joint, bkd, 3)

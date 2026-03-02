@@ -1,8 +1,7 @@
 """Tests for extended orthonormal polynomials (Laguerre, discrete, numeric)."""
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     CharlierPolynomial1D,
@@ -17,7 +16,6 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
     laguerre_recurrence,
     lanczos_recursion,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 @pytest.fixture(autouse=True)

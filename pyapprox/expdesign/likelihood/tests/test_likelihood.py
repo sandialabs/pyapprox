@@ -27,18 +27,10 @@ class TestGaussianOEDLikelihood:
 
         np.random.seed(42)
         self._noise_variances = bkd.asarray(np.array([0.1, 0.2, 0.15]))
-        self._shapes_inner = bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._shapes_outer = bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._latent_samples = bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._design_weights = bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        self._shapes_inner = bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        self._shapes_outer = bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        self._latent_samples = bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        self._design_weights = bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
     def _generate_observations(self, bkd, shapes, weights):
         """Generate observations using reparameterization trick."""
@@ -126,8 +118,12 @@ class TestGaussianOEDLikelihood:
             weights_minus[k, 0] = weights_minus[k, 0] - eps
 
             # Recompute observations with perturbed weights
-            obs_plus = self._generate_observations(bkd, self._shapes_outer, weights_plus)
-            obs_minus = self._generate_observations(bkd, self._shapes_outer, weights_minus)
+            obs_plus = self._generate_observations(
+                bkd, self._shapes_outer, weights_plus
+            )
+            obs_minus = self._generate_observations(
+                bkd, self._shapes_outer, weights_minus
+            )
 
             likelihood.set_observations(obs_plus)
             val_plus = likelihood(weights_plus)

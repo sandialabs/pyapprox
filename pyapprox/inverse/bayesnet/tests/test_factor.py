@@ -2,9 +2,8 @@
 Tests for GaussianFactor with variable ID tracking.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.bayesnet.factor import GaussianFactor
 

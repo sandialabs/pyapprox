@@ -1,8 +1,7 @@
 """Tests for KernelBasis."""
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.kernels.matern import (

@@ -9,6 +9,7 @@ obtained via variable elimination.
 import math
 
 import numpy as np
+import pytest
 
 from pyapprox.inverse.bayesnet.inference import compute_marginal
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
@@ -18,8 +19,6 @@ from pyapprox.probability.copula.vine.gaussian_network_factory import (
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
-
-import pytest
 
 _SQRT2 = math.sqrt(2.0)
 

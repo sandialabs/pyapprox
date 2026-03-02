@@ -2,8 +2,6 @@
 
 import math
 
-from numpy.typing import NDArray
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -22,8 +20,8 @@ from pyapprox.pde.collocation.time_integration import (
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+
+
 class TestBCEnforcingTimeResidual:
     """Base test class for BCEnforcingTimeResidual."""
 

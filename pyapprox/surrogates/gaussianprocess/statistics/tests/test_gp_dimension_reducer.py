@@ -1,7 +1,6 @@
 """Tests for GPMeanDimensionReducer."""
 
 import math
-from typing import List
 
 import numpy as np
 

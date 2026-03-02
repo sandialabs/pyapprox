@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign import (
-    PredictionOEDObjective,
     create_prediction_oed_objective,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

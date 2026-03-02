@@ -21,6 +21,8 @@ from pyapprox.pde.collocation.physics.tests.test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,
 )
+
+
 class TestHelmholtzPhysics(PhysicsTestBase):
     """Tests for HelmholtzPhysics."""
 

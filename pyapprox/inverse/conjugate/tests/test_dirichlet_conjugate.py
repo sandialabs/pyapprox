@@ -2,9 +2,8 @@
 Tests for Dirichlet conjugate posterior.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.inverse.conjugate.dirichlet import DirichletConjugatePosterior

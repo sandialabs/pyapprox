@@ -10,10 +10,10 @@ Supports both bounded and unbounded distributions:
 - Unbounded: Uses interval expansion with adaptive quadrature
 """
 
-import pytest
-from typing import Any, Callable, List, NamedTuple, Optional
+from typing import Callable, List, NamedTuple, Optional
 
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.probability.univariate import (

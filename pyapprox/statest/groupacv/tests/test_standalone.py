@@ -173,7 +173,9 @@ class TestGroupACVEstimator:
         """Test sample count computation for nested estimation."""
         nmodels = 3
         np.random.seed(1)
-        est = self._create_estimator(bkd, nmodels, estimator_cls=GroupACVEstimatorNested)
+        est = self._create_estimator(
+            bkd, nmodels, estimator_cls=GroupACVEstimatorNested
+        )
 
         npartition_samples = bkd.arange(
             2.0, 2.0 + est.nsubsets(), dtype=bkd.double_dtype()
@@ -553,21 +555,15 @@ class TestRestrictionMatrices:
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing flattened model qoi ids
-        Lvec = bkd.arange(3 * len(qoi_idx), dtype=bkd.double_dtype())[
-            :, None
-        ]
+        Lvec = bkd.arange(3 * len(qoi_idx), dtype=bkd.double_dtype())[:, None]
 
         # Check restriction matrix recovers all correct qoi of all subset model ids
         bkd.assert_allclose(
             (est._R[:, :6].T @ Lvec)[:, 0],
             bkd.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
         )
-        bkd.assert_allclose(
-            (est._R[:, 6:8].T @ Lvec)[:, 0], bkd.array([2.0, 3.0])
-        )
-        bkd.assert_allclose(
-            (est._R[:, 8:10].T @ Lvec)[:, 0], bkd.array([4.0, 5.0])
-        )
+        bkd.assert_allclose((est._R[:, 6:8].T @ Lvec)[:, 0], bkd.array([2.0, 3.0]))
+        bkd.assert_allclose((est._R[:, 8:10].T @ Lvec)[:, 0], bkd.array([4.0, 5.0]))
 
 
 # CVXPY-dependent tests
@@ -828,9 +824,7 @@ class TestGroupACVRecoversMFMC:
         cov = self._covariance_to_correlation(bkd, cov)
 
         target_cost = 100.0
-        costs = bkd.copy(
-            bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels))
-        )
+        costs = bkd.copy(bkd.flip(bkd.logspace(-nmodels + 1, 0, nmodels)))
 
         # MFMC subsets: [[0,1], [1,2], [2]]
         subsets = [[0, 1], [1, 2], [2]]

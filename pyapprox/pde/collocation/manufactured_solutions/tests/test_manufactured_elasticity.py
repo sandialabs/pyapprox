@@ -12,8 +12,6 @@ precision residuals (< 1e-12).
 
 from typing import Generic
 
-
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -28,6 +26,9 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.protocols import Array, Backend
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 

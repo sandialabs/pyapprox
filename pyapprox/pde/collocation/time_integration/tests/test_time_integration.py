@@ -25,8 +25,8 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+
+
 class TestPhysicsToODEResidualAdapter:
     """Base test class for PhysicsToODEResidualAdapter."""
 

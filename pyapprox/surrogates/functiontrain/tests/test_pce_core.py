@@ -1,7 +1,5 @@
 """Tests for PCEFunctionTrainCore."""
 
-from typing import List
-
 import numpy as np
 import pytest
 
@@ -31,7 +29,9 @@ class TestPCEFunctionTrainCore:
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_core_with_coefficients(self, bkd, r_left, r_right, max_level, coefficients):
+    def _create_core_with_coefficients(
+        self, bkd, r_left, r_right, max_level, coefficients
+    ):
         """Create a FunctionTrain core with specified coefficients."""
         basisexps = []
         for ii in range(r_left):

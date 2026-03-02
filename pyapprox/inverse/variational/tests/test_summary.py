@@ -4,9 +4,8 @@ Tests for summary statistic protocols and implementations.
 All tests use dual-backend testing via the ``bkd`` fixture.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.variational.summary import (
     Aggregation,

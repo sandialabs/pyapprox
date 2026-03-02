@@ -2,8 +2,8 @@
 
 import math
 
-import pytest
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -29,6 +29,8 @@ from pyapprox.pde.field_maps.scalar import (
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
 )
+
+
 class TestFieldMaps:
     def test_basis_expansion_isinstance(self, bkd) -> None:
         """BasisExpansion satisfies FieldMapProtocol."""

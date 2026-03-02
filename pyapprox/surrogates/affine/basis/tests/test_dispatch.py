@@ -12,15 +12,13 @@ Minor differences (~1e-14) from float64 arithmetic ordering are expected
 with Numba parallel mode. Tests use rtol=1e-12 to accommodate this.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 import torch
 
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.optional_deps import package_available
-from pyapprox.util.test_utils import slow_test
 
 if not package_available("numba"):
     pytest.skip("numba not installed", allow_module_level=True)

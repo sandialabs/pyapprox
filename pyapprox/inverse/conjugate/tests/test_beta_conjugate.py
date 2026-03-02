@@ -3,7 +3,6 @@ Tests for Beta conjugate posterior.
 """
 
 import pytest
-
 from scipy import stats
 
 from pyapprox.inverse.conjugate.beta import BetaConjugatePosterior

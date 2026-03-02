@@ -6,11 +6,9 @@ Verifies via DerivativeChecker:
 3. compute_flux_jacobian in 2D
 """
 
-from typing import Any, Generic
+from typing import Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -21,9 +19,9 @@ from pyapprox.pde.collocation.physics import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Array
+
+
 def _setup_2d_hyperelastic(bkd, npts_1d=6, lamda=1.0, mu=1.0):
     """Create 2D hyperelastic physics on [0,1]^2."""
     mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)

@@ -6,11 +6,9 @@ Verifies dP/dmu and dP/dlambda in 2D via:
 3. Consistency with 1D methods for diagonal F
 """
 
-from typing import Any, Generic
+from typing import Generic
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -18,9 +16,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Array
+
+
 class _StressOfMu(Generic[Array]):
     """Wraps P(F; mu) as function of scalar mu for DerivativeChecker.
 

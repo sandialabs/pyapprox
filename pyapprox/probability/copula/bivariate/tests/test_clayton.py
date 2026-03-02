@@ -1,8 +1,7 @@
 """Tests for ClaytonCopula."""
 
-import pytest
-
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.probability.copula.bivariate.clayton import (

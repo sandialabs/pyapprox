@@ -1,6 +1,5 @@
 """Tests for InexactELBOObjective and inexact ELBO factory functions."""
 
-import math
 
 import numpy as np
 import pytest
@@ -9,7 +8,6 @@ from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.inverse.variational.inexact_elbo import (
-    InexactELBOObjective,
     make_inexact_discrete_group_elbo,
     make_inexact_single_problem_elbo,
 )
@@ -466,6 +464,7 @@ class TestInexactELBOTorch:
     @pytest.fixture
     def torch_bkd(self):
         import torch
+
         from pyapprox.util.backends.torch import TorchBkd
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

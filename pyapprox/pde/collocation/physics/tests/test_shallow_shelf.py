@@ -1,8 +1,7 @@
 """Tests for Shallow Shelf Approximation physics implementations."""
 
-
-import pytest
 import numpy as np
+import pytest
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
@@ -523,9 +522,11 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_depth_manufactured(self, bkd, method, atol) :
+    def _run_transient_depth_manufactured(self, bkd, method, atol):
         """Run transient depth test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = self._setup_transient_depth_manufactured(bkd)
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_depth_manufactured(
+            bkd
+        )
         model = CollocationModel(physics, bkd)
 
         # Initial condition: H(x,y,0)
@@ -562,7 +563,7 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
 class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
     """Tests for coupled ShallowShelfDepthVelocityPhysics."""
 
-    def _create_coupled_physics(self, bkd, npts_1d=6) :
+    def _create_coupled_physics(self, bkd, npts_1d=6):
         """Create coupled depth-velocity physics for testing."""
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -640,6 +641,7 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         - Domain [0,1]^2 via AffineTransform2D
         """
         from pyapprox.pde.collocation.mesh import AffineTransform2D
+
         npts_1d = 8
 
         # Domain [0,1]^2
@@ -744,10 +746,10 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
 
         return bkd, npts, nodes, man_sol, physics
 
-    def _run_transient_coupled_manufactured(self, bkd, method, rtol) :
+    def _run_transient_coupled_manufactured(self, bkd, method, rtol):
         """Run transient coupled test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = (
-            self._setup_transient_coupled_manufactured(bkd)
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_coupled_manufactured(
+            bkd
         )
         model = CollocationModel(physics, bkd)
 

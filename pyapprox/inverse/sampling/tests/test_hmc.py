@@ -2,9 +2,8 @@
 Tests for Hamiltonian Monte Carlo sampler.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.sampling.hmc import HamiltonianMonteCarlo
 

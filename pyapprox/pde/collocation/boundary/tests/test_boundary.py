@@ -22,6 +22,8 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
+
+
 class TestDirichletBC:
     """Base test class for Dirichlet boundary conditions."""
 

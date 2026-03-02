@@ -14,11 +14,11 @@ Tests verify:
 """
 
 import math
-import pytest
 from abc import abstractmethod
 from typing import Any
 
 import numpy as np
+import pytest
 
 from pyapprox.benchmarks.functions.genz import (
     CornerPeakFunction,

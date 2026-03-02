@@ -96,7 +96,7 @@ class TestMFNet:
         net, _, _ = self._build_two_node_network(bkd)
         topo = net.topo_order()
         # Leaf (0) must come before root (1)
-        assert topo.index(0) < topo.index(1) == True
+        assert topo.index(0) < topo.index(1) is True
 
     def test_nodes_classification(self, bkd) -> None:
         net, _, _ = self._build_two_node_network(bkd)

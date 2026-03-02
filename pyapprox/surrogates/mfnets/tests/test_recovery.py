@@ -24,7 +24,6 @@ from pyapprox.surrogates.mfnets.nodes import (
 )
 from pyapprox.surrogates.mfnets.registry import create_node_model
 from pyapprox.util.test_utils import (
-    slow_test,
     slower_test,
 )
 

@@ -19,12 +19,10 @@ The HelmholtzPhysics computes residual for: -Δu + k²*u = f
 To make them compatible, we negate the wave number squared when passing to physics.
 """
 
-import pytest
 from typing import Generic
 
+import pytest
 
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -45,6 +43,9 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import HelmholtzPhysics
+from pyapprox.util.backends.protocols import Array
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 

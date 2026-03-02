@@ -10,7 +10,6 @@ from pyapprox.probability.covariance import (
     DiagonalCovarianceOperator,
     OperatorBasedCovarianceOperator,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestDenseCholeskyCovarianceOperator:

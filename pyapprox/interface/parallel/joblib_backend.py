@@ -70,7 +70,9 @@ class JoblibBackend:
         """
         from pyapprox.util.optional_deps import import_optional_dependency
 
-        import_optional_dependency("joblib", feature_name="JoblibBackend", extra_name="parallel")
+        import_optional_dependency(
+            "joblib", feature_name="JoblibBackend", extra_name="parallel"
+        )
         from joblib import Parallel, delayed
 
         n = n_jobs if n_jobs > 0 else self._n_jobs
@@ -105,7 +107,9 @@ class JoblibBackend:
         """
         from pyapprox.util.optional_deps import import_optional_dependency
 
-        import_optional_dependency("joblib", feature_name="JoblibBackend", extra_name="parallel")
+        import_optional_dependency(
+            "joblib", feature_name="JoblibBackend", extra_name="parallel"
+        )
         from joblib import Parallel, delayed
 
         n = n_jobs if n_jobs > 0 else self._n_jobs

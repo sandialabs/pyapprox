@@ -12,15 +12,15 @@ no velocity, and reaction R(u) = -k^2*u so that the forcing matches.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Callable, Dict, Generic, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.collocation.manufactured_solutions import (
@@ -34,8 +34,7 @@ from pyapprox.pde.galerkin.manufactured import (
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import Helmholtz
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Backend
 
 
 def _create_screened_poisson_manufactured(

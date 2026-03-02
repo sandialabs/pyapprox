@@ -2,9 +2,8 @@
 Tests for low-rank Laplace posterior.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.laplace.full_rank import DenseLaplacePosterior
 from pyapprox.inverse.laplace.low_rank import LowRankLaplacePosterior

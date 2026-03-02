@@ -5,6 +5,7 @@ Forward evaluations are slow, so model evaluation tests use @slow_test.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -15,7 +16,6 @@ import numpy as np
 from pyapprox.expdesign.benchmarks.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
 
 

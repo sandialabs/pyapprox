@@ -10,6 +10,7 @@ factory functions depend on skfem, which is a PDE-layer dependency.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -29,6 +30,8 @@ from pyapprox.surrogates.kle.analytical import (
     AnalyticalExponentialKLE1D,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+
+
 def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):
     """Create a small 1D skfem mesh and kernel for testing.
 
@@ -60,7 +63,7 @@ class TestFEMKLE:
     """Tests for FEM KLE factory functions (numpy-only, requires skfem)."""
 
     def setUp(self) -> None:
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
 
     # --- Galerkin KLE tests ---
 

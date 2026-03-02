@@ -46,6 +46,8 @@ from pyapprox.pde.decomposition.solver import (
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+
+
 class DtNResidualDerivativeWrapper(Generic[Array]):
     """Wrap DtN residual for DerivativeChecker compatibility.
 

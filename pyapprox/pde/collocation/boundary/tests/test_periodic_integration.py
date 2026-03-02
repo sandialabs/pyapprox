@@ -7,7 +7,6 @@ Tests PeriodicBC with:
 
 import math
 
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import DirichletBC, PeriodicBC
 from pyapprox.pde.collocation.manufactured_solutions import (
@@ -18,6 +17,8 @@ from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform2D
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.time_integration import CollocationModel
+
+
 class TestPeriodicBCTransforms:
     """Integration tests for periodic BCs on transformed domains."""
 

@@ -202,7 +202,9 @@ class TestGradientEnhancedPCEFitter:
         """nqoi > 1 raises ValueError."""
         nvars, max_level = 1, 3
 
-        expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level, nqoi=2)
+        expansion = self._create_expansion(
+            bkd, nvars=nvars, max_level=max_level, nqoi=2
+        )
         nterms = expansion.nterms()
 
         nsamples = nterms + 5

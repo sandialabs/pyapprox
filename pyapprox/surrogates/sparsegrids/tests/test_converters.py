@@ -34,7 +34,6 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_test_joint,
     create_test_pce,
 )
-from pyapprox.util.test_utils import slow_test
 
 
 class TestSparseGridToPCEConverter:

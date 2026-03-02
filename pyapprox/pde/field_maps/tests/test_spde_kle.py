@@ -203,6 +203,7 @@ parameterization and both discretizations are correct
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -222,7 +223,8 @@ from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh2D,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
-from pyapprox.util.backends.numpy import NumpyBkd
+
+
 def _make_2d_kle(
     bkd,
     n_modes=5,
@@ -376,7 +378,9 @@ class TestSPDEMaternKLE:
         var_large = bkd.to_numpy(kle_large_xi.pointwise_variance())
 
         # Different xi should produce different variance profiles
-        assert not np.allclose(var_default, var_large, rtol=0.05), "Different xi values should produce different variance profiles"
+        assert not np.allclose(var_default, var_large, rtol=0.05), (
+            "Different xi values should produce different variance profiles"
+        )
 
     def test_call_shape(self, numpy_bkd) -> None:
         """__call__(coef) returns shape (nnodes, nsamples)."""
@@ -415,7 +419,7 @@ class TestSPDEMaternKLE:
             delta=delta,
         )
         expected = np.sqrt(gamma / delta)
-        assert abs(kle.correlation_length() - expected) < 10**(-12)
+        assert abs(kle.correlation_length() - expected) < 10 ** (-12)
 
     def test_eigenvector_smoothness(self, numpy_bkd) -> None:
         """Earlier modes are smoother (fewer zero crossings) than later modes."""

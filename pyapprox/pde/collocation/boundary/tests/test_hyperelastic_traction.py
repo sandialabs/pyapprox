@@ -10,10 +10,8 @@ Verifies via DerivativeChecker:
 
 from typing import Generic
 
-
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -30,6 +28,9 @@ from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
+from pyapprox.util.backends.protocols import Array
+
+
 class _TractionOfState(Generic[Array]):
     """Wraps traction operator as function of state for DerivativeChecker.
 

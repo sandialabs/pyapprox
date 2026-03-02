@@ -252,7 +252,9 @@ class TestDerivativeCheckerLaguerre:
     to stay in the support while avoiding boundary issues.
     """
 
-    def _create_laguerre_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_laguerre_expansion(
+        self, bkd, nvars: int, max_level: int, nqoi: int = 1
+    ):
         marginals = [GammaMarginal(1.0, 1.0, bkd=bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
@@ -409,7 +411,9 @@ class TestDerivativeCheckerChebyshev:
 
     def test_jacobian_1d_first_kind(self, bkd):
         """Test Jacobian for 1D Chebyshev 1st kind expansion."""
-        exp = self._create_chebyshev_expansion(bkd, nvars=1, max_level=5, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(
+            bkd, nvars=1, max_level=5, nqoi=1, kind=1
+        )
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -423,7 +427,9 @@ class TestDerivativeCheckerChebyshev:
 
     def test_jacobian_2d_first_kind(self, bkd):
         """Test Jacobian for 2D Chebyshev 1st kind expansion."""
-        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(
+            bkd, nvars=2, max_level=3, nqoi=1, kind=1
+        )
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -437,7 +443,9 @@ class TestDerivativeCheckerChebyshev:
 
     def test_hessian_2d_first_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 1st kind expansion."""
-        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=1)
+        exp = self._create_chebyshev_expansion(
+            bkd, nvars=2, max_level=3, nqoi=1, kind=1
+        )
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -451,7 +459,9 @@ class TestDerivativeCheckerChebyshev:
 
     def test_jacobian_2d_second_kind(self, bkd):
         """Test Jacobian for 2D Chebyshev 2nd kind expansion."""
-        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=2)
+        exp = self._create_chebyshev_expansion(
+            bkd, nvars=2, max_level=3, nqoi=1, kind=2
+        )
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -465,7 +475,9 @@ class TestDerivativeCheckerChebyshev:
 
     def test_hessian_2d_second_kind(self, bkd):
         """Test Hessian for 2D Chebyshev 2nd kind expansion."""
-        exp = self._create_chebyshev_expansion(bkd, nvars=2, max_level=3, nqoi=1, kind=2)
+        exp = self._create_chebyshev_expansion(
+            bkd, nvars=2, max_level=3, nqoi=1, kind=2
+        )
 
         np.random.seed(42)
         exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
@@ -529,7 +541,9 @@ class TestDerivativeCheckerMonomial:
     Tests use MultiIndexBasis directly (not OrthonormalPolynomialBasis).
     """
 
-    def _create_monomial_expansion(self, bkd, nvars: int, max_level: int, nqoi: int = 1):
+    def _create_monomial_expansion(
+        self, bkd, nvars: int, max_level: int, nqoi: int = 1
+    ):
         """Create a BasisExpansion with MonomialBasis1D univariate bases."""
         bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)

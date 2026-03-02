@@ -1,7 +1,6 @@
 """Tests for PCEDimensionReducer."""
 
 import numpy as np
-import pytest
 
 from pyapprox.interface.functions.marginalize import (
     DimensionReducerProtocol,

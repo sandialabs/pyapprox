@@ -6,7 +6,6 @@ computing the distribution of Sobol sensitivity indices.
 """
 
 import math
-from typing import List
 
 import numpy as np
 import pytest

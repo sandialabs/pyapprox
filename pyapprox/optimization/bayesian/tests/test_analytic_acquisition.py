@@ -1,6 +1,5 @@
 """Tests for analytic acquisition functions."""
 
-import numpy as np
 
 from pyapprox.optimization.bayesian.acquisition.analytic import (
     ExpectedImprovement,

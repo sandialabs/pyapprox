@@ -1,8 +1,7 @@
 """Tests for CholeskyCorrelationParameterization."""
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,

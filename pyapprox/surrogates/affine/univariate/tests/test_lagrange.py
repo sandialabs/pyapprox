@@ -11,7 +11,6 @@ from pyapprox.surrogates.affine.univariate.lagrange import (
     univariate_lagrange_polynomial,
     univariate_lagrange_second_derivative,
 )
-from pyapprox.util.test_utils import slow_test
 
 
 class TestLagrangeBasis1D:

@@ -5,12 +5,14 @@ Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     BoundaryConditionSet,
@@ -24,6 +26,8 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
+
+
 class TestDirichletBCBase:
     """Tests for DirichletBC."""
 
@@ -262,7 +266,7 @@ class TestCanonicalBoundaryNormal:
 
     def test_1d_normals(self, numpy_bkd) -> None:
         """Test 1D boundary normals."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         x = np.array([[0.0, 0.5, 1.0]])  # Shape: (1, 3)
 
         # Left boundary (index 0): normal = -1
@@ -275,7 +279,7 @@ class TestCanonicalBoundaryNormal:
 
     def test_2d_normals(self, numpy_bkd) -> None:
         """Test 2D boundary normals."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         x = np.array([[0.0, 0.5], [0.0, 0.5]])  # Shape: (2, 2)
 
         # Left (x=xmin): normal = [-1, 0]

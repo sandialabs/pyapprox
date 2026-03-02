@@ -5,6 +5,7 @@ using manufactured solutions with time-dependent displacement fields.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -32,7 +33,6 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 # =========================================================================
 # Helpers

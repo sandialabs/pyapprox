@@ -1,6 +1,7 @@
 """Tests for IshigamiFunction."""
 
 import math
+
 import pytest
 
 from pyapprox.benchmarks.functions.algebraic.ishigami import (

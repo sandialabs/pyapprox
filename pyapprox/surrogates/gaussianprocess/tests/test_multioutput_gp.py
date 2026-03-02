@@ -6,7 +6,6 @@ and LinearCoregionalizationKernel with a single GP handling all outputs.
 """
 
 import numpy as np
-import pytest
 import torch
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

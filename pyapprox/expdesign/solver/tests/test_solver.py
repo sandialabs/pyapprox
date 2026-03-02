@@ -19,7 +19,6 @@ from pyapprox.expdesign.solver import (
     RelaxedOEDConfig,
     solve_kl_oed,
 )
-from pyapprox.util.test_utils import slow_test
 
 
 class TestRelaxedKLOEDSolver:

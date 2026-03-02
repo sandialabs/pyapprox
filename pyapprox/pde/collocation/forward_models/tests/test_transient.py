@@ -40,6 +40,8 @@ from pyapprox.pde.parameterizations.diffusion import (
 )
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
+
+
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     """Create a parameterized transient diffusion problem for testing.
 

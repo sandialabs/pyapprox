@@ -8,6 +8,7 @@ NumPy only — skfem assembly at each nonlinear step is numpy-based.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -37,7 +38,6 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
 
 # =========================================================================

@@ -1,8 +1,8 @@
 """Tests for Chebyshev-Gauss-Lobatto nodes."""
 
 
-import pytest
 import numpy as np
+import pytest
 
 from pyapprox.pde.collocation.basis.chebyshev.nodes import (
     ChebyshevGaussLobattoNodes1D,

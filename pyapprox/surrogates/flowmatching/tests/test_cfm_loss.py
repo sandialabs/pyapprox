@@ -22,7 +22,6 @@ from pyapprox.surrogates.flowmatching.protocols import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.test_utils import slow_test
 
 
 def _make_vf(bkd, d: int, degree: int, m: int = 0):

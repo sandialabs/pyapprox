@@ -18,9 +18,9 @@ def _hide_pyrol(monkeypatch: pytest.MonkeyPatch):
 
     _cached = _package_cache.pop("pyrol", None)
 
-    import pyapprox.optimization.minimize.rol.rol_wrappers as wmod
     import pyapprox.optimization.minimize.rol.rol_optimizer as omod
     import pyapprox.optimization.minimize.rol.rol_result as rmod
+    import pyapprox.optimization.minimize.rol.rol_wrappers as wmod
 
     importlib.reload(wmod)
     importlib.reload(omod)

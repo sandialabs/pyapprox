@@ -2,7 +2,6 @@
 Tests for LogUnNormalizedPosterior.
 """
 
-import pytest
 
 import numpy as np
 
@@ -18,7 +17,7 @@ class TestLogUnNormalizedPosteriorBase:
     def _make_posterior(self, bkd):
         """Create posterior for tests."""
         nvars = 2
-        nobs = 3
+        _nobs = 3
 
         # Linear model: y = A @ theta
         A_np = np.array(

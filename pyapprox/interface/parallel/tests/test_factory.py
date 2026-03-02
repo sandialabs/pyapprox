@@ -4,8 +4,8 @@ from typing import Generic
 
 import pytest
 
-from pyapprox.util.optional_deps import package_available
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
 
 HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")

@@ -7,7 +7,6 @@ formulas properly apply variance scaling.
 """
 
 import math
-from typing import List
 
 import numpy as np
 import pytest

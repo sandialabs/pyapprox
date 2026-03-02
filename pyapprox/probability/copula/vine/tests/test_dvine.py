@@ -6,6 +6,7 @@ import math
 from typing import Dict, List
 
 import numpy as np
+import pytest
 
 from pyapprox.probability.copula.bivariate.gaussian import (
     BivariateGaussianCopula,
@@ -21,8 +22,6 @@ from pyapprox.probability.copula.vine.helpers import (
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
-
-import pytest
 
 _SQRT2 = math.sqrt(2.0)
 

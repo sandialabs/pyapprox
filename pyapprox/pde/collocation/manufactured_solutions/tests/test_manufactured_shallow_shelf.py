@@ -22,11 +22,9 @@ The ShallowShelfVelocityPhysics computes residual as:
 For the exact manufactured solution with correct forcing, residual = 0.
 """
 
-import pytest
-from typing import Any, Generic
+from typing import Generic
 
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -40,8 +38,7 @@ from pyapprox.pde.collocation.mesh import (
 )
 from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.test_utils import slow_test
 
 

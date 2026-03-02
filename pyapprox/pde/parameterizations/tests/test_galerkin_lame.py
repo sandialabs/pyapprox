@@ -1,6 +1,7 @@
 """Tests for GalerkinLameParameterization."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,7 +10,6 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -29,6 +29,9 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array
+
+
 def _to_dense(mat):
     """Convert sparse matrix to dense numpy array if needed."""
     if issparse(mat):

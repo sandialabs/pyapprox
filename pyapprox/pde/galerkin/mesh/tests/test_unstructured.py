@@ -1,24 +1,20 @@
 """Tests for UnstructuredMesh2D."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import os
-from typing import Any
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
+
 # Path to the beam mesh JSON
 _BEAM_MESH_PATH = os.path.join(
     os.path.expanduser("~"),

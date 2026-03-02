@@ -5,8 +5,9 @@ including derivative checks via DerivativeChecker and integration
 accuracy tests matching legacy test_leja.py test cases.
 """
 
-import pytest
 from typing import Any, Callable, Tuple
+
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,

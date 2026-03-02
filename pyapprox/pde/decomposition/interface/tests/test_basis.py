@@ -1,13 +1,13 @@
 """Tests for interface basis implementations."""
 
 
-import pytest
 import numpy as np
+import pytest
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.decomposition.interface.basis import (
     LegendreInterfaceBasis1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestLegendreInterfaceBasis1D:

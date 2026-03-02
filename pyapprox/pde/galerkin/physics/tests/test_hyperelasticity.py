@@ -7,15 +7,14 @@ Tests:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
@@ -34,8 +33,6 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import slow_test
 
 
 def _to_dense(mat, bkd):
@@ -94,7 +91,7 @@ class TestHyperelasticity1DBase:
     def _setup(self, bkd) -> None:
         self._stress = NeoHookeanStress(1.0, 1.0)
 
-    def _setup_1d_problem(self, bkd, nx=20, degree=2) :
+    def _setup_1d_problem(self, bkd, nx=20, degree=2):
         """Create 1D MMS problem with all-Dirichlet BCs."""
         bounds = [0.0, 1.0]
         sol_strs = ["0.1*x**2*(1-x)**2"]
@@ -152,9 +149,7 @@ class TestHyperelasticity1DBase:
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(
-                physics.residual(bkd.asarray(state_pert), 0.0)
-            )
+            res_pert = bkd.to_numpy(physics.residual(bkd.asarray(state_pert), 0.0))
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -170,7 +165,9 @@ class TestHyperelasticity1DBase:
         init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
-        assert result.converged, f"1D Newton did not converge: {result.residual_norm:.2e}"
+        assert result.converged, (
+            f"1D Newton did not converge: {result.residual_norm:.2e}"
+        )
         u_num = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         if u_norm > 1e-10:
@@ -178,8 +175,6 @@ class TestHyperelasticity1DBase:
         else:
             rel_error = np.linalg.norm(u_num - exact)
         assert rel_error < 1e-6
-
-
 
 
 # =========================================================================
@@ -193,7 +188,7 @@ class TestHyperelasticity2DBase:
     def _setup(self, bkd) -> None:
         self._stress = NeoHookeanStress(1.0, 1.0)
 
-    def _setup_2d_problem(self, bkd, nx=8, ny=8, degree=2) :
+    def _setup_2d_problem(self, bkd, nx=8, ny=8, degree=2):
         """Create 2D MMS problem with all-Dirichlet BCs."""
         bounds = [0.0, 1.0, 0.0, 1.0]
         sol_strs = [
@@ -260,9 +255,7 @@ class TestHyperelasticity2DBase:
         for j in range(n):
             state_pert = state_np.copy()
             state_pert[j] += eps
-            res_pert = bkd.to_numpy(
-                physics.residual(bkd.asarray(state_pert), 0.0)
-            )
+            res_pert = bkd.to_numpy(physics.residual(bkd.asarray(state_pert), 0.0))
             fd_jac[:, j] = (res_pert - res0) / eps
         rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         assert rel_err < 1e-4
@@ -278,7 +271,9 @@ class TestHyperelasticity2DBase:
         init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
-        assert result.converged, f"2D Newton did not converge: {result.residual_norm:.2e}"
+        assert result.converged, (
+            f"2D Newton did not converge: {result.residual_norm:.2e}"
+        )
         u_num = bkd.to_numpy(result.solution)
         u_norm = np.linalg.norm(exact)
         if u_norm > 1e-10:
@@ -286,8 +281,6 @@ class TestHyperelasticity2DBase:
         else:
             rel_error = np.linalg.norm(u_num - exact)
         assert rel_error < 1e-4
-
-
 
 
 # =========================================================================

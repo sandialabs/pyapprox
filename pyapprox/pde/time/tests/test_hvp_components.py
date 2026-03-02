@@ -25,7 +25,6 @@ from pyapprox.pde.time.explicit_steppers.forward_euler import (
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================

@@ -32,7 +32,6 @@ from pyapprox.surrogates.affine.indices.utils import (
 from pyapprox.surrogates.affine.protocols.index import (
     IndexSequenceProtocol,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestHashIndex:

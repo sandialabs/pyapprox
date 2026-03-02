@@ -1,7 +1,6 @@
 """Tests for collocation quadrature weights."""
 
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -15,6 +14,9 @@ from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     ClenshawCurtisQuadratureRule,
 )
+from pyapprox.util.backends.protocols import Array
+
+
 class TestCollocationQuadrature:
     """Base test class for CollocationQuadrature1D."""
 

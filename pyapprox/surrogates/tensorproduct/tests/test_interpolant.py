@@ -13,7 +13,6 @@ from pyapprox.surrogates.affine.univariate import (
     LegendrePolynomial1D,
 )
 from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
-from pyapprox.util.test_utils import slow_test
 
 
 class TestTensorProductInterpolant:
@@ -25,9 +24,7 @@ class TestTensorProductInterpolant:
         poly.set_nterms(10)
         return LagrangeBasis1D(bkd, poly.gauss_quadrature_rule)
 
-    def _make_interpolant(
-        self, bkd, nvars: int = 2, nterms_1d: int = 3
-    ):
+    def _make_interpolant(self, bkd, nvars: int = 2, nterms_1d: int = 3):
         """Create a TensorProductInterpolant for testing."""
         basis = self._make_basis(bkd)
         bases = [basis] * nvars
@@ -96,7 +93,9 @@ class TestTensorProductInterpolant:
 
     def test_interpolates_polynomial(self, bkd) -> None:
         """Test exact interpolation of a polynomial."""
-        interp = self._make_interpolant(bkd, 2, 5)  # 5 points can exactly interp degree 4
+        interp = self._make_interpolant(
+            bkd, 2, 5
+        )  # 5 points can exactly interp degree 4
         samples = interp.get_samples()
 
         # f(x, y) = x^2 + y^2 (degree 2, should be exact)
@@ -159,9 +158,7 @@ class TestTensorProductInterpolant:
         """Test hessian returns correct shape."""
         interp = self._make_interpolant(bkd, 3, 4)
         samples = interp.get_samples()
-        values = bkd.zeros(
-            (1, samples.shape[1])
-        )  # (nqoi, nsamples), nqoi must be 1
+        values = bkd.zeros((1, samples.shape[1]))  # (nqoi, nsamples), nqoi must be 1
         interp.set_values(values)
 
         sample = bkd.asarray([[0.0], [0.0], [0.0]])
@@ -172,9 +169,7 @@ class TestTensorProductInterpolant:
         """Test hvp returns correct shape."""
         interp = self._make_interpolant(bkd, 3, 4)
         samples = interp.get_samples()
-        values = bkd.zeros(
-            (1, samples.shape[1])
-        )  # (nqoi, nsamples), nqoi must be 1
+        values = bkd.zeros((1, samples.shape[1]))  # (nqoi, nsamples), nqoi must be 1
         interp.set_values(values)
 
         sample = bkd.asarray([[0.0], [0.0], [0.0]])

@@ -1,12 +1,8 @@
 """Tests for 2D stress post-processing."""
 
-import pytest
-
 import math
-from typing import Any
 
-import torch
-from numpy.typing import NDArray
+import pytest
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
@@ -20,10 +16,6 @@ from pyapprox.pde.collocation.post_processing.stress import (
     StressPostProcessor2D,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
 
 # ======================================================================
 # Helpers

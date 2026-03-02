@@ -42,7 +42,6 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
 from pyapprox.util.test_utils import (
-    slow_test,
     slower_test,
 )
 

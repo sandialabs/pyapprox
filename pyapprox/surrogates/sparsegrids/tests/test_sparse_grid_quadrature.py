@@ -1,6 +1,5 @@
 """Tests for sparse grid quadrature weights and parameterized rule."""
 
-import pytest
 
 from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule

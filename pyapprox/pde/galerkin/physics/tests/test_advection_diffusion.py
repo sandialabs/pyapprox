@@ -9,15 +9,15 @@ This module contains:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Generic, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
@@ -29,12 +29,12 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
 
 
 class TestLinearADRBase:
     """Base test class for LinearAdvectionDiffusionReaction."""
-    def _to_dense(self, bkd, matrix) :
+
+    def _to_dense(self, bkd, matrix):
         """Convert sparse or backend matrix to dense numpy array."""
         if issparse(matrix):
             return matrix.toarray()
@@ -118,9 +118,7 @@ class TestLinearADRBase:
     def test_2d_physics(self, numpy_bkd) -> None:
         """Test physics works in 2D."""
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, bkd=bkd
@@ -284,9 +282,7 @@ class TestLinearADRBase:
         mesh_sizes = [10, 20, 40]
 
         for nx in mesh_sizes:
-            mesh = StructuredMesh1D(
-                nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
-            )
+            mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
             basis = LagrangeBasis(mesh, degree=1)
 
             physics = LinearAdvectionDiffusionReaction(
@@ -574,7 +570,9 @@ class TestParametrizedADR1DConvergence:
         # P2 elements should have convergence rate ~3
         # Use relaxed threshold for stability
         min_expected_rate = 2.5 if has_advection else 2.8
-        assert np.all(rates > min_expected_rate), f"Test {name}: rates={rates} should be > {min_expected_rate}"
+        assert np.all(rates > min_expected_rate), (
+            f"Test {name}: rates={rates} should be > {min_expected_rate}"
+        )
 
 
 class TestParametrizedADR2DConvergence:
@@ -671,7 +669,9 @@ class TestParametrizedADR2DConvergence:
         # P2 elements should have convergence rate ~3
         # Use relaxed threshold for stability
         min_expected_rate = 2.3 if has_advection else 2.5
-        assert np.all(rates > min_expected_rate), f"Test {name}: rates={rates} should be > {min_expected_rate}"
+        assert np.all(rates > min_expected_rate), (
+            f"Test {name}: rates={rates} should be > {min_expected_rate}"
+        )
 
 
 # =============================================================================

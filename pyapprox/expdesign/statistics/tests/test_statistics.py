@@ -34,15 +34,15 @@ class TestSampleStatistics:
         # Create test data: (nqoi, nsamples)
         self._values = bkd.asarray(np.random.randn(self._nqoi, self._nsamples))
         # Uniform weights summing to 1: (1, nsamples)
-        self._weights = bkd.asarray(
-            np.full((1, self._nsamples), 1.0 / self._nsamples)
-        )
+        self._weights = bkd.asarray(np.full((1, self._nsamples), 1.0 / self._nsamples))
         # Random jacobians: (nqoi, nsamples, nvars)
         self._jac_values = bkd.asarray(
             np.random.randn(self._nqoi, self._nsamples, self._nvars)
         )
 
-    def _finite_diff_jacobian(self, bkd, stat, values, weights, eps=1e-6, jac_values=None):
+    def _finite_diff_jacobian(
+        self, bkd, stat, values, weights, eps=1e-6, jac_values=None
+    ):
         """Compute Jacobian via finite differences."""
         if jac_values is None:
             jac_values = self._jac_values
@@ -240,9 +240,7 @@ class TestSampleStatistics:
         stat = SampleAverageMean(bkd)
 
         # Wrong weights shape
-        bad_weights = bkd.asarray(
-            np.full((2, self._nsamples), 1.0 / self._nsamples)
-        )
+        bad_weights = bkd.asarray(np.full((2, self._nsamples), 1.0 / self._nsamples))
         with pytest.raises(ValueError):
             stat(self._values, bad_weights)
 

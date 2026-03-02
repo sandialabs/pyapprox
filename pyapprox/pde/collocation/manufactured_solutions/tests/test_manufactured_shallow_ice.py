@@ -21,12 +21,10 @@ For residual = 0: f must equal -div(D*grad(s)), which matches manufactured.
 No sign negation needed.
 """
 
-import pytest
 from typing import Generic
 
+import pytest
 
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -40,6 +38,9 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import ShallowIcePhysics
+from pyapprox.util.backends.protocols import Array
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -243,7 +244,9 @@ class TestShallowIce1DParameterized:
             ("quartic_profile", "2 + 0.25*(1 - x**2)**2", "0.1*x", "1.0", 30),
         ],
     )
-    def test_shallow_ice_1d_residual(self, bkd, name, sol_str, bed_str, friction_str, npts):
+    def test_shallow_ice_1d_residual(
+        self, bkd, name, sol_str, bed_str, friction_str, npts
+    ):
         """Test 1D Shallow Ice residual for parameterized cases."""
         mesh = TransformedMesh1D(npts, bkd)
 

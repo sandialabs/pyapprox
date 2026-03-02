@@ -2,9 +2,8 @@
 Tests for Gaussian prediction (posterior pushforward).
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward

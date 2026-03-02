@@ -143,6 +143,7 @@ class TestELBOTorch:
     @pytest.fixture
     def torch_bkd(self):
         import torch
+
         from pyapprox.util.backends.torch import TorchBkd
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

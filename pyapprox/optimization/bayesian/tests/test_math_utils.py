@@ -1,6 +1,5 @@
 """Tests for normal CDF/PDF utility functions."""
 
-import numpy as np
 from scipy.stats import norm
 
 from pyapprox.optimization.bayesian.math_utils import normal_cdf, normal_pdf

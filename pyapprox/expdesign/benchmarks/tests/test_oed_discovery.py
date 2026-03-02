@@ -7,7 +7,6 @@ protocol combinations.
 """
 
 import numpy as np
-import pytest
 
 # Ensure all OED benchmarks are registered by importing the package
 import pyapprox.expdesign.benchmarks  # noqa: F401

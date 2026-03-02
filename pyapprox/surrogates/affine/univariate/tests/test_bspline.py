@@ -3,7 +3,6 @@
 Tests run on both NumPy and PyTorch backends using the base class pattern.
 """
 
-import pytest
 
 from pyapprox.surrogates.affine.univariate.bspline import (
     BSpline1D,

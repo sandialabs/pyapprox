@@ -5,15 +5,14 @@ and works with the time steppers in typing.pde.time.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -21,8 +20,6 @@ from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.implicit_steppers import BackwardEulerResidual
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
 
 
 class TestPhysicsAdapterBase:

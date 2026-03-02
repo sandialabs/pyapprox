@@ -2,9 +2,8 @@
 Tests for Hessian operators.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.laplace.hessian_operators import (
     ApplyNegLogLikelihoodHessian,

@@ -9,14 +9,11 @@ Verifies:
 6. Factory produces valid model with correct protocol compliance
 """
 
-import pytest
-
 import math
 
 import numpy as np
+import pytest
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -45,7 +42,6 @@ from pyapprox.pde.field_maps.kle_factory import (
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.util.test_utils import slow_test
 
 # ======================================================================
 # Helpers

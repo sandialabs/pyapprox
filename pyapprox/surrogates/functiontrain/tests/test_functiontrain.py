@@ -34,7 +34,8 @@ class TestFunctionTrain:
     def _create_simple_functiontrain(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create a simple additive FunctionTrain for testing."""
         univariate_bases = [
-            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi)
+            for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 

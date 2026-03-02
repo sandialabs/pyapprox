@@ -6,6 +6,7 @@ that physics assembly methods return scipy sparse matrices.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -14,7 +15,6 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
@@ -35,6 +35,9 @@ from pyapprox.pde.sparse_utils import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+
+
 class TestSparsePathADR:
     """Verify ADR physics returns sparse matrices."""
 
@@ -49,7 +52,7 @@ class TestSparsePathADR:
         )
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._physics.mass_matrix())
 
     def test_spatial_jacobian_is_sparse(self, numpy_bkd) -> None:
@@ -96,11 +99,11 @@ class TestSparsePathElasticity:
         )
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._physics.mass_matrix())
 
     def test_stiffness_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._physics.stiffness_matrix())
 
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
@@ -124,11 +127,11 @@ class TestSparsePathStokes:
         )
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._physics.mass_matrix())
 
     def test_vel_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._physics.vel_mass_matrix())
 
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
@@ -151,11 +154,11 @@ class TestSparsePathEulerBernoulli:
         )
 
     def test_stiffness_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._beam.stiffness_matrix())
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         assert issparse(self._beam.mass_matrix())
 
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
@@ -168,7 +171,7 @@ class TestSolveDispatch:
     """Verify solve_maybe_sparse dispatches correctly."""
 
     def test_sparse_dispatch(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         from scipy.sparse import csr_matrix
 
         A = csr_matrix(np.eye(3))
@@ -177,7 +180,7 @@ class TestSolveDispatch:
         np.testing.assert_allclose(x, b, atol=1e-14)
 
     def test_dense_dispatch(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         A = np.eye(3)
         b = np.array([1.0, 2.0, 3.0])
         x = sparse_or_dense_solve(A, b)

@@ -13,9 +13,9 @@ from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.tests.harnesses import verify_jacobian_fd
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import (
-    slowest_test,
     slow_test,
     slower_test,
+    slowest_test,
 )
 
 # ---------------------------------------------------------------------------

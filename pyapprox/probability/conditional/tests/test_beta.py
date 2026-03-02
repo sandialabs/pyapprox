@@ -9,9 +9,8 @@ Tests validate:
 6. Bounds support with various [lb, ub] configurations
 """
 
-import pytest
-
 import numpy as np
+import pytest
 from scipy import stats
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

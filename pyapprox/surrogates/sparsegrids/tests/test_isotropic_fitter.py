@@ -8,7 +8,7 @@ across different dimensions, basis types (Gauss, Leja, Clenshaw-Curtis,
 piecewise), and marginal distributions.
 """
 
-from typing import List, Union
+from typing import List
 
 import numpy as np
 import pytest
@@ -238,9 +238,7 @@ class TestIsotropicFitter:
         fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
 
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        pce = create_pce_from_marginals(
-            marginals, max_level=level, bkd=bkd, nqoi=1
-        )
+        pce = create_pce_from_marginals(marginals, max_level=level, bkd=bkd, nqoi=1)
         nterms = pce.nterms()
         coefficients = bkd.asarray(
             [[0.5], [-0.3], [0.2], [0.1], [-0.15], [0.25]] + [[0.0]] * (nterms - 6)
@@ -368,9 +366,7 @@ class TestFitterQuadrature:
 
         values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
-        bkd.assert_allclose(
-            result.surrogate.mean(), bkd.asarray([0.0]), atol=1e-14
-        )
+        bkd.assert_allclose(result.surrogate.mean(), bkd.asarray([0.0]), atol=1e-14)
 
     def test_variance_sum_function(self, bkd) -> None:
         """Var[x + y] = 2/3 on [-1,1]^2."""
@@ -434,7 +430,9 @@ class TestFitterInterpolation:
         "name,joint_config,level",
         LEJA_INTERPOLATION_CONFIGS,
     )
-    def test_leja_interpolation(self, name: str, joint_config: str, level: int, bkd) -> None:
+    def test_leja_interpolation(
+        self, name: str, joint_config: str, level: int, bkd
+    ) -> None:
         """Test Leja quadrature fitter exactly interpolates PCE."""
         joint = create_test_joint(joint_config, bkd)
         pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
@@ -454,7 +452,9 @@ class TestFitterInterpolation:
         CC_INTERPOLATION_CONFIGS,
     )
     @slower_test
-    def test_cc_interpolation(self, name: str, joint_config: str, level: int, bkd) -> None:
+    def test_cc_interpolation(
+        self, name: str, joint_config: str, level: int, bkd
+    ) -> None:
         """Test Clenshaw-Curtis fitter exactly interpolates PCE."""
         joint = create_test_joint(joint_config, bkd)
         pce = create_test_pce(joint, level, nqoi=1, bkd=bkd)
@@ -610,9 +610,7 @@ class TestFitterPiecewiseInterpolation:
         np.random.seed(123)
         test_pts = joint.rvs(50)
         error = float(
-            bkd.to_numpy(
-                bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts)))
-            )
+            bkd.to_numpy(bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts))))
         )
         assert error < tol
 
@@ -644,9 +642,7 @@ class TestFitterPiecewiseInterpolation:
             test_pts = joint.rvs(200)
             error = float(
                 bkd.to_numpy(
-                    bkd.max(
-                        bkd.abs(surrogate(test_pts) - test_func(test_pts))
-                    )
+                    bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts)))
                 )
             )
             errors.append(error)
@@ -690,9 +686,7 @@ class TestFitterMixedInterpolation:
         np.random.seed(123)
         test_pts = joint.rvs(50)
         error = float(
-            bkd.to_numpy(
-                bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts)))
-            )
+            bkd.to_numpy(bkd.max(bkd.abs(surrogate(test_pts) - test_func(test_pts))))
         )
         assert error < 1e-3
 

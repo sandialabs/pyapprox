@@ -13,7 +13,6 @@ from pyapprox.surrogates.kernels.multioutput import (
     DAGMultiOutputKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):

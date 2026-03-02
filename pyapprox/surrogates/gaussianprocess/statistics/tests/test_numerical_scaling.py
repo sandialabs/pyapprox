@@ -22,10 +22,8 @@ when sigma**2 != 0).
 
 import math
 from itertools import product as iterproduct
-from typing import List
 
 import numpy as np
-import pytest
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
@@ -61,7 +59,9 @@ _NUGGET = 1e-10
 
 
 def _create_quadrature_bases(
-    marginals, nquad_points, bkd,
+    marginals,
+    nquad_points,
+    bkd,
 ):
     factories = create_basis_factories(marginals, bkd, "gauss")
     bases = [f.create_basis() for f in factories]
@@ -71,7 +71,8 @@ def _create_quadrature_bases(
 
 
 def _create_separable_kernel(
-    length_scales, bkd,
+    length_scales,
+    bkd,
 ):
     kernels_1d = [
         SquaredExponentialKernel([ls], (0.1, 10.0), 1, bkd) for ls in length_scales
@@ -98,37 +99,39 @@ def _fit_gp(
     bkd,
     nugget=_NUGGET,
 ):
-    gp = ExactGaussianProcess(
-        kernel, nvars=nvars, bkd=bkd, nugget=nugget
-    )
+    gp = ExactGaussianProcess(kernel, nvars=nvars, bkd=bkd, nugget=nugget)
     gp.hyp_list().set_all_inactive()
     gp.fit(X_train, y_train)
     return gp
 
 
 def _create_stats(
-    gp, marginals, nquad, bkd,
+    gp,
+    marginals,
+    nquad,
+    bkd,
 ):
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc = SeparableKernelIntegralCalculator(
-        gp, bases, marginals, bkd=bkd
-    )
+    calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
     return GaussianProcessStatistics(gp, calc)
 
 
 def _create_sensitivity(
-    gp, marginals, nquad, bkd,
+    gp,
+    marginals,
+    nquad,
+    bkd,
 ):
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc = SeparableKernelIntegralCalculator(
-        gp, bases, marginals, bkd=bkd
-    )
+    calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
     stats = GaussianProcessStatistics(gp, calc)
     return GaussianProcessSensitivity(stats)
 
 
 def _make_training_data(
-    bkd, nvars=2, n_train=5,
+    bkd,
+    nvars=2,
+    n_train=5,
 ):
     """Create reproducible training data.
 
@@ -187,9 +190,7 @@ class TestIntegralCalculatorDecomposition:
     def test_tau_identical(self, bkd) -> None:
         """Calculator returns identical tau for C and K = s**2*C."""
         calc_C, calc_K = self._setup(bkd)
-        bkd.assert_allclose(
-            calc_K.tau_C(), calc_C.tau_C(), rtol=1e-12
-        )
+        bkd.assert_allclose(calc_K.tau_C(), calc_C.tau_C(), rtol=1e-12)
 
     def test_P_identical(self, bkd) -> None:
         """Calculator returns identical P for C and K = s**2*C."""
@@ -231,9 +232,7 @@ class TestIntegralCalculatorDecomposition:
     def test_Gamma_identical(self, bkd) -> None:
         """Calculator returns identical Gamma for C and K = s**2*C."""
         calc_C, calc_K = self._setup(bkd)
-        bkd.assert_allclose(
-            calc_K.Gamma(), calc_C.Gamma(), rtol=1e-12
-        )
+        bkd.assert_allclose(calc_K.Gamma(), calc_C.Gamma(), rtol=1e-12)
 
 
 # ===================================================================
@@ -278,7 +277,8 @@ class TestStatisticsScalingEndToEnd:
     def test_eta_invariant_across_s_values(self, bkd) -> None:
         """eta = tau^T A^{-1} y should be invariant to s**2.
 
-        With nugget approx 0: alpha_K = (s**2*C)^{-1} y = s**{-2} C^{-1} y = s**{-2} alpha_C.
+        With nugget approx 0:
+        alpha_K = (s**2*C)^{-1} y = s**{-2} C^{-1} y = s**{-2} alpha_C.
         The formula computes eta = alpha_K @ tau_K where tau_K = s**2 tau_C (but
         the calculator returns tau_C and moments.py multiplies by s**2
         implicitly through alpha). Actually eta = alpha @ tau where alpha
@@ -515,7 +515,10 @@ class TestStatisticsVsMonteCarlo:
 
     @slow_test
     def test_mean_of_variance_vs_mc(self, bkd) -> None:
-        """E[gamma_f] = E[integral f**2 rho dz - (integral f rho dz)**2] via GP realizations."""
+        """E[gamma_f] via GP realizations.
+
+        E[gamma_f] = E[int f**2 rho dz - (int f rho dz)**2].
+        """
         stats, gp, marginals, _, _, nquad = self._setup(bkd)
         _, gamma_samples = self._sample_posterior_statistics(bkd, gp, marginals, nquad)
         mc_mean_gamma = np.mean(gamma_samples)
@@ -695,9 +698,7 @@ class TestSensitivityEndToEnd:
         indices = sens.main_effect_indices()
         total = sum(indices.values())
         total_float = float(bkd.to_numpy(bkd.asarray([total]))[0])
-        assert total_float <= 1.0 + 1e-6, (
-            f"Main effects sum > 1: {total_float}"
-        )
+        assert total_float <= 1.0 + 1e-6, f"Main effects sum > 1: {total_float}"
 
     def test_total_effects_geq_main_effects(self, bkd) -> None:
         """Each total effect should be >= its main effect."""
@@ -717,17 +718,13 @@ class TestSensitivityEndToEnd:
         indices = sens.total_effect_indices()
         total = sum(indices.values())
         total_float = float(bkd.to_numpy(bkd.asarray([total]))[0])
-        assert total_float >= 1.0 - 1e-6, (
-            f"Total effects sum < 1: {total_float}"
-        )
+        assert total_float >= 1.0 - 1e-6, f"Total effects sum < 1: {total_float}"
 
     @slower_test
     def test_sobol_indices_vs_mc(self, bkd) -> None:
         """Individual main and total Sobol indices match MC."""
         sens, gp, marginals, nvars, nquad = self._setup(bkd)
-        mc_main, mc_total = _mc_sobol_indices(
-            gp, marginals, nquad, bkd
-        )
+        mc_main, mc_total = _mc_sobol_indices(gp, marginals, nquad, bkd)
         formula_main = sens.main_effect_indices()
         formula_total = sens.total_effect_indices()
         for dim in range(nvars):
@@ -799,9 +796,7 @@ class TestSensitivityWithNugget:
             assert t >= m - 1e-6, f"T_{dim} < S_{dim}: T={t}, S={m}"
 
         main_sum = float(bkd.to_numpy(bkd.asarray([sum(main.values())]))[0])
-        total_sum = float(
-            bkd.to_numpy(bkd.asarray([sum(total.values())]))[0]
-        )
+        total_sum = float(bkd.to_numpy(bkd.asarray([sum(total.values())]))[0])
         assert main_sum <= 1.0 + 1e-6
         assert total_sum >= 1.0 - 1e-6
 

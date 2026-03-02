@@ -100,7 +100,9 @@ class TestLogNormalAnalyticalRiskMeasures:
             + (self.sigma**2 + (self.mu - mu2) ** 2) / (2 * sigma2**2)
             - 0.5
         )
-        assert self.risk.kl_divergence(mu2, sigma2) == pytest.approx(expected, abs=1e-12)
+        assert self.risk.kl_divergence(mu2, sigma2) == pytest.approx(
+            expected, abs=1e-12
+        )
 
     def test_utility_ssd_at_zero(self):
         """Test utility SSD at eta=0."""

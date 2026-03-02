@@ -10,7 +10,6 @@ The key design:
 - This ensures consistent forcing computation and residual evaluation
 """
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -28,6 +27,8 @@ from pyapprox.pde.collocation.physics import (
     LinearReaction,
     TwoSpeciesReactionDiffusionPhysics,
 )
+
+
 class PhysicsDerivativeWrapper:
     """Wrapper to adapt physics interface for DerivativeChecker.
 

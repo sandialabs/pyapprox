@@ -1,7 +1,8 @@
 """Tests for curvilinear transforms (polar, spherical, chained)."""
 
-import pytest
 import math
+
+import pytest
 
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,

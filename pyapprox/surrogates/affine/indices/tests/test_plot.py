@@ -4,9 +4,8 @@ Numpy-only (no dual-backend needed).  All tests use the ``Agg`` backend so
 they run headlessly in CI.
 """
 
-import pytest
-
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 

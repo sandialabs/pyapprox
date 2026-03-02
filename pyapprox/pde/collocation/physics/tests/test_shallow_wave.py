@@ -22,6 +22,8 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+
+
 class TestShallowWavePhysics(PhysicsTestBase):
     """Tests for ShallowWavePhysics."""
 

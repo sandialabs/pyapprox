@@ -1,15 +1,14 @@
 """Tests for CompositeLinearElasticity physics."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -25,8 +24,8 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array
+
+
 def _to_dense(mat, bkd):
     """Convert a matrix (possibly sparse) to a dense numpy array."""
     if issparse(mat):

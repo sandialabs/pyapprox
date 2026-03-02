@@ -3,9 +3,8 @@
 Numpy-only tests using matplotlib Agg backend.
 """
 
-import pytest
-
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

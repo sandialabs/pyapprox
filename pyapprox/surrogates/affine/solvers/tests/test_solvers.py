@@ -1,8 +1,7 @@
 """Tests for linear system solvers."""
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.surrogates.affine.solvers import (
     BasisPursuitDenoisingSolver,
@@ -15,7 +14,6 @@ from pyapprox.surrogates.affine.solvers import (
     QuantileRegressionSolver,
     RidgeRegressionSolver,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 @pytest.fixture(autouse=True)

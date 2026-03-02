@@ -2,9 +2,8 @@
 Tests for Gaussian conjugate posterior.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 

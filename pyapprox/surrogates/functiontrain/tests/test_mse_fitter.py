@@ -41,7 +41,8 @@ class TestMSEFitter:
     def _create_additive_ft(self, bkd, nvars=3, max_level=2, nqoi=1):
         """Create an additive FunctionTrain for testing."""
         univariate_bases = [
-            self._create_univariate_expansion(bkd, max_level, nqoi) for _ in range(nvars)
+            self._create_univariate_expansion(bkd, max_level, nqoi)
+            for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 

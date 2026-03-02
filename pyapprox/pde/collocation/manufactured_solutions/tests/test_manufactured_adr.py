@@ -11,12 +11,11 @@ degree n-1 are exactly represented. We use degree <= 4 to ensure machine
 precision residuals even with moderate grid sizes.
 """
 
-import pytest
+import math
 from typing import Generic
 
-import math
+import pytest
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -45,7 +44,10 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 
@@ -861,7 +863,9 @@ class TestADR1DParameterized:
         "name,sol_str,diff,vel,react,npts,domain",
         ADR_1D_STEADY_CASES,
     )
-    def test_steady_adr_1d_solve(self, bkd, name, sol_str, diff, vel, react, npts, domain):
+    def test_steady_adr_1d_solve(
+        self, bkd, name, sol_str, diff, vel, react, npts, domain
+    ):
         """Test numerical solution matches manufactured solution for various configs."""
         # Create transform if domain != [-1, 1]
         lb, ub = domain

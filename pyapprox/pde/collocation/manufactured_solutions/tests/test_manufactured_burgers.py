@@ -25,12 +25,10 @@ For steady state (du/dt = 0), the physics gives:
 This matches the manufactured solution forcing, so no sign negation is needed.
 """
 
-import pytest
 from typing import Generic
 
+import pytest
 
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -44,6 +42,9 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import BurgersPhysics1D
+from pyapprox.util.backends.protocols import Array
+
+
 class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrapper to adapt physics interface for DerivativeChecker.
 

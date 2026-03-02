@@ -9,25 +9,23 @@ Tests the analytical and FEM implementations using:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
+
+
 def _to_dense(mat):
     """Convert sparse matrix to dense numpy array if needed."""
     if issparse(mat):

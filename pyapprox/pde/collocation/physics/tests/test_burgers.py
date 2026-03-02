@@ -28,6 +28,8 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+
+
 class TestBurgersPhysics(PhysicsTestBase):
     """Tests for BurgersPhysics1D."""
 

@@ -7,6 +7,7 @@ physics.residual_lam_sensitivity() and residual_mu_sensitivity().
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -15,7 +16,6 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -32,6 +32,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 def _to_dense(mat):
@@ -88,14 +89,14 @@ class TestLinearElasticityAdjoint:
 
     def test_nparams(self, numpy_bkd) -> None:
         """Parameterization nparams() returns 2 (E, nu) for single material."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         assert param.nparams() == 2
 
     def test_param_jacobian_shape(self, numpy_bkd) -> None:
         """param_jacobian returns shape (nstates, 2)."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         n = physics.nstates()
@@ -107,7 +108,7 @@ class TestLinearElasticityAdjoint:
 
     def test_initial_param_jacobian_is_zero(self, numpy_bkd) -> None:
         """initial_param_jacobian returns all zeros."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         params_1d = numpy_bkd.asarray(np.array([1.0, 0.3]))
@@ -120,7 +121,7 @@ class TestLinearElasticityAdjoint:
 
     def test_apply_changes_stiffness(self, numpy_bkd) -> None:
         """Stiffness matrix changes after parameterization.apply() with new (E, nu)."""
-        bkd = numpy_bkd
+        _bkd = numpy_bkd
         physics = _make_physics(numpy_bkd, E=1.0, nu=0.3)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         K1 = _to_dense(physics.stiffness_matrix()).copy()

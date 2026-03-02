@@ -2,6 +2,7 @@
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,13 +10,15 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
+from pyapprox.util.backends.numpy import NumpyBkd
+
+
 class TestObstructedMesh2D:
     """Tests for ObstructedMesh2D (NumPy only — skfem is NumPy-based)."""
 
     def setup_method(self):
-        bkd = NumpyBkd()
+        _bkd = NumpyBkd()
         self._xintervals = np.array([0, 2 / 7, 3 / 7, 4 / 7, 5 / 7, 1.0])
         self._yintervals = np.linspace(0, 1, 5)
         self._obstruction_indices = np.array([3, 6, 13], dtype=int)

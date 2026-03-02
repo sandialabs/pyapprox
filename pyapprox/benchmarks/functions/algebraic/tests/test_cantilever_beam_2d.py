@@ -1,6 +1,5 @@
 """Tests for the analytical 2D cantilever beam model."""
 
-import pytest
 
 from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,

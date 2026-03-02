@@ -16,7 +16,6 @@ GP B trains on original data with OutputStandardScaler. Same kernel params.
 """
 
 import math
-from typing import List
 
 import numpy as np
 

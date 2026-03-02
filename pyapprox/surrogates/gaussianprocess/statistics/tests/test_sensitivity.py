@@ -5,10 +5,8 @@ Tests the GaussianProcessSensitivity class for computing main effect and
 total effect Sobol indices from fitted GPs.
 """
 import math
-from typing import List
 
 import numpy as np
-import pytest
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
