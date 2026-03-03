@@ -1,6 +1,0 @@
-sparse_grid_sobol_sensitivities
-===============================
-
-.. currentmodule:: pyapprox.analysis
-
-.. autofunction:: sparse_grid_sobol_sensitivities

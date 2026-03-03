@@ -1,6 +1,0 @@
-estimate_variance
-=================
-
-.. currentmodule:: pyapprox.multifidelity
-
-.. autofunction:: estimate_variance

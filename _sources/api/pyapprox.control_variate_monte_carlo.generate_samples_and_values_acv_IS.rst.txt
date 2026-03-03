@@ -1,6 +1,0 @@
-generate_samples_and_values_acv_IS
-==================================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: generate_samples_and_values_acv_IS

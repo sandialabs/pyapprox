@@ -1,6 +1,0 @@
-gpc_sobol_sensitivities
-=======================
-
-.. currentmodule:: pyapprox.analysis
-
-.. autofunction:: gpc_sobol_sensitivities

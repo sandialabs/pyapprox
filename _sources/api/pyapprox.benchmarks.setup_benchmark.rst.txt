@@ -1,6 +1,0 @@
-setup_benchmark
-===============
-
-.. currentmodule:: pyapprox.benchmarks
-
-.. autofunction:: setup_benchmark

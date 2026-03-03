@@ -1,6 +1,0 @@
-solve_FSD_constrained_least_squares_smooth
-==========================================
-
-.. currentmodule:: pyapprox.optimization
-
-.. autofunction:: solve_FSD_constrained_least_squares_smooth

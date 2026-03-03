@@ -1,6 +1,0 @@
-plot_estimator_variances
-========================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: plot_estimator_variances

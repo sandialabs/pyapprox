@@ -1,0 +1,2143 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget.">
+
+<title>Multi-Fidelity Gaussian Processes – PyApprox</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Multi-Fidelity Gaussian Processes – PyApprox">
+<meta property="og:description" content="Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/multioutput_gp_files/figure-html/fig-forrester-functions-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="749">
+<meta property="og:image:width" content="1512">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting Started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setup_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Up Your Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models_decisions_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Models to Decisions Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Forward UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./forward_uq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Forward Uncertainty Quantification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./random_variables_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Random Variables and Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Budget Estimation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Multifidelity Estimation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximate Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parametrically Defined Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multilevel Best Linear Unbiased Estimators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MLBLUE: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ensemble_selection_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Ensemble Selection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_estimation_cookbook.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Estimation: API Cookbook</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inverse UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bayesian_inference_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Data to Parameters: Introduction to Bayesian Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcmc_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampling the Posterior with MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dram_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical MCMC: Metropolis-Hastings and DRAM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximating the Posterior: Introduction to Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_objective.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Variational Inference Optimizes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Optimizing the ELBO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Choosing the Variational Family</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_amortized.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Amortized Variational Inference</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experimental Design</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./experimental_design_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Not All Experiments Are Equal: Introduction to Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">KL-Based OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Learning from Experiments: Bayesian Optimal Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_estimator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: The Double-Loop Estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_gradients.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Gradients and the Reparameterization Trick</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Verifying Convergence with KLOEDDiagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_qmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: MC vs.&nbsp;Halton for EIG Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_design_stability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Design Stability and Convergence</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Goal-Oriented OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented Bayesian OED: Designing for Prediction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_gaussian_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Gaussian Posterior Expressions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_lognormal_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Log-Normal Prediction Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Convergence Verification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Designing for Prediction on a Predator-Prey System</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">OED Workflows</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_data_workflow_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decoupling Data Generation from OED Optimisation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
+ <span class="menu-text">Approximation Theory</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./lagrange_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lagrange Interpolation: Polynomials on Optimal Points</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Interpolation: Local Basis Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tensor_product_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tensor Product Interpolation: Multivariate Approximation and Its Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gauss_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./leja_sequences.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leja Sequences: Nested Points for Adaptive Interpolation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Surrogate Modeling</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Polynomial Chaos</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./polynomial_chaos_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Polynomial Chaos Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./practical_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Overfitting and Cross-Validation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sparse Polynomial Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_pce.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Polynomial Chaos</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Function Trains</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./function_train_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">An Introduction to Function Trains</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_functiontrain.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Function Trains</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Sparse Grids</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./isotropic_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_grid_to_pce_conversion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Sparse Grids to PCE: The Mathematics of Basis Conversion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Sparse Grids</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true">
+ <span class="menu-text">Gaussian Processes</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_surrogate.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Gaussian Process Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_gp_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sampling for Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_gp.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Multi-Fidelity Gaussian Processes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sobol_sensitivity_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sobol Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pce_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PCE-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GP-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./morris_screening.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Morris Screening</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bin_based_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bin-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity_math.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Mathematical Derivation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Practical Usage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">Random Fields</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE I: Random Fields and the Karhunen-Loève Expansion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_mesh_and_data_driven.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE II: Kernel-Based vs Data-Driven KLE</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_spde.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE III: SPDE-Based KLE for Matern Fields</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+ <span class="menu-text">Optimization Under Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Design Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#the-multi-fidelity-idea" id="toc-the-multi-fidelity-idea" class="nav-link" data-scroll-target="#the-multi-fidelity-idea">The Multi-Fidelity Idea</a></li>
+  <li><a href="#setup-the-forrester-benchmark" id="toc-setup-the-forrester-benchmark" class="nav-link" data-scroll-target="#setup-the-forrester-benchmark">Setup: The Forrester Benchmark</a></li>
+  <li><a href="#the-kennedyohagan-auto-regressive-model" id="toc-the-kennedyohagan-auto-regressive-model" class="nav-link" data-scroll-target="#the-kennedyohagan-auto-regressive-model">The Kennedy–O’Hagan Auto-Regressive Model</a></li>
+  <li><a href="#building-the-multilevelkernel" id="toc-building-the-multilevelkernel" class="nav-link" data-scroll-target="#building-the-multilevelkernel">Building the MultiLevelKernel</a></li>
+  <li><a href="#training-data" id="toc-training-data" class="nav-link" data-scroll-target="#training-data">Training Data</a></li>
+  <li><a href="#fitting-and-predicting" id="toc-fitting-and-predicting" class="nav-link" data-scroll-target="#fitting-and-predicting">Fitting and Predicting</a></li>
+  <li><a href="#hf-only-baseline" id="toc-hf-only-baseline" class="nav-link" data-scroll-target="#hf-only-baseline">HF-Only Baseline</a></li>
+  <li><a href="#comparison-predictions-and-uncertainty" id="toc-comparison-predictions-and-uncertainty" class="nav-link" data-scroll-target="#comparison-predictions-and-uncertainty">Comparison: Predictions and Uncertainty</a></li>
+  <li><a href="#the-block-kernel-matrix" id="toc-the-block-kernel-matrix" class="nav-link" data-scroll-target="#the-block-kernel-matrix">The Block Kernel Matrix</a></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next Steps</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Multi-Fidelity Gaussian Processes</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/multioutput_gp.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial you will be able to:</p>
+<ul>
+<li>Build a <code>MultiLevelKernel</code> from per-level kernels and a <code>PolynomialScaling</code> correlation function to represent the Kennedy–O’Hagan auto-regressive model</li>
+<li>Fit and predict with <code>TorchMultiOutputGP</code>, including predictive uncertainty bands</li>
+<li>Compare multi-fidelity and single-fidelity GP surrogates at equal computational budget</li>
+<li>Interpret the block kernel matrix that encodes inter-level correlations</li>
+</ul>
+</section>
+<section id="the-multi-fidelity-idea" class="level2">
+<h2 class="anchored" data-anchor-id="the-multi-fidelity-idea">The Multi-Fidelity Idea</h2>
+<p>Many simulators exist at multiple fidelity levels: a cheap approximation captures the broad trend while an expensive high-fidelity model adds fine-scale detail. The outputs are highly correlated — the cheap model is inaccurate in absolute terms but tracks the expensive model closely enough to carry information.</p>
+<p>A <strong>multi-fidelity Gaussian process (MFGP)</strong> models this relationship explicitly, so that many cheap evaluations substantially reduce uncertainty in the high-fidelity prediction. The accuracy gain is largest when the cost ratio is high and the inter-level correlation is strong.</p>
+</section>
+<section id="setup-the-forrester-benchmark" class="level2">
+<h2 class="anchored" data-anchor-id="setup-the-forrester-benchmark">Setup: The Forrester Benchmark</h2>
+<p>We use the Forrester multi-fidelity benchmark — a pair of 1D functions sharing the same oscillatory structure but differing in scale and offset. The high-fidelity function <span class="math inline">\(f_h(x) = (6x - 2)^2 \sin(12x - 4)\)</span> is expensive; the low-fidelity approximation <span class="math inline">\(f_l(x) = 0.5\, f_h(x) + 10(x - 0.5) - 5\)</span> is cheap but biased.</p>
+<div id="deb02f84" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>torch.set_default_dtype(torch.float64)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.torch <span class="im">import</span> TorchBkd</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.forrester_ensemble <span class="im">import</span> (</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    forrester_ensemble_2model,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> TorchBkd()</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>bench <span class="op">=</span> forrester_ensemble_2model(bkd)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> bench.models()          <span class="co"># [HF model, LF model]</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> bench.prior()</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>nmodels <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Reorder so level 0 = LF (cheap), level 1 = HF (expensive)</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>level_models <span class="op">=</span> [models[<span class="dv">1</span>], models[<span class="dv">0</span>]]</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>level_names <span class="op">=</span> [<span class="st">"Low fidelity"</span>, <span class="st">"High fidelity"</span>]</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>costs_per_eval <span class="op">=</span> [<span class="fl">0.05</span>, <span class="fl">1.0</span>]     <span class="co"># seconds per evaluation</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="cell-fig-forrester-functions" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-forrester-functions" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-forrester-functions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-forrester-functions-output-1.png" width="756" height="375" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-forrester-functions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: The Forrester multi-fidelity benchmark. The high-fidelity function (black) is expensive; the low-fidelity approximation (orange dashed) is cheap but biased. Both share the same oscillatory structure — the MFGP can exploit this correlation.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="the-kennedyohagan-auto-regressive-model" class="level2">
+<h2 class="anchored" data-anchor-id="the-kennedyohagan-auto-regressive-model">The Kennedy–O’Hagan Auto-Regressive Model</h2>
+<p>The MFGP is built on the <strong>Kennedy–O’Hagan (KO)</strong> model, which relates each fidelity level <span class="math inline">\(k\)</span> to the level below through a scaling and an independent discrepancy GP:</p>
+<p><span class="math display">\[
+f_0 \sim \mathcal{GP}(0, k_0), \qquad
+f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
+\quad k = 1, \ldots, K-1
+\]</span></p>
+<p>where <span class="math inline">\(\rho_{k-1}\)</span> is a <strong>scaling constant</strong> and <span class="math inline">\(\delta_k \sim \mathcal{GP}(0, k_k)\)</span> is an independent discrepancy. Recursively expanding this expression yields the joint covariance across all levels — a block matrix that <code>MultiLevelKernel</code> assembles automatically.</p>
+<p>For the Forrester benchmark, the true relationship is <span class="math inline">\(f_h = 2\, f_l + \text{offset}\)</span>, so the optimal scaling is <span class="math inline">\(\rho \approx 2\)</span>.</p>
+</section>
+<section id="building-the-multilevelkernel" class="level2">
+<h2 class="anchored" data-anchor-id="building-the-multilevelkernel">Building the MultiLevelKernel</h2>
+<div id="74951f6a" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> SquaredExponentialKernel</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.multioutput.multilevel <span class="im">import</span> MultiLevelKernel</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.scalings <span class="im">import</span> PolynomialScaling</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.torch_multioutput <span class="im">import</span> TorchMultiOutputGP</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># One SE kernel per fidelity level (the k_k terms in the KO model)</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>level_kernels <span class="op">=</span> [</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(nmodels)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling function for the LF -&gt; HF transition.</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># We fix rho = 2.0 (the known Forrester relationship) and only</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># optimise the correlation length scales via MLL.</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>scalings <span class="op">=</span> [</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    PolynomialScaling([<span class="fl">2.0</span>], (<span class="op">-</span><span class="fl">5.0</span>, <span class="fl">5.0</span>), bkd, nvars<span class="op">=</span>nvars, fixed<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>mf_kernel <span class="op">=</span> MultiLevelKernel(level_kernels, scalings)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="co"># TorchMultiOutputGP uses autograd to differentiate the NLL directly,</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="co"># bypassing the kernel's analytical jacobian_wrt_params.</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>mf_gp <span class="op">=</span> TorchMultiOutputGP(mf_kernel, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Fixing vs.&nbsp;learning the scaling
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>For the Forrester benchmark we fix <span class="math inline">\(\rho = 2\)</span> because the analytical relationship is known. In practice, <span class="math inline">\(\rho\)</span> can be estimated from a small pilot study or learned jointly with the length scales by setting <code>fixed=False</code>. Learning <span class="math inline">\(\rho\)</span> via MLL can be sensitive to local optima, especially for highly oscillatory functions with few high-fidelity samples.</p>
+</div>
+</div>
+</section>
+<section id="training-data" class="level2">
+<h2 class="anchored" data-anchor-id="training-data">Training Data</h2>
+<p>We allocate 100 cheap low-fidelity evaluations and only 4 expensive high-fidelity evaluations. The total cost is <span class="math inline">\(100 \times 0.05 + 4 \times 1.0 = 9\)</span> seconds — equivalent to 9 high-fidelity evaluations.</p>
+<div id="806a1676" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>n_lf, n_hf <span class="op">=</span> <span class="dv">100</span>, <span class="dv">4</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>X_lf <span class="op">=</span> prior.rvs(n_lf)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>X_hf <span class="op">=</span> prior.rvs(n_hf)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>y_lf <span class="op">=</span> level_models[<span class="dv">0</span>](X_lf)     <span class="co"># shape (1, n_lf)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>y_hf <span class="op">=</span> level_models[<span class="dv">1</span>](X_hf)     <span class="co"># shape (1, n_hf)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>samples_list <span class="op">=</span> [X_lf, X_hf]</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>y_train_list <span class="op">=</span> [y_lf, y_hf]</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>total_cost <span class="op">=</span> n_lf <span class="op">*</span> costs_per_eval[<span class="dv">0</span>] <span class="op">+</span> n_hf <span class="op">*</span> costs_per_eval[<span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="fitting-and-predicting" class="level2">
+<h2 class="anchored" data-anchor-id="fitting-and-predicting">Fitting and Predicting</h2>
+<div id="19dd69c6" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fit() optimises all active hyperparameters (length scales) via MLL</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mf_gp.fit(samples_list, y_train_list)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Predict on a dense grid with uncertainty</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> bkd.asarray(np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">200</span>).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>X_test_list <span class="op">=</span> [x_test] <span class="op">*</span> nmodels</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>means, stds <span class="op">=</span> mf_gp.predict_with_uncertainty(X_test_list)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>mf_pred <span class="op">=</span> bkd.to_numpy(means[<span class="op">-</span><span class="dv">1</span>])[<span class="dv">0</span>, :]      <span class="co"># HF-level mean</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>mf_std <span class="op">=</span> bkd.to_numpy(stds[<span class="op">-</span><span class="dv">1</span>])[<span class="dv">0</span>, :]         <span class="co"># HF-level std</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>y_test_hf <span class="op">=</span> bkd.to_numpy(level_models[<span class="dv">1</span>](x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>l2_mf <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> mf_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="hf-only-baseline" class="level2">
+<h2 class="anchored" data-anchor-id="hf-only-baseline">HF-Only Baseline</h2>
+<p>For a fair comparison, we build a single-fidelity GP using the same total computational budget spent entirely on high-fidelity evaluations.</p>
+<div id="c01a54db" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>n_hf_equiv <span class="op">=</span> <span class="bu">int</span>(total_cost <span class="op">/</span> costs_per_eval[<span class="op">-</span><span class="dv">1</span>])   <span class="co"># 9 HF evals</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>X_hf_only <span class="op">=</span> prior.rvs(n_hf_equiv)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>y_hf_only <span class="op">=</span> level_models[<span class="op">-</span><span class="dv">1</span>](X_hf_only)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>hf_kern <span class="op">=</span> SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>hf_gp <span class="op">=</span> ExactGaussianProcess(hf_kern, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>hf_gp <span class="op">=</span> GPMaximumLikelihoodFitter(bkd).fit(</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    hf_gp, X_hf_only, y_hf_only</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>).surrogate()</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>hf_pred <span class="op">=</span> bkd.to_numpy(hf_gp.predict(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>hf_std <span class="op">=</span> bkd.to_numpy(hf_gp.predict_std(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>l2_hf <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> hf_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co"># HF-only baseline using the SAME 4 HF samples as the MF GP</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>hf_kern_few <span class="op">=</span> SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>hf_gp_few <span class="op">=</span> ExactGaussianProcess(hf_kern_few, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>hf_gp_few <span class="op">=</span> GPMaximumLikelihoodFitter(bkd).fit(</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    hf_gp_few, X_hf, y_hf</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>).surrogate()</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>hf_few_pred <span class="op">=</span> bkd.to_numpy(hf_gp_few.predict(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>hf_few_std <span class="op">=</span> bkd.to_numpy(hf_gp_few.predict_std(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>l2_hf_few <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> hf_few_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="comparison-predictions-and-uncertainty" class="level2">
+<h2 class="anchored" data-anchor-id="comparison-predictions-and-uncertainty">Comparison: Predictions and Uncertainty</h2>
+<div id="cell-fig-predictions-uncertainty" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-predictions-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-predictions-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-predictions-uncertainty-output-1.png" width="852" height="1046" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-predictions-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Three GP surrogates compared. <strong>Top</strong>: multi-fidelity GP using 100 LF + 4 HF samples. <strong>Middle</strong>: HF-only GP at equal budget. <strong>Bottom</strong>: HF-only GP using only the same 4 HF samples as the MF model — the wide uncertainty bands show how much information the 100 cheap LF evaluations contribute. Shaded bands show <span class="math inline">\(\pm 2\sigma\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="the-block-kernel-matrix" class="level2">
+<h2 class="anchored" data-anchor-id="the-block-kernel-matrix">The Block Kernel Matrix</h2>
+<p>The <code>MultiLevelKernel</code> assembles a joint covariance across all fidelity levels. Off-diagonal blocks encode the cross-level correlations implied by the KO recursion: large values mean a low-fidelity evaluation carries information about the high-fidelity level.</p>
+<div id="cell-fig-kernel-matrix" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<div id="fig-kernel-matrix" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-kernel-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-kernel-matrix-output-1.png" width="567" height="469" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kernel-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Joint prior kernel matrix across 30 sorted test points for both fidelity levels. The off-diagonal block (LF–HF) shows strong cross-level covariance — this is the inter-level information that the multi-fidelity GP exploits.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Reading the kernel heatmap
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each diagonal block is the per-level prior covariance. The off-diagonal blocks are cross-level covariances implied by the KO recursion: a large LF–HF block means a low-fidelity evaluation carries significant information about the high-fidelity level. The scaling <span class="math inline">\(\rho = 2\)</span> amplifies this cross-level covariance, which is why 100 cheap LF evaluations so effectively reduce uncertainty in the HF prediction.</p>
+</div>
+</div>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>The <strong>Kennedy–O’Hagan model</strong> <span class="math inline">\(f_k = \rho_{k-1}\,f_{k-1} + \delta_k\)</span> encodes inter-level correlation explicitly; <code>MultiLevelKernel</code> assembles the block kernel matrix automatically from per-level kernels and scalings</li>
+<li><strong>Fixing <span class="math inline">\(\rho\)</span></strong> to a known or estimated value avoids local-optima issues in MLL optimisation; the GP then learns only the correlation length scales</li>
+<li>The multi-fidelity GP achieves tighter uncertainty bands and lower prediction error by transferring information from cheap low-fidelity evaluations</li>
+<li>The block kernel matrix visualises how much information flows between levels</li>
+</ul>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<ol type="1">
+<li>Set <span class="math inline">\(\rho = 0.5\)</span> (fixed) and refit. How does the HF prediction quality change? What does this tell you about the sensitivity to the scaling value?</li>
+<li>Set <code>fixed=False</code> on the <code>PolynomialScaling</code> to let the GP learn <span class="math inline">\(\rho\)</span>. Does it recover <span class="math inline">\(\rho \approx 2\)</span>? If not, try increasing the nugget to <code>1e-4</code> — does this help the optimiser find a better minimum?</li>
+<li>Reduce the number of LF evaluations from 100 to 20 while keeping 4 HF. At what LF sample size does the multi-fidelity advantage disappear?</li>
+</ol>
+</section>
+<section id="next-steps" class="level2">
+<h2 class="anchored" data-anchor-id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="./gp_surrogate.html">Gaussian Process Surrogates</a> — Single-output GP fundamentals including kernel selection and MLL fitting</li>
+<li><a href="./uq_with_gp.html">UQ with Gaussian Processes</a> — Using GP surrogates for uncertainty quantification tasks</li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multi-Fidelity Gaussian Processes"</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget."</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> usage</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> surrogate_modeling</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 16</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - gp_surrogate</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - gaussian-process</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - kennedy-ohagan</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - forrester</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/multioutput_gp.ipynb)</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>After completing this tutorial you will be able to:</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Build a <span class="in">`MultiLevelKernel`</span> from per-level kernels and a <span class="in">`PolynomialScaling`</span></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>  correlation function to represent the Kennedy--O'Hagan auto-regressive model</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fit and predict with <span class="in">`TorchMultiOutputGP`</span>, including predictive uncertainty bands</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare multi-fidelity and single-fidelity GP surrogates at equal computational</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>  budget</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Interpret the block kernel matrix that encodes inter-level correlations</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Multi-Fidelity Idea</span></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>Many simulators exist at multiple fidelity levels: a cheap approximation captures</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>the broad trend while an expensive high-fidelity model adds fine-scale detail.</span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>The outputs are highly correlated --- the cheap model is inaccurate in absolute</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>terms but tracks the expensive model closely enough to carry information.</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>A **multi-fidelity Gaussian process (MFGP)** models this relationship explicitly,</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>so that many cheap evaluations substantially reduce uncertainty in the</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>high-fidelity prediction. The accuracy gain is largest when the cost ratio is</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>high and the inter-level correlation is strong.</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Forrester Benchmark</span></span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>We use the Forrester multi-fidelity benchmark --- a pair of 1D functions sharing</span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>the same oscillatory structure but differing in scale and offset. The</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>high-fidelity function $f_h(x) = (6x - 2)^2 \sin(12x - 4)$ is expensive; the</span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>low-fidelity approximation $f_l(x) = 0.5\, f_h(x) + 10(x - 0.5) - 5$ is cheap</span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>but biased.</span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>torch.set_default_dtype(torch.float64)</span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.torch <span class="im">import</span> TorchBkd</span>
+<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.forrester_ensemble <span class="im">import</span> (</span>
+<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a>    forrester_ensemble_2model,</span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> TorchBkd()</span>
+<span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>bench <span class="op">=</span> forrester_ensemble_2model(bkd)</span>
+<span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> bench.models()          <span class="co"># [HF model, LF model]</span></span>
+<span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> bench.prior()</span>
+<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a>nmodels <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a><span class="co"># Reorder so level 0 = LF (cheap), level 1 = HF (expensive)</span></span>
+<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>level_models <span class="op">=</span> [models[<span class="dv">1</span>], models[<span class="dv">0</span>]]</span>
+<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a>level_names <span class="op">=</span> [<span class="st">"Low fidelity"</span>, <span class="st">"High fidelity"</span>]</span>
+<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>costs_per_eval <span class="op">=</span> [<span class="fl">0.05</span>, <span class="fl">1.0</span>]     <span class="co"># seconds per evaluation</span></span>
+<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-95"><a href="#cb6-95" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The Forrester multi-fidelity benchmark. The high-fidelity function (black) is expensive; the low-fidelity approximation (orange dashed) is cheap but biased. Both share the same oscillatory structure --- the MFGP can exploit this correlation."</span></span>
+<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-forrester-functions</span></span>
+<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_forrester_functions</span>
+<span id="cb6-101"><a href="#cb6-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> bkd.asarray(np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">200</span>).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a>xr <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">200</span>)</span>
+<span id="cb6-104"><a href="#cb6-104" aria-hidden="true" tabindex="-1"></a>y_hf_true <span class="op">=</span> bkd.to_numpy(level_models[<span class="dv">1</span>](x_plot))[<span class="dv">0</span>, :]</span>
+<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>y_lf_true <span class="op">=</span> bkd.to_numpy(level_models[<span class="dv">0</span>](x_plot))[<span class="dv">0</span>, :]</span>
+<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
+<span id="cb6-108"><a href="#cb6-108" aria-hidden="true" tabindex="-1"></a>plot_forrester_functions(ax, xr, y_hf_true, y_lf_true)</span>
+<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-111"><a href="#cb6-111" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-113"><a href="#cb6-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-114"><a href="#cb6-114" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Kennedy--O'Hagan Auto-Regressive Model</span></span>
+<span id="cb6-115"><a href="#cb6-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a>The MFGP is built on the **Kennedy--O'Hagan (KO)** model, which relates each</span>
+<span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a>fidelity level $k$ to the level below through a scaling and an independent</span>
+<span id="cb6-118"><a href="#cb6-118" aria-hidden="true" tabindex="-1"></a>discrepancy GP:</span>
+<span id="cb6-119"><a href="#cb6-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a>f_0 \sim \mathcal{GP}(0, k_0), \qquad</span>
+<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a>f_k = \rho_{k-1}\,f_{k-1} + \delta_k,</span>
+<span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a>\quad k = 1, \ldots, K-1</span>
+<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a>where $\rho_{k-1}$ is a **scaling constant** and</span>
+<span id="cb6-127"><a href="#cb6-127" aria-hidden="true" tabindex="-1"></a>$\delta_k \sim \mathcal{GP}(0, k_k)$ is an independent discrepancy.</span>
+<span id="cb6-128"><a href="#cb6-128" aria-hidden="true" tabindex="-1"></a>Recursively expanding this expression yields the joint covariance across all</span>
+<span id="cb6-129"><a href="#cb6-129" aria-hidden="true" tabindex="-1"></a>levels --- a block matrix that <span class="in">`MultiLevelKernel`</span> assembles automatically.</span>
+<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a>For the Forrester benchmark, the true relationship is</span>
+<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a>$f_h = 2\, f_l + \text{offset}$, so the optimal scaling is $\rho \approx 2$.</span>
+<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-134"><a href="#cb6-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-135"><a href="#cb6-135" aria-hidden="true" tabindex="-1"></a><span class="fu">## Building the MultiLevelKernel</span></span>
+<span id="cb6-136"><a href="#cb6-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> SquaredExponentialKernel</span>
+<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.multioutput.multilevel <span class="im">import</span> MultiLevelKernel</span>
+<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.scalings <span class="im">import</span> PolynomialScaling</span>
+<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.torch_multioutput <span class="im">import</span> TorchMultiOutputGP</span>
+<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a><span class="co"># One SE kernel per fidelity level (the k_k terms in the KO model)</span></span>
+<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a>level_kernels <span class="op">=</span> [</span>
+<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a>    SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(nmodels)</span>
+<span id="cb6-149"><a href="#cb6-149" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-150"><a href="#cb6-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling function for the LF -&gt; HF transition.</span></span>
+<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a><span class="co"># We fix rho = 2.0 (the known Forrester relationship) and only</span></span>
+<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a><span class="co"># optimise the correlation length scales via MLL.</span></span>
+<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a>scalings <span class="op">=</span> [</span>
+<span id="cb6-155"><a href="#cb6-155" aria-hidden="true" tabindex="-1"></a>    PolynomialScaling([<span class="fl">2.0</span>], (<span class="op">-</span><span class="fl">5.0</span>, <span class="fl">5.0</span>), bkd, nvars<span class="op">=</span>nvars, fixed<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb6-156"><a href="#cb6-156" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-157"><a href="#cb6-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a>mf_kernel <span class="op">=</span> MultiLevelKernel(level_kernels, scalings)</span>
+<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-160"><a href="#cb6-160" aria-hidden="true" tabindex="-1"></a><span class="co"># TorchMultiOutputGP uses autograd to differentiate the NLL directly,</span></span>
+<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a><span class="co"># bypassing the kernel's analytical jacobian_wrt_params.</span></span>
+<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a>mf_gp <span class="op">=</span> TorchMultiOutputGP(mf_kernel, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fixing vs. learning the scaling</span></span>
+<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a>For the Forrester benchmark we fix $\rho = 2$ because the analytical</span>
+<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a>relationship is known. In practice, $\rho$ can be estimated from a small</span>
+<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a>pilot study or learned jointly with the length scales by setting</span>
+<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a><span class="in">`fixed=False`</span>. Learning $\rho$ via MLL can be sensitive to local optima,</span>
+<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a>especially for highly oscillatory functions with few high-fidelity samples.</span>
+<span id="cb6-173"><a href="#cb6-173" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-174"><a href="#cb6-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a><span class="fu">## Training Data</span></span>
+<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a>We allocate 100 cheap low-fidelity evaluations and only 4 expensive</span>
+<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a>high-fidelity evaluations. The total cost is $100 \times 0.05 + 4 \times 1.0 = 9$</span>
+<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a>seconds --- equivalent to 9 high-fidelity evaluations.</span>
+<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a>n_lf, n_hf <span class="op">=</span> <span class="dv">100</span>, <span class="dv">4</span></span>
+<span id="cb6-186"><a href="#cb6-186" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a>X_lf <span class="op">=</span> prior.rvs(n_lf)</span>
+<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a>X_hf <span class="op">=</span> prior.rvs(n_hf)</span>
+<span id="cb6-189"><a href="#cb6-189" aria-hidden="true" tabindex="-1"></a>y_lf <span class="op">=</span> level_models[<span class="dv">0</span>](X_lf)     <span class="co"># shape (1, n_lf)</span></span>
+<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a>y_hf <span class="op">=</span> level_models[<span class="dv">1</span>](X_hf)     <span class="co"># shape (1, n_hf)</span></span>
+<span id="cb6-191"><a href="#cb6-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-192"><a href="#cb6-192" aria-hidden="true" tabindex="-1"></a>samples_list <span class="op">=</span> [X_lf, X_hf]</span>
+<span id="cb6-193"><a href="#cb6-193" aria-hidden="true" tabindex="-1"></a>y_train_list <span class="op">=</span> [y_lf, y_hf]</span>
+<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a>total_cost <span class="op">=</span> n_lf <span class="op">*</span> costs_per_eval[<span class="dv">0</span>] <span class="op">+</span> n_hf <span class="op">*</span> costs_per_eval[<span class="dv">1</span>]</span>
+<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-197"><a href="#cb6-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-198"><a href="#cb6-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fitting and Predicting</span></span>
+<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a><span class="co"># fit() optimises all active hyperparameters (length scales) via MLL</span></span>
+<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a>mf_gp.fit(samples_list, y_train_list)</span>
+<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a><span class="co"># Predict on a dense grid with uncertainty</span></span>
+<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> bkd.asarray(np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">200</span>).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb6-209"><a href="#cb6-209" aria-hidden="true" tabindex="-1"></a>X_test_list <span class="op">=</span> [x_test] <span class="op">*</span> nmodels</span>
+<span id="cb6-210"><a href="#cb6-210" aria-hidden="true" tabindex="-1"></a>means, stds <span class="op">=</span> mf_gp.predict_with_uncertainty(X_test_list)</span>
+<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a>mf_pred <span class="op">=</span> bkd.to_numpy(means[<span class="op">-</span><span class="dv">1</span>])[<span class="dv">0</span>, :]      <span class="co"># HF-level mean</span></span>
+<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a>mf_std <span class="op">=</span> bkd.to_numpy(stds[<span class="op">-</span><span class="dv">1</span>])[<span class="dv">0</span>, :]         <span class="co"># HF-level std</span></span>
+<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a>y_test_hf <span class="op">=</span> bkd.to_numpy(level_models[<span class="dv">1</span>](x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a>l2_mf <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> mf_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span>
+<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-218"><a href="#cb6-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-219"><a href="#cb6-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a><span class="fu">## HF-Only Baseline</span></span>
+<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a>For a fair comparison, we build a single-fidelity GP using the same total</span>
+<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a>computational budget spent entirely on high-fidelity evaluations.</span>
+<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-227"><a href="#cb6-227" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
+<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-233"><a href="#cb6-233" aria-hidden="true" tabindex="-1"></a>n_hf_equiv <span class="op">=</span> <span class="bu">int</span>(total_cost <span class="op">/</span> costs_per_eval[<span class="op">-</span><span class="dv">1</span>])   <span class="co"># 9 HF evals</span></span>
+<span id="cb6-234"><a href="#cb6-234" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
+<span id="cb6-235"><a href="#cb6-235" aria-hidden="true" tabindex="-1"></a>X_hf_only <span class="op">=</span> prior.rvs(n_hf_equiv)</span>
+<span id="cb6-236"><a href="#cb6-236" aria-hidden="true" tabindex="-1"></a>y_hf_only <span class="op">=</span> level_models[<span class="op">-</span><span class="dv">1</span>](X_hf_only)</span>
+<span id="cb6-237"><a href="#cb6-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-238"><a href="#cb6-238" aria-hidden="true" tabindex="-1"></a>hf_kern <span class="op">=</span> SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb6-239"><a href="#cb6-239" aria-hidden="true" tabindex="-1"></a>hf_gp <span class="op">=</span> ExactGaussianProcess(hf_kern, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb6-240"><a href="#cb6-240" aria-hidden="true" tabindex="-1"></a>hf_gp <span class="op">=</span> GPMaximumLikelihoodFitter(bkd).fit(</span>
+<span id="cb6-241"><a href="#cb6-241" aria-hidden="true" tabindex="-1"></a>    hf_gp, X_hf_only, y_hf_only</span>
+<span id="cb6-242"><a href="#cb6-242" aria-hidden="true" tabindex="-1"></a>).surrogate()</span>
+<span id="cb6-243"><a href="#cb6-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-244"><a href="#cb6-244" aria-hidden="true" tabindex="-1"></a>hf_pred <span class="op">=</span> bkd.to_numpy(hf_gp.predict(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb6-245"><a href="#cb6-245" aria-hidden="true" tabindex="-1"></a>hf_std <span class="op">=</span> bkd.to_numpy(hf_gp.predict_std(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb6-246"><a href="#cb6-246" aria-hidden="true" tabindex="-1"></a>l2_hf <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> hf_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span>
+<span id="cb6-247"><a href="#cb6-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-248"><a href="#cb6-248" aria-hidden="true" tabindex="-1"></a><span class="co"># HF-only baseline using the SAME 4 HF samples as the MF GP</span></span>
+<span id="cb6-249"><a href="#cb6-249" aria-hidden="true" tabindex="-1"></a>hf_kern_few <span class="op">=</span> SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb6-250"><a href="#cb6-250" aria-hidden="true" tabindex="-1"></a>hf_gp_few <span class="op">=</span> ExactGaussianProcess(hf_kern_few, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb6-251"><a href="#cb6-251" aria-hidden="true" tabindex="-1"></a>hf_gp_few <span class="op">=</span> GPMaximumLikelihoodFitter(bkd).fit(</span>
+<span id="cb6-252"><a href="#cb6-252" aria-hidden="true" tabindex="-1"></a>    hf_gp_few, X_hf, y_hf</span>
+<span id="cb6-253"><a href="#cb6-253" aria-hidden="true" tabindex="-1"></a>).surrogate()</span>
+<span id="cb6-254"><a href="#cb6-254" aria-hidden="true" tabindex="-1"></a>hf_few_pred <span class="op">=</span> bkd.to_numpy(hf_gp_few.predict(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb6-255"><a href="#cb6-255" aria-hidden="true" tabindex="-1"></a>hf_few_std <span class="op">=</span> bkd.to_numpy(hf_gp_few.predict_std(x_test))[<span class="dv">0</span>, :]</span>
+<span id="cb6-256"><a href="#cb6-256" aria-hidden="true" tabindex="-1"></a>l2_hf_few <span class="op">=</span> np.linalg.norm(y_test_hf <span class="op">-</span> hf_few_pred) <span class="op">/</span> np.linalg.norm(y_test_hf)</span>
+<span id="cb6-257"><a href="#cb6-257" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-258"><a href="#cb6-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-259"><a href="#cb6-259" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-260"><a href="#cb6-260" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparison: Predictions and Uncertainty</span></span>
+<span id="cb6-261"><a href="#cb6-261" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-264"><a href="#cb6-264" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-265"><a href="#cb6-265" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-266"><a href="#cb6-266" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three GP surrogates compared. **Top**: multi-fidelity GP using 100 LF + 4 HF samples. **Middle**: HF-only GP at equal budget. **Bottom**: HF-only GP using only the same 4 HF samples as the MF model --- the wide uncertainty bands show how much information the 100 cheap LF evaluations contribute. Shaded bands show $\\pm 2\\sigma$."</span></span>
+<span id="cb6-267"><a href="#cb6-267" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-predictions-uncertainty</span></span>
+<span id="cb6-268"><a href="#cb6-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-269"><a href="#cb6-269" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_predictions_uncertainty</span>
+<span id="cb6-270"><a href="#cb6-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-271"><a href="#cb6-271" aria-hidden="true" tabindex="-1"></a>xr <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">200</span>)</span>
+<span id="cb6-272"><a href="#cb6-272" aria-hidden="true" tabindex="-1"></a>xs_hf <span class="op">=</span> bkd.to_numpy(X_hf).ravel()</span>
+<span id="cb6-273"><a href="#cb6-273" aria-hidden="true" tabindex="-1"></a>ys_hf <span class="op">=</span> bkd.to_numpy(y_hf).ravel()</span>
+<span id="cb6-274"><a href="#cb6-274" aria-hidden="true" tabindex="-1"></a>xs_hf_only <span class="op">=</span> bkd.to_numpy(X_hf_only).ravel()</span>
+<span id="cb6-275"><a href="#cb6-275" aria-hidden="true" tabindex="-1"></a>ys_hf_only <span class="op">=</span> bkd.to_numpy(y_hf_only).ravel()</span>
+<span id="cb6-276"><a href="#cb6-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-277"><a href="#cb6-277" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">11</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-278"><a href="#cb6-278" aria-hidden="true" tabindex="-1"></a>plot_predictions_uncertainty(</span>
+<span id="cb6-279"><a href="#cb6-279" aria-hidden="true" tabindex="-1"></a>    axes, xr, y_test_hf,</span>
+<span id="cb6-280"><a href="#cb6-280" aria-hidden="true" tabindex="-1"></a>    mf_pred, mf_std, l2_mf, n_lf, n_hf, total_cost,</span>
+<span id="cb6-281"><a href="#cb6-281" aria-hidden="true" tabindex="-1"></a>    hf_pred, hf_std, l2_hf, n_hf_equiv,</span>
+<span id="cb6-282"><a href="#cb6-282" aria-hidden="true" tabindex="-1"></a>    hf_few_pred, hf_few_std, l2_hf_few,</span>
+<span id="cb6-283"><a href="#cb6-283" aria-hidden="true" tabindex="-1"></a>    xs_hf, ys_hf, xs_hf_only, ys_hf_only, costs_per_eval,</span>
+<span id="cb6-284"><a href="#cb6-284" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-285"><a href="#cb6-285" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-286"><a href="#cb6-286" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-287"><a href="#cb6-287" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-288"><a href="#cb6-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-289"><a href="#cb6-289" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-290"><a href="#cb6-290" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Block Kernel Matrix</span></span>
+<span id="cb6-291"><a href="#cb6-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-292"><a href="#cb6-292" aria-hidden="true" tabindex="-1"></a>The <span class="in">`MultiLevelKernel`</span> assembles a joint covariance across all fidelity levels.</span>
+<span id="cb6-293"><a href="#cb6-293" aria-hidden="true" tabindex="-1"></a>Off-diagonal blocks encode the cross-level correlations implied by the KO</span>
+<span id="cb6-294"><a href="#cb6-294" aria-hidden="true" tabindex="-1"></a>recursion: large values mean a low-fidelity evaluation carries information about</span>
+<span id="cb6-295"><a href="#cb6-295" aria-hidden="true" tabindex="-1"></a>the high-fidelity level.</span>
+<span id="cb6-296"><a href="#cb6-296" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-299"><a href="#cb6-299" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-300"><a href="#cb6-300" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-301"><a href="#cb6-301" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Joint prior kernel matrix across 30 sorted test points for both fidelity levels. The off-diagonal block (LF--HF) shows strong cross-level covariance --- this is the inter-level information that the multi-fidelity GP exploits."</span></span>
+<span id="cb6-302"><a href="#cb6-302" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-kernel-matrix</span></span>
+<span id="cb6-303"><a href="#cb6-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-304"><a href="#cb6-304" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_kernel_matrix</span>
+<span id="cb6-305"><a href="#cb6-305" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-306"><a href="#cb6-306" aria-hidden="true" tabindex="-1"></a>n_cov <span class="op">=</span> <span class="dv">30</span></span>
+<span id="cb6-307"><a href="#cb6-307" aria-hidden="true" tabindex="-1"></a>X_cov_unsorted <span class="op">=</span> x_test[:, :n_cov]</span>
+<span id="cb6-308"><a href="#cb6-308" aria-hidden="true" tabindex="-1"></a>sort_idx <span class="op">=</span> bkd.to_numpy(X_cov_unsorted[<span class="dv">0</span>, :]).argsort()</span>
+<span id="cb6-309"><a href="#cb6-309" aria-hidden="true" tabindex="-1"></a>X_cov <span class="op">=</span> X_cov_unsorted[:, sort_idx]</span>
+<span id="cb6-310"><a href="#cb6-310" aria-hidden="true" tabindex="-1"></a>K_np <span class="op">=</span> bkd.to_numpy(mf_kernel([X_cov] <span class="op">*</span> nmodels))</span>
+<span id="cb6-311"><a href="#cb6-311" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-312"><a href="#cb6-312" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
+<span id="cb6-313"><a href="#cb6-313" aria-hidden="true" tabindex="-1"></a>plot_kernel_matrix(ax, K_np, n_cov, level_names, nmodels)</span>
+<span id="cb6-314"><a href="#cb6-314" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-315"><a href="#cb6-315" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-316"><a href="#cb6-316" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-317"><a href="#cb6-317" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-318"><a href="#cb6-318" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-319"><a href="#cb6-319" aria-hidden="true" tabindex="-1"></a><span class="fu">## Reading the kernel heatmap</span></span>
+<span id="cb6-320"><a href="#cb6-320" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-321"><a href="#cb6-321" aria-hidden="true" tabindex="-1"></a>Each diagonal block is the per-level prior covariance. The off-diagonal blocks</span>
+<span id="cb6-322"><a href="#cb6-322" aria-hidden="true" tabindex="-1"></a>are cross-level covariances implied by the KO recursion: a large LF--HF</span>
+<span id="cb6-323"><a href="#cb6-323" aria-hidden="true" tabindex="-1"></a>block means a low-fidelity evaluation carries significant information about the</span>
+<span id="cb6-324"><a href="#cb6-324" aria-hidden="true" tabindex="-1"></a>high-fidelity level. The scaling $\rho = 2$ amplifies this cross-level</span>
+<span id="cb6-325"><a href="#cb6-325" aria-hidden="true" tabindex="-1"></a>covariance, which is why 100 cheap LF evaluations so effectively reduce</span>
+<span id="cb6-326"><a href="#cb6-326" aria-hidden="true" tabindex="-1"></a>uncertainty in the HF prediction.</span>
+<span id="cb6-327"><a href="#cb6-327" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-328"><a href="#cb6-328" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-329"><a href="#cb6-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-330"><a href="#cb6-330" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb6-331"><a href="#cb6-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-332"><a href="#cb6-332" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **Kennedy--O'Hagan model** $f_k = \rho_{k-1}\,f_{k-1} + \delta_k$ encodes</span>
+<span id="cb6-333"><a href="#cb6-333" aria-hidden="true" tabindex="-1"></a>  inter-level correlation explicitly; <span class="in">`MultiLevelKernel`</span> assembles the block</span>
+<span id="cb6-334"><a href="#cb6-334" aria-hidden="true" tabindex="-1"></a>  kernel matrix automatically from per-level kernels and scalings</span>
+<span id="cb6-335"><a href="#cb6-335" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Fixing $\rho$** to a known or estimated value avoids local-optima issues in</span>
+<span id="cb6-336"><a href="#cb6-336" aria-hidden="true" tabindex="-1"></a>  MLL optimisation; the GP then learns only the correlation length scales</span>
+<span id="cb6-337"><a href="#cb6-337" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The multi-fidelity GP achieves tighter uncertainty bands and lower prediction</span>
+<span id="cb6-338"><a href="#cb6-338" aria-hidden="true" tabindex="-1"></a>  error by transferring information from cheap low-fidelity evaluations</span>
+<span id="cb6-339"><a href="#cb6-339" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The block kernel matrix visualises how much information flows between levels</span>
+<span id="cb6-340"><a href="#cb6-340" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-341"><a href="#cb6-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-342"><a href="#cb6-342" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb6-343"><a href="#cb6-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-344"><a href="#cb6-344" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Set $\rho = 0.5$ (fixed) and refit. How does the HF prediction quality</span>
+<span id="cb6-345"><a href="#cb6-345" aria-hidden="true" tabindex="-1"></a>   change? What does this tell you about the sensitivity to the scaling value?</span>
+<span id="cb6-346"><a href="#cb6-346" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Set <span class="in">`fixed=False`</span> on the <span class="in">`PolynomialScaling`</span> to let the GP learn $\rho$.</span>
+<span id="cb6-347"><a href="#cb6-347" aria-hidden="true" tabindex="-1"></a>   Does it recover $\rho \approx 2$? If not, try increasing the nugget to</span>
+<span id="cb6-348"><a href="#cb6-348" aria-hidden="true" tabindex="-1"></a>   <span class="in">`1e-4`</span> --- does this help the optimiser find a better minimum?</span>
+<span id="cb6-349"><a href="#cb6-349" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Reduce the number of LF evaluations from 100 to 20 while keeping 4 HF.</span>
+<span id="cb6-350"><a href="#cb6-350" aria-hidden="true" tabindex="-1"></a>   At what LF sample size does the multi-fidelity advantage disappear?</span>
+<span id="cb6-351"><a href="#cb6-351" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-352"><a href="#cb6-352" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-353"><a href="#cb6-353" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb6-354"><a href="#cb6-354" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-355"><a href="#cb6-355" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Gaussian Process Surrogates</span><span class="co">](gp_surrogate.qmd)</span> --- Single-output GP</span>
+<span id="cb6-356"><a href="#cb6-356" aria-hidden="true" tabindex="-1"></a>  fundamentals including kernel selection and MLL fitting</span>
+<span id="cb6-357"><a href="#cb6-357" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Gaussian Processes</span><span class="co">](uq_with_gp.qmd)</span> --- Using GP surrogates for</span>
+<span id="cb6-358"><a href="#cb6-358" aria-hidden="true" tabindex="-1"></a>  uncertainty quantification tasks</span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

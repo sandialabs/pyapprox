@@ -1,6 +1,0 @@
-expand_basis
-============
-
-.. currentmodule:: pyapprox.approximate
-
-.. autofunction:: expand_basis

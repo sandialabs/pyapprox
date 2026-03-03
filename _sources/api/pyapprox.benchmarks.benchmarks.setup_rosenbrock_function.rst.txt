@@ -1,6 +1,0 @@
-setup_rosenbrock_function
-=========================
-
-.. currentmodule:: pyapprox.benchmarks.benchmarks
-
-.. autofunction:: setup_rosenbrock_function

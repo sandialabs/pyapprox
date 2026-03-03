@@ -1,6 +1,0 @@
-solve_least_squares_regression
-==============================
-
-.. currentmodule:: pyapprox.optimization
-
-.. autofunction:: solve_least_squares_regression

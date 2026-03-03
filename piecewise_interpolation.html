@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Construct linear, quadratic, and cubic piecewise bases, analyze convergence for smooth and discontinuous functions, and preview PiecewiseFactory for sparse grids.">
+
+<title>Piecewise Polynomial Interpolation: Local Basis Functions – PyApprox</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Piecewise Polynomial Interpolation: Local Basis Functions – PyApprox">
+<meta property="og:description" content="Construct linear, quadratic, and cubic piecewise bases, analyze convergence for smooth and discontinuous functions, and preview PiecewiseFactory for sparse grids.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/piecewise_interpolation_files/figure-html/fig-gibbs-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="951">
+<meta property="og:image:width" content="2476">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./lagrange_interpolation.html">Approximation Theory</a></li><li class="breadcrumb-item"><a href="./piecewise_interpolation.html">Piecewise Polynomial Interpolation: Local Basis Functions</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting Started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setup_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Up Your Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models_decisions_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Models to Decisions Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Forward UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./forward_uq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Forward Uncertainty Quantification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./random_variables_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Random Variables and Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Budget Estimation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Multifidelity Estimation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximate Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parametrically Defined Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multilevel Best Linear Unbiased Estimators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MLBLUE: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ensemble_selection_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Ensemble Selection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_estimation_cookbook.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Estimation: API Cookbook</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inverse UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bayesian_inference_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Data to Parameters: Introduction to Bayesian Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcmc_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampling the Posterior with MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dram_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical MCMC: Metropolis-Hastings and DRAM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximating the Posterior: Introduction to Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_objective.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Variational Inference Optimizes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Optimizing the ELBO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Choosing the Variational Family</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_amortized.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Amortized Variational Inference</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experimental Design</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./experimental_design_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Not All Experiments Are Equal: Introduction to Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">KL-Based OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Learning from Experiments: Bayesian Optimal Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_estimator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: The Double-Loop Estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_gradients.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Gradients and the Reparameterization Trick</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Verifying Convergence with KLOEDDiagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_qmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: MC vs.&nbsp;Halton for EIG Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_design_stability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Design Stability and Convergence</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Goal-Oriented OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented Bayesian OED: Designing for Prediction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_gaussian_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Gaussian Posterior Expressions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_lognormal_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Log-Normal Prediction Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Convergence Verification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Designing for Prediction on a Predator-Prey System</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">OED Workflows</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_data_workflow_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decoupling Data Generation from OED Optimisation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
+ <span class="menu-text">Approximation Theory</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./lagrange_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lagrange Interpolation: Polynomials on Optimal Points</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_interpolation.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Piecewise Polynomial Interpolation: Local Basis Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tensor_product_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tensor Product Interpolation: Multivariate Approximation and Its Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gauss_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./leja_sequences.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leja Sequences: Nested Points for Adaptive Interpolation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Surrogate Modeling</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Polynomial Chaos</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./polynomial_chaos_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Polynomial Chaos Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./practical_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Overfitting and Cross-Validation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sparse Polynomial Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_pce.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Polynomial Chaos</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Function Trains</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./function_train_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">An Introduction to Function Trains</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_functiontrain.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Function Trains</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Sparse Grids</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./isotropic_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_grid_to_pce_conversion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Sparse Grids to PCE: The Mathematics of Basis Conversion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Sparse Grids</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Gaussian Processes</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_surrogate.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Gaussian Process Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_gp_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sampling for Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Gaussian Processes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sobol_sensitivity_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sobol Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pce_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PCE-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GP-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./morris_screening.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Morris Screening</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bin_based_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bin-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity_math.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Mathematical Derivation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Practical Usage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">Random Fields</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE I: Random Fields and the Karhunen-Loève Expansion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_mesh_and_data_driven.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE II: Kernel-Based vs Data-Driven KLE</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_spde.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE III: SPDE-Based KLE for Matern Fields</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+ <span class="menu-text">Optimization Under Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Design Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
+  <li><a href="#when-global-polynomials-fail" id="toc-when-global-polynomials-fail" class="nav-link" data-scroll-target="#when-global-polynomials-fail">When Global Polynomials Fail</a></li>
+  <li><a href="#local-basis-functions" id="toc-local-basis-functions" class="nav-link" data-scroll-target="#local-basis-functions">Local Basis Functions</a></li>
+  <li><a href="#convergence-analysis-ohp1-rates" id="toc-convergence-analysis-ohp1-rates" class="nav-link" data-scroll-target="#convergence-analysis-ohp1-rates">Convergence Analysis: <span class="math inline">\(O(h^{p+1})\)</span> Rates</a></li>
+  <li><a href="#non-smooth-functions-piecewise-vs.-global" id="toc-non-smooth-functions-piecewise-vs.-global" class="nav-link" data-scroll-target="#non-smooth-functions-piecewise-vs.-global">Non-Smooth Functions: Piecewise vs.&nbsp;Global</a></li>
+  <li><a href="#piecewisefactory-for-sparse-grids" id="toc-piecewisefactory-for-sparse-grids" class="nav-link" data-scroll-target="#piecewisefactory-for-sparse-grids"><code>PiecewiseFactory</code> for Sparse Grids</a></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next Steps</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./lagrange_interpolation.html">Approximation Theory</a></li><li class="breadcrumb-item"><a href="./piecewise_interpolation.html">Piecewise Polynomial Interpolation: Local Basis Functions</a></li></ol></nav>
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Piecewise Polynomial Interpolation: Local Basis Functions</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Construct linear, quadratic, and cubic piecewise bases, analyze convergence for smooth and discontinuous functions, and preview PiecewiseFactory for sparse grids.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/piecewise_interpolation.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial, you will be able to:</p>
+<ul>
+<li>Explain when piecewise polynomials outperform global Lagrange polynomials</li>
+<li>Construct piecewise linear, quadratic, and cubic basis functions with <code>PiecewiseLinear</code>, <code>PiecewiseQuadratic</code>, and <code>PiecewiseCubic</code></li>
+<li>Verify the <span class="math inline">\(O(h^{p+1})\)</span> convergence rate for smooth functions</li>
+<li>Demonstrate that piecewise polynomials handle discontinuous functions without Gibbs-like oscillations</li>
+<li>Preview <code>PiecewiseFactory</code> for integrating piecewise bases into the sparse grid framework</li>
+</ul>
+</section>
+<section id="prerequisites" class="level2">
+<h2 class="anchored" data-anchor-id="prerequisites">Prerequisites</h2>
+<p>Complete <a href="./piecewise_quadrature.html">Piecewise Polynomial Quadrature</a> before this tutorial. Familiarity with Lagrange interpolation from <a href="./lagrange_interpolation.html">Lagrange Interpolation</a> helps but is not required.</p>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<div id="156f3c20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> (</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    LagrangeBasis1D,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    PiecewiseLinear,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    PiecewiseQuadratic,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    PiecewiseCubic,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate.globalpoly <span class="im">import</span> (</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisQuadratureRule,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="when-global-polynomials-fail" class="level2">
+<h2 class="anchored" data-anchor-id="when-global-polynomials-fail">When Global Polynomials Fail</h2>
+<p>The Lagrange interpolation error bound</p>
+<p><span class="math display">\[
+\max_{x \in [a,b]} \lvert f(x) - f_M(x) \rvert \leq \frac{1}{M!} \max_x \prod_{j=1}^{M} \lvert x - x^{(j)} \rvert \cdot \max_{c} \lvert f^{(M)}(c) \rvert
+\]</span></p>
+<p>requires <span class="math inline">\(f\)</span> to have <span class="math inline">\(M\)</span> bounded derivatives. For functions with a <strong>discontinuity</strong> or a <strong>kink</strong>, this bound is violated and global polynomials exhibit the Gibbs phenomenon: persistent oscillations near the singularity that do not decay as <span class="math inline">\(M\)</span> increases.</p>
+<div id="cell-fig-gibbs" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_gibbs</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_step(x):</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> np.zeros_like(x)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    y[x <span class="op">&gt;</span> <span class="fl">1.0</span><span class="op">/</span><span class="fl">3.0</span>] <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> y</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>cc_rule <span class="op">=</span> ClenshawCurtisQuadratureRule(bkd, store<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>a, b <span class="op">=</span> <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>M_cc <span class="op">=</span> <span class="dv">17</span>   <span class="co"># CC requires 2^l + 1: 3, 5, 9, 17, ...</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>M_pw <span class="op">=</span> <span class="dv">17</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(a, b, <span class="dv">600</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>x_plot_bkd <span class="op">=</span> bkd.array(x_plot.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>true_vals <span class="op">=</span> fun_step(x_plot)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Global Lagrange on CC nodes</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>basis_cc <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>basis_cc.set_nterms(M_cc)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>nodes_cc, _ <span class="op">=</span> basis_cc.quadrature_rule()</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>nodes_cc_np <span class="op">=</span> bkd.to_numpy(nodes_cc).ravel()</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>phi_cc <span class="op">=</span> bkd.to_numpy(basis_cc(x_plot_bkd))   <span class="co"># (600, M_cc)</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>interp_lagrange <span class="op">=</span> phi_cc <span class="op">@</span> fun_step(nodes_cc_np)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Piecewise linear on uniform nodes</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>nodes_pw <span class="op">=</span> bkd.array(np.linspace(a, b, M_pw))</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>pw_lin <span class="op">=</span> PiecewiseLinear(nodes_pw, bkd)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>interp_pw <span class="op">=</span> bkd.to_numpy(pw_lin(bkd.array(x_plot)))  <span class="co"># (600, M_pw)</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>interp_pw_vals <span class="op">=</span> interp_pw <span class="op">@</span> bkd.to_numpy(fun_step(nodes_pw))</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>fig, axs <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">5</span>))</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>plot_gibbs(x_plot, true_vals, interp_lagrange, interp_pw_vals, M_cc, M_pw, axs)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Global polynomial vs. piecewise interpolation of a step function"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-gibbs" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-gibbs-output-1.png" width="1238" height="476" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="local-basis-functions" class="level2">
+<h2 class="anchored" data-anchor-id="local-basis-functions">Local Basis Functions</h2>
+<p>Piecewise polynomial interpolation divides <span class="math inline">\([a, b]\)</span> into cells and fits a low-degree polynomial <strong>locally within each cell</strong>. The basis functions have <strong>compact support</strong>: <span class="math inline">\(\phi_j(x) = 0\)</span> outside the one or two cells adjacent to node <span class="math inline">\(j\)</span>. This locality prevents errors at one node from propagating across the domain.</p>
+<p>The <code>PiecewiseLinear</code>, <code>PiecewiseQuadratic</code>, and <code>PiecewiseCubic</code> classes each take a 1D array of nodes and a backend. The <code>__call__</code> method evaluates all basis functions at given points.</p>
+<div id="ec2b7ebd" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">7</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>nodes_1d <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>x_plot_bkd <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">400</span>))</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>pw_lin <span class="op">=</span> PiecewiseLinear(nodes_1d, bkd)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>phi_hat <span class="op">=</span> bkd.to_numpy(pw_lin(x_plot_bkd))   <span class="co"># (400, M)</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">400</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>nodes_np <span class="op">=</span> bkd.to_numpy(nodes_1d)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare local vs global support for middle basis function</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> LegendrePolynomial1D</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.leja <span class="im">import</span> (</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    LejaSequence1D <span class="im">as</span> LejaSeq,</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    ChristoffelWeighting <span class="im">as</span> CWt,</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>poly_leg <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>poly_leg.set_nterms(<span class="dv">30</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>wt <span class="op">=</span> CWt(bkd)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>leja_compare <span class="op">=</span> LejaSeq(bkd, poly_leg, wt, bounds<span class="op">=</span>(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>))</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>basis_leja_compare <span class="op">=</span> LagrangeBasis1D(bkd, leja_compare.quadrature_rule)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>basis_leja_compare.set_nterms(M)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>phi_lagrange_all <span class="op">=</span> bkd.to_numpy(basis_leja_compare(bkd.array(x_plot.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))))</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>j_mid <span class="op">=</span> M <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>phi_lagrange_mid <span class="op">=</span> phi_lagrange_all[:, j_mid]</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>fig, axs <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">4</span>))</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>plot_piecewise_basis(x_plot, phi_hat, nodes_np, M, phi_lagrange_mid, j_mid, axs)</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="piecewise_interpolation_files/figure-html/cell-4-output-1.png" width="1236" height="373" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Local vs.&nbsp;Global Support
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A Lagrange basis function <span class="math inline">\(\phi_j\)</span> is nonzero everywhere on <span class="math inline">\([a, b]\)</span> except at the other nodes. A hat basis function is nonzero only on the two cells adjacent to node <span class="math inline">\(j\)</span>. This means an error introduced by a bad function value at node <span class="math inline">\(j\)</span> propagates globally for Lagrange but is <strong>confined to two cells</strong> for piecewise linear.</p>
+</div>
+</div>
+</section>
+<section id="convergence-analysis-ohp1-rates" class="level2">
+<h2 class="anchored" data-anchor-id="convergence-analysis-ohp1-rates">Convergence Analysis: <span class="math inline">\(O(h^{p+1})\)</span> Rates</h2>
+<p>For a smooth function <span class="math inline">\(f\)</span> with bounded <span class="math inline">\((p+1)\)</span>-th derivative, piecewise degree-<span class="math inline">\(p\)</span> interpolation on a uniform grid with cell width <span class="math inline">\(h = (b-a)/(M-1)\)</span> satisfies</p>
+<p><span class="math display">\[
+\max_{x \in [a,b]} \lvert f(x) - f_M(x) \rvert \leq C_p\, h^{p+1} \max_{c \in [a,b]} \lvert f^{(p+1)}(c) \rvert,
+\]</span></p>
+<p>where <span class="math inline">\(C_p\)</span> depends only on the polynomial degree <span class="math inline">\(p\)</span>. Doubling the number of points (halving <span class="math inline">\(h\)</span>) reduces the error by a factor of <span class="math inline">\(2^{p+1}\)</span>: by 4 for piecewise linear (<span class="math inline">\(p=1\)</span>), by 8 for piecewise quadratic (<span class="math inline">\(p=2\)</span>), and by 16 for piecewise cubic (<span class="math inline">\(p=3\)</span>).</p>
+<div id="cell-fig-pw-convergence" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.sin(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>a, b <span class="op">=</span> <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> np.linspace(a, b, <span class="dv">5000</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>x_ref_bkd <span class="op">=</span> bkd.array(x_ref)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>true_ref <span class="op">=</span> f_smooth(x_ref)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>Ms_linear <span class="op">=</span> np.array([<span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>, <span class="dv">129</span>])</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co"># PiecewiseCubic requires (nnodes - 4) % 3 == 0, i.e. nnodes in {4, 7, 10, 13, ...}</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>Ms_cubic <span class="op">=</span> np.array([<span class="dv">4</span>, <span class="dv">7</span>, <span class="dv">10</span>, <span class="dv">13</span>, <span class="dv">19</span>, <span class="dv">25</span>, <span class="dv">40</span>, <span class="dv">55</span>])</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>errors_linear <span class="op">=</span> []</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_linear:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(a, b, M))</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseLinear(nodes_M, bkd)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))                    <span class="co"># (5000, M)</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    interp <span class="op">=</span> phi <span class="op">@</span> f_smooth(bkd.to_numpy(nodes_M))</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    errors_linear.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(interp <span class="op">-</span> true_ref)))</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>errors_cubic <span class="op">=</span> []</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_cubic:</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(a, b, M))</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseCubic(nodes_M, bkd)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    interp <span class="op">=</span> phi <span class="op">@</span> f_smooth(bkd.to_numpy(nodes_M))</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    errors_cubic.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(interp <span class="op">-</span> true_ref)))</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>hs_linear <span class="op">=</span> (b <span class="op">-</span> a) <span class="op">/</span> (Ms_linear <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>hs_cubic <span class="op">=</span> (b <span class="op">-</span> a) <span class="op">/</span> (Ms_cubic <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>plot_pw_convergence(hs_linear, errors_linear, hs_cubic, errors_cubic, ax)</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-pw-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-pw-convergence-output-1.png" width="758" height="467" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm <span class="math inline">\(O(h^2)\)</span> and <span class="math inline">\(O(h^4)\)</span> theory.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="non-smooth-functions-piecewise-vs.-global" class="level2">
+<h2 class="anchored" data-anchor-id="non-smooth-functions-piecewise-vs.-global">Non-Smooth Functions: Piecewise vs.&nbsp;Global</h2>
+<p>For a function with a kink (continuous but not differentiable), the <span class="math inline">\(h^{p+1}\)</span> convergence bound breaks down because <span class="math inline">\(f''\)</span> is unbounded. Piecewise linear interpolation still converges at <span class="math inline">\(O(h)\)</span> in <span class="math inline">\(L^\infty\)</span> — the error localizes near the kink — while global Lagrange polynomials converge much more slowly due to oscillations spreading across the entire domain.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span><span class="math inline">\(L^\infty\)</span> vs.&nbsp;<span class="math inline">\(L^2\)</span> error
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The convergence plot below uses the <span class="math inline">\(L^\infty\)</span> (max) norm <span class="math inline">\(\|f - f_M\|_\infty = \max_x |f(x) - f_M(x)|\)</span>. For the kink function <span class="math inline">\(|x - 1/3|\)</span>, the maximum error occurs in the cell containing the kink and decreases as <span class="math inline">\(O(h)\)</span> since the interpolant is exact at the nodes and the worst-case error within a cell of width <span class="math inline">\(h\)</span> is proportional to <span class="math inline">\(h\)</span>. For a step function, by contrast, the <span class="math inline">\(L^\infty\)</span> error does not converge because the jump height is always 1 regardless of resolution — one would need the <span class="math inline">\(L^2\)</span> norm to see convergence (<span class="math inline">\(O(h^{1/2})\)</span>) in that case.</p>
+</div>
+</div>
+<div id="cell-fig-discontinuous" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_discontinuous</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_kink(x):</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">abs</span>(x <span class="op">-</span> <span class="fl">1.0</span> <span class="op">/</span> <span class="fl">3.0</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">5000</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>x_ref_bkd <span class="op">=</span> bkd.array(x_ref)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>x_ref_2d <span class="op">=</span> bkd.array(x_ref.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>true_kink <span class="op">=</span> fun_kink(x_ref)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># CC requires 2^l + 1: 3, 5, 9, 17, 33, 65</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>Ms_cc <span class="op">=</span> np.array([<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>])</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>Ms_pw <span class="op">=</span> np.array([<span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>, <span class="dv">129</span>])</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>err_lag, err_pw <span class="op">=</span> [], []</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_cc:</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    basis_M <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    basis_M.set_nterms(M)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    nd_M, _ <span class="op">=</span> basis_M.quadrature_rule()</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    nd_M_np <span class="op">=</span> bkd.to_numpy(nd_M).ravel()</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    phi_M <span class="op">=</span> bkd.to_numpy(basis_M(x_ref_2d))</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    il <span class="op">=</span> phi_M <span class="op">@</span> fun_kink(nd_M_np)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    err_lag.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(il <span class="op">-</span> true_kink)))</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_pw:</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseLinear(nodes_M, bkd)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    ip <span class="op">=</span> phi <span class="op">@</span> fun_kink(bkd.to_numpy(nodes_M))</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    err_pw.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(ip <span class="op">-</span> true_kink)))</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>plot_discontinuous(Ms_cc, err_lag, Ms_pw, err_pw, ax)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-discontinuous" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-discontinuous-output-1.png" width="758" height="467" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span class="math inline">\(|x - 1/3|\)</span> (kink at <span class="math inline">\(x = 1/3\)</span>). Piecewise linear converges at <span class="math inline">\(O(M^{-1})\)</span>; global Lagrange converges much more slowly.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="piecewisefactory-for-sparse-grids" class="level2">
+<h2 class="anchored" data-anchor-id="piecewisefactory-for-sparse-grids"><code>PiecewiseFactory</code> for Sparse Grids</h2>
+<p>In the sparse grid framework the 1D basis is specified via a factory object. <code>PiecewiseFactory</code> wraps the piecewise polynomial construction to provide the same interface as <code>LejaLagrangeFactory</code> or <code>GaussLagrangeFactory</code>, enabling sparse grids with local basis functions.</p>
+<div id="25641241" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> PiecewiseFactory</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a factory for piecewise quadratic bases</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>factory <span class="op">=</span> PiecewiseFactory(marginal, bkd, poly_type<span class="op">=</span><span class="st">"quadratic"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># The factory creates a basis that can be used in sparse grid construction</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>basis_pw <span class="op">=</span> factory.create_basis()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>Piecewise polynomial basis functions have <strong>compact (local) support</strong>: a perturbation at one node affects only the adjacent cells, preventing Gibbs-like oscillations from spreading across the domain.</li>
+<li>For smooth functions, piecewise degree-<span class="math inline">\(p\)</span> interpolation on a uniform grid converges at rate <span class="math inline">\(O(h^{p+1})\)</span> — algebraic but systematic.</li>
+<li>For functions with jumps or kinks, piecewise methods degrade gracefully: the error localizes near the singularity and still converges at <span class="math inline">\(O(h)\)</span> in <span class="math inline">\(L^\infty\)</span>, while global Lagrange polynomials fail to converge.</li>
+<li><code>PiecewiseFactory</code> makes piecewise bases drop-in replacements for Gauss or Leja factories in the sparse grid framework.</li>
+</ul>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Exercises
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ol type="1">
+<li><p><strong>Convergence rates.</strong> Verify that piecewise quadratic interpolation (<span class="math inline">\(p=2\)</span>) of <span class="math inline">\(f(x) = e^{\sin(2\pi x)}\)</span> converges at rate <span class="math inline">\(O(h^3)\)</span>. Use at least 5 grid sizes spanning a factor of 10 in <span class="math inline">\(h\)</span>.</p></li>
+<li><p><strong>Kink function.</strong> Test <span class="math inline">\(f(x) = |x - 0.2|\)</span> (Lipschitz, not <span class="math inline">\(C^1\)</span>). What convergence rate do you observe for piecewise linear? Does piecewise cubic improve things?</p></li>
+<li><p><strong>Basis support.</strong> For <span class="math inline">\(M = 9\)</span> piecewise linear nodes, compute the Lebesgue constant <span class="math inline">\(\Lambda_M = \max_x \sum_j |\phi_j(x)|\)</span>. How does it compare to the global Lagrange value?</p></li>
+<li><p><strong>Quadrature.</strong> Use the piecewise linear quadrature weights (from <code>pw.quadrature_rule()</code>) to estimate <span class="math inline">\(\int_{-1}^{1} \sin(\pi x)\, dx\)</span>. How many points are needed to reach error below <span class="math inline">\(10^{-6}\)</span>?</p></li>
+</ol>
+</div>
+</div>
+</section>
+<section id="next-steps" class="level2">
+<h2 class="anchored" data-anchor-id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="./tensor_product_interpolation.html">Tensor Product Interpolation</a> — Extend 1D interpolation to multiple dimensions using tensor products of either Lagrange or piecewise bases</li>
+<li><a href="./isotropic_sparse_grids.html">Isotropic Sparse Grids</a> — Combine 1D bases via the Smolyak construction; piecewise bases are a supported factory type</li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Piecewise Polynomial Interpolation: Local Basis Functions"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Construct linear, quadratic, and cubic piecewise bases, analyze convergence for smooth and discontinuous functions, and preview PiecewiseFactory for sparse grids."</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> hands-on</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> surrogate_modeling</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> beginner</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 10</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - piecewise_quadrature</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - interpolation</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - piecewise</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - sparse-grid</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/piecewise_interpolation.ipynb)</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain when piecewise polynomials outperform global Lagrange polynomials</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct piecewise linear, quadratic, and cubic basis functions with <span class="in">`PiecewiseLinear`</span>, <span class="in">`PiecewiseQuadratic`</span>, and <span class="in">`PiecewiseCubic`</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the $O(h^{p+1})$ convergence rate for smooth functions</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Demonstrate that piecewise polynomials handle discontinuous functions without Gibbs-like oscillations</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Preview <span class="in">`PiecewiseFactory`</span> for integrating piecewise bases into the sparse grid framework</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Piecewise Polynomial Quadrature</span><span class="co">](piecewise_quadrature.qmd)</span> before this tutorial. Familiarity with Lagrange interpolation from <span class="co">[</span><span class="ot">Lagrange Interpolation</span><span class="co">](lagrange_interpolation.qmd)</span> helps but is not required.</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> (</span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a>    LagrangeBasis1D,</span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>    PiecewiseLinear,</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>    PiecewiseQuadratic,</span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>    PiecewiseCubic,</span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate.globalpoly <span class="im">import</span> (</span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisQuadratureRule,</span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a><span class="fu">## When Global Polynomials Fail</span></span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a>The Lagrange interpolation error bound</span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>\max_{x \in <span class="co">[</span><span class="ot">a,b</span><span class="co">]</span>} \lvert f(x) - f_M(x) \rvert \leq \frac{1}{M!} \max_x \prod_{j=1}^{M} \lvert x - x^{(j)} \rvert \cdot \max_{c} \lvert f^{(M)}(c) \rvert</span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a>requires $f$ to have $M$ bounded derivatives.  For functions with a **discontinuity** or a **kink**, this bound is violated and global polynomials exhibit the Gibbs phenomenon: persistent oscillations near the singularity that do not decay as $M$ increases.</span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity."</span></span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gibbs</span></span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_gibbs</span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_step(x):</span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> np.zeros_like(x)</span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a>    y[x <span class="op">&gt;</span> <span class="fl">1.0</span><span class="op">/</span><span class="fl">3.0</span>] <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> y</span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>cc_rule <span class="op">=</span> ClenshawCurtisQuadratureRule(bkd, store<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a>a, b <span class="op">=</span> <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span></span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>M_cc <span class="op">=</span> <span class="dv">17</span>   <span class="co"># CC requires 2^l + 1: 3, 5, 9, 17, ...</span></span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>M_pw <span class="op">=</span> <span class="dv">17</span></span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(a, b, <span class="dv">600</span>)</span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a>x_plot_bkd <span class="op">=</span> bkd.array(x_plot.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>true_vals <span class="op">=</span> fun_step(x_plot)</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a><span class="co"># Global Lagrange on CC nodes</span></span>
+<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>basis_cc <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>
+<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a>basis_cc.set_nterms(M_cc)</span>
+<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a>nodes_cc, _ <span class="op">=</span> basis_cc.quadrature_rule()</span>
+<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a>nodes_cc_np <span class="op">=</span> bkd.to_numpy(nodes_cc).ravel()</span>
+<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a>phi_cc <span class="op">=</span> bkd.to_numpy(basis_cc(x_plot_bkd))   <span class="co"># (600, M_cc)</span></span>
+<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a>interp_lagrange <span class="op">=</span> phi_cc <span class="op">@</span> fun_step(nodes_cc_np)</span>
+<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a><span class="co"># Piecewise linear on uniform nodes</span></span>
+<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a>nodes_pw <span class="op">=</span> bkd.array(np.linspace(a, b, M_pw))</span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a>pw_lin <span class="op">=</span> PiecewiseLinear(nodes_pw, bkd)</span>
+<span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a>interp_pw <span class="op">=</span> bkd.to_numpy(pw_lin(bkd.array(x_plot)))  <span class="co"># (600, M_pw)</span></span>
+<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a>interp_pw_vals <span class="op">=</span> interp_pw <span class="op">@</span> bkd.to_numpy(fun_step(nodes_pw))</span>
+<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a>fig, axs <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">5</span>))</span>
+<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a>plot_gibbs(x_plot, true_vals, interp_lagrange, interp_pw_vals, M_cc, M_pw, axs)</span>
+<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Global polynomial vs. piecewise interpolation of a step function"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a><span class="fu">## Local Basis Functions</span></span>
+<span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a>Piecewise polynomial interpolation divides $<span class="co">[</span><span class="ot">a, b</span><span class="co">]</span>$ into cells and fits a low-degree polynomial **locally within each cell**.  The basis functions have **compact support**: $\phi_j(x) = 0$ outside the one or two cells adjacent to node $j$.  This locality prevents errors at one node from propagating across the domain.</span>
+<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>The <span class="in">`PiecewiseLinear`</span>, <span class="in">`PiecewiseQuadratic`</span>, and <span class="in">`PiecewiseCubic`</span> classes each take a 1D array of nodes and a backend.  The <span class="in">`__call__`</span> method evaluates all basis functions at given points.</span>
+<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
+<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">7</span></span>
+<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>nodes_1d <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
+<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>x_plot_bkd <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">400</span>))</span>
+<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a>pw_lin <span class="op">=</span> PiecewiseLinear(nodes_1d, bkd)</span>
+<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>phi_hat <span class="op">=</span> bkd.to_numpy(pw_lin(x_plot_bkd))   <span class="co"># (400, M)</span></span>
+<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">400</span>)</span>
+<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a>nodes_np <span class="op">=</span> bkd.to_numpy(nodes_1d)</span>
+<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare local vs global support for middle basis function</span></span>
+<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> LegendrePolynomial1D</span>
+<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.leja <span class="im">import</span> (</span>
+<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a>    LejaSequence1D <span class="im">as</span> LejaSeq,</span>
+<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a>    ChristoffelWeighting <span class="im">as</span> CWt,</span>
+<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a>poly_leg <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
+<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a>poly_leg.set_nterms(<span class="dv">30</span>)</span>
+<span id="cb7-158"><a href="#cb7-158" aria-hidden="true" tabindex="-1"></a>wt <span class="op">=</span> CWt(bkd)</span>
+<span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a>leja_compare <span class="op">=</span> LejaSeq(bkd, poly_leg, wt, bounds<span class="op">=</span>(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>))</span>
+<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a>basis_leja_compare <span class="op">=</span> LagrangeBasis1D(bkd, leja_compare.quadrature_rule)</span>
+<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a>basis_leja_compare.set_nterms(M)</span>
+<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a>phi_lagrange_all <span class="op">=</span> bkd.to_numpy(basis_leja_compare(bkd.array(x_plot.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))))</span>
+<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>j_mid <span class="op">=</span> M <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>phi_lagrange_mid <span class="op">=</span> phi_lagrange_all[:, j_mid]</span>
+<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a>fig, axs <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">4</span>))</span>
+<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>plot_piecewise_basis(x_plot, phi_hat, nodes_np, M, phi_lagrange_mid, j_mid, axs)</span>
+<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-173"><a href="#cb7-173" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb7-174"><a href="#cb7-174" aria-hidden="true" tabindex="-1"></a><span class="fu">## Local vs. Global Support</span></span>
+<span id="cb7-175"><a href="#cb7-175" aria-hidden="true" tabindex="-1"></a>A Lagrange basis function $\phi_j$ is nonzero everywhere on $<span class="co">[</span><span class="ot">a, b</span><span class="co">]</span>$ except at the other nodes.  A hat basis function is nonzero only on the two cells adjacent to node $j$.  This means an error introduced by a bad function value at node $j$ propagates globally for Lagrange but is **confined to two cells** for piecewise linear.</span>
+<span id="cb7-176"><a href="#cb7-176" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence Analysis: $O(h^{p+1})$ Rates</span></span>
+<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a>For a smooth function $f$ with bounded $(p+1)$-th derivative, piecewise degree-$p$ interpolation on a uniform grid with cell width $h = (b-a)/(M-1)$ satisfies</span>
+<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a>\max_{x \in <span class="co">[</span><span class="ot">a,b</span><span class="co">]</span>} \lvert f(x) - f_M(x) \rvert \leq C_p\, h^{p+1} \max_{c \in <span class="co">[</span><span class="ot">a,b</span><span class="co">]</span>} \lvert f^{(p+1)}(c) \rvert,</span>
+<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a>where $C_p$ depends only on the polynomial degree $p$.  Doubling the number of points (halving $h$) reduces the error by a factor of $2^{p+1}$: by 4 for piecewise linear ($p=1$), by 8 for piecewise quadratic ($p=2$), and by 16 for piecewise cubic ($p=3$).</span>
+<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm $O(h^2)$ and $O(h^4)$ theory."</span></span>
+<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pw-convergence</span></span>
+<span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
+<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
+<span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.sin(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
+<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a>a, b <span class="op">=</span> <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span></span>
+<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> np.linspace(a, b, <span class="dv">5000</span>)</span>
+<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a>x_ref_bkd <span class="op">=</span> bkd.array(x_ref)</span>
+<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>true_ref <span class="op">=</span> f_smooth(x_ref)</span>
+<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a>Ms_linear <span class="op">=</span> np.array([<span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>, <span class="dv">129</span>])</span>
+<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a><span class="co"># PiecewiseCubic requires (nnodes - 4) % 3 == 0, i.e. nnodes in {4, 7, 10, 13, ...}</span></span>
+<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a>Ms_cubic <span class="op">=</span> np.array([<span class="dv">4</span>, <span class="dv">7</span>, <span class="dv">10</span>, <span class="dv">13</span>, <span class="dv">19</span>, <span class="dv">25</span>, <span class="dv">40</span>, <span class="dv">55</span>])</span>
+<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-209"><a href="#cb7-209" aria-hidden="true" tabindex="-1"></a>errors_linear <span class="op">=</span> []</span>
+<span id="cb7-210"><a href="#cb7-210" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_linear:</span>
+<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(a, b, M))</span>
+<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseLinear(nodes_M, bkd)</span>
+<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))                    <span class="co"># (5000, M)</span></span>
+<span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a>    interp <span class="op">=</span> phi <span class="op">@</span> f_smooth(bkd.to_numpy(nodes_M))</span>
+<span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a>    errors_linear.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(interp <span class="op">-</span> true_ref)))</span>
+<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a>errors_cubic <span class="op">=</span> []</span>
+<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_cubic:</span>
+<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(a, b, M))</span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseCubic(nodes_M, bkd)</span>
+<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))</span>
+<span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>    interp <span class="op">=</span> phi <span class="op">@</span> f_smooth(bkd.to_numpy(nodes_M))</span>
+<span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>    errors_cubic.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(interp <span class="op">-</span> true_ref)))</span>
+<span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-225"><a href="#cb7-225" aria-hidden="true" tabindex="-1"></a>hs_linear <span class="op">=</span> (b <span class="op">-</span> a) <span class="op">/</span> (Ms_linear <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a>hs_cubic <span class="op">=</span> (b <span class="op">-</span> a) <span class="op">/</span> (Ms_cubic <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a>plot_pw_convergence(hs_linear, errors_linear, hs_cubic, errors_cubic, ax)</span>
+<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a><span class="fu">## Non-Smooth Functions: Piecewise vs. Global</span></span>
+<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a>For a function with a kink (continuous but not differentiable), the $h^{p+1}$ convergence bound breaks down because $f''$ is unbounded.  Piecewise linear interpolation still converges at $O(h)$ in $L^\infty$ — the error localizes near the kink — while global Lagrange polynomials converge much more slowly due to oscillations spreading across the entire domain.</span>
+<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a><span class="fu">## $L^\infty$ vs. $L^2$ error</span></span>
+<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a>The convergence plot below uses the $L^\infty$ (max) norm $<span class="sc">\|</span>f - f_M<span class="sc">\|</span>_\infty = \max_x |f(x) - f_M(x)|$.  For the kink function $|x - 1/3|$, the maximum error occurs in the cell containing the kink and decreases as $O(h)$ since the interpolant is exact at the nodes and the worst-case error within a cell of width $h$ is proportional to $h$.  For a step function, by contrast, the $L^\infty$ error does not converge because the jump height is always 1 regardless of resolution — one would need the $L^2$ norm to see convergence ($O(h^{1/2})$) in that case.</span>
+<span id="cb7-242"><a href="#cb7-242" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-243"><a href="#cb7-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Error vs. $M$ for $|x - 1/3|$ (kink at $x = 1/3$). Piecewise linear converges at $O(M^{-1})$; global Lagrange converges much more slowly."</span></span>
+<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-discontinuous</span></span>
+<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_discontinuous</span>
+<span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_kink(x):</span>
+<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">abs</span>(x <span class="op">-</span> <span class="fl">1.0</span> <span class="op">/</span> <span class="fl">3.0</span>)</span>
+<span id="cb7-254"><a href="#cb7-254" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-255"><a href="#cb7-255" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">5000</span>)</span>
+<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a>x_ref_bkd <span class="op">=</span> bkd.array(x_ref)</span>
+<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a>x_ref_2d <span class="op">=</span> bkd.array(x_ref.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a>true_kink <span class="op">=</span> fun_kink(x_ref)</span>
+<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a><span class="co"># CC requires 2^l + 1: 3, 5, 9, 17, 33, 65</span></span>
+<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>Ms_cc <span class="op">=</span> np.array([<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>])</span>
+<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a>Ms_pw <span class="op">=</span> np.array([<span class="dv">5</span>, <span class="dv">9</span>, <span class="dv">17</span>, <span class="dv">33</span>, <span class="dv">65</span>, <span class="dv">129</span>])</span>
+<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a>err_lag, err_pw <span class="op">=</span> [], []</span>
+<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_cc:</span>
+<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a>    basis_M <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>
+<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a>    basis_M.set_nterms(M)</span>
+<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a>    nd_M, _ <span class="op">=</span> basis_M.quadrature_rule()</span>
+<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a>    nd_M_np <span class="op">=</span> bkd.to_numpy(nd_M).ravel()</span>
+<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a>    phi_M <span class="op">=</span> bkd.to_numpy(basis_M(x_ref_2d))</span>
+<span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a>    il <span class="op">=</span> phi_M <span class="op">@</span> fun_kink(nd_M_np)</span>
+<span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a>    err_lag.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(il <span class="op">-</span> true_kink)))</span>
+<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> Ms_pw:</span>
+<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a>    nodes_M <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
+<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a>    pw <span class="op">=</span> PiecewiseLinear(nodes_M, bkd)</span>
+<span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> bkd.to_numpy(pw(x_ref_bkd))</span>
+<span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a>    ip <span class="op">=</span> phi <span class="op">@</span> fun_kink(bkd.to_numpy(nodes_M))</span>
+<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a>    err_pw.append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(ip <span class="op">-</span> true_kink)))</span>
+<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>plot_discontinuous(Ms_cc, err_lag, Ms_pw, err_pw, ax)</span>
+<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a><span class="fu">## `PiecewiseFactory` for Sparse Grids</span></span>
+<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a>In the sparse grid framework the 1D basis is specified via a factory object.  <span class="in">`PiecewiseFactory`</span> wraps the piecewise polynomial construction to provide the same interface as <span class="in">`LejaLagrangeFactory`</span> or <span class="in">`GaussLagrangeFactory`</span>, enabling sparse grids with local basis functions.</span>
+<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> PiecewiseFactory</span>
+<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
+<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-300"><a href="#cb7-300" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a factory for piecewise quadratic bases</span></span>
+<span id="cb7-301"><a href="#cb7-301" aria-hidden="true" tabindex="-1"></a>factory <span class="op">=</span> PiecewiseFactory(marginal, bkd, poly_type<span class="op">=</span><span class="st">"quadratic"</span>)</span>
+<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a><span class="co"># The factory creates a basis that can be used in sparse grid construction</span></span>
+<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a>basis_pw <span class="op">=</span> factory.create_basis()</span>
+<span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Piecewise polynomial basis functions have **compact (local) support**: a perturbation at one node affects only the adjacent cells, preventing Gibbs-like oscillations from spreading across the domain.</span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For smooth functions, piecewise degree-$p$ interpolation on a uniform grid converges at rate $O(h^{p+1})$ — algebraic but systematic.</span>
+<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For functions with jumps or kinks, piecewise methods degrade gracefully: the error localizes near the singularity and still converges at $O(h)$ in $L^\infty$, while global Lagrange polynomials fail to converge.</span>
+<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`PiecewiseFactory`</span> makes piecewise bases drop-in replacements for Gauss or Leja factories in the sparse grid framework.</span>
+<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb7-317"><a href="#cb7-317" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-318"><a href="#cb7-318" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb7-319"><a href="#cb7-319" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb7-320"><a href="#cb7-320" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-321"><a href="#cb7-321" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Convergence rates.** Verify that piecewise quadratic interpolation ($p=2$) of $f(x) = e^{\sin(2\pi x)}$ converges at rate $O(h^3)$.  Use at least 5 grid sizes spanning a factor of 10 in $h$.</span>
+<span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Kink function.** Test $f(x) = |x - 0.2|$ (Lipschitz, not $C^1$).  What convergence rate do you observe for piecewise linear?  Does piecewise cubic improve things?</span>
+<span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-325"><a href="#cb7-325" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Basis support.** For $M = 9$ piecewise linear nodes, compute the Lebesgue constant $\Lambda_M = \max_x \sum_j |\phi_j(x)|$.  How does it compare to the global Lagrange value?</span>
+<span id="cb7-326"><a href="#cb7-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Quadrature.** Use the piecewise linear quadrature weights (from <span class="in">`pw.quadrature_rule()`</span>) to estimate $\int_{-1}^{1} \sin(\pi x)\, dx$.  How many points are needed to reach error below $10^{-6}$?</span>
+<span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Tensor Product Interpolation</span><span class="co">](tensor_product_interpolation.qmd)</span> — Extend 1D interpolation to multiple dimensions using tensor products of either Lagrange or piecewise bases</span>
+<span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Isotropic Sparse Grids</span><span class="co">](isotropic_sparse_grids.qmd)</span> — Combine 1D bases via the Smolyak construction; piecewise bases are a supported factory type</span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

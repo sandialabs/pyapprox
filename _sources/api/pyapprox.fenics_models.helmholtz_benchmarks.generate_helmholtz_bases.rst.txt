@@ -1,6 +1,0 @@
-generate_helmholtz_bases
-========================
-
-.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
-
-.. autofunction:: generate_helmholtz_bases

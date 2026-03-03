@@ -1,6 +1,0 @@
-sobol_sequence
-==============
-
-.. currentmodule:: pyapprox.expdesign
-
-.. autofunction:: sobol_sequence

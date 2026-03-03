@@ -1,6 +1,0 @@
-adaptive_approximate
-====================
-
-.. currentmodule:: pyapprox.surrogates
-
-.. autofunction:: adaptive_approximate

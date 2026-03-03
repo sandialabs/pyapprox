@@ -1,6 +1,0 @@
-compute_prediction_variance
-===========================
-
-.. currentmodule:: pyapprox.optimal_experimental_design
-
-.. autofunction:: compute_prediction_variance

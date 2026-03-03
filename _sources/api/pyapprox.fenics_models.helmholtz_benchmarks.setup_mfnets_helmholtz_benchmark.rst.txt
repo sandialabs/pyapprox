@@ -1,6 +1,0 @@
-setup_mfnets_helmholtz_benchmark
-================================
-
-.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
-
-.. autofunction:: setup_mfnets_helmholtz_benchmark

@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics.">
+
+<title>Estimator Accuracy and Mean Squared Error – PyApprox</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Estimator Accuracy and Mean Squared Error – PyApprox">
+<meta property="og:description" content="Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/estimator_accuracy_mse_files/figure-html/fig-mean-mse-convergence-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="835">
+<meta property="og:image:width" content="1319">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./forward_uq.html">Forward UQ</a></li><li class="breadcrumb-item"><a href="./estimator_accuracy_mse.html">Estimator Accuracy and Mean Squared Error</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting Started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setup_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Up Your Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models_decisions_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Models to Decisions Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Forward UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./forward_uq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Forward Uncertainty Quantification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./random_variables_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Random Variables and Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Budget Estimation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Multifidelity Estimation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximate Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parametrically Defined Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multilevel Best Linear Unbiased Estimators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MLBLUE: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ensemble_selection_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Ensemble Selection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_estimation_cookbook.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Estimation: API Cookbook</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inverse UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bayesian_inference_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Data to Parameters: Introduction to Bayesian Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcmc_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampling the Posterior with MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dram_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical MCMC: Metropolis-Hastings and DRAM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximating the Posterior: Introduction to Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_objective.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Variational Inference Optimizes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Optimizing the ELBO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Choosing the Variational Family</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_amortized.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Amortized Variational Inference</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experimental Design</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./experimental_design_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Not All Experiments Are Equal: Introduction to Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">KL-Based OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Learning from Experiments: Bayesian Optimal Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_estimator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: The Double-Loop Estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_gradients.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Gradients and the Reparameterization Trick</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Verifying Convergence with KLOEDDiagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_qmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: MC vs.&nbsp;Halton for EIG Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_design_stability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Design Stability and Convergence</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Goal-Oriented OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented Bayesian OED: Designing for Prediction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_gaussian_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Gaussian Posterior Expressions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_lognormal_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Log-Normal Prediction Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Convergence Verification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Designing for Prediction on a Predator-Prey System</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">OED Workflows</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_data_workflow_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decoupling Data Generation from OED Optimisation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
+ <span class="menu-text">Approximation Theory</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./lagrange_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lagrange Interpolation: Polynomials on Optimal Points</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Interpolation: Local Basis Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tensor_product_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tensor Product Interpolation: Multivariate Approximation and Its Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gauss_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./leja_sequences.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leja Sequences: Nested Points for Adaptive Interpolation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Surrogate Modeling</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Polynomial Chaos</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./polynomial_chaos_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Polynomial Chaos Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./practical_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Overfitting and Cross-Validation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sparse Polynomial Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_pce.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Polynomial Chaos</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Function Trains</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./function_train_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">An Introduction to Function Trains</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_functiontrain.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Function Trains</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Sparse Grids</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./isotropic_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_grid_to_pce_conversion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Sparse Grids to PCE: The Mathematics of Basis Conversion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Sparse Grids</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Gaussian Processes</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_surrogate.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Gaussian Process Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_gp_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sampling for Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Gaussian Processes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sobol_sensitivity_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sobol Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pce_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PCE-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GP-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./morris_screening.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Morris Screening</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bin_based_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bin-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity_math.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Mathematical Derivation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Practical Usage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">Random Fields</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE I: Random Fields and the Karhunen-Loève Expansion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_mesh_and_data_driven.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE II: Kernel-Based vs Data-Driven KLE</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_spde.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE III: SPDE-Based KLE for Matern Fields</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+ <span class="menu-text">Optimization Under Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Design Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
+  <li><a href="#formalizing-what-we-observed" id="toc-formalizing-what-we-observed" class="nav-link" data-scroll-target="#formalizing-what-we-observed">Formalizing What We Observed</a></li>
+  <li><a href="#bias-variance-and-mse-of-a-scalar-estimator" id="toc-bias-variance-and-mse-of-a-scalar-estimator" class="nav-link" data-scroll-target="#bias-variance-and-mse-of-a-scalar-estimator">Bias, Variance, and MSE of a Scalar Estimator</a></li>
+  <li><a href="#mse-of-the-mean-estimator" id="toc-mse-of-the-mean-estimator" class="nav-link" data-scroll-target="#mse-of-the-mean-estimator">MSE of the Mean Estimator</a></li>
+  <li><a href="#mse-of-the-variance-estimator" id="toc-mse-of-the-variance-estimator" class="nav-link" data-scroll-target="#mse-of-the-variance-estimator">MSE of the Variance Estimator</a></li>
+  <li><a href="#vector-valued-statistics" id="toc-vector-valued-statistics" class="nav-link" data-scroll-target="#vector-valued-statistics">Vector-Valued Statistics</a>
+  <ul class="collapse">
+  <li><a href="#meanmean-block" id="toc-meanmean-block" class="nav-link" data-scroll-target="#meanmean-block">Mean–Mean Block</a></li>
+  <li><a href="#variancevariance-block" id="toc-variancevariance-block" class="nav-link" data-scroll-target="#variancevariance-block">Variance–Variance Block</a></li>
+  <li><a href="#meanvariance-cross-block" id="toc-meanvariance-cross-block" class="nav-link" data-scroll-target="#meanvariance-cross-block">Mean–Variance Cross Block</a></li>
+  </ul></li>
+  <li><a href="#empirical-verification" id="toc-empirical-verification" class="nav-link" data-scroll-target="#empirical-verification">Empirical Verification</a></li>
+  <li><a href="#scalar-mse-for-vector-valued-statistics" id="toc-scalar-mse-for-vector-valued-statistics" class="nav-link" data-scroll-target="#scalar-mse-for-vector-valued-statistics">Scalar MSE for Vector-Valued Statistics</a></li>
+  <li><a href="#the-1m-bottleneck" id="toc-the-1m-bottleneck" class="nav-link" data-scroll-target="#the-1m-bottleneck">The <span class="math inline">\(1/M\)</span> Bottleneck</a></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next Steps</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./forward_uq.html">Forward UQ</a></li><li class="breadcrumb-item"><a href="./estimator_accuracy_mse.html">Estimator Accuracy and Mean Squared Error</a></li></ol></nav>
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Estimator Accuracy and Mean Squared Error</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/estimator_accuracy_mse.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial, you will be able to:</p>
+<ul>
+<li>Define the bias, variance, and mean squared error (MSE) of an estimator</li>
+<li>State the MSE of the Monte Carlo mean and variance estimators and explain their <span class="math inline">\(1/M\)</span> convergence</li>
+<li>Write the estimator covariance matrix for simultaneous estimation of mean and covariance of a vector-valued QoI</li>
+<li>Identify the role of higher-order moments (<span class="math inline">\(\mathbf{W}\)</span>, <span class="math inline">\(\mathbf{B}\)</span> matrices) in controlling estimator accuracy</li>
+</ul>
+</section>
+<section id="prerequisites" class="level2">
+<h2 class="anchored" data-anchor-id="prerequisites">Prerequisites</h2>
+<p>Complete <a href="./monte_carlo_sampling.html">Monte Carlo Sampling</a> before this tutorial.</p>
+</section>
+<section id="formalizing-what-we-observed" class="level2">
+<h2 class="anchored" data-anchor-id="formalizing-what-we-observed">Formalizing What We Observed</h2>
+<p>The <a href="./monte_carlo_sampling.html">previous tutorial</a> made three empirical observations:</p>
+<ol type="1">
+<li>Monte Carlo estimates are random — different samples give different answers.</li>
+<li>More samples produce more precise estimates.</li>
+<li>Some statistics (variance, covariance) are harder to estimate than others (mean).</li>
+</ol>
+<p>This tutorial provides the mathematical framework that explains all three observations and makes them quantitative.</p>
+</section>
+<section id="bias-variance-and-mse-of-a-scalar-estimator" class="level2">
+<h2 class="anchored" data-anchor-id="bias-variance-and-mse-of-a-scalar-estimator">Bias, Variance, and MSE of a Scalar Estimator</h2>
+<p>Let <span class="math inline">\(s\)</span> be a true quantity we want to compute (e.g., the mean of the QoI), and let <span class="math inline">\(\hat{s}_M\)</span> be an estimator of <span class="math inline">\(s\)</span> based on <span class="math inline">\(M\)</span> samples. Because the samples are random, <span class="math inline">\(\hat{s}_M\)</span> is itself a random variable. We measure its quality with three quantities.</p>
+<p><strong>Bias</strong> — systematic error:</p>
+<p><span class="math display">\[
+\text{Bias}[\hat{s}_M] = \mathbb{E}[\hat{s}_M] - s
+\]</span></p>
+<p>An estimator with <span class="math inline">\(\text{Bias} = 0\)</span> is called <strong>unbiased</strong>: on average, it hits the true value.</p>
+<p><strong>Variance</strong> — random spread:</p>
+<p><span class="math display">\[
+\text{Var}[\hat{s}_M] = \mathbb{E}\!\left[(\hat{s}_M - \mathbb{E}[\hat{s}_M])^2\right]
+\]</span></p>
+<p>This is the width of the histogram we saw in the previous tutorial.</p>
+<p><strong>Mean Squared Error</strong> — total error:</p>
+<p><span class="math display">\[
+\text{MSE}[\hat{s}_M] = \mathbb{E}\!\left[(\hat{s}_M - s)^2\right] = \text{Bias}[\hat{s}_M]^2 + \text{Var}[\hat{s}_M]
+\]</span></p>
+<p>For an unbiased estimator, <span class="math inline">\(\text{MSE} = \text{Var}\)</span>.</p>
+</section>
+<section id="mse-of-the-mean-estimator" class="level2">
+<h2 class="anchored" data-anchor-id="mse-of-the-mean-estimator">MSE of the Mean Estimator</h2>
+<p>The Monte Carlo estimator of the mean of a scalar QoI <span class="math inline">\(q = f(\boldsymbol{\theta})\)</span> is:</p>
+<p><span class="math display">\[
+\hat{\mu}_M = \frac{1}{M}\sum_{i=1}^M q^{(i)}
+\]</span></p>
+<p>This estimator is <strong>unbiased</strong>: <span class="math inline">\(\mathbb{E}[\hat{\mu}_M] = \mu\)</span>. Its variance is:</p>
+<p><span id="eq-mean-var"><span class="math display">\[
+\text{Var}[\hat{\mu}_M] = \frac{\sigma^2}{M}
+\tag{1}\]</span></span></p>
+<p>where <span class="math inline">\(\sigma^2 = \text{Var}[q]\)</span> is the true variance of the QoI. Therefore <span class="math inline">\(\text{MSE}[\hat{\mu}_M] = \sigma^2 / M\)</span>.</p>
+<p>This is the <strong>fundamental convergence rate</strong> of Monte Carlo: the error decreases as <span class="math inline">\(1/M\)</span>. To halve the standard error, we need <span class="math inline">\(4\times\)</span> the samples.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Simplified model for comparison
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This tutorial uses a lightweight analytical model with <span class="math inline">\(K = 3\)</span> QoIs so that (i) the true moments are available to high accuracy via quadrature, enabling precise comparison between empirical and theoretical estimator covariances, and (ii) the MC experiments run fast enough to use large repetition counts. The same theory applies to any model, including expensive PDE solvers.</p>
+<p>The model maps a single uniform input <span class="math inline">\(x \sim U[0,1]\)</span> to three QoIs:</p>
+<p><span class="math display">\[
+\mathbf{q}(x) = \begin{bmatrix} \sqrt{11}\, x^5 \\[4pt] x^4 + \cos(2.2\pi x) \\[4pt] \sin(2\pi x) \end{bmatrix}
+\]</span></p>
+</div>
+</div>
+<p><a href="#fig-mean-mse-convergence" class="quarto-xref">Figure&nbsp;1</a> verifies this empirically. At each sample size <span class="math inline">\(M\)</span>, we run 500 independent MC experiments and compute the empirical variance of the resulting mean estimates. The points follow the theoretical <span class="math inline">\(\sigma^2/M\)</span> line.</p>
+<div id="cell-fig-mean-mse-convergence" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-mean-mse-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mean-mse-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-mean-mse-convergence-output-1.png" width="660" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mean-mse-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Convergence of the MC mean estimator. Empirical variance of <span class="math inline">\(\hat{\mu}_M\)</span> (dots) versus sample size <span class="math inline">\(M\)</span>, compared with the theoretical rate <span class="math inline">\(\sigma^2/M\)</span> (dashed line). The true variance <span class="math inline">\(\sigma^2\)</span> is computed via Gaussian quadrature.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="mse-of-the-variance-estimator" class="level2">
+<h2 class="anchored" data-anchor-id="mse-of-the-variance-estimator">MSE of the Variance Estimator</h2>
+<p>The MC estimator of the variance is:</p>
+<p><span class="math display">\[
+\hat{\sigma}^2_M = \frac{1}{M-1}\sum_{i=1}^M (q^{(i)} - \hat{\mu}_M)^2
+\]</span></p>
+<p>This estimator is also <strong>unbiased</strong> (the <span class="math inline">\(M-1\)</span> denominator ensures this). Its variance is:</p>
+<p><span id="eq-var-var"><span class="math display">\[
+\text{Var}[\hat{\sigma}^2_M] = \frac{1}{M}\left(\kappa_4 - \frac{M-3}{M-1}\sigma^4\right)
+\tag{2}\]</span></span></p>
+<p>where <span class="math inline">\(\kappa_4 = \mathbb{E}[(q - \mu)^4]\)</span> is the <strong>fourth central moment</strong> (related to kurtosis) of the QoI. For large <span class="math inline">\(M\)</span> this simplifies to:</p>
+<p><span class="math display">\[
+\text{Var}[\hat{\sigma}^2_M] \approx \frac{\kappa_4 - \sigma^4}{M}
+\]</span></p>
+<p>The key observation: <strong>the variance estimator also converges at rate <span class="math inline">\(1/M\)</span></strong>, but the constant <span class="math inline">\(\kappa_4 - \sigma^4\)</span> is typically much larger than <span class="math inline">\(\sigma^2\)</span>. This is why the variance histogram was wider than the mean histogram in the previous tutorial.</p>
+<p><a href="#fig-mean-vs-var-convergence" class="quarto-xref">Figure&nbsp;2</a> confirms this: both estimators converge at rate <span class="math inline">\(1/M\)</span> on the log-log plot (parallel lines), but the variance estimator curve sits higher.</p>
+<div id="cell-fig-mean-vs-var-convergence" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-mean-vs-var-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mean-vs-var-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-mean-vs-var-convergence-output-1.png" width="662" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mean-vs-var-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence comparison: MC mean estimator vs.&nbsp;MC variance estimator. Both converge at rate <span class="math inline">\(1/M\)</span> (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="vector-valued-statistics" class="level2">
+<h2 class="anchored" data-anchor-id="vector-valued-statistics">Vector-Valued Statistics</h2>
+<p>Our model returns <span class="math inline">\(K = 3\)</span> QoIs: <span class="math inline">\(\mathbf{q} = (q_1, q_2, q_3)^\top\)</span>. We want to simultaneously estimate the <strong>mean vector</strong> and the <strong>covariance matrix</strong>:</p>
+<p><span class="math display">\[
+(\hat{\boldsymbol{\mu}}_M)_k = \frac{1}{M}\sum_{i=1}^M q_k^{(i)}, \qquad k = 1, \ldots, K
+\]</span></p>
+<p><span class="math display">\[
+(\hat{\boldsymbol{\Sigma}}_M)_{jk} = \frac{1}{M-1}\sum_{i=1}^M \left(q_j^{(i)} - (\hat{\boldsymbol{\mu}}_M)_j\right)\left(q_k^{(i)} - (\hat{\boldsymbol{\mu}}_M)_k\right), \qquad j, k = 1, \ldots, K
+\]</span></p>
+<p>We can stack these into a single vector-valued statistic:</p>
+<p><span class="math display">\[
+\hat{\mathbf{Q}}_M = \begin{bmatrix} \hat{\boldsymbol{\mu}}_M \\ \text{flat}(\hat{\boldsymbol{\Sigma}}_M) \end{bmatrix} \in \mathbb{R}^{K + K^2}
+\]</span></p>
+<p>where <span class="math inline">\(\text{flat}(\mathbf{X})\)</span> vectorizes a matrix row by row.</p>
+<p>Because <span class="math inline">\(\hat{\mathbf{Q}}_M\)</span> is a random vector, its accuracy is characterized not by a scalar variance but by an <strong>estimator covariance matrix</strong>:</p>
+<p><span class="math display">\[
+\text{Cov}[\hat{\mathbf{Q}}_M] = \mathbb{E}\!\left[(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])^\top\right] \in \mathbb{R}^{(K+K^2) \times (K+K^2)}
+\]</span></p>
+<p>This matrix has block structure:</p>
+<p><span class="math display">\[
+\text{Cov}[\hat{\mathbf{Q}}_M] = \begin{bmatrix}
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M] &amp; \text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M] \\
+\text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\mu}}_M] &amp; \text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M]
+\end{bmatrix}
+\]</span></p>
+<p>The following subsections give the form of each block.</p>
+<section id="meanmean-block" class="level3">
+<h3 class="anchored" data-anchor-id="meanmean-block">Mean–Mean Block</h3>
+<p>The covariance between estimates of the mean vector is:</p>
+<p><span id="eq-mean-cov"><span class="math display">\[
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M] = \frac{1}{M}\boldsymbol{\Sigma} \quad \in \mathbb{R}^{K \times K}
+\tag{3}\]</span></span></p>
+<p>This is the multivariate generalization of <a href="#eq-mean-var" class="quarto-xref">Equation&nbsp;1</a>: the estimator covariance is proportional to the QoI covariance, scaled by <span class="math inline">\(1/M\)</span>.</p>
+</section>
+<section id="variancevariance-block" class="level3">
+<h3 class="anchored" data-anchor-id="variancevariance-block">Variance–Variance Block</h3>
+<p>The covariance between estimates of the covariance matrix entries is:</p>
+<p><span id="eq-var-cov"><span class="math display">\[
+\text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M] = \frac{1}{M(M-1)}\mathbf{V} + \frac{1}{M}\mathbf{W} \quad \in \mathbb{R}^{K^2 \times K^2}
+\tag{4}\]</span></span></p>
+<p>where</p>
+<p><span class="math display">\[
+\mathbf{V} = \boldsymbol{\Sigma}^{\otimes 2} + (\mathbf{1}_K^\top \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K) \circ (\mathbf{1}_K \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K^\top) \quad \in \mathbb{R}^{K^2 \times K^2}
+\]</span></p>
+<p><span class="math display">\[
+\mathbf{W} = \text{Cov}\!\left[(\mathbf{q} - \boldsymbol{\mu})^{\otimes 2},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right] \quad \in \mathbb{R}^{K^2 \times K^2}
+\]</span></p>
+<p>Here we use the notation:</p>
+<ul>
+<li><span class="math inline">\(\mathbf{X} \otimes \mathbf{Y} = \text{flat}(\mathbf{X}\mathbf{Y}^\top)\)</span> is the flattened outer product</li>
+<li><span class="math inline">\(\mathbf{X}^{\otimes 2} = \mathbf{X} \otimes \mathbf{X}\)</span></li>
+<li><span class="math inline">\(\mathbf{X} \circ \mathbf{Y}\)</span> is the element-wise (Hadamard) product</li>
+</ul>
+<p>The <span class="math inline">\(\mathbf{V}\)</span> term involves only the QoI covariance <span class="math inline">\(\boldsymbol{\Sigma}\)</span> and vanishes relative to <span class="math inline">\(\mathbf{W}\)</span> as <span class="math inline">\(M\)</span> grows. The <span class="math inline">\(\mathbf{W}\)</span> term involves <strong>fourth-order centered moments</strong> of the QoI — the multivariate generalization of <span class="math inline">\(\kappa_4\)</span> from the scalar case. This is what makes variance estimation fundamentally harder than mean estimation: it depends on the tail behavior of the QoI distribution.</p>
+</section>
+<section id="meanvariance-cross-block" class="level3">
+<h3 class="anchored" data-anchor-id="meanvariance-cross-block">Mean–Variance Cross Block</h3>
+<p>The covariance between the mean and variance estimators is:</p>
+<p><span id="eq-mean-var-cov"><span class="math display">\[
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M] = \frac{1}{M}\mathbf{B} \quad \in \mathbb{R}^{K \times K^2}
+\tag{5}\]</span></span></p>
+<p>where</p>
+<p><span class="math display">\[
+\mathbf{B} = \text{Cov}\!\left[\mathbf{q},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right] \quad \in \mathbb{R}^{K \times K^2}
+\]</span></p>
+<p>This block involves <strong>third-order centered moments</strong> of the QoI. It is zero when the QoI distribution is symmetric (since odd central moments vanish), but nonzero for skewed distributions. Our model’s nonlinear QoIs produce a skewed output distribution, so we expect <span class="math inline">\(\mathbf{B} \neq 0\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Summary of moment requirements
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each block of the estimator covariance depends on progressively higher-order moments of the QoI:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 34%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Block</th>
+<th>Estimator pair</th>
+<th>Moment order required</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\text{Cov}[\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\mu}}]\)</span></td>
+<td>mean–mean</td>
+<td>2nd (covariance <span class="math inline">\(\boldsymbol{\Sigma}\)</span>)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\text{Cov}[\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\Sigma}}]\)</span></td>
+<td>mean–variance</td>
+<td>3rd (skewness-like, <span class="math inline">\(\mathbf{B}\)</span>)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\text{Cov}[\hat{\boldsymbol{\Sigma}}, \hat{\boldsymbol{\Sigma}}]\)</span></td>
+<td>variance–variance</td>
+<td>4th (kurtosis-like, <span class="math inline">\(\mathbf{W}\)</span>)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</section>
+<section id="empirical-verification" class="level2">
+<h2 class="anchored" data-anchor-id="empirical-verification">Empirical Verification</h2>
+<p><a href="#fig-estimator-covariance-empirical" class="quarto-xref">Figure&nbsp;3</a> verifies the block structure empirically. We run 500 independent MC experiments with <span class="math inline">\(M = 100\)</span> samples each, compute <span class="math inline">\(\hat{\mathbf{Q}}_M\)</span> for each, and estimate the covariance of the resulting 500 estimates. The left panel shows this empirical estimator covariance; the right panel shows the theoretical prediction from the formulas above.</p>
+<div id="cell-fig-estimator-covariance-empirical" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-estimator-covariance-empirical" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-estimator-covariance-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-estimator-covariance-empirical-output-1.png" width="1316" height="559" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-estimator-covariance-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Estimator covariance matrix for simultaneous mean and covariance estimation (<span class="math inline">\(K = 3\)</span> QoIs, <span class="math inline">\(M = 100\)</span>). Left: empirical covariance from 500 independent MC experiments. Right: theoretical prediction. The block structure — mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right) — is clearly visible.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><a href="#fig-diagonal-variances" class="quarto-xref">Figure&nbsp;4</a> extracts the diagonal entries — the individual estimator variances — and shows them as a bar chart. The variance-of-covariance entries are substantially larger than the variance-of-mean entries, confirming the pattern we observed in the <a href="./monte_carlo_sampling.html">previous tutorial</a>.</p>
+<div id="cell-fig-diagonal-variances" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-diagonal-variances" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-diagonal-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-diagonal-variances-output-1.png" width="1143" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-diagonal-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries (<span class="math inline">\(\hat{\Sigma}_{jk}\)</span>) have much larger estimator variance than the mean entries (<span class="math inline">\(\hat{\mu}_k\)</span>), confirming that higher-order statistics are harder to estimate.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="scalar-mse-for-vector-valued-statistics" class="level2">
+<h2 class="anchored" data-anchor-id="scalar-mse-for-vector-valued-statistics">Scalar MSE for Vector-Valued Statistics</h2>
+<p>When the estimator is a vector, we need a scalar measure of total error. Two standard choices reduce the estimator covariance matrix to a single number:</p>
+<p><strong>Trace</strong> (sum of diagonal variances):</p>
+<p><span class="math display">\[
+\text{MSE}_{\text{tr}} = \text{tr}\!\left(\text{Cov}[\hat{\mathbf{Q}}_M]\right) = \sum_{i=1}^{S} \text{Var}[\hat{Q}_{M,i}]
+\]</span></p>
+<p>This treats each component independently and sums their variances. It is the total variance across all statistics.</p>
+<p><strong>Determinant</strong> (volume of the uncertainty ellipsoid):</p>
+<p><span class="math display">\[
+\text{MSE}_{\text{det}} = \det\!\left(\text{Cov}[\hat{\mathbf{Q}}_M]\right)
+\]</span></p>
+<p>This captures the joint uncertainty, including correlations between estimator errors. A large off-diagonal entry in the estimator covariance (e.g., the mean–variance cross block <span class="math inline">\(\mathbf{B}\)</span>) inflates the determinant even if the individual variances are modest.</p>
+<p>Both measures decay as <span class="math inline">\(O(1/M^S)\)</span> for <span class="math inline">\(S\)</span> statistics, but the constants differ depending on the higher-order moments <span class="math inline">\(\mathbf{W}\)</span> and <span class="math inline">\(\mathbf{B}\)</span>.</p>
+</section>
+<section id="the-1m-bottleneck" class="level2">
+<h2 class="anchored" data-anchor-id="the-1m-bottleneck">The <span class="math inline">\(1/M\)</span> Bottleneck</h2>
+<p>Every estimator variance in this tutorial has the form:</p>
+<p><span class="math display">\[
+\text{Var}[\hat{s}_M] = \frac{C}{M}
+\]</span></p>
+<p>where <span class="math inline">\(C\)</span> is a constant that depends on the statistic being estimated and the moments of the QoI. The rate <span class="math inline">\(1/M\)</span> is universal:</p>
+<ul>
+<li>It is <strong>dimension-independent</strong>: the same rate holds whether <span class="math inline">\(\boldsymbol{\theta}\)</span> has 2 parameters or 200.</li>
+<li>It is <strong>slow</strong>: reducing the standard error by a factor of 10 requires <span class="math inline">\(100\times\)</span> more model evaluations.</li>
+</ul>
+<p>When each evaluation is an expensive simulation (e.g., a FEM solve), this becomes the central computational bottleneck of UQ. The subsequent tutorials introduce methods that break this bottleneck: surrogate models that replace <span class="math inline">\(f\)</span> with a cheap approximation, and multi-fidelity methods that combine cheap and expensive models to reduce the constant <span class="math inline">\(C\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>A practical catch
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The MSE formulas above assume we know the true moments — <span class="math inline">\(\boldsymbol{\Sigma}\)</span> for the mean estimator, <span class="math inline">\(\mathbf{W}\)</span> and <span class="math inline">\(\mathbf{B}\)</span> for the variance and cross terms. In practice, these must themselves be estimated from samples, introducing a bootstrapping problem. A <a href="./mc_budget_estimation.html">subsequent tutorial</a> addresses how to estimate the sample budget needed for a target accuracy using pilot samples.</p>
+</div>
+</div>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>The <strong>MSE</strong> of an estimator decomposes as <span class="math inline">\(\text{Bias}^2 + \text{Variance}\)</span>; for unbiased MC estimators, <span class="math inline">\(\text{MSE} = \text{Variance}\)</span></li>
+<li>The MC mean estimator has variance <span class="math inline">\(\sigma^2/M\)</span>; the MC variance estimator has variance <span class="math inline">\((\kappa_4 - \sigma^4)/M\)</span> — same rate, larger constant</li>
+<li>For <strong>vector-valued statistics</strong> (mean + covariance of <span class="math inline">\(K\)</span> QoIs), the estimator error is a covariance matrix with block structure involving <span class="math inline">\(\boldsymbol{\Sigma}\)</span> (2nd moments), <span class="math inline">\(\mathbf{B}\)</span> (3rd moments), and <span class="math inline">\(\mathbf{W}\)</span> (4th moments)</li>
+<li>The trace or determinant of the estimator covariance reduces the matrix to a scalar MSE</li>
+<li>All MC estimators converge at rate <span class="math inline">\(1/M\)</span>, independent of parameter dimension — but the constants grow with the order of the statistic</li>
+</ul>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<ol type="1">
+<li><p>Use the empirical data from <a href="#fig-mean-mse-convergence" class="quarto-xref">Figure&nbsp;1</a> to estimate the slope of the log-log convergence plot. Verify that it is <span class="math inline">\(-1\)</span> (corresponding to the <span class="math inline">\(1/M\)</span> rate).</p></li>
+<li><p>In the scalar case, show algebraically that <span class="math inline">\(\text{Var}[\hat{\sigma}^2_M] \to (\kappa_4 - \sigma^4)/M\)</span> as <span class="math inline">\(M \to \infty\)</span> starting from <a href="#eq-var-var" class="quarto-xref">Equation&nbsp;2</a>.</p></li>
+<li><p>For the model’s three QoIs, examine <span class="math inline">\(\text{Cov}[\hat{\mu}_1, \hat{\mu}_3]\)</span> from the empirical estimator covariance matrix. Is it positive or negative? What does its sign imply about the off-diagonal of <span class="math inline">\(\boldsymbol{\Sigma}\)</span>?</p></li>
+<li><p><strong>(Challenge)</strong> If the QoI distribution is symmetric (zero skewness), what happens to the <span class="math inline">\(\mathbf{B}\)</span> matrix? What does this imply about the correlation between the mean and variance estimators? Verify empirically using a model with a symmetric output distribution.</p></li>
+</ol>
+</section>
+<section id="next-steps" class="level2">
+<h2 class="anchored" data-anchor-id="next-steps">Next Steps</h2>
+<p>Continue with:</p>
+<ul>
+<li><a href="./mc_budget_estimation.html">Monte Carlo Budget Estimation</a> — Estimating how many samples you need in practice</li>
+<li><a href="./control_variate_concept.html">Multi-Fidelity Methods</a> — Combining models of different cost and accuracy</li>
+</ul>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li><p>[DWBG2024] T. Dixon et al.&nbsp;<em>Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates.</em> SIAM/ASA Journal on Uncertainty Quantification, 12(3):1005–1049, 2024. <a href="https://doi.org/10.1137/23M1607994">DOI</a></p></li>
+<li><p>[QPOVW2018] E. Qian et al.&nbsp;<em>Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices.</em> SIAM/ASA Journal on Uncertainty Quantification, 6(2):683–706, 2018. <a href="https://doi.org/10.1137/17M1151006">DOI</a></p></li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Estimator Accuracy and Mean Squared Error"</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics."</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 39</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - monte_carlo_sampling</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - monte-carlo</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - mse</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/estimator_accuracy_mse.ipynb)</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Define the bias, variance, and mean squared error (MSE) of an estimator</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>State the MSE of the Monte Carlo mean and variance estimators and explain their $1/M$ convergence</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write the estimator covariance matrix for simultaneous estimation of mean and covariance of a vector-valued QoI</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Identify the role of higher-order moments ($\mathbf{W}$, $\mathbf{B}$ matrices) in controlling estimator accuracy</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Monte Carlo Sampling</span><span class="co">](monte_carlo_sampling.qmd)</span> before this tutorial.</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a><span class="fu">## Formalizing What We Observed</span></span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](monte_carlo_sampling.qmd)</span> made three empirical observations:</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Monte Carlo estimates are random --- different samples give different answers.</span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>More samples produce more precise estimates.</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Some statistics (variance, covariance) are harder to estimate than others (mean).</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>This tutorial provides the mathematical framework that explains all three observations and makes them quantitative.</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a><span class="fu">## Bias, Variance, and MSE of a Scalar Estimator</span></span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>Let $s$ be a true quantity we want to compute (e.g., the mean of the QoI), and let $\hat{s}_M$ be an estimator of $s$ based on $M$ samples. Because the samples are random, $\hat{s}_M$ is itself a random variable. We measure its quality with three quantities.</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>**Bias** --- systematic error:</span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a>\text{Bias}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span> = \mathbb{E}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span> - s</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>An estimator with $\text{Bias} = 0$ is called **unbiased**: on average, it hits the true value.</span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>**Variance** --- random spread:</span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>\text{Var}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span> = \mathbb{E}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">(\hat{s}_M - \mathbb{E}[\hat{s}_M])^2\right</span><span class="co">]</span></span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>This is the width of the histogram we saw in the previous tutorial.</span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>**Mean Squared Error** --- total error:</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>\text{MSE}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span> = \mathbb{E}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">(\hat{s}_M - s)^2\right</span><span class="co">]</span> = \text{Bias}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span>^2 + \text{Var}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span></span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>For an unbiased estimator, $\text{MSE} = \text{Var}$.</span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE of the Mean Estimator</span></span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>The Monte Carlo estimator of the mean of a scalar QoI $q = f(\boldsymbol{\theta})$ is:</span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_M = \frac{1}{M}\sum_{i=1}^M q^{(i)}</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>This estimator is **unbiased**: $\mathbb{E}<span class="co">[</span><span class="ot">\hat{\mu}_M</span><span class="co">]</span> = \mu$. Its variance is:</span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>\text{Var}<span class="co">[</span><span class="ot">\hat{\mu}_M</span><span class="co">]</span> = \frac{\sigma^2}{M}</span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>$$ {#eq-mean-var}</span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>where $\sigma^2 = \text{Var}<span class="co">[</span><span class="ot">q</span><span class="co">]</span>$ is the true variance of the QoI. Therefore $\text{MSE}<span class="co">[</span><span class="ot">\hat{\mu}_M</span><span class="co">]</span> = \sigma^2 / M$.</span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>This is the **fundamental convergence rate** of Monte Carlo: the error decreases as $1/M$. To halve the standard error, we need $4\times$ the samples.</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a><span class="fu">## Simplified model for comparison</span></span>
+<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a>This tutorial uses a lightweight analytical model with $K = 3$ QoIs so that (i) the true moments are available to high accuracy via quadrature, enabling precise comparison between empirical and theoretical estimator covariances, and (ii) the MC experiments run fast enough to use large repetition counts. The same theory applies to any model, including expensive PDE solvers.</span>
+<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>The model maps a single uniform input $x \sim U<span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$ to three QoIs:</span>
+<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-111"><a href="#cb1-111" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a>\mathbf{q}(x) = \begin{bmatrix} \sqrt{11}\, x^5 <span class="sc">\\</span><span class="co">[</span><span class="ot">4pt</span><span class="co">]</span> x^4 + \cos(2.2\pi x) <span class="sc">\\</span><span class="co">[</span><span class="ot">4pt</span><span class="co">]</span> \sin(2\pi x) \end{bmatrix}</span>
+<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a>@fig-mean-mse-convergence verifies this empirically. At each sample size $M$, we run 500 independent MC experiments and compute the empirical variance of the resulting mean estimates. The points follow the theoretical $\sigma^2/M$ line.</span>
+<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
+<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>    psd_multioutput_ensemble_3x3,</span>
+<span id="cb1-127"><a href="#cb1-127" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-128"><a href="#cb1-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-129"><a href="#cb1-129" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> psd_multioutput_ensemble_3x3(bkd)</span>
+<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
+<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.prior()</span>
+<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> model.nqoi()              <span class="co"># 3 QoIs</span></span>
+<span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-135"><a href="#cb1-135" aria-hidden="true" tabindex="-1"></a><span class="co"># --- True moments from the benchmark (high-accuracy quadrature) ---</span></span>
+<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a>ensemble <span class="op">=</span> bm._ensemble</span>
+<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(ensemble.means())[<span class="dv">0</span>]          <span class="co"># (K,) model 0 means</span></span>
+<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a>cov_full <span class="op">=</span> bkd.to_numpy(ensemble.covariance_matrix())</span>
+<span id="cb1-139"><a href="#cb1-139" aria-hidden="true" tabindex="-1"></a>true_cov <span class="op">=</span> cov_full[:K, :K]                             <span class="co"># (K, K) model 0 block</span></span>
+<span id="cb1-140"><a href="#cb1-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a><span class="co"># Scalar moments for QoI 0</span></span>
+<span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a>true_var <span class="op">=</span> true_cov[<span class="dv">0</span>, <span class="dv">0</span>]</span>
+<span id="cb1-143"><a href="#cb1-143" aria-hidden="true" tabindex="-1"></a><span class="co"># W_true[0,0] = Var[(q0-mu0)^2] so kappa4 = W[0,0] + sigma^4</span></span>
+<span id="cb1-144"><a href="#cb1-144" aria-hidden="true" tabindex="-1"></a>W_true <span class="op">=</span> bkd.to_numpy(</span>
+<span id="cb1-145"><a href="#cb1-145" aria-hidden="true" tabindex="-1"></a>    ensemble.covariance_of_centered_values_kronecker_product_subproblem(</span>
+<span id="cb1-146"><a href="#cb1-146" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(K))</span>
+<span id="cb1-147"><a href="#cb1-147" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-148"><a href="#cb1-148" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-149"><a href="#cb1-149" aria-hidden="true" tabindex="-1"></a>true_kappa4 <span class="op">=</span> W_true[<span class="dv">0</span>, <span class="dv">0</span>] <span class="op">+</span> true_var<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb1-150"><a href="#cb1-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-151"><a href="#cb1-151" aria-hidden="true" tabindex="-1"></a><span class="co"># B matrix: Cov[q, (q-mu)^{otimes 2}]</span></span>
+<span id="cb1-152"><a href="#cb1-152" aria-hidden="true" tabindex="-1"></a>B_true <span class="op">=</span> bkd.to_numpy(</span>
+<span id="cb1-153"><a href="#cb1-153" aria-hidden="true" tabindex="-1"></a>    ensemble.covariance_of_mean_and_variance_estimators_subproblem(</span>
+<span id="cb1-154"><a href="#cb1-154" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(K))</span>
+<span id="cb1-155"><a href="#cb1-155" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-156"><a href="#cb1-156" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-157"><a href="#cb1-157" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb1-158"><a href="#cb1-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-161"><a href="#cb1-161" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb1-162"><a href="#cb1-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."</span></span>
+<span id="cb1-164"><a href="#cb1-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-mse-convergence</span></span>
+<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_mean_mse_convergence</span>
+<span id="cb1-166"><a href="#cb1-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-167"><a href="#cb1-167" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb1-168"><a href="#cb1-168" aria-hidden="true" tabindex="-1"></a>empirical_var_of_mean, M_values <span class="op">=</span> plot_mean_mse_convergence(</span>
+<span id="cb1-169"><a href="#cb1-169" aria-hidden="true" tabindex="-1"></a>    model, variable, true_var, bkd, ax,</span>
+<span id="cb1-170"><a href="#cb1-170" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-171"><a href="#cb1-171" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb1-172"><a href="#cb1-172" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb1-173"><a href="#cb1-173" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb1-174"><a href="#cb1-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-175"><a href="#cb1-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-176"><a href="#cb1-176" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE of the Variance Estimator</span></span>
+<span id="cb1-177"><a href="#cb1-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-178"><a href="#cb1-178" aria-hidden="true" tabindex="-1"></a>The MC estimator of the variance is:</span>
+<span id="cb1-179"><a href="#cb1-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-180"><a href="#cb1-180" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-181"><a href="#cb1-181" aria-hidden="true" tabindex="-1"></a>\hat{\sigma}^2_M = \frac{1}{M-1}\sum_{i=1}^M (q^{(i)} - \hat{\mu}_M)^2</span>
+<span id="cb1-182"><a href="#cb1-182" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-183"><a href="#cb1-183" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-184"><a href="#cb1-184" aria-hidden="true" tabindex="-1"></a>This estimator is also **unbiased** (the $M-1$ denominator ensures this). Its variance is:</span>
+<span id="cb1-185"><a href="#cb1-185" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-186"><a href="#cb1-186" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-187"><a href="#cb1-187" aria-hidden="true" tabindex="-1"></a>\text{Var}<span class="co">[</span><span class="ot">\hat{\sigma}^2_M</span><span class="co">]</span> = \frac{1}{M}\left(\kappa_4 - \frac{M-3}{M-1}\sigma^4\right)</span>
+<span id="cb1-188"><a href="#cb1-188" aria-hidden="true" tabindex="-1"></a>$$ {#eq-var-var}</span>
+<span id="cb1-189"><a href="#cb1-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-190"><a href="#cb1-190" aria-hidden="true" tabindex="-1"></a>where $\kappa_4 = \mathbb{E}<span class="co">[</span><span class="ot">(q - \mu)^4</span><span class="co">]</span>$ is the **fourth central moment** (related to kurtosis) of the QoI. For large $M$ this simplifies to:</span>
+<span id="cb1-191"><a href="#cb1-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-192"><a href="#cb1-192" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-193"><a href="#cb1-193" aria-hidden="true" tabindex="-1"></a>\text{Var}<span class="co">[</span><span class="ot">\hat{\sigma}^2_M</span><span class="co">]</span> \approx \frac{\kappa_4 - \sigma^4}{M}</span>
+<span id="cb1-194"><a href="#cb1-194" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-196"><a href="#cb1-196" aria-hidden="true" tabindex="-1"></a>The key observation: **the variance estimator also converges at rate $1/M$**, but the constant $\kappa_4 - \sigma^4$ is typically much larger than $\sigma^2$. This is why the variance histogram was wider than the mean histogram in the previous tutorial.</span>
+<span id="cb1-197"><a href="#cb1-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a>@fig-mean-vs-var-convergence confirms this: both estimators converge at rate $1/M$ on the log-log plot (parallel lines), but the variance estimator curve sits higher.</span>
+<span id="cb1-199"><a href="#cb1-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-202"><a href="#cb1-202" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."</span></span>
+<span id="cb1-205"><a href="#cb1-205" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-vs-var-convergence</span></span>
+<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_mean_vs_var_convergence</span>
+<span id="cb1-207"><a href="#cb1-207" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-208"><a href="#cb1-208" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb1-209"><a href="#cb1-209" aria-hidden="true" tabindex="-1"></a>plot_mean_vs_var_convergence(</span>
+<span id="cb1-210"><a href="#cb1-210" aria-hidden="true" tabindex="-1"></a>    model, variable, true_var, true_kappa4,</span>
+<span id="cb1-211"><a href="#cb1-211" aria-hidden="true" tabindex="-1"></a>    empirical_var_of_mean, M_values, bkd, ax,</span>
+<span id="cb1-212"><a href="#cb1-212" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-213"><a href="#cb1-213" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb1-214"><a href="#cb1-214" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb1-215"><a href="#cb1-215" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb1-216"><a href="#cb1-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a><span class="fu">## Vector-Valued Statistics</span></span>
+<span id="cb1-219"><a href="#cb1-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a>Our model returns $K = 3$ QoIs: $\mathbf{q} = (q_1, q_2, q_3)^\top$. We want to simultaneously estimate the **mean vector** and the **covariance matrix**:</span>
+<span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>(\hat{\boldsymbol{\mu}}_M)_k = \frac{1}{M}\sum_{i=1}^M q_k^{(i)}, \qquad k = 1, \ldots, K</span>
+<span id="cb1-224"><a href="#cb1-224" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-225"><a href="#cb1-225" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-227"><a href="#cb1-227" aria-hidden="true" tabindex="-1"></a>(\hat{\boldsymbol{\Sigma}}_M)_{jk} = \frac{1}{M-1}\sum_{i=1}^M \left(q_j^{(i)} - (\hat{\boldsymbol{\mu}}_M)_j\right)\left(q_k^{(i)} - (\hat{\boldsymbol{\mu}}_M)_k\right), \qquad j, k = 1, \ldots, K</span>
+<span id="cb1-228"><a href="#cb1-228" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-229"><a href="#cb1-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-230"><a href="#cb1-230" aria-hidden="true" tabindex="-1"></a>We can stack these into a single vector-valued statistic:</span>
+<span id="cb1-231"><a href="#cb1-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-232"><a href="#cb1-232" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-233"><a href="#cb1-233" aria-hidden="true" tabindex="-1"></a>\hat{\mathbf{Q}}_M = \begin{bmatrix} \hat{\boldsymbol{\mu}}_M <span class="sc">\\</span> \text{flat}(\hat{\boldsymbol{\Sigma}}_M) \end{bmatrix} \in \mathbb{R}^{K + K^2}</span>
+<span id="cb1-234"><a href="#cb1-234" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-235"><a href="#cb1-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-236"><a href="#cb1-236" aria-hidden="true" tabindex="-1"></a>where $\text{flat}(\mathbf{X})$ vectorizes a matrix row by row.</span>
+<span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a>Because $\hat{\mathbf{Q}}_M$ is a random vector, its accuracy is characterized not by a scalar variance but by an **estimator covariance matrix**:</span>
+<span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\mathbf{Q}}_M</span><span class="co">]</span> = \mathbb{E}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])^\top\right</span><span class="co">]</span> \in \mathbb{R}^{(K+K^2) \times (K+K^2)}</span>
+<span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a>This matrix has block structure:</span>
+<span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\mathbf{Q}}_M</span><span class="co">]</span> = \begin{bmatrix}</span>
+<span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M</span><span class="co">]</span> &amp; \text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M</span><span class="co">]</span> <span class="sc">\\</span></span>
+<span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\mu}}_M</span><span class="co">]</span> &amp; \text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M</span><span class="co">]</span></span>
+<span id="cb1-250"><a href="#cb1-250" aria-hidden="true" tabindex="-1"></a>\end{bmatrix}</span>
+<span id="cb1-251"><a href="#cb1-251" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-252"><a href="#cb1-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-253"><a href="#cb1-253" aria-hidden="true" tabindex="-1"></a>The following subsections give the form of each block.</span>
+<span id="cb1-254"><a href="#cb1-254" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-255"><a href="#cb1-255" aria-hidden="true" tabindex="-1"></a><span class="fu">### Mean--Mean Block</span></span>
+<span id="cb1-256"><a href="#cb1-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-257"><a href="#cb1-257" aria-hidden="true" tabindex="-1"></a>The covariance between estimates of the mean vector is:</span>
+<span id="cb1-258"><a href="#cb1-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-259"><a href="#cb1-259" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M</span><span class="co">]</span> = \frac{1}{M}\boldsymbol{\Sigma} \quad \in \mathbb{R}^{K \times K}</span>
+<span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a>$$ {#eq-mean-cov}</span>
+<span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a>This is the multivariate generalization of @eq-mean-var: the estimator covariance is proportional to the QoI covariance, scaled by $1/M$.</span>
+<span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a><span class="fu">### Variance--Variance Block</span></span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a>The covariance between estimates of the covariance matrix entries is:</span>
+<span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-270"><a href="#cb1-270" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M</span><span class="co">]</span> = \frac{1}{M(M-1)}\mathbf{V} + \frac{1}{M}\mathbf{W} \quad \in \mathbb{R}^{K^2 \times K^2}</span>
+<span id="cb1-271"><a href="#cb1-271" aria-hidden="true" tabindex="-1"></a>$$ {#eq-var-cov}</span>
+<span id="cb1-272"><a href="#cb1-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-273"><a href="#cb1-273" aria-hidden="true" tabindex="-1"></a>where</span>
+<span id="cb1-274"><a href="#cb1-274" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-275"><a href="#cb1-275" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-276"><a href="#cb1-276" aria-hidden="true" tabindex="-1"></a>\mathbf{V} = \boldsymbol{\Sigma}^{\otimes 2} + (\mathbf{1}_K^\top \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K) \circ (\mathbf{1}_K \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K^\top) \quad \in \mathbb{R}^{K^2 \times K^2}</span>
+<span id="cb1-277"><a href="#cb1-277" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-278"><a href="#cb1-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-279"><a href="#cb1-279" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-280"><a href="#cb1-280" aria-hidden="true" tabindex="-1"></a>\mathbf{W} = \text{Cov}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">(\mathbf{q} - \boldsymbol{\mu})^{\otimes 2},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right</span><span class="co">]</span> \quad \in \mathbb{R}^{K^2 \times K^2}</span>
+<span id="cb1-281"><a href="#cb1-281" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-282"><a href="#cb1-282" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-283"><a href="#cb1-283" aria-hidden="true" tabindex="-1"></a>Here we use the notation:</span>
+<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\mathbf{X} \otimes \mathbf{Y} = \text{flat}(\mathbf{X}\mathbf{Y}^\top)$ is the flattened outer product</span>
+<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\mathbf{X}^{\otimes 2} = \mathbf{X} \otimes \mathbf{X}$</span>
+<span id="cb1-287"><a href="#cb1-287" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\mathbf{X} \circ \mathbf{Y}$ is the element-wise (Hadamard) product</span>
+<span id="cb1-288"><a href="#cb1-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a>The $\mathbf{V}$ term involves only the QoI covariance $\boldsymbol{\Sigma}$ and vanishes relative to $\mathbf{W}$ as $M$ grows. The $\mathbf{W}$ term involves **fourth-order centered moments** of the QoI --- the multivariate generalization of $\kappa_4$ from the scalar case. This is what makes variance estimation fundamentally harder than mean estimation: it depends on the tail behavior of the QoI distribution.</span>
+<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a><span class="fu">### Mean--Variance Cross Block</span></span>
+<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a>The covariance between the mean and variance estimators is:</span>
+<span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a>\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M</span><span class="co">]</span> = \frac{1}{M}\mathbf{B} \quad \in \mathbb{R}^{K \times K^2}</span>
+<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a>$$ {#eq-mean-var-cov}</span>
+<span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-299"><a href="#cb1-299" aria-hidden="true" tabindex="-1"></a>where</span>
+<span id="cb1-300"><a href="#cb1-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-301"><a href="#cb1-301" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a>\mathbf{B} = \text{Cov}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\mathbf{q},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right</span><span class="co">]</span> \quad \in \mathbb{R}^{K \times K^2}</span>
+<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-305"><a href="#cb1-305" aria-hidden="true" tabindex="-1"></a>This block involves **third-order centered moments** of the QoI. It is zero when the QoI distribution is symmetric (since odd central moments vanish), but nonzero for skewed distributions. Our model's nonlinear QoIs produce a skewed output distribution, so we expect $\mathbf{B} \neq 0$.</span>
+<span id="cb1-306"><a href="#cb1-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-307"><a href="#cb1-307" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary of moment requirements</span></span>
+<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a>Each block of the estimator covariance depends on progressively higher-order moments of the QoI:</span>
+<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-311"><a href="#cb1-311" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Block <span class="pp">|</span> Estimator pair <span class="pp">|</span> Moment order required <span class="pp">|</span></span>
+<span id="cb1-312"><a href="#cb1-312" aria-hidden="true" tabindex="-1"></a><span class="pp">|-------|---------------|----------------------|</span></span>
+<span id="cb1-313"><a href="#cb1-313" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\mu}}</span><span class="co">]</span>$ <span class="pp">|</span> mean--mean <span class="pp">|</span> 2nd (covariance $\boldsymbol{\Sigma}$) <span class="pp">|</span></span>
+<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\Sigma}}</span><span class="co">]</span>$ <span class="pp">|</span> mean--variance <span class="pp">|</span> 3rd (skewness-like, $\mathbf{B}$) <span class="pp">|</span></span>
+<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $\text{Cov}<span class="co">[</span><span class="ot">\hat{\boldsymbol{\Sigma}}, \hat{\boldsymbol{\Sigma}}</span><span class="co">]</span>$ <span class="pp">|</span> variance--variance <span class="pp">|</span> 4th (kurtosis-like, $\mathbf{W}$) <span class="pp">|</span></span>
+<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-317"><a href="#cb1-317" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-318"><a href="#cb1-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-319"><a href="#cb1-319" aria-hidden="true" tabindex="-1"></a><span class="fu">## Empirical Verification</span></span>
+<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a>@fig-estimator-covariance-empirical verifies the block structure empirically. We run 500 independent MC experiments with $M = 100$ samples each, compute $\hat{\mathbf{Q}}_M$ for each, and estimate the covariance of the resulting 500 estimates. The left panel shows this empirical estimator covariance; the right panel shows the theoretical prediction from the formulas above.</span>
+<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation ($K = 3$ QoIs, $M = 100$). Left: empirical covariance from 500 independent MC experiments. Right: theoretical prediction. The block structure --- mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right) --- is clearly visible."</span></span>
+<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-estimator-covariance-empirical</span></span>
+<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-330"><a href="#cb1-330" aria-hidden="true" tabindex="-1"></a>n_reps_est <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb1-331"><a href="#cb1-331" aria-hidden="true" tabindex="-1"></a>M_est <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a>n_stats <span class="op">=</span> K <span class="op">+</span> K<span class="op">**</span><span class="dv">2</span>  <span class="co"># 3 + 9 = 12</span></span>
+<span id="cb1-334"><a href="#cb1-334" aria-hidden="true" tabindex="-1"></a>all_stats <span class="op">=</span> np.empty((n_reps_est, n_stats))</span>
+<span id="cb1-335"><a href="#cb1-335" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-336"><a href="#cb1-336" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_reps_est):</span>
+<span id="cb1-337"><a href="#cb1-337" aria-hidden="true" tabindex="-1"></a>    np.random.seed(i <span class="op">+</span> <span class="dv">200000</span>)</span>
+<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> variable.rvs(M_est)</span>
+<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> bkd.to_numpy(model(s))           <span class="co"># (K, M_est)</span></span>
+<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a>    mu_hat <span class="op">=</span> np.mean(q, axis<span class="op">=</span><span class="dv">1</span>)           <span class="co"># (K,)</span></span>
+<span id="cb1-341"><a href="#cb1-341" aria-hidden="true" tabindex="-1"></a>    Sigma_hat <span class="op">=</span> np.cov(q, ddof<span class="op">=</span><span class="dv">1</span>)         <span class="co"># (K, K), rowvar=True (default)</span></span>
+<span id="cb1-342"><a href="#cb1-342" aria-hidden="true" tabindex="-1"></a>    all_stats[i, :K] <span class="op">=</span> mu_hat</span>
+<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>    all_stats[i, K:] <span class="op">=</span> Sigma_hat.ravel()</span>
+<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a><span class="co"># Empirical estimator covariance</span></span>
+<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a>empirical_est_cov <span class="op">=</span> np.cov(all_stats, rowvar<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-348"><a href="#cb1-348" aria-hidden="true" tabindex="-1"></a><span class="co"># Theoretical estimator covariance</span></span>
+<span id="cb1-349"><a href="#cb1-349" aria-hidden="true" tabindex="-1"></a><span class="co"># V[(jk),(lm)] = Sigma[j,l]*Sigma[k,m] + Sigma[j,m]*Sigma[k,l]</span></span>
+<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a>Sig <span class="op">=</span> true_cov</span>
+<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a>V_true <span class="op">=</span> np.zeros((K<span class="op">**</span><span class="dv">2</span>, K<span class="op">**</span><span class="dv">2</span>))</span>
+<span id="cb1-352"><a href="#cb1-352" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(K):</span>
+<span id="cb1-353"><a href="#cb1-353" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(K):</span>
+<span id="cb1-354"><a href="#cb1-354" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> l <span class="kw">in</span> <span class="bu">range</span>(K):</span>
+<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> m <span class="kw">in</span> <span class="bu">range</span>(K):</span>
+<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a>                V_true[j <span class="op">*</span> K <span class="op">+</span> k, l <span class="op">*</span> K <span class="op">+</span> m] <span class="op">=</span> (</span>
+<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a>                    Sig[j, l] <span class="op">*</span> Sig[k, m] <span class="op">+</span> Sig[j, m] <span class="op">*</span> Sig[k, l]</span>
+<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-360"><a href="#cb1-360" aria-hidden="true" tabindex="-1"></a>block_mm <span class="op">=</span> true_cov <span class="op">/</span> M_est                                        <span class="co"># (K, K)</span></span>
+<span id="cb1-361"><a href="#cb1-361" aria-hidden="true" tabindex="-1"></a>block_vv <span class="op">=</span> V_true <span class="op">/</span> (M_est <span class="op">*</span> (M_est <span class="op">-</span> <span class="dv">1</span>)) <span class="op">+</span> W_true <span class="op">/</span> M_est        <span class="co"># (K^2, K^2)</span></span>
+<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a>block_mv <span class="op">=</span> B_true <span class="op">/</span> M_est                                          <span class="co"># (K, K^2)</span></span>
+<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a>theoretical_est_cov <span class="op">=</span> np.block([</span>
+<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a>    [block_mm,    block_mv],</span>
+<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a>    [block_mv.T,  block_vv],</span>
+<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_estimator_covariance</span>
+<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> (</span>
+<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a>    [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(K)]</span>
+<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\S</span><span class="vs">igma</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>j<span class="op">+</span><span class="dv">1</span><span class="sc">}{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span></span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a>       <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(K) <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(K)]</span>
+<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">6</span>))</span>
+<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a>plot_estimator_covariance(empirical_est_cov, theoretical_est_cov,</span>
+<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>                           labels, ax1, ax2, fig<span class="op">=</span>fig)</span>
+<span id="cb1-380"><a href="#cb1-380" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a>@fig-diagonal-variances extracts the diagonal entries --- the individual estimator variances --- and shows them as a bar chart. The variance-of-covariance entries are substantially larger than the variance-of-mean entries, confirming the pattern we observed in the <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](monte_carlo_sampling.qmd)</span>.</span>
+<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."</span></span>
+<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-diagonal-variances</span></span>
+<span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_diagonal_variances</span>
+<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a>plot_diagonal_variances(empirical_est_cov, theoretical_est_cov, labels, ax)</span>
+<span id="cb1-397"><a href="#cb1-397" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb1-398"><a href="#cb1-398" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a><span class="fu">## Scalar MSE for Vector-Valued Statistics</span></span>
+<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a>When the estimator is a vector, we need a scalar measure of total error. Two standard choices reduce the estimator covariance matrix to a single number:</span>
+<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a>**Trace** (sum of diagonal variances):</span>
+<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a>\text{MSE}_{\text{tr}} = \text{tr}\!\left(\text{Cov}[\hat{\mathbf{Q}}_M]\right) = \sum_{i=1}^{S} \text{Var}[\hat{Q}_{M,i}]</span>
+<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a>This treats each component independently and sums their variances. It is the total variance across all statistics.</span>
+<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a>**Determinant** (volume of the uncertainty ellipsoid):</span>
+<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a>\text{MSE}_{\text{det}} = \det<span class="sc">\!</span>\left(\text{Cov}<span class="co">[</span><span class="ot">\hat{\mathbf{Q}}_M</span><span class="co">]</span>\right)</span>
+<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a>This captures the joint uncertainty, including correlations between estimator errors. A large off-diagonal entry in the estimator covariance (e.g., the mean--variance cross block $\mathbf{B}$) inflates the determinant even if the individual variances are modest.</span>
+<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a>Both measures decay as $O(1/M^S)$ for $S$ statistics, but the constants differ depending on the higher-order moments $\mathbf{W}$ and $\mathbf{B}$.</span>
+<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a><span class="fu">## The $1/M$ Bottleneck</span></span>
+<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a>Every estimator variance in this tutorial has the form:</span>
+<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a>\text{Var}<span class="co">[</span><span class="ot">\hat{s}_M</span><span class="co">]</span> = \frac{C}{M}</span>
+<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>where $C$ is a constant that depends on the statistic being estimated and the moments of the QoI. The rate $1/M$ is universal:</span>
+<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>It is **dimension-independent**: the same rate holds whether $\boldsymbol{\theta}$ has 2 parameters or 200.</span>
+<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>It is **slow**: reducing the standard error by a factor of 10 requires $100\times$ more model evaluations.</span>
+<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a>When each evaluation is an expensive simulation (e.g., a FEM solve), this becomes the central computational bottleneck of UQ. The subsequent tutorials introduce methods that break this bottleneck: surrogate models that replace $f$ with a cheap approximation, and multi-fidelity methods that combine cheap and expensive models to reduce the constant $C$.</span>
+<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a><span class="fu">## A practical catch</span></span>
+<span id="cb1-442"><a href="#cb1-442" aria-hidden="true" tabindex="-1"></a>The MSE formulas above assume we know the true moments --- $\boldsymbol{\Sigma}$ for the mean estimator, $\mathbf{W}$ and $\mathbf{B}$ for the variance and cross terms. In practice, these must themselves be estimated from samples, introducing a bootstrapping problem. A <span class="co">[</span><span class="ot">subsequent tutorial</span><span class="co">](mc_budget_estimation.qmd)</span> addresses how to estimate the sample budget needed for a target accuracy using pilot samples.</span>
+<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **MSE** of an estimator decomposes as $\text{Bias}^2 + \text{Variance}$; for unbiased MC estimators, $\text{MSE} = \text{Variance}$</span>
+<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The MC mean estimator has variance $\sigma^2/M$; the MC variance estimator has variance $(\kappa_4 - \sigma^4)/M$ --- same rate, larger constant</span>
+<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For **vector-valued statistics** (mean + covariance of $K$ QoIs), the estimator error is a covariance matrix with block structure involving $\boldsymbol{\Sigma}$ (2nd moments), $\mathbf{B}$ (3rd moments), and $\mathbf{W}$ (4th moments)</span>
+<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The trace or determinant of the estimator covariance reduces the matrix to a scalar MSE</span>
+<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>All MC estimators converge at rate $1/M$, independent of parameter dimension --- but the constants grow with the order of the statistic</span>
+<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Use the empirical data from @fig-mean-mse-convergence to estimate the slope of the log-log convergence plot. Verify that it is $-1$ (corresponding to the $1/M$ rate).</span>
+<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In the scalar case, show algebraically that $\text{Var}<span class="co">[</span><span class="ot">\hat{\sigma}^2_M</span><span class="co">]</span> \to (\kappa_4 - \sigma^4)/M$ as $M \to \infty$ starting from @eq-var-var.</span>
+<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>For the model's three QoIs, examine $\text{Cov}<span class="co">[</span><span class="ot">\hat{\mu}_1, \hat{\mu}_3</span><span class="co">]</span>$ from the empirical estimator covariance matrix. Is it positive or negative? What does its sign imply about the off-diagonal of $\boldsymbol{\Sigma}$?</span>
+<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** If the QoI distribution is symmetric (zero skewness), what happens to the $\mathbf{B}$ matrix? What does this imply about the correlation between the mean and variance estimators? Verify empirically using a model with a symmetric output distribution.</span>
+<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-468"><a href="#cb1-468" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb1-469"><a href="#cb1-469" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Monte Carlo Budget Estimation</span><span class="co">](mc_budget_estimation.qmd)</span> --- Estimating how many samples you need in practice</span>
+<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Multi-Fidelity Methods</span><span class="co">](control_variate_concept.qmd)</span> --- Combining models of different cost and accuracy</span>
+<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-473"><a href="#cb1-473" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-474"><a href="#cb1-474" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">DWBG2024</span><span class="co">]</span> T. Dixon et al. *Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates.* SIAM/ASA Journal on Uncertainty Quantification, 12(3):1005--1049, 2024. <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1137/23M1607994)</span></span>
+<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">QPOVW2018</span><span class="co">]</span> E. Qian et al. *Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices.* SIAM/ASA Journal on Uncertainty Quantification, 6(2):683--706, 2018. <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1137/17M1151006)</span></span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

@@ -1,0 +1,2107 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Deriving the optimal control variate weight, the variance reduction formula, and unbiasedness of the CVMC estimator.">
+
+<title>Control Variate Monte Carlo: Analysis – PyApprox</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Control Variate Monte Carlo: Analysis – PyApprox">
+<meta property="og:description" content="Deriving the optimal control variate weight, the variance reduction formula, and unbiasedness of the CVMC estimator.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/control_variate_analysis_files/figure-html/fig-verification-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="839">
+<meta property="og:image:width" content="1325">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./control_variate_concept.html">Multifidelity Estimation</a></li><li class="breadcrumb-item"><a href="./control_variate_analysis.html">Control Variate Monte Carlo: Analysis</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting Started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setup_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Up Your Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models_decisions_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Models to Decisions Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Forward UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./forward_uq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Forward Uncertainty Quantification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./random_variables_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Random Variables and Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Budget Estimation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Multifidelity Estimation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_analysis.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Control Variate Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximate Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parametrically Defined Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multilevel Best Linear Unbiased Estimators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MLBLUE: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ensemble_selection_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Ensemble Selection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_estimation_cookbook.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Estimation: API Cookbook</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inverse UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bayesian_inference_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Data to Parameters: Introduction to Bayesian Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcmc_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampling the Posterior with MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dram_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical MCMC: Metropolis-Hastings and DRAM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximating the Posterior: Introduction to Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_objective.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Variational Inference Optimizes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Optimizing the ELBO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Choosing the Variational Family</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_amortized.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Amortized Variational Inference</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experimental Design</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./experimental_design_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Not All Experiments Are Equal: Introduction to Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">KL-Based OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Learning from Experiments: Bayesian Optimal Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_estimator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: The Double-Loop Estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_gradients.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Gradients and the Reparameterization Trick</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Verifying Convergence with KLOEDDiagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_qmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: MC vs.&nbsp;Halton for EIG Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_design_stability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Design Stability and Convergence</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Goal-Oriented OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented Bayesian OED: Designing for Prediction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_gaussian_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Gaussian Posterior Expressions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_lognormal_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Log-Normal Prediction Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Convergence Verification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Designing for Prediction on a Predator-Prey System</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">OED Workflows</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_data_workflow_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decoupling Data Generation from OED Optimisation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
+ <span class="menu-text">Approximation Theory</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./lagrange_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lagrange Interpolation: Polynomials on Optimal Points</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Interpolation: Local Basis Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tensor_product_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tensor Product Interpolation: Multivariate Approximation and Its Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gauss_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./leja_sequences.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leja Sequences: Nested Points for Adaptive Interpolation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Surrogate Modeling</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Polynomial Chaos</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./polynomial_chaos_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Polynomial Chaos Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./practical_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Overfitting and Cross-Validation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sparse Polynomial Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_pce.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Polynomial Chaos</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Function Trains</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./function_train_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">An Introduction to Function Trains</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_functiontrain.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Function Trains</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Sparse Grids</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./isotropic_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_grid_to_pce_conversion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Sparse Grids to PCE: The Mathematics of Basis Conversion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Sparse Grids</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Gaussian Processes</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_surrogate.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Gaussian Process Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_gp_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sampling for Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Gaussian Processes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sobol_sensitivity_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sobol Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pce_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PCE-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GP-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./morris_screening.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Morris Screening</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bin_based_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bin-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity_math.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Mathematical Derivation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Practical Usage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">Random Fields</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE I: Random Fields and the Karhunen-Loève Expansion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_mesh_and_data_driven.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE II: Kernel-Based vs Data-Driven KLE</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_spde.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE III: SPDE-Based KLE for Matern Fields</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+ <span class="menu-text">Optimization Under Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Design Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
+  <li><a href="#setup-and-notation" id="toc-setup-and-notation" class="nav-link" data-scroll-target="#setup-and-notation">Setup and Notation</a></li>
+  <li><a href="#unbiasedness" id="toc-unbiasedness" class="nav-link" data-scroll-target="#unbiasedness">Unbiasedness</a></li>
+  <li><a href="#variance-of-the-cvmc-estimator" id="toc-variance-of-the-cvmc-estimator" class="nav-link" data-scroll-target="#variance-of-the-cvmc-estimator">Variance of the CVMC Estimator</a></li>
+  <li><a href="#optimal-weight-eta" id="toc-optimal-weight-eta" class="nav-link" data-scroll-target="#optimal-weight-eta">Optimal Weight <span class="math inline">\(\eta^*\)</span></a></li>
+  <li><a href="#minimum-variance-and-variance-reduction-factor" id="toc-minimum-variance-and-variance-reduction-factor" class="nav-link" data-scroll-target="#minimum-variance-and-variance-reduction-factor">Minimum Variance and Variance Reduction Factor</a></li>
+  <li><a href="#numerical-verification" id="toc-numerical-verification" class="nav-link" data-scroll-target="#numerical-verification">Numerical Verification</a></li>
+  <li><a href="#discussion" id="toc-discussion" class="nav-link" data-scroll-target="#discussion">Discussion</a>
+  <ul class="collapse">
+  <li><a href="#the-role-of-eta-versus-an-estimated-hateta" id="toc-the-role-of-eta-versus-an-estimated-hateta" class="nav-link" data-scroll-target="#the-role-of-eta-versus-an-estimated-hateta">The role of <span class="math inline">\(\eta^*\)</span> versus an estimated <span class="math inline">\(\hat{\eta}\)</span></a></li>
+  <li><a href="#extension-to-other-statistics" id="toc-extension-to-other-statistics" class="nav-link" data-scroll-target="#extension-to-other-statistics">Extension to other statistics</a></li>
+  <li><a href="#connection-to-regression" id="toc-connection-to-regression" class="nav-link" data-scroll-target="#connection-to-regression">Connection to regression</a></li>
+  </ul></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./control_variate_concept.html">Multifidelity Estimation</a></li><li class="breadcrumb-item"><a href="./control_variate_analysis.html">Control Variate Monte Carlo: Analysis</a></li></ol></nav>
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Control Variate Monte Carlo: Analysis</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Deriving the optimal control variate weight, the variance reduction formula, and unbiasedness of the CVMC estimator.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/control_variate_analysis.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial, you will be able to:</p>
+<ul>
+<li>Prove that the CVMC estimator is unbiased for any choice of <span class="math inline">\(\eta\)</span></li>
+<li>Derive the optimal control variate weight <span class="math inline">\(\eta^*\)</span> by minimizing estimator variance</li>
+<li>Show that the minimum variance reduction factor is <span class="math inline">\(1 - \rho^2_{\alpha\kappa}\)</span></li>
+<li>Verify the theoretical variance reduction numerically against empirical results</li>
+</ul>
+</section>
+<section id="prerequisites" class="level2">
+<h2 class="anchored" data-anchor-id="prerequisites">Prerequisites</h2>
+<p>Complete <a href="./control_variate_concept.html">Control Variate Concept</a> and <a href="./estimator_accuracy_mse.html">Estimator Accuracy and MSE</a> before this tutorial.</p>
+</section>
+<section id="setup-and-notation" class="level2">
+<h2 class="anchored" data-anchor-id="setup-and-notation">Setup and Notation</h2>
+<p>Let <span class="math inline">\(f_\alpha : \mathbb{R}^{d_\theta} \to \mathbb{R}\)</span> be a high-fidelity model and <span class="math inline">\(f_\kappa : \mathbb{R}^{d_\theta} \to \mathbb{R}\)</span> a low-fidelity model. We draw <span class="math inline">\(N\)</span> independent samples <span class="math inline">\(\boldsymbol{\theta}^{(1)}, \dots, \boldsymbol{\theta}^{(N)}\)</span> from the prior <span class="math inline">\(p(\boldsymbol{\theta})\)</span> and denote the resulting sample means</p>
+<p><span class="math display">\[
+\hat{\mu}_\alpha = \frac{1}{N}\sum_{k=1}^N f_\alpha(\boldsymbol{\theta}^{(k)}), \qquad
+\hat{\mu}_\kappa = \frac{1}{N}\sum_{k=1}^N f_\kappa(\boldsymbol{\theta}^{(k)}).
+\]</span></p>
+<p>We write <span class="math inline">\(\mu_\alpha = \mathbb{E}_\theta[f_\alpha]\)</span>, <span class="math inline">\(\mu_\kappa = \mathbb{E}_\theta[f_\kappa]\)</span>, <span class="math inline">\(\sigma^2_\alpha = \mathbb{V}_\theta[f_\alpha]\)</span>, <span class="math inline">\(\sigma^2_\kappa = \mathbb{V}_\theta[f_\kappa]\)</span>, and <span class="math inline">\(C_{\alpha\kappa} = \mathrm{Cov}_\theta(f_\alpha, f_\kappa)\)</span> for the true (population) moments. The correlation between models is <span class="math inline">\(\rho_{\alpha\kappa} = C_{\alpha\kappa} / (\sigma_\alpha \sigma_\kappa)\)</span>.</p>
+<p>The CVMC estimator is</p>
+<p><span id="eq-cvmc"><span class="math display">\[
+\hat{\mu}_\alpha^{\text{CV}} = \hat{\mu}_\alpha + \eta \left(\hat{\mu}_\kappa - \mu_\kappa\right)
+\tag{1}\]</span></span></p>
+<p>where <span class="math inline">\(\mu_\kappa\)</span> is assumed <strong>known exactly</strong> and <span class="math inline">\(\eta \in \mathbb{R}\)</span> is a free parameter.</p>
+</section>
+<section id="unbiasedness" class="level2">
+<h2 class="anchored" data-anchor-id="unbiasedness">Unbiasedness</h2>
+<p><strong>Claim:</strong> <span class="math inline">\(\hat{\mu}_\alpha^{\text{CV}}\)</span> is an unbiased estimator of <span class="math inline">\(\mu_\alpha\)</span> for any <span class="math inline">\(\eta\)</span>.</p>
+<p><strong>Proof:</strong></p>
+<p><span class="math display">\[
+\mathbb{E}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]
+= \mathbb{E}[\hat{\mu}_\alpha] + \eta\left(\mathbb{E}[\hat{\mu}_\kappa] - \mu_\kappa\right)
+= \mu_\alpha + \eta \cdot 0
+= \mu_\alpha. \qquad \square
+\]</span></p>
+<p>The correction term has expectation zero because <span class="math inline">\(\hat{\mu}_\kappa\)</span> is an unbiased estimator of <span class="math inline">\(\mu_\kappa\)</span>. This holds for <strong>any</strong> <span class="math inline">\(\eta\)</span>, so we are free to choose <span class="math inline">\(\eta\)</span> purely to minimize variance.</p>
+</section>
+<section id="variance-of-the-cvmc-estimator" class="level2">
+<h2 class="anchored" data-anchor-id="variance-of-the-cvmc-estimator">Variance of the CVMC Estimator</h2>
+<p>Using the variance-of-sums formula <span class="math inline">\(\mathbb{V}[X + Y] = \mathbb{V}[X] + \mathbb{V}[Y] + 2\,\mathrm{Cov}(X, Y)\)</span>:</p>
+<p><span id="eq-cv-variance-eta"><span class="math display">\[
+\mathbb{V}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]
+= \mathbb{V}[\hat{\mu}_\alpha]
++ \eta^2 \mathbb{V}[\hat{\mu}_\kappa]
++ 2\eta\,\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa).
+\tag{2}\]</span></span></p>
+<p>The sample means inherit the population moments scaled by <span class="math inline">\(1/N\)</span>:</p>
+<p><span class="math display">\[
+\mathbb{V}[\hat{\mu}_\alpha] = \frac{\sigma^2_\alpha}{N}, \quad
+\mathbb{V}[\hat{\mu}_\kappa] = \frac{\sigma^2_\kappa}{N}, \quad
+\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa) = \frac{C_{\alpha\kappa}}{N}.
+\]</span></p>
+<p>Substituting and factoring out <span class="math inline">\(\sigma^2_\alpha / N\)</span>:</p>
+<p><span id="eq-cv-variance-factored"><span class="math display">\[
+\mathbb{V}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]
+= \frac{\sigma^2_\alpha}{N}
+\left(
+  1
+  + \eta^2 \frac{\sigma^2_\kappa}{\sigma^2_\alpha}
+  + 2\eta \frac{C_{\alpha\kappa}}{\sigma^2_\alpha}
+\right).
+\tag{3}\]</span></span></p>
+</section>
+<section id="optimal-weight-eta" class="level2">
+<h2 class="anchored" data-anchor-id="optimal-weight-eta">Optimal Weight <span class="math inline">\(\eta^*\)</span></h2>
+<p>The right-hand side of <a href="#eq-cv-variance-factored" class="quarto-xref">Equation&nbsp;3</a> is a quadratic in <span class="math inline">\(\eta\)</span> with positive leading coefficient. It has a unique minimum. Setting the derivative with respect to <span class="math inline">\(\eta\)</span> to zero:</p>
+<p><span class="math display">\[
+\frac{d}{d\eta}\mathbb{V}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]
+= \frac{\sigma^2_\alpha}{N}\left(2\eta \frac{\sigma^2_\kappa}{\sigma^2_\alpha}
++ 2\frac{C_{\alpha\kappa}}{\sigma^2_\alpha}\right) = 0
+\]</span></p>
+<p><span id="eq-eta-star"><span class="math display">\[
+\implies \eta^* = -\frac{C_{\alpha\kappa}}{\sigma^2_\kappa}.
+\tag{4}\]</span></span></p>
+<p>Because both <span class="math inline">\(\hat{\mu}_\alpha\)</span> and <span class="math inline">\(\hat{\mu}_\kappa\)</span> are computed from the same <span class="math inline">\(N\)</span> samples, <span class="math inline">\(\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa) = C_{\alpha\kappa}/N\)</span> and <span class="math inline">\(\mathbb{V}[\hat{\mu}_\kappa] = \sigma^2_\kappa/N\)</span>, so <a href="#eq-eta-star" class="quarto-xref">Equation&nbsp;4</a> also equals</p>
+<p><span class="math display">\[
+\eta^* = -\frac{\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa)}{\mathbb{V}[\hat{\mu}_\kappa]}.
+\]</span></p>
+<p>This is the population regression coefficient of <span class="math inline">\(\hat{\mu}_\alpha\)</span> on <span class="math inline">\(\hat{\mu}_\kappa\)</span> — the CVMC correction is a regression adjustment.</p>
+</section>
+<section id="minimum-variance-and-variance-reduction-factor" class="level2">
+<h2 class="anchored" data-anchor-id="minimum-variance-and-variance-reduction-factor">Minimum Variance and Variance Reduction Factor</h2>
+<p>Substituting <span class="math inline">\(\eta^*\)</span> into <a href="#eq-cv-variance-factored" class="quarto-xref">Equation&nbsp;3</a>:</p>
+<p><span class="math display">\[
+\mathbb{V}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]\bigg|_{\eta=\eta^*}
+= \frac{\sigma^2_\alpha}{N}\left(
+  1
+  + \frac{C_{\alpha\kappa}^2}{\sigma^2_\kappa \sigma^2_\alpha}
+  - 2\frac{C_{\alpha\kappa}^2}{\sigma^2_\kappa \sigma^2_\alpha}
+\right)
+= \frac{\sigma^2_\alpha}{N}\left(1 - \frac{C_{\alpha\kappa}^2}{\sigma^2_\alpha \sigma^2_\kappa}\right).
+\]</span></p>
+<p>Recognizing <span class="math inline">\(C_{\alpha\kappa}^2 / (\sigma^2_\alpha \sigma^2_\kappa) = \rho^2_{\alpha\kappa}\)</span>:</p>
+<p><span id="eq-variance-reduction"><span class="math display">\[
+\boxed{
+\mathbb{V}\!\left[\hat{\mu}_\alpha^{\text{CV}}\right]
+= \frac{\sigma^2_\alpha}{N}\left(1 - \rho^2_{\alpha\kappa}\right)
+= \mathbb{V}[\hat{\mu}_\alpha]\left(1 - \rho^2_{\alpha\kappa}\right).
+}
+\tag{5}\]</span></span></p>
+<p>The <strong>variance reduction factor</strong> <span class="math inline">\(\gamma = 1 - \rho^2_{\alpha\kappa}\)</span> depends only on the correlation between models, not on sample size or the individual model variances.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Sign of <span class="math inline">\(\eta^*\)</span>
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When <span class="math inline">\(C_{\alpha\kappa} &gt; 0\)</span> (positively correlated models), <span class="math inline">\(\eta^* &lt; 0\)</span>. Positive MC errors in <span class="math inline">\(\hat{\mu}_\alpha\)</span> tend to coincide with positive MC errors in <span class="math inline">\(\hat{\mu}_\kappa\)</span>, so subtracting a scaled version of the latter cancels part of the former.</p>
+</div>
+</div>
+</section>
+<section id="numerical-verification" class="level2">
+<h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
+<p>We verify <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a> using a tunable two-model ensemble where the correlation <span class="math inline">\(\rho_{\alpha\kappa}\)</span> is controlled by a single parameter <span class="math inline">\(\theta_1\)</span>.</p>
+<div id="6dc2ada9" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.tunable_ensemble <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    tunable_ensemble_3model,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Correlation is controlled by theta1: theta1 = pi/2 gives rho ~ 0,</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># theta1 -&gt; 0 gives rho -&gt; 1.</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>theta1_values <span class="op">=</span> np.linspace(<span class="fl">0.05</span>, np.pi <span class="op">/</span> <span class="dv">2</span> <span class="op">*</span> <span class="fl">0.99</span>, <span class="dv">10</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">2000</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>empirical_reductions <span class="op">=</span> []</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> []</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> theta1 <span class="kw">in</span> theta1_values:</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    bm <span class="op">=</span> tunable_ensemble_3model(bkd, theta1<span class="op">=</span>theta1)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    hf_model <span class="op">=</span> bm.models()[<span class="dv">0</span>]</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    lf_model <span class="op">=</span> bm.models()[<span class="dv">1</span>]</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    variable <span class="op">=</span> bm.prior()</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    cov_mat <span class="op">=</span> bkd.to_numpy(bm.ensemble_covariance()[:<span class="dv">2</span>, :<span class="dv">2</span>])</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    rho <span class="op">=</span> cov_mat[<span class="dv">0</span>, <span class="dv">1</span>] <span class="op">/</span> np.sqrt(cov_mat[<span class="dv">0</span>, <span class="dv">0</span>] <span class="op">*</span> cov_mat[<span class="dv">1</span>, <span class="dv">1</span>])</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    eta_opt <span class="op">=</span> <span class="op">-</span>cov_mat[<span class="dv">0</span>, <span class="dv">1</span>] <span class="op">/</span> cov_mat[<span class="dv">1</span>, <span class="dv">1</span>]</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    mu_kappa <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(bm.ensemble_means())[<span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    mc_vars <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    cv_vars <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>        samples <span class="op">=</span> variable.rvs(N)</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>        v_alpha <span class="op">=</span> bkd.to_numpy(hf_model(samples)).ravel()</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>        v_kappa <span class="op">=</span> bkd.to_numpy(lf_model(samples)).ravel()</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>        mc_vars[i] <span class="op">=</span> v_alpha.mean()</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>        cv_vars[i] <span class="op">=</span> v_alpha.mean() <span class="op">+</span> eta_opt <span class="op">*</span> (v_kappa.mean() <span class="op">-</span> mu_kappa)</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    empirical_reductions.append(np.var(cv_vars) <span class="op">/</span> np.var(mc_vars))</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    theoretical_reductions.append(<span class="dv">1</span> <span class="op">-</span> rho<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>empirical_reductions <span class="op">=</span> np.array(empirical_reductions)</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> np.array(theoretical_reductions)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="cell-fig-verification" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover rho values for x-axis</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>rho_vals <span class="op">=</span> np.sqrt(<span class="dv">1</span> <span class="op">-</span> theoretical_reductions)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>plot_cv_verification(rho_vals, theoretical_reductions, empirical_reductions,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                     n_trials, N, ax)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-verification" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="control_variate_analysis_files/figure-html/fig-verification-output-1.png" width="663" height="420" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Empirical variance reduction (dots) versus the theoretical prediction <span class="math inline">\(1 - \rho^2\)</span> (line) across a range of model correlations. The agreement confirms <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="discussion" class="level2">
+<h2 class="anchored" data-anchor-id="discussion">Discussion</h2>
+<section id="the-role-of-eta-versus-an-estimated-hateta" class="level3">
+<h3 class="anchored" data-anchor-id="the-role-of-eta-versus-an-estimated-hateta">The role of <span class="math inline">\(\eta^*\)</span> versus an estimated <span class="math inline">\(\hat{\eta}\)</span></h3>
+<p>In practice, the population moments <span class="math inline">\(C_{\alpha\kappa}\)</span> and <span class="math inline">\(\sigma^2_\kappa\)</span> are unknown and <span class="math inline">\(\eta^*\)</span> must be estimated from samples. Using a sample-based <span class="math inline">\(\hat{\eta}\)</span> introduces a small bias and slightly inflates the variance, but the effect vanishes as <span class="math inline">\(N \to \infty\)</span>. The <a href="./multifidelity_estimation_cookbook.html#estimator-quick-reference">API Cookbook</a> covers how PyApprox handles this in the API.</p>
+</section>
+<section id="extension-to-other-statistics" class="level3">
+<h3 class="anchored" data-anchor-id="extension-to-other-statistics">Extension to other statistics</h3>
+<p>The derivation above treats the mean estimator. For variance estimation, the optimal <span class="math inline">\(\eta^*\)</span> and the resulting variance reduction ratio depend not just on <span class="math inline">\(\rho_{\alpha\kappa}\)</span> but also on higher-order cross-moments of <span class="math inline">\(f_\alpha\)</span> and <span class="math inline">\(f_\kappa\)</span>. The same general structure — unbiasedness for free, optimality by differentiating a quadratic — applies, but the algebra is more involved. See <a href="./acv_many_models_analysis.html#sec-covariance-formulas">ACV Covariances</a> for the general formulas.</p>
+</section>
+<section id="connection-to-regression" class="level3">
+<h3 class="anchored" data-anchor-id="connection-to-regression">Connection to regression</h3>
+<p>The CVMC correction <span class="math inline">\(\eta^*(\hat{\mu}_\kappa - \mu_\kappa)\)</span> is exactly the least-squares regression of the MC error <span class="math inline">\(\hat{\mu}_\alpha - \mu_\alpha\)</span> onto <span class="math inline">\(\hat{\mu}_\kappa - \mu_\kappa\)</span>. This geometric view generalizes naturally to multiple low-fidelity models (see <a href="./acv_many_models_concept.html">General ACV</a>), where <span class="math inline">\(\eta^*\)</span> becomes a vector and the variance reduction is <span class="math inline">\(1 - \mathbf{R}^2\)</span>, the <span class="math inline">\(R^2\)</span> of the multivariate regression.</p>
+</section>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>CVMC is <strong>unbiased</strong> for any <span class="math inline">\(\eta\)</span>; we choose <span class="math inline">\(\eta\)</span> only to minimize variance</li>
+<li>The optimal weight is <span class="math inline">\(\eta^* = -C_{\alpha\kappa} / \sigma^2_\kappa\)</span>, the population regression coefficient</li>
+<li>The minimum variance reduction factor is <span class="math inline">\(1 - \rho^2_{\alpha\kappa}\)</span>, depending only on model correlation</li>
+<li>The derivation generalizes to other statistics and to multiple low-fidelity models</li>
+</ul>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<ol type="1">
+<li><p>Starting from <a href="#eq-cv-variance-eta" class="quarto-xref">Equation&nbsp;2</a>, verify algebraically that substituting <span class="math inline">\(\eta^*\)</span> from <a href="#eq-eta-star" class="quarto-xref">Equation&nbsp;4</a> yields <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a>.</p></li>
+<li><p>Show that when <span class="math inline">\(\eta = 0\)</span> the CVMC estimator reduces to plain MC and <span class="math inline">\(\gamma = 1\)</span>. Show that <span class="math inline">\(\gamma &lt; 1\)</span> for all <span class="math inline">\(\eta \neq 0\)</span> and all <span class="math inline">\(\rho \neq 0\)</span>.</p></li>
+<li><p>Suppose you use the sample covariance <span class="math inline">\(\hat{C}_{\alpha\kappa}\)</span> in place of the true <span class="math inline">\(C_{\alpha\kappa}\)</span> to compute <span class="math inline">\(\hat{\eta}\)</span>. Is the resulting estimator still unbiased? <em>(Hint: <span class="math inline">\(\hat{\eta}\)</span> is now a function of the same samples used in <span class="math inline">\(\hat{\mu}_\alpha\)</span> and <span class="math inline">\(\hat{\mu}_\kappa\)</span>.)</em></p></li>
+<li><p><strong>(Challenge)</strong> Extend the variance derivation to the case of two control variates <span class="math inline">\(f_{\kappa_1}\)</span> and <span class="math inline">\(f_{\kappa_2}\)</span> with weights <span class="math inline">\(\eta_1\)</span> and <span class="math inline">\(\eta_2\)</span>. Write the optimal weights in matrix form and identify the resulting variance reduction.</p></li>
+</ol>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li>[LMWOR1982] S.S. Lavenberg, T.L. Moeller, P.D. Welch. <em>Statistical results on control variables with application to queueing network simulation.</em> Operations Research, 30(1):182–202,
+<ol start="1982" type="1">
+<li><a href="https://doi.org/10.1287/opre.30.1.182">DOI</a></li>
+</ol></li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Control Variate Monte Carlo: Analysis"</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving the optimal control variate weight, the variance reduction formula, and unbiasedness of the CVMC estimator."</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 11</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - control_variate_concept</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator_accuracy_mse</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - control-variate</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - variance-reduction</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/control_variate_analysis.ipynb)</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Prove that the CVMC estimator is unbiased for any choice of $\eta$</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the optimal control variate weight $\eta^*$ by minimizing estimator variance</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Show that the minimum variance reduction factor is $1 - \rho^2_{\alpha\kappa}$</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the theoretical variance reduction numerically against empirical results</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Control Variate Concept</span><span class="co">](control_variate_concept.qmd)</span> and</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Estimator Accuracy and MSE</span><span class="co">](estimator_accuracy_mse.qmd)</span> before this tutorial.</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup and Notation</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>Let $f_\alpha : \mathbb{R}^{d_\theta} \to \mathbb{R}$ be a high-fidelity model and</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>$f_\kappa : \mathbb{R}^{d_\theta} \to \mathbb{R}$ a low-fidelity model. We draw $N$ independent</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>samples $\boldsymbol{\theta}^{(1)}, \dots, \boldsymbol{\theta}^{(N)}$ from the prior</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>$p(\boldsymbol{\theta})$ and denote the resulting sample means</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_\alpha = \frac{1}{N}\sum_{k=1}^N f_\alpha(\boldsymbol{\theta}^{(k)}), \qquad</span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_\kappa = \frac{1}{N}\sum_{k=1}^N f_\kappa(\boldsymbol{\theta}^{(k)}).</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>We write $\mu_\alpha = \mathbb{E}_\theta[f_\alpha]$, $\mu_\kappa = \mathbb{E}_\theta[f_\kappa]$,</span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>$\sigma^2_\alpha = \mathbb{V}_\theta[f_\alpha]$, $\sigma^2_\kappa = \mathbb{V}_\theta[f_\kappa]$,</span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>and $C_{\alpha\kappa} = \mathrm{Cov}_\theta(f_\alpha, f_\kappa)$ for the true (population) moments.</span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>The correlation between models is $\rho_{\alpha\kappa} = C_{\alpha\kappa} / (\sigma_\alpha \sigma_\kappa)$.</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>The CVMC estimator is</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_\alpha^{\text{CV}} = \hat{\mu}_\alpha + \eta \left(\hat{\mu}_\kappa - \mu_\kappa\right)</span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>$$ {#eq-cvmc}</span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>where $\mu_\kappa$ is assumed **known exactly** and $\eta \in \mathbb{R}$ is a free parameter.</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a><span class="fu">## Unbiasedness</span></span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>**Claim:** $\hat{\mu}_\alpha^{\text{CV}}$ is an unbiased estimator of $\mu_\alpha$ for any $\eta$.</span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>**Proof:**</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>\mathbb{E}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span></span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>= \mathbb{E}<span class="co">[</span><span class="ot">\hat{\mu}_\alpha</span><span class="co">]</span> + \eta\left(\mathbb{E}<span class="co">[</span><span class="ot">\hat{\mu}_\kappa</span><span class="co">]</span> - \mu_\kappa\right)</span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>= \mu_\alpha + \eta \cdot 0</span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>= \mu_\alpha. \qquad \square</span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>The correction term has expectation zero because $\hat{\mu}_\kappa$ is an unbiased estimator</span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>of $\mu_\kappa$. This holds for **any** $\eta$, so we are free to choose $\eta$ purely to</span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>minimize variance.</span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a><span class="fu">## Variance of the CVMC Estimator</span></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>Using the variance-of-sums formula</span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>$\mathbb{V}<span class="co">[</span><span class="ot">X + Y</span><span class="co">]</span> = \mathbb{V}<span class="co">[</span><span class="ot">X</span><span class="co">]</span> + \mathbb{V}<span class="co">[</span><span class="ot">Y</span><span class="co">]</span> + 2\,\mathrm{Cov}(X, Y)$:</span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span></span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>= \mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\alpha</span><span class="co">]</span></span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\eta^2 \mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\kappa</span><span class="co">]</span></span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>2\eta\,\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa).</span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>$$ {#eq-cv-variance-eta}</span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>The sample means inherit the population moments scaled by $1/N$:</span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\alpha</span><span class="co">]</span> = \frac{\sigma^2_\alpha}{N}, \quad</span>
+<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\kappa</span><span class="co">]</span> = \frac{\sigma^2_\kappa}{N}, \quad</span>
+<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa) = \frac{C_{\alpha\kappa}}{N}.</span>
+<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-112"><a href="#cb3-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-113"><a href="#cb3-113" aria-hidden="true" tabindex="-1"></a>Substituting and factoring out $\sigma^2_\alpha / N$:</span>
+<span id="cb3-114"><a href="#cb3-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-115"><a href="#cb3-115" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-116"><a href="#cb3-116" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span></span>
+<span id="cb3-117"><a href="#cb3-117" aria-hidden="true" tabindex="-1"></a>= \frac{\sigma^2_\alpha}{N}</span>
+<span id="cb3-118"><a href="#cb3-118" aria-hidden="true" tabindex="-1"></a>\left(</span>
+<span id="cb3-119"><a href="#cb3-119" aria-hidden="true" tabindex="-1"></a>  1</span>
+<span id="cb3-120"><a href="#cb3-120" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>\eta^2 \frac{\sigma^2_\kappa}{\sigma^2_\alpha}</span>
+<span id="cb3-121"><a href="#cb3-121" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>2\eta \frac{C_{\alpha\kappa}}{\sigma^2_\alpha}</span>
+<span id="cb3-122"><a href="#cb3-122" aria-hidden="true" tabindex="-1"></a>\right).</span>
+<span id="cb3-123"><a href="#cb3-123" aria-hidden="true" tabindex="-1"></a>$$ {#eq-cv-variance-factored}</span>
+<span id="cb3-124"><a href="#cb3-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-125"><a href="#cb3-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-126"><a href="#cb3-126" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimal Weight $\eta^*$</span></span>
+<span id="cb3-127"><a href="#cb3-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-128"><a href="#cb3-128" aria-hidden="true" tabindex="-1"></a>The right-hand side of @eq-cv-variance-factored is a quadratic in $\eta$ with positive leading</span>
+<span id="cb3-129"><a href="#cb3-129" aria-hidden="true" tabindex="-1"></a>coefficient. It has a unique minimum. Setting the derivative with respect to $\eta$ to zero:</span>
+<span id="cb3-130"><a href="#cb3-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-131"><a href="#cb3-131" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-132"><a href="#cb3-132" aria-hidden="true" tabindex="-1"></a>\frac{d}{d\eta}\mathbb{V}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span></span>
+<span id="cb3-133"><a href="#cb3-133" aria-hidden="true" tabindex="-1"></a>= \frac{\sigma^2_\alpha}{N}\left(2\eta \frac{\sigma^2_\kappa}{\sigma^2_\alpha}</span>
+<span id="cb3-134"><a href="#cb3-134" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>2\frac{C_{\alpha\kappa}}{\sigma^2_\alpha}\right) = 0</span>
+<span id="cb3-135"><a href="#cb3-135" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-136"><a href="#cb3-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-137"><a href="#cb3-137" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-138"><a href="#cb3-138" aria-hidden="true" tabindex="-1"></a>\implies \eta^* = -\frac{C_{\alpha\kappa}}{\sigma^2_\kappa}.</span>
+<span id="cb3-139"><a href="#cb3-139" aria-hidden="true" tabindex="-1"></a>$$ {#eq-eta-star}</span>
+<span id="cb3-140"><a href="#cb3-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-141"><a href="#cb3-141" aria-hidden="true" tabindex="-1"></a>Because both $\hat{\mu}_\alpha$ and $\hat{\mu}_\kappa$ are computed from the same $N$ samples,</span>
+<span id="cb3-142"><a href="#cb3-142" aria-hidden="true" tabindex="-1"></a>$\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa) = C_{\alpha\kappa}/N$ and</span>
+<span id="cb3-143"><a href="#cb3-143" aria-hidden="true" tabindex="-1"></a>$\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\kappa</span><span class="co">]</span> = \sigma^2_\kappa/N$, so @eq-eta-star also equals</span>
+<span id="cb3-144"><a href="#cb3-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-145"><a href="#cb3-145" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-146"><a href="#cb3-146" aria-hidden="true" tabindex="-1"></a>\eta^* = -\frac{\mathrm{Cov}(\hat{\mu}_\alpha, \hat{\mu}_\kappa)}{\mathbb{V}[\hat{\mu}_\kappa]}.</span>
+<span id="cb3-147"><a href="#cb3-147" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-148"><a href="#cb3-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-149"><a href="#cb3-149" aria-hidden="true" tabindex="-1"></a>This is the population regression coefficient of $\hat{\mu}_\alpha$ on $\hat{\mu}_\kappa$</span>
+<span id="cb3-150"><a href="#cb3-150" aria-hidden="true" tabindex="-1"></a>--- the CVMC correction is a regression adjustment.</span>
+<span id="cb3-151"><a href="#cb3-151" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-152"><a href="#cb3-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-153"><a href="#cb3-153" aria-hidden="true" tabindex="-1"></a><span class="fu">## Minimum Variance and Variance Reduction Factor</span></span>
+<span id="cb3-154"><a href="#cb3-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-155"><a href="#cb3-155" aria-hidden="true" tabindex="-1"></a>Substituting $\eta^*$ into @eq-cv-variance-factored:</span>
+<span id="cb3-156"><a href="#cb3-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-157"><a href="#cb3-157" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-158"><a href="#cb3-158" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span>\bigg|_{\eta=\eta^*}</span>
+<span id="cb3-159"><a href="#cb3-159" aria-hidden="true" tabindex="-1"></a>= \frac{\sigma^2_\alpha}{N}\left(</span>
+<span id="cb3-160"><a href="#cb3-160" aria-hidden="true" tabindex="-1"></a>  1</span>
+<span id="cb3-161"><a href="#cb3-161" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>\frac{C_{\alpha\kappa}^2}{\sigma^2_\kappa \sigma^2_\alpha}</span>
+<span id="cb3-162"><a href="#cb3-162" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>2\frac{C_{\alpha\kappa}^2}{\sigma^2_\kappa \sigma^2_\alpha}</span>
+<span id="cb3-163"><a href="#cb3-163" aria-hidden="true" tabindex="-1"></a>\right)</span>
+<span id="cb3-164"><a href="#cb3-164" aria-hidden="true" tabindex="-1"></a>= \frac{\sigma^2_\alpha}{N}\left(1 - \frac{C_{\alpha\kappa}^2}{\sigma^2_\alpha \sigma^2_\kappa}\right).</span>
+<span id="cb3-165"><a href="#cb3-165" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-166"><a href="#cb3-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-167"><a href="#cb3-167" aria-hidden="true" tabindex="-1"></a>Recognizing $C_{\alpha\kappa}^2 / (\sigma^2_\alpha \sigma^2_\kappa) = \rho^2_{\alpha\kappa}$:</span>
+<span id="cb3-168"><a href="#cb3-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-169"><a href="#cb3-169" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-170"><a href="#cb3-170" aria-hidden="true" tabindex="-1"></a>\boxed{</span>
+<span id="cb3-171"><a href="#cb3-171" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\hat{\mu}_\alpha^{\text{CV}}\right</span><span class="co">]</span></span>
+<span id="cb3-172"><a href="#cb3-172" aria-hidden="true" tabindex="-1"></a>= \frac{\sigma^2_\alpha}{N}\left(1 - \rho^2_{\alpha\kappa}\right)</span>
+<span id="cb3-173"><a href="#cb3-173" aria-hidden="true" tabindex="-1"></a>= \mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_\alpha</span><span class="co">]</span>\left(1 - \rho^2_{\alpha\kappa}\right).</span>
+<span id="cb3-174"><a href="#cb3-174" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-175"><a href="#cb3-175" aria-hidden="true" tabindex="-1"></a>$$ {#eq-variance-reduction}</span>
+<span id="cb3-176"><a href="#cb3-176" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-177"><a href="#cb3-177" aria-hidden="true" tabindex="-1"></a>The **variance reduction factor** $\gamma = 1 - \rho^2_{\alpha\kappa}$ depends only on the</span>
+<span id="cb3-178"><a href="#cb3-178" aria-hidden="true" tabindex="-1"></a>correlation between models, not on sample size or the individual model variances.</span>
+<span id="cb3-179"><a href="#cb3-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-180"><a href="#cb3-180" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb3-181"><a href="#cb3-181" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sign of $\eta^*$</span></span>
+<span id="cb3-182"><a href="#cb3-182" aria-hidden="true" tabindex="-1"></a>When $C_{\alpha\kappa} &gt; 0$ (positively correlated models), $\eta^* &lt; 0$. Positive MC errors</span>
+<span id="cb3-183"><a href="#cb3-183" aria-hidden="true" tabindex="-1"></a>in $\hat{\mu}_\alpha$ tend to coincide with positive MC errors in $\hat{\mu}_\kappa$, so</span>
+<span id="cb3-184"><a href="#cb3-184" aria-hidden="true" tabindex="-1"></a>subtracting a scaled version of the latter cancels part of the former.</span>
+<span id="cb3-185"><a href="#cb3-185" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb3-186"><a href="#cb3-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-187"><a href="#cb3-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-188"><a href="#cb3-188" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
+<span id="cb3-189"><a href="#cb3-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-190"><a href="#cb3-190" aria-hidden="true" tabindex="-1"></a>We verify @eq-variance-reduction using a tunable two-model ensemble where the correlation</span>
+<span id="cb3-191"><a href="#cb3-191" aria-hidden="true" tabindex="-1"></a>$\rho_{\alpha\kappa}$ is controlled by a single parameter $\theta_1$.</span>
+<span id="cb3-192"><a href="#cb3-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-195"><a href="#cb3-195" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb3-196"><a href="#cb3-196" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-197"><a href="#cb3-197" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb3-198"><a href="#cb3-198" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb3-199"><a href="#cb3-199" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.tunable_ensemble <span class="im">import</span> (</span>
+<span id="cb3-200"><a href="#cb3-200" aria-hidden="true" tabindex="-1"></a>    tunable_ensemble_3model,</span>
+<span id="cb3-201"><a href="#cb3-201" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-202"><a href="#cb3-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-203"><a href="#cb3-203" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb3-204"><a href="#cb3-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-205"><a href="#cb3-205" aria-hidden="true" tabindex="-1"></a><span class="co"># Correlation is controlled by theta1: theta1 = pi/2 gives rho ~ 0,</span></span>
+<span id="cb3-206"><a href="#cb3-206" aria-hidden="true" tabindex="-1"></a><span class="co"># theta1 -&gt; 0 gives rho -&gt; 1.</span></span>
+<span id="cb3-207"><a href="#cb3-207" aria-hidden="true" tabindex="-1"></a>theta1_values <span class="op">=</span> np.linspace(<span class="fl">0.05</span>, np.pi <span class="op">/</span> <span class="dv">2</span> <span class="op">*</span> <span class="fl">0.99</span>, <span class="dv">10</span>)</span>
+<span id="cb3-208"><a href="#cb3-208" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb3-209"><a href="#cb3-209" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">2000</span></span>
+<span id="cb3-210"><a href="#cb3-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-211"><a href="#cb3-211" aria-hidden="true" tabindex="-1"></a>empirical_reductions <span class="op">=</span> []</span>
+<span id="cb3-212"><a href="#cb3-212" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> []</span>
+<span id="cb3-213"><a href="#cb3-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-214"><a href="#cb3-214" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> theta1 <span class="kw">in</span> theta1_values:</span>
+<span id="cb3-215"><a href="#cb3-215" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb3-216"><a href="#cb3-216" aria-hidden="true" tabindex="-1"></a>    bm <span class="op">=</span> tunable_ensemble_3model(bkd, theta1<span class="op">=</span>theta1)</span>
+<span id="cb3-217"><a href="#cb3-217" aria-hidden="true" tabindex="-1"></a>    hf_model <span class="op">=</span> bm.models()[<span class="dv">0</span>]</span>
+<span id="cb3-218"><a href="#cb3-218" aria-hidden="true" tabindex="-1"></a>    lf_model <span class="op">=</span> bm.models()[<span class="dv">1</span>]</span>
+<span id="cb3-219"><a href="#cb3-219" aria-hidden="true" tabindex="-1"></a>    variable <span class="op">=</span> bm.prior()</span>
+<span id="cb3-220"><a href="#cb3-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-221"><a href="#cb3-221" aria-hidden="true" tabindex="-1"></a>    cov_mat <span class="op">=</span> bkd.to_numpy(bm.ensemble_covariance()[:<span class="dv">2</span>, :<span class="dv">2</span>])</span>
+<span id="cb3-222"><a href="#cb3-222" aria-hidden="true" tabindex="-1"></a>    rho <span class="op">=</span> cov_mat[<span class="dv">0</span>, <span class="dv">1</span>] <span class="op">/</span> np.sqrt(cov_mat[<span class="dv">0</span>, <span class="dv">0</span>] <span class="op">*</span> cov_mat[<span class="dv">1</span>, <span class="dv">1</span>])</span>
+<span id="cb3-223"><a href="#cb3-223" aria-hidden="true" tabindex="-1"></a>    eta_opt <span class="op">=</span> <span class="op">-</span>cov_mat[<span class="dv">0</span>, <span class="dv">1</span>] <span class="op">/</span> cov_mat[<span class="dv">1</span>, <span class="dv">1</span>]</span>
+<span id="cb3-224"><a href="#cb3-224" aria-hidden="true" tabindex="-1"></a>    mu_kappa <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(bm.ensemble_means())[<span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb3-225"><a href="#cb3-225" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-226"><a href="#cb3-226" aria-hidden="true" tabindex="-1"></a>    mc_vars <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb3-227"><a href="#cb3-227" aria-hidden="true" tabindex="-1"></a>    cv_vars <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb3-228"><a href="#cb3-228" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb3-229"><a href="#cb3-229" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb3-230"><a href="#cb3-230" aria-hidden="true" tabindex="-1"></a>        samples <span class="op">=</span> variable.rvs(N)</span>
+<span id="cb3-231"><a href="#cb3-231" aria-hidden="true" tabindex="-1"></a>        v_alpha <span class="op">=</span> bkd.to_numpy(hf_model(samples)).ravel()</span>
+<span id="cb3-232"><a href="#cb3-232" aria-hidden="true" tabindex="-1"></a>        v_kappa <span class="op">=</span> bkd.to_numpy(lf_model(samples)).ravel()</span>
+<span id="cb3-233"><a href="#cb3-233" aria-hidden="true" tabindex="-1"></a>        mc_vars[i] <span class="op">=</span> v_alpha.mean()</span>
+<span id="cb3-234"><a href="#cb3-234" aria-hidden="true" tabindex="-1"></a>        cv_vars[i] <span class="op">=</span> v_alpha.mean() <span class="op">+</span> eta_opt <span class="op">*</span> (v_kappa.mean() <span class="op">-</span> mu_kappa)</span>
+<span id="cb3-235"><a href="#cb3-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-236"><a href="#cb3-236" aria-hidden="true" tabindex="-1"></a>    empirical_reductions.append(np.var(cv_vars) <span class="op">/</span> np.var(mc_vars))</span>
+<span id="cb3-237"><a href="#cb3-237" aria-hidden="true" tabindex="-1"></a>    theoretical_reductions.append(<span class="dv">1</span> <span class="op">-</span> rho<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb3-238"><a href="#cb3-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-239"><a href="#cb3-239" aria-hidden="true" tabindex="-1"></a>empirical_reductions <span class="op">=</span> np.array(empirical_reductions)</span>
+<span id="cb3-240"><a href="#cb3-240" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> np.array(theoretical_reductions)</span>
+<span id="cb3-241"><a href="#cb3-241" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb3-242"><a href="#cb3-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-245"><a href="#cb3-245" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb3-246"><a href="#cb3-246" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Empirical variance reduction (dots) versus the theoretical prediction $1 - \\rho^2$ (line) across a range of model correlations. The agreement confirms @eq-variance-reduction."</span></span>
+<span id="cb3-247"><a href="#cb3-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-verification</span></span>
+<span id="cb3-248"><a href="#cb3-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
+<span id="cb3-250"><a href="#cb3-250" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-251"><a href="#cb3-251" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover rho values for x-axis</span></span>
+<span id="cb3-252"><a href="#cb3-252" aria-hidden="true" tabindex="-1"></a>rho_vals <span class="op">=</span> np.sqrt(<span class="dv">1</span> <span class="op">-</span> theoretical_reductions)</span>
+<span id="cb3-253"><a href="#cb3-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-254"><a href="#cb3-254" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb3-255"><a href="#cb3-255" aria-hidden="true" tabindex="-1"></a>plot_cv_verification(rho_vals, theoretical_reductions, empirical_reductions,</span>
+<span id="cb3-256"><a href="#cb3-256" aria-hidden="true" tabindex="-1"></a>                     n_trials, N, ax)</span>
+<span id="cb3-257"><a href="#cb3-257" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb3-258"><a href="#cb3-258" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb3-259"><a href="#cb3-259" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb3-260"><a href="#cb3-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-261"><a href="#cb3-261" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-262"><a href="#cb3-262" aria-hidden="true" tabindex="-1"></a><span class="fu">## Discussion</span></span>
+<span id="cb3-263"><a href="#cb3-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-264"><a href="#cb3-264" aria-hidden="true" tabindex="-1"></a><span class="fu">### The role of $\eta^*$ versus an estimated $\hat{\eta}$</span></span>
+<span id="cb3-265"><a href="#cb3-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-266"><a href="#cb3-266" aria-hidden="true" tabindex="-1"></a>In practice, the population moments $C_{\alpha\kappa}$ and $\sigma^2_\kappa$ are unknown and</span>
+<span id="cb3-267"><a href="#cb3-267" aria-hidden="true" tabindex="-1"></a>$\eta^*$ must be estimated from samples. Using a sample-based $\hat{\eta}$ introduces a</span>
+<span id="cb3-268"><a href="#cb3-268" aria-hidden="true" tabindex="-1"></a>small bias and slightly inflates the variance, but the effect vanishes as $N \to \infty$.</span>
+<span id="cb3-269"><a href="#cb3-269" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">API Cookbook</span><span class="co">](multifidelity_estimation_cookbook.qmd#estimator-quick-reference)</span> covers how PyApprox handles</span>
+<span id="cb3-270"><a href="#cb3-270" aria-hidden="true" tabindex="-1"></a>this in the API.</span>
+<span id="cb3-271"><a href="#cb3-271" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-272"><a href="#cb3-272" aria-hidden="true" tabindex="-1"></a><span class="fu">### Extension to other statistics</span></span>
+<span id="cb3-273"><a href="#cb3-273" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-274"><a href="#cb3-274" aria-hidden="true" tabindex="-1"></a>The derivation above treats the mean estimator. For variance estimation, the optimal $\eta^*$</span>
+<span id="cb3-275"><a href="#cb3-275" aria-hidden="true" tabindex="-1"></a>and the resulting variance reduction ratio depend not just on $\rho_{\alpha\kappa}$ but also</span>
+<span id="cb3-276"><a href="#cb3-276" aria-hidden="true" tabindex="-1"></a>on higher-order cross-moments of $f_\alpha$ and $f_\kappa$. The same general structure ---</span>
+<span id="cb3-277"><a href="#cb3-277" aria-hidden="true" tabindex="-1"></a>unbiasedness for free, optimality by differentiating a quadratic --- applies, but the algebra</span>
+<span id="cb3-278"><a href="#cb3-278" aria-hidden="true" tabindex="-1"></a>is more involved. See <span class="co">[</span><span class="ot">ACV Covariances</span><span class="co">](acv_many_models_analysis.qmd#sec-covariance-formulas)</span> for the general formulas.</span>
+<span id="cb3-279"><a href="#cb3-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-280"><a href="#cb3-280" aria-hidden="true" tabindex="-1"></a><span class="fu">### Connection to regression</span></span>
+<span id="cb3-281"><a href="#cb3-281" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-282"><a href="#cb3-282" aria-hidden="true" tabindex="-1"></a>The CVMC correction $\eta^*(\hat{\mu}_\kappa - \mu_\kappa)$ is exactly the least-squares</span>
+<span id="cb3-283"><a href="#cb3-283" aria-hidden="true" tabindex="-1"></a>regression of the MC error $\hat{\mu}_\alpha - \mu_\alpha$ onto $\hat{\mu}_\kappa - \mu_\kappa$.</span>
+<span id="cb3-284"><a href="#cb3-284" aria-hidden="true" tabindex="-1"></a>This geometric view generalizes naturally to multiple low-fidelity models (see</span>
+<span id="cb3-285"><a href="#cb3-285" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV</span><span class="co">](acv_many_models_concept.qmd)</span>), where $\eta^*$ becomes a vector and the</span>
+<span id="cb3-286"><a href="#cb3-286" aria-hidden="true" tabindex="-1"></a>variance reduction is $1 - \mathbf{R}^2$, the $R^2$ of the multivariate regression.</span>
+<span id="cb3-287"><a href="#cb3-287" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-288"><a href="#cb3-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-289"><a href="#cb3-289" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb3-290"><a href="#cb3-290" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-291"><a href="#cb3-291" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>CVMC is **unbiased** for any $\eta$; we choose $\eta$ only to minimize variance</span>
+<span id="cb3-292"><a href="#cb3-292" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The optimal weight is $\eta^* = -C_{\alpha\kappa} / \sigma^2_\kappa$, the population</span>
+<span id="cb3-293"><a href="#cb3-293" aria-hidden="true" tabindex="-1"></a>  regression coefficient</span>
+<span id="cb3-294"><a href="#cb3-294" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The minimum variance reduction factor is $1 - \rho^2_{\alpha\kappa}$, depending only</span>
+<span id="cb3-295"><a href="#cb3-295" aria-hidden="true" tabindex="-1"></a>  on model correlation</span>
+<span id="cb3-296"><a href="#cb3-296" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The derivation generalizes to other statistics and to multiple low-fidelity models</span>
+<span id="cb3-297"><a href="#cb3-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-298"><a href="#cb3-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-299"><a href="#cb3-299" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb3-300"><a href="#cb3-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-301"><a href="#cb3-301" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Starting from @eq-cv-variance-eta, verify algebraically that substituting $\eta^*$ from</span>
+<span id="cb3-302"><a href="#cb3-302" aria-hidden="true" tabindex="-1"></a>   @eq-eta-star yields @eq-variance-reduction.</span>
+<span id="cb3-303"><a href="#cb3-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-304"><a href="#cb3-304" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Show that when $\eta = 0$ the CVMC estimator reduces to plain MC and</span>
+<span id="cb3-305"><a href="#cb3-305" aria-hidden="true" tabindex="-1"></a>   $\gamma = 1$. Show that $\gamma &lt; 1$ for all $\eta \neq 0$ and all $\rho \neq 0$.</span>
+<span id="cb3-306"><a href="#cb3-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-307"><a href="#cb3-307" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Suppose you use the sample covariance $\hat{C}_{\alpha\kappa}$ in place of the true</span>
+<span id="cb3-308"><a href="#cb3-308" aria-hidden="true" tabindex="-1"></a>   $C_{\alpha\kappa}$ to compute $\hat{\eta}$. Is the resulting estimator still unbiased?</span>
+<span id="cb3-309"><a href="#cb3-309" aria-hidden="true" tabindex="-1"></a>   *(Hint: $\hat{\eta}$ is now a function of the same samples used in $\hat{\mu}_\alpha$</span>
+<span id="cb3-310"><a href="#cb3-310" aria-hidden="true" tabindex="-1"></a>   and $\hat{\mu}_\kappa$.)*</span>
+<span id="cb3-311"><a href="#cb3-311" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-312"><a href="#cb3-312" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Extend the variance derivation to the case of two control variates</span>
+<span id="cb3-313"><a href="#cb3-313" aria-hidden="true" tabindex="-1"></a>   $f_{\kappa_1}$ and $f_{\kappa_2}$ with weights $\eta_1$ and $\eta_2$. Write the</span>
+<span id="cb3-314"><a href="#cb3-314" aria-hidden="true" tabindex="-1"></a>   optimal weights in matrix form and identify the resulting variance reduction.</span>
+<span id="cb3-315"><a href="#cb3-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-316"><a href="#cb3-316" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-317"><a href="#cb3-317" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb3-318"><a href="#cb3-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-319"><a href="#cb3-319" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">LMWOR1982</span><span class="co">]</span> S.S. Lavenberg, T.L. Moeller, P.D. Welch. *Statistical results on control</span>
+<span id="cb3-320"><a href="#cb3-320" aria-hidden="true" tabindex="-1"></a>  variables with application to queueing network simulation.* Operations Research, 30(1):182--202,</span>
+<span id="cb3-321"><a href="#cb3-321" aria-hidden="true" tabindex="-1"></a><span class="ss">  1982. </span><span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1287/opre.30.1.182)</span></span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

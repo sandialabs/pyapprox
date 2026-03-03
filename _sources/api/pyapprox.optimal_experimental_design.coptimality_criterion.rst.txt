@@ -1,6 +1,0 @@
-coptimality_criterion
-=====================
-
-.. currentmodule:: pyapprox.optimal_experimental_design
-
-.. autofunction:: coptimality_criterion

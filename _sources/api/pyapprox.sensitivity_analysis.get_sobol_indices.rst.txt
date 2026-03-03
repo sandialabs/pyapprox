@@ -1,6 +1,0 @@
-get_sobol_indices
-=================
-
-.. currentmodule:: pyapprox.sensitivity_analysis
-
-.. autofunction:: get_sobol_indices

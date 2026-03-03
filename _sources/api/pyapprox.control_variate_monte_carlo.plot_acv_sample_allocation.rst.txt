@@ -1,6 +1,0 @@
-plot_acv_sample_allocation
-==========================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: plot_acv_sample_allocation

@@ -1,6 +1,0 @@
-standardize_sample_ratios
-=========================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: standardize_sample_ratios

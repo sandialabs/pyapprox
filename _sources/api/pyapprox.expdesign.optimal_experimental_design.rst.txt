@@ -1,6 +1,0 @@
-optimal_experimental_design
-===========================
-
-.. currentmodule:: pyapprox.expdesign
-
-.. autofunction:: optimal_experimental_design

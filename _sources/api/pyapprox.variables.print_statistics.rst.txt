@@ -1,6 +1,0 @@
-print_statistics
-================
-
-.. currentmodule:: pyapprox.variables
-
-.. autofunction:: print_statistics

@@ -1,6 +1,0 @@
-setup_dirichlet_and_periodic_boundary_conditions_and_function_space
-===================================================================
-
-.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
-
-.. autofunction:: setup_dirichlet_and_periodic_boundary_conditions_and_function_space

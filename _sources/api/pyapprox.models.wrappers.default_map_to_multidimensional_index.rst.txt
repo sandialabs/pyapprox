@@ -1,6 +1,0 @@
-default_map_to_multidimensional_index
-=====================================
-
-.. currentmodule:: pyapprox.models.wrappers
-
-.. autofunction:: default_map_to_multidimensional_index

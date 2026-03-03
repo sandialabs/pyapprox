@@ -1,6 +1,0 @@
-restrict_basis
-==============
-
-.. currentmodule:: pyapprox.approximate
-
-.. autofunction:: restrict_basis

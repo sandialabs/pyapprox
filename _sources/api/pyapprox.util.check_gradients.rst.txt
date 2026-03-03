@@ -1,6 +1,0 @@
-check_gradients
-===============
-
-.. currentmodule:: pyapprox.util
-
-.. autofunction:: check_gradients

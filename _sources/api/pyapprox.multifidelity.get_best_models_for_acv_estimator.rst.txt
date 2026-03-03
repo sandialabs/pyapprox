@@ -1,6 +1,0 @@
-get_best_models_for_acv_estimator
-=================================
-
-.. currentmodule:: pyapprox.multifidelity
-
-.. autofunction:: get_best_models_for_acv_estimator

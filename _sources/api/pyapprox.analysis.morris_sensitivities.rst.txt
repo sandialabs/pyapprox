@@ -1,6 +1,0 @@
-morris_sensitivities
-====================
-
-.. currentmodule:: pyapprox.analysis
-
-.. autofunction:: morris_sensitivities

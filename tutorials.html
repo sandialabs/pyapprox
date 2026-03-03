@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
+
+<title>PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides – PyApprox</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+
+<meta property="og:title" content="PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides">
+<meta property="og:description" content="Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
+<meta property="og:site_name" content="PyApprox">
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="./tutorials.html" aria-current="page"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul class="collapse">
+  <li><a href="#start-here" id="toc-start-here" class="nav-link active" data-scroll-target="#start-here">Start Here</a></li>
+  <li><a href="#forward-uq" id="toc-forward-uq" class="nav-link" data-scroll-target="#forward-uq">Forward UQ</a></li>
+  <li><a href="#multifidelity-estimation" id="toc-multifidelity-estimation" class="nav-link" data-scroll-target="#multifidelity-estimation">Multifidelity Estimation</a></li>
+  <li><a href="#inverse-uq" id="toc-inverse-uq" class="nav-link" data-scroll-target="#inverse-uq">Inverse UQ</a></li>
+  <li><a href="#experimental-design" id="toc-experimental-design" class="nav-link" data-scroll-target="#experimental-design">Experimental Design</a></li>
+  <li><a href="#approximation-theory" id="toc-approximation-theory" class="nav-link" data-scroll-target="#approximation-theory">Approximation Theory</a></li>
+  <li><a href="#surrogate-modeling" id="toc-surrogate-modeling" class="nav-link" data-scroll-target="#surrogate-modeling">Surrogate Modeling</a></li>
+  <li><a href="#sensitivity-analysis" id="toc-sensitivity-analysis" class="nav-link" data-scroll-target="#sensitivity-analysis">Sensitivity Analysis</a></li>
+  <li><a href="#random-fields" id="toc-random-fields" class="nav-link" data-scroll-target="#random-fields">Random Fields</a></li>
+  <li><a href="#optimization-under-uncertainty" id="toc-optimization-under-uncertainty" class="nav-link" data-scroll-target="#optimization-under-uncertainty">Optimization Under Uncertainty</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Tutorials</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+</div>
+
+<div>
+  <div class="description">
+    Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="tutorials-header">
+<p><span class="tutorials-title-text">Tutorial Library</span></p>
+<p><span class="tutorials-subtitle">80+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span></p>
+</div>
+<section id="start-here" class="level2 mt-4">
+<h2 class="mt-4 anchored" data-anchor-id="start-here">Start Here</h2>
+<p>New to PyApprox? Follow this learning path:</p>
+<div class="grid">
+<div class="g-col-12 g-col-md-6 g-col-lg-3">
+<div class="start-card">
+<p><span class="step-number">1</span></p>
+<p><span class="step-title">Setup</span></p>
+<p><a href="./setup_environment.html">Install and verify your environment</a></p>
+</div>
+</div>
+<div class="g-col-12 g-col-md-6 g-col-lg-3">
+<div class="start-card">
+<p><span class="step-number">2</span></p>
+<p><span class="step-title">Why UQ?</span></p>
+<p><a href="./models_decisions_uncertainty.html">From models to decisions under uncertainty</a></p>
+</div>
+</div>
+<div class="g-col-12 g-col-md-6 g-col-lg-3">
+<div class="start-card">
+<p><span class="step-number">3</span></p>
+<p><span class="step-title">Forward UQ</span></p>
+<p><a href="./forward_uq.html">Propagate uncertainty through a model</a></p>
+</div>
+</div>
+<div class="g-col-12 g-col-md-6 g-col-lg-3">
+<div class="start-card">
+<p><span class="step-number">4</span></p>
+<p><span class="step-title">Pick a Topic</span></p>
+<p>Choose a topic below that matches your application</p>
+</div>
+</div>
+</div>
+<hr>
+<div class="colab-banner">
+<div class="colab-inner">
+<div class="colab-header">
+<p><span class="colab-title">Run Tutorials in Google Colab</span></p>
+<p><span class="colab-subtitle">Every tutorial is available as a Jupyter notebook — download, upload, and run in three steps.</span></p>
+</div>
+<div class="colab-steps">
+<div class="colab-step">
+<p><span class="colab-step-num">1</span></p>
+<p><span class="colab-step-title">Download</span></p>
+<p>Download any <code>.ipynb</code> from the <a href="notebooks/">notebooks folder</a></p>
+</div>
+<div class="colab-step">
+<p><span class="colab-step-num">2</span></p>
+<p><span class="colab-step-title">Upload</span></p>
+<p>Open <a href="https://colab.research.google.com">Google Colab</a> and upload the notebook (File → Upload)</p>
+</div>
+<div class="colab-step">
+<p><span class="colab-step-num">3</span></p>
+<p><span class="colab-step-title">Run</span></p>
+<p>Run the first cell to install PyApprox, then run all remaining cells</p>
+</div>
+</div>
+<div class="colab-links">
+<p><a href="https://colab.research.google.com" class="colab-link">Google Colab</a> <a href="https://sandialabs.github.io/pyapprox/" class="colab-link">PyApprox Docs</a> <a href="https://github.com/sandialabs/pyapprox" class="colab-link">GitHub Repository</a></p>
+</div>
+</div>
+</div>
+<hr>
+</section>
+<section id="forward-uq" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="forward-uq">Forward UQ</h2>
+<p><span class="section-desc">Propagate input uncertainty through computational models to characterize output variability.</span></p>
+<div class="tutorial-card">
+<p><a href="./forward_uq.html" class="tutorial-title"><strong>Forward Uncertainty Quantification</strong></a> <span class="tutorial-desc">The forward UQ problem: propagating input uncertainty through a model to characterize output uncertainty</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./random_variables_distributions.html" class="tutorial-title"><strong>Random Variables and Distributions</strong></a> <span class="tutorial-desc">Specifying parameter uncertainty with independent and copula-based distributions</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./monte_carlo_sampling.html" class="tutorial-title"><strong>Monte Carlo Sampling</strong></a> <span class="tutorial-desc">Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./estimator_accuracy_mse.html" class="tutorial-title"><strong>Estimator Accuracy and MSE</strong></a> <span class="tutorial-desc">Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mc_budget_estimation.html" class="tutorial-title"><strong>Monte Carlo Budget Estimation</strong></a> <span class="tutorial-desc">Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+<section id="multifidelity-estimation" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="multifidelity-estimation">Multifidelity Estimation</h2>
+<p><span class="section-desc">Reduce computational cost by combining multiple model fidelities with optimal sample allocation.</span></p>
+<div class="tutorial-card">
+<p><a href="./control_variate_concept.html" class="tutorial-title"><strong>Control Variate Monte Carlo</strong></a> <span class="tutorial-desc">Reducing MC estimator variance using a correlated low-fidelity model with a known statistic</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./control_variate_analysis.html" class="tutorial-title"><strong>Control Variate Analysis</strong></a> <span class="tutorial-desc">Deriving the optimal control variate weight, variance reduction formula, and unbiasedness</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./acv_concept.html" class="tutorial-title"><strong>ACV Concept</strong></a> <span class="tutorial-desc">Approximate control variates: extending CVMC to multiple low-fidelity models without known statistics</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./acv_many_models_concept.html" class="tutorial-title"><strong>General ACV Concept</strong></a> <span class="tutorial-desc">How using all LF models as direct control variates breaks the CV-1 variance ceiling</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./acv_many_models_analysis.html" class="tutorial-title"><strong>General ACV Analysis</strong></a> <span class="tutorial-desc">Deriving the optimal weight matrix, minimum covariance, allocation matrices, and covariance formulas for all ACV estimators</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mfmc_concept.html" class="tutorial-title"><strong>MFMC Concept</strong></a> <span class="tutorial-desc">Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mfmc_analysis.html" class="tutorial-title"><strong>MFMC Analysis</strong></a> <span class="tutorial-desc">Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mlmc_concept.html" class="tutorial-title"><strong>Multi-Level Monte Carlo</strong></a> <span class="tutorial-desc">Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mlmc_analysis.html" class="tutorial-title"><strong>MLMC Analysis</strong></a> <span class="tutorial-desc">Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multioutput_acv_concept.html" class="tutorial-title"><strong>Multi-Output ACV Concept</strong></a> <span class="tutorial-desc">Why estimating several QoIs jointly with multi-fidelity corrections improves each individual estimate</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multioutput_acv_analysis.html" class="tutorial-title"><strong>Multi-Output ACV Analysis</strong></a> <span class="tutorial-desc">Deriving the MOACV optimal weight matrix and the condition under which joint estimation beats independent scalar ACVs</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./pacv_concept.html" class="tutorial-title"><strong>PACV Concept</strong></a> <span class="tutorial-desc">How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./pacv_analysis.html" class="tutorial-title"><strong>PACV Analysis</strong></a> <span class="tutorial-desc">Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mlblue_concept.html" class="tutorial-title"><strong>MLBLUE Concept</strong></a> <span class="tutorial-desc">The multi-level best linear unbiased estimator: optimal weights from a single linear system</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mlblue_analysis.html" class="tutorial-title"><strong>MLBLUE Analysis</strong></a> <span class="tutorial-desc">Deriving the MLBLUE weight matrix, variance bound, and comparison with ACV families</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./pilot_studies_concept.html" class="tutorial-title"><strong>Pilot Studies Concept</strong></a> <span class="tutorial-desc">Using small pilot samples to estimate the covariance structure needed by multi-fidelity estimators</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./pilot_studies_analysis.html" class="tutorial-title"><strong>Pilot Studies Analysis</strong></a> <span class="tutorial-desc">Analyzing pilot study accuracy and its effect on downstream estimator performance</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./ensemble_selection_concept.html" class="tutorial-title"><strong>Ensemble Selection Concept</strong></a> <span class="tutorial-desc">Choosing which subset of available models to include in a multi-fidelity estimator</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multifidelity_estimation_cookbook.html" class="tutorial-title"><strong>API Cookbook</strong></a> <span class="tutorial-desc">Unified API cookbook: one-stop reference for all multi-fidelity estimators</span> <span class="badge-cookbook">Cookbook</span></p>
+</div>
+<hr>
+</section>
+<section id="inverse-uq" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="inverse-uq">Inverse UQ</h2>
+<p><span class="section-desc">Infer model parameters from data using Bayesian inference, MCMC, and variational methods.</span></p>
+<div class="tutorial-card">
+<p><a href="./bayesian_inference_intro.html" class="tutorial-title"><strong>Introduction to Bayesian Inference</strong></a> <span class="tutorial-desc">From data to parameters: updating beliefs using Bayes’ theorem</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./mcmc_sampling.html" class="tutorial-title"><strong>Sampling the Posterior with MCMC</strong></a> <span class="tutorial-desc">Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./dram_mcmc.html" class="tutorial-title"><strong>Practical MCMC: MH and DRAM</strong></a> <span class="tutorial-desc">Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./vi_intro.html" class="tutorial-title"><strong>Introduction to Variational Inference</strong></a> <span class="tutorial-desc">Approximating the posterior with optimization instead of sampling</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./vi_objective.html" class="tutorial-title"><strong>The Variational Objective</strong></a> <span class="tutorial-desc">Deriving the ELBO and understanding the KL divergence minimization</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./vi_optimization.html" class="tutorial-title"><strong>Optimizing the ELBO</strong></a> <span class="tutorial-desc">Gradient-based optimization of the evidence lower bound</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./vi_families.html" class="tutorial-title"><strong>Variational Families</strong></a> <span class="tutorial-desc">Mean-field, full-rank, and normalizing flow variational families</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./vi_amortized.html" class="tutorial-title"><strong>Amortized Variational Inference</strong></a> <span class="tutorial-desc">Learning inference networks that generalize across observations</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+<section id="experimental-design" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="experimental-design">Experimental Design</h2>
+<p><span class="section-desc">Choose optimal experiments to maximize information gain or minimize prediction uncertainty.</span></p>
+<div class="tutorial-card">
+<p><a href="./experimental_design_intro.html" class="tutorial-title"><strong>Introduction to Experimental Design</strong></a> <span class="tutorial-desc">Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain</span> <span class="badge-concept">Concept</span></p>
+</div>
+<section id="kl-based-oed" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="kl-based-oed">KL-Based OED</h3>
+<div class="tutorial-card">
+<p><a href="./boed_kl_concept.html" class="tutorial-title"><strong>OED: KL Concept</strong></a> <span class="tutorial-desc">What Expected Information Gain measures and why it is the right objective for choosing experiments</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_estimator.html" class="tutorial-title"><strong>OED: Double-Loop Estimator</strong></a> <span class="tutorial-desc">How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_gradients.html" class="tutorial-title"><strong>OED: Gradients</strong></a> <span class="tutorial-desc">The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_usage.html" class="tutorial-title"><strong>OED: Convergence</strong></a> <span class="tutorial-desc">Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_qmc.html" class="tutorial-title"><strong>OED: MC vs Halton</strong></a> <span class="tutorial-desc">Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_nonlinear_usage.html" class="tutorial-title"><strong>OED: Nonlinear Usage</strong></a> <span class="tutorial-desc">Applying EIG-based OED to a Lotka-Volterra predator-prey system</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_kl_design_stability.html" class="tutorial-title"><strong>OED: Design Stability</strong></a> <span class="tutorial-desc">Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+</section>
+<section id="goal-oriented-oed" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="goal-oriented-oed">Goal-Oriented OED</h3>
+<div class="tutorial-card">
+<p><a href="./boed_pred_concept.html" class="tutorial-title"><strong>Goal-Oriented OED: Concept</strong></a> <span class="tutorial-desc">Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_pred_gaussian_analysis.html" class="tutorial-title"><strong>Goal-Oriented OED: Gaussian Analysis</strong></a> <span class="tutorial-desc">Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_pred_lognormal_analysis.html" class="tutorial-title"><strong>Goal-Oriented OED: Log-Normal Analysis</strong></a> <span class="tutorial-desc">Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_pred_usage.html" class="tutorial-title"><strong>Goal-Oriented OED: Convergence</strong></a> <span class="tutorial-desc">Verifying numerical risk-aware utility estimates converge to analytical values with MC vs.&nbsp;Halton</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./boed_pred_nonlinear_usage.html" class="tutorial-title"><strong>Goal-Oriented OED: Nonlinear Usage</strong></a> <span class="tutorial-desc">Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+</section>
+<section id="oed-workflows" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="oed-workflows">OED Workflows</h3>
+<div class="tutorial-card">
+<p><a href="./boed_data_workflow_usage.html" class="tutorial-title"><strong>OED Data Workflow</strong></a> <span class="tutorial-desc">Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+</section>
+<section id="approximation-theory" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="approximation-theory">Approximation Theory</h2>
+<p><span class="section-desc">Mathematical foundations for interpolation, quadrature, and polynomial approximation.</span></p>
+<div class="tutorial-card">
+<p><a href="./lagrange_interpolation.html" class="tutorial-title"><strong>Lagrange Interpolation</strong></a> <span class="tutorial-desc">Lagrange basis polynomials, Runge phenomenon, and optimal node placement</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./piecewise_interpolation.html" class="tutorial-title"><strong>Piecewise Interpolation</strong></a> <span class="tutorial-desc">Local basis functions for smooth and discontinuous functions</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./tensor_product_interpolation.html" class="tutorial-title"><strong>Tensor Product Interpolation</strong></a> <span class="tutorial-desc">Multivariate approximation via Cartesian products of 1D bases</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./gauss_quadrature.html" class="tutorial-title"><strong>Gauss Quadrature</strong></a> <span class="tutorial-desc">Optimal nodes from orthogonal polynomials with exponential convergence</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./piecewise_quadrature.html" class="tutorial-title"><strong>Piecewise Polynomial Quadrature</strong></a> <span class="tutorial-desc">Rectangle, trapezoid, and Simpson’s rules with error derivations</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./leja_sequences.html" class="tutorial-title"><strong>Leja Sequences</strong></a> <span class="tutorial-desc">Nested points for adaptive interpolation via greedy determinant maximisation</span> <span class="badge-concept">Concept</span></p>
+</div>
+<hr>
+</section>
+<section id="surrogate-modeling" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="surrogate-modeling">Surrogate Modeling</h2>
+<p><span class="section-desc">Build fast approximations of expensive models using polynomials, sparse grids, and Gaussian processes.</span></p>
+<section id="polynomial-chaos" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="polynomial-chaos">Polynomial Chaos</h3>
+<div class="tutorial-card">
+<p><a href="./polynomial_chaos_surrogates.html" class="tutorial-title"><strong>Building a Polynomial Chaos Surrogate</strong></a> <span class="tutorial-desc">Approximate an expensive model with a polynomial chaos expansion</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./practical_pce_fitting.html" class="tutorial-title"><strong>Overfitting and Cross-Validation</strong></a> <span class="tutorial-desc">Choose the polynomial degree using LOO cross-validation</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./sparse_pce_fitting.html" class="tutorial-title"><strong>Sparse Polynomial Approximation</strong></a> <span class="tutorial-desc">OMP and BPDN/LASSO for high-dimensional polynomial chaos</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./uq_with_pce.html" class="tutorial-title"><strong>UQ with Polynomial Chaos</strong></a> <span class="tutorial-desc">Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+</section>
+<section id="function-trains" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="function-trains">Function Trains</h3>
+<div class="tutorial-card">
+<p><a href="./function_train_surrogates.html" class="tutorial-title"><strong>Function Train Surrogates</strong></a> <span class="tutorial-desc">Build intuition for low-rank functions and the function train decomposition</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./uq_with_functiontrain.html" class="tutorial-title"><strong>UQ with Function Trains</strong></a> <span class="tutorial-desc">Extract analytical moments, marginal densities, and input marginals from a fitted function train</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+</section>
+<section id="sparse-grids" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="sparse-grids">Sparse Grids</h3>
+<div class="tutorial-card">
+<p><a href="./isotropic_sparse_grids.html" class="tutorial-title"><strong>Isotropic Sparse Grids</strong></a> <span class="tutorial-desc">Smolyak combination technique for breaking the curse of dimensionality</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./adaptive_sparse_grids.html" class="tutorial-title"><strong>Adaptive Sparse Grids</strong></a> <span class="tutorial-desc">Data-driven refinement for anisotropic functions</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multifidelity_sparse_grids.html" class="tutorial-title"><strong>Multifidelity Sparse Grids</strong></a> <span class="tutorial-desc">Multi-index collocation for model hierarchies with varying cost and accuracy</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./sparse_grid_to_pce_conversion.html" class="tutorial-title"><strong>Sparse Grid to PCE Conversion</strong></a> <span class="tutorial-desc">Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./uq_with_sparse_grids.html" class="tutorial-title"><strong>UQ with Sparse Grids</strong></a> <span class="tutorial-desc">Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+</section>
+<section id="gaussian-processes" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="gaussian-processes">Gaussian Processes</h3>
+<div class="tutorial-card">
+<p><a href="./gp_surrogate.html" class="tutorial-title"><strong>Building a GP Surrogate</strong></a> <span class="tutorial-desc">Approximate an expensive model with a Gaussian process and quantify prediction uncertainty</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./uq_with_gp.html" class="tutorial-title"><strong>UQ with Gaussian Processes</strong></a> <span class="tutorial-desc">Compute analytical moments, marginal densities, and main effects from a fitted GP</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./adaptive_gp_sampling.html" class="tutorial-title"><strong>Adaptive GP Sampling</strong></a> <span class="tutorial-desc">Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multioutput_gp.html" class="tutorial-title"><strong>Multi-Fidelity Gaussian Processes</strong></a> <span class="tutorial-desc">Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+</section>
+<section id="sensitivity-analysis" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="sensitivity-analysis">Sensitivity Analysis</h2>
+<p><span class="section-desc">Identify which uncertain inputs drive output variability using variance decomposition and screening.</span></p>
+<div class="tutorial-card">
+<p><a href="./sensitivity_analysis_concept.html" class="tutorial-title"><strong>Sensitivity Analysis Concept</strong></a> <span class="tutorial-desc">Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./sobol_sensitivity_analysis.html" class="tutorial-title"><strong>Sobol Sensitivity Analysis</strong></a> <span class="tutorial-desc">Variance-based sensitivity indices for identifying important parameters</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./pce_sensitivity.html" class="tutorial-title"><strong>PCE-Based Sensitivity</strong></a> <span class="tutorial-desc">Computing Sobol indices analytically from polynomial chaos expansion coefficients</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./gp_sensitivity.html" class="tutorial-title"><strong>GP-Based Sensitivity</strong></a> <span class="tutorial-desc">Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./morris_screening.html" class="tutorial-title"><strong>Morris Screening</strong></a> <span class="tutorial-desc">One-at-a-time elementary effects for cheap parameter screening</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./bin_based_sensitivity.html" class="tutorial-title"><strong>Bin-Based Sensitivity</strong></a> <span class="tutorial-desc">Variance-based sensitivity indices via binning estimation</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./functiontrain_sensitivity_math.html" class="tutorial-title"><strong>FT Sensitivity: Math</strong></a> <span class="tutorial-desc">Deriving Sobol indices analytically from PCE FunctionTrain structure</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./functiontrain_sensitivity.html" class="tutorial-title"><strong>FT Sensitivity: Usage</strong></a> <span class="tutorial-desc">Computing Sobol indices analytically with FunctionTrainSensitivity</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+<section id="random-fields" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="random-fields">Random Fields</h2>
+<p><span class="section-desc">Represent spatially correlated uncertainty using Karhunen-Loeve expansions.</span></p>
+<div class="tutorial-card">
+<p><a href="./kle_introduction.html" class="tutorial-title"><strong>KLE Introduction</strong></a> <span class="tutorial-desc">Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./kle_mesh_and_data_driven.html" class="tutorial-title"><strong>KLE: Mesh and Data-Driven</strong></a> <span class="tutorial-desc">Building KLE from mesh-based covariance or data-driven empirical covariance</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./kle_spde.html" class="tutorial-title"><strong>KLE: SPDE Approach</strong></a> <span class="tutorial-desc">Stochastic PDE approach to efficient random field generation</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+<section id="optimization-under-uncertainty" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="optimization-under-uncertainty">Optimization Under Uncertainty</h2>
+<p><span class="section-desc">Optimize system design when model inputs are uncertain.</span></p>
+<div class="tutorial-card">
+<p><a href="./design_under_uncertainty.html" class="tutorial-title"><strong>Design Under Uncertainty</strong></a> <span class="tutorial-desc">Optimizing system design when model inputs are uncertain</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Tutorials"</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="an">pagetitle:</span><span class="co"> "PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides"</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="an">toc:</span><span class="co"> true</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="an">toc-depth:</span><span class="co"> 2</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>::: {.tutorials-header}</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Tutorial Library</span><span class="co">]</span>{.tutorials-title-text}</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">80+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span><span class="co">]</span>{.tutorials-subtitle}</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="fu">## Start Here {.mt-4}</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>New to PyApprox? Follow this learning path:</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>::: {.grid}</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>::: {.g-col-12 .g-col-md-6 .g-col-lg-3}</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>::: {.start-card}</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">1</span><span class="co">]</span>{.step-number}</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Setup</span><span class="co">]</span>{.step-title}</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Install and verify your environment</span><span class="co">](setup_environment.qmd)</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>::: {.g-col-12 .g-col-md-6 .g-col-lg-3}</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>::: {.start-card}</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">2</span><span class="co">]</span>{.step-number}</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why UQ?</span><span class="co">]</span>{.step-title}</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">From models to decisions under uncertainty</span><span class="co">](models_decisions_uncertainty.qmd)</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>::: {.g-col-12 .g-col-md-6 .g-col-lg-3}</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>::: {.start-card}</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">3</span><span class="co">]</span>{.step-number}</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Forward UQ</span><span class="co">]</span>{.step-title}</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Propagate uncertainty through a model</span><span class="co">](forward_uq.qmd)</span></span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>::: {.g-col-12 .g-col-md-6 .g-col-lg-3}</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>::: {.start-card}</span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">4</span><span class="co">]</span>{.step-number}</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Pick a Topic</span><span class="co">]</span>{.step-title}</span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>Choose a topic below that matches your application</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>::: {.colab-banner}</span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>::: {.colab-inner}</span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>::: {.colab-header}</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Run Tutorials in Google Colab</span><span class="co">]</span>{.colab-title}</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Every tutorial is available as a Jupyter notebook — download, upload, and run in three steps.</span><span class="co">]</span>{.colab-subtitle}</span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>::: {.colab-steps}</span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>::: {.colab-step}</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">1</span><span class="co">]</span>{.colab-step-num}</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download</span><span class="co">]</span>{.colab-step-title}</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>Download any <span class="in">`.ipynb`</span> from the <span class="co">[</span><span class="ot">notebooks folder</span><span class="co">](notebooks/)</span></span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>::: {.colab-step}</span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">2</span><span class="co">]</span>{.colab-step-num}</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Upload</span><span class="co">]</span>{.colab-step-title}</span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>Open <span class="co">[</span><span class="ot">Google Colab</span><span class="co">](https://colab.research.google.com)</span> and upload the notebook (File <span class="dv">&amp;rarr;</span> Upload)</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>::: {.colab-step}</span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">3</span><span class="co">]</span>{.colab-step-num}</span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Run</span><span class="co">]</span>{.colab-step-title}</span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>Run the first cell to install PyApprox, then run all remaining cells</span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>::: {.colab-links}</span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Google Colab</span><span class="co">](https://colab.research.google.com)</span>{.colab-link}</span>
+<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">PyApprox Docs</span><span class="co">](https://sandialabs.github.io/pyapprox/)</span>{.colab-link}</span>
+<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">GitHub Repository</span><span class="co">](https://github.com/sandialabs/pyapprox)</span>{.colab-link}</span>
+<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-111"><a href="#cb1-111" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a><span class="fu">## Forward UQ {.topic-heading}</span></span>
+<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Propagate input uncertainty through computational models to characterize output variability.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Forward Uncertainty Quantification**</span><span class="co">](forward_uq.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The forward UQ problem: propagating input uncertainty through a model to characterize output uncertainty</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-127"><a href="#cb1-127" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-128"><a href="#cb1-128" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Random Variables and Distributions**</span><span class="co">](random_variables_distributions.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-129"><a href="#cb1-129" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Specifying parameter uncertainty with independent and copula-based distributions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Monte Carlo Sampling**</span><span class="co">](monte_carlo_sampling.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-135"><a href="#cb1-135" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-139"><a href="#cb1-139" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-140"><a href="#cb1-140" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Estimator Accuracy and MSE**</span><span class="co">](estimator_accuracy_mse.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-143"><a href="#cb1-143" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-144"><a href="#cb1-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-145"><a href="#cb1-145" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-146"><a href="#cb1-146" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Monte Carlo Budget Estimation**</span><span class="co">](mc_budget_estimation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-147"><a href="#cb1-147" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-148"><a href="#cb1-148" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-149"><a href="#cb1-149" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-150"><a href="#cb1-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-151"><a href="#cb1-151" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-152"><a href="#cb1-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-153"><a href="#cb1-153" aria-hidden="true" tabindex="-1"></a><span class="fu">## Multifidelity Estimation {.topic-heading}</span></span>
+<span id="cb1-154"><a href="#cb1-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-155"><a href="#cb1-155" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Reduce computational cost by combining multiple model fidelities with optimal sample allocation.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-156"><a href="#cb1-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-157"><a href="#cb1-157" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-158"><a href="#cb1-158" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Control Variate Monte Carlo**</span><span class="co">](control_variate_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-159"><a href="#cb1-159" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Reducing MC estimator variance using a correlated low-fidelity model with a known statistic</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-160"><a href="#cb1-160" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-161"><a href="#cb1-161" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-162"><a href="#cb1-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-164"><a href="#cb1-164" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Control Variate Analysis**</span><span class="co">](control_variate_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the optimal control variate weight, variance reduction formula, and unbiasedness</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-166"><a href="#cb1-166" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-167"><a href="#cb1-167" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-168"><a href="#cb1-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-169"><a href="#cb1-169" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-170"><a href="#cb1-170" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**ACV Concept**</span><span class="co">](acv_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-171"><a href="#cb1-171" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate control variates: extending CVMC to multiple low-fidelity models without known statistics</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-172"><a href="#cb1-172" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-173"><a href="#cb1-173" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-174"><a href="#cb1-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-175"><a href="#cb1-175" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-176"><a href="#cb1-176" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**General ACV Concept**</span><span class="co">](acv_many_models_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-177"><a href="#cb1-177" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How using all LF models as direct control variates breaks the CV-1 variance ceiling</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-178"><a href="#cb1-178" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-179"><a href="#cb1-179" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-180"><a href="#cb1-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-181"><a href="#cb1-181" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-182"><a href="#cb1-182" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**General ACV Analysis**</span><span class="co">](acv_many_models_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-183"><a href="#cb1-183" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the optimal weight matrix, minimum covariance, allocation matrices, and covariance formulas for all ACV estimators</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-184"><a href="#cb1-184" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-185"><a href="#cb1-185" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-186"><a href="#cb1-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-187"><a href="#cb1-187" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-188"><a href="#cb1-188" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**MFMC Concept**</span><span class="co">](mfmc_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-189"><a href="#cb1-189" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-190"><a href="#cb1-190" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-191"><a href="#cb1-191" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-192"><a href="#cb1-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-193"><a href="#cb1-193" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-194"><a href="#cb1-194" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**MFMC Analysis**</span><span class="co">](mfmc_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-196"><a href="#cb1-196" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-197"><a href="#cb1-197" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-199"><a href="#cb1-199" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-200"><a href="#cb1-200" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Level Monte Carlo**</span><span class="co">](mlmc_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-201"><a href="#cb1-201" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-202"><a href="#cb1-202" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-205"><a href="#cb1-205" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**MLMC Analysis**</span><span class="co">](mlmc_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-207"><a href="#cb1-207" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-208"><a href="#cb1-208" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-209"><a href="#cb1-209" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-210"><a href="#cb1-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-211"><a href="#cb1-211" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-212"><a href="#cb1-212" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Output ACV Concept**</span><span class="co">](multioutput_acv_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-213"><a href="#cb1-213" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why estimating several QoIs jointly with multi-fidelity corrections improves each individual estimate</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-214"><a href="#cb1-214" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-215"><a href="#cb1-215" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-216"><a href="#cb1-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Output ACV Analysis**</span><span class="co">](multioutput_acv_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-219"><a href="#cb1-219" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the MOACV optimal weight matrix and the condition under which joint estimation beats independent scalar ACVs</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-224"><a href="#cb1-224" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**PACV Concept**</span><span class="co">](pacv_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-225"><a href="#cb1-225" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-227"><a href="#cb1-227" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-228"><a href="#cb1-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-229"><a href="#cb1-229" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-230"><a href="#cb1-230" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**PACV Analysis**</span><span class="co">](pacv_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-231"><a href="#cb1-231" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-232"><a href="#cb1-232" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-233"><a href="#cb1-233" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-234"><a href="#cb1-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-235"><a href="#cb1-235" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-236"><a href="#cb1-236" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**MLBLUE Concept**</span><span class="co">](mlblue_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The multi-level best linear unbiased estimator: optimal weights from a single linear system</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**MLBLUE Analysis**</span><span class="co">](mlblue_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the MLBLUE weight matrix, variance bound, and comparison with ACV families</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Pilot Studies Concept**</span><span class="co">](pilot_studies_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using small pilot samples to estimate the covariance structure needed by multi-fidelity estimators</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-250"><a href="#cb1-250" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-251"><a href="#cb1-251" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-252"><a href="#cb1-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-253"><a href="#cb1-253" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-254"><a href="#cb1-254" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Pilot Studies Analysis**</span><span class="co">](pilot_studies_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-255"><a href="#cb1-255" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analyzing pilot study accuracy and its effect on downstream estimator performance</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-256"><a href="#cb1-256" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-257"><a href="#cb1-257" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-258"><a href="#cb1-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-259"><a href="#cb1-259" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Ensemble Selection Concept**</span><span class="co">](ensemble_selection_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choosing which subset of available models to include in a multi-fidelity estimator</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**API Cookbook**</span><span class="co">](multifidelity_estimation_cookbook.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Unified API cookbook: one-stop reference for all multi-fidelity estimators</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Cookbook</span><span class="co">]</span>{.badge-cookbook}</span>
+<span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-270"><a href="#cb1-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-271"><a href="#cb1-271" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-272"><a href="#cb1-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-273"><a href="#cb1-273" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inverse UQ {.topic-heading}</span></span>
+<span id="cb1-274"><a href="#cb1-274" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-275"><a href="#cb1-275" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Infer model parameters from data using Bayesian inference, MCMC, and variational methods.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-276"><a href="#cb1-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-277"><a href="#cb1-277" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-278"><a href="#cb1-278" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Bayesian Inference**</span><span class="co">](bayesian_inference_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-279"><a href="#cb1-279" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">From data to parameters: updating beliefs using Bayes' theorem</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-280"><a href="#cb1-280" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-281"><a href="#cb1-281" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-282"><a href="#cb1-282" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-283"><a href="#cb1-283" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sampling the Posterior with MCMC**</span><span class="co">](mcmc_sampling.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-287"><a href="#cb1-287" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-288"><a href="#cb1-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Practical MCMC: MH and DRAM**</span><span class="co">](dram_mcmc.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Variational Inference**</span><span class="co">](vi_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximating the posterior with optimization instead of sampling</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-299"><a href="#cb1-299" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-300"><a href="#cb1-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-301"><a href="#cb1-301" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**The Variational Objective**</span><span class="co">](vi_objective.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the ELBO and understanding the KL divergence minimization</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-305"><a href="#cb1-305" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-306"><a href="#cb1-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-307"><a href="#cb1-307" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Optimizing the ELBO**</span><span class="co">](vi_optimization.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Gradient-based optimization of the evidence lower bound</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-311"><a href="#cb1-311" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-312"><a href="#cb1-312" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-313"><a href="#cb1-313" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Variational Families**</span><span class="co">](vi_families.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mean-field, full-rank, and normalizing flow variational families</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-317"><a href="#cb1-317" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-318"><a href="#cb1-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-319"><a href="#cb1-319" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Amortized Variational Inference**</span><span class="co">](vi_amortized.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Learning inference networks that generalize across observations</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="fu">## Experimental Design {.topic-heading}</span></span>
+<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose optimal experiments to maximize information gain or minimize prediction uncertainty.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-330"><a href="#cb1-330" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-331"><a href="#cb1-331" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Experimental Design**</span><span class="co">](experimental_design_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-334"><a href="#cb1-334" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-335"><a href="#cb1-335" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-336"><a href="#cb1-336" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-337"><a href="#cb1-337" aria-hidden="true" tabindex="-1"></a><span class="fu">### KL-Based OED {.sub-heading}</span></span>
+<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: KL Concept**</span><span class="co">](boed_kl_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-341"><a href="#cb1-341" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">What Expected Information Gain measures and why it is the right objective for choosing experiments</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-342"><a href="#cb1-342" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Double-Loop Estimator**</span><span class="co">](boed_kl_estimator.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-348"><a href="#cb1-348" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-349"><a href="#cb1-349" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-352"><a href="#cb1-352" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Gradients**</span><span class="co">](boed_kl_gradients.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-353"><a href="#cb1-353" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-354"><a href="#cb1-354" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Convergence**</span><span class="co">](boed_kl_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-360"><a href="#cb1-360" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-361"><a href="#cb1-361" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: MC vs Halton**</span><span class="co">](boed_kl_qmc.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Nonlinear Usage**</span><span class="co">](boed_kl_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Applying EIG-based OED to a Lotka-Volterra predator-prey system</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Design Stability**</span><span class="co">](boed_kl_design_stability.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-380"><a href="#cb1-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a><span class="fu">### Goal-Oriented OED {.sub-heading}</span></span>
+<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Concept**</span><span class="co">](boed_pred_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-386"><a href="#cb1-386" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-387"><a href="#cb1-387" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Gaussian Analysis**</span><span class="co">](boed_pred_gaussian_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Log-Normal Analysis**</span><span class="co">](boed_pred_lognormal_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-397"><a href="#cb1-397" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-398"><a href="#cb1-398" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Convergence**</span><span class="co">](boed_pred_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Nonlinear Usage**</span><span class="co">](boed_pred_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a><span class="fu">### OED Workflows {.sub-heading}</span></span>
+<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED Data Workflow**</span><span class="co">](boed_data_workflow_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a><span class="fu">## Approximation Theory {.topic-heading}</span></span>
+<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mathematical foundations for interpolation, quadrature, and polynomial approximation.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Lagrange Interpolation**</span><span class="co">](lagrange_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Lagrange basis polynomials, Runge phenomenon, and optimal node placement</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Interpolation**</span><span class="co">](piecewise_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Local basis functions for smooth and discontinuous functions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Tensor Product Interpolation**</span><span class="co">](tensor_product_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multivariate approximation via Cartesian products of 1D bases</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-442"><a href="#cb1-442" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Gauss Quadrature**</span><span class="co">](gauss_quadrature.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimal nodes from orthogonal polynomials with exponential convergence</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Polynomial Quadrature**</span><span class="co">](piecewise_quadrature.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Rectangle, trapezoid, and Simpson's rules with error derivations</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Leja Sequences**</span><span class="co">](leja_sequences.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Nested points for adaptive interpolation via greedy determinant maximisation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a><span class="fu">## Surrogate Modeling {.topic-heading}</span></span>
+<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build fast approximations of expensive models using polynomials, sparse grids, and Gaussian processes.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-468"><a href="#cb1-468" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-469"><a href="#cb1-469" aria-hidden="true" tabindex="-1"></a><span class="fu">### Polynomial Chaos {.sub-heading}</span></span>
+<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a Polynomial Chaos Surrogate**</span><span class="co">](polynomial_chaos_surrogates.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-473"><a href="#cb1-473" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a polynomial chaos expansion</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-474"><a href="#cb1-474" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Overfitting and Cross-Validation**</span><span class="co">](practical_pce_fitting.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-479"><a href="#cb1-479" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose the polynomial degree using LOO cross-validation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-480"><a href="#cb1-480" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-481"><a href="#cb1-481" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-482"><a href="#cb1-482" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-483"><a href="#cb1-483" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-484"><a href="#cb1-484" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Polynomial Approximation**</span><span class="co">](sparse_pce_fitting.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-485"><a href="#cb1-485" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">OMP and BPDN/LASSO for high-dimensional polynomial chaos</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-486"><a href="#cb1-486" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-487"><a href="#cb1-487" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-488"><a href="#cb1-488" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-489"><a href="#cb1-489" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-490"><a href="#cb1-490" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Polynomial Chaos**</span><span class="co">](uq_with_pce.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-491"><a href="#cb1-491" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-492"><a href="#cb1-492" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-493"><a href="#cb1-493" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-494"><a href="#cb1-494" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="fu">### Function Trains {.sub-heading}</span></span>
+<span id="cb1-496"><a href="#cb1-496" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-497"><a href="#cb1-497" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-498"><a href="#cb1-498" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Function Train Surrogates**</span><span class="co">](function_train_surrogates.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-499"><a href="#cb1-499" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build intuition for low-rank functions and the function train decomposition</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-500"><a href="#cb1-500" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-501"><a href="#cb1-501" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-502"><a href="#cb1-502" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-503"><a href="#cb1-503" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-504"><a href="#cb1-504" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Function Trains**</span><span class="co">](uq_with_functiontrain.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-505"><a href="#cb1-505" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and input marginals from a fitted function train</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-507"><a href="#cb1-507" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-508"><a href="#cb1-508" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-509"><a href="#cb1-509" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sparse Grids {.sub-heading}</span></span>
+<span id="cb1-510"><a href="#cb1-510" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-511"><a href="#cb1-511" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-512"><a href="#cb1-512" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Isotropic Sparse Grids**</span><span class="co">](isotropic_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-513"><a href="#cb1-513" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Smolyak combination technique for breaking the curse of dimensionality</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-514"><a href="#cb1-514" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-515"><a href="#cb1-515" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-516"><a href="#cb1-516" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-517"><a href="#cb1-517" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-518"><a href="#cb1-518" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive Sparse Grids**</span><span class="co">](adaptive_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-519"><a href="#cb1-519" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Data-driven refinement for anisotropic functions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-520"><a href="#cb1-520" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-521"><a href="#cb1-521" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-522"><a href="#cb1-522" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-523"><a href="#cb1-523" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-524"><a href="#cb1-524" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multifidelity Sparse Grids**</span><span class="co">](multifidelity_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-525"><a href="#cb1-525" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multi-index collocation for model hierarchies with varying cost and accuracy</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-526"><a href="#cb1-526" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-527"><a href="#cb1-527" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-528"><a href="#cb1-528" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-529"><a href="#cb1-529" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-530"><a href="#cb1-530" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Grid to PCE Conversion**</span><span class="co">](sparse_grid_to_pce_conversion.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-531"><a href="#cb1-531" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-532"><a href="#cb1-532" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-533"><a href="#cb1-533" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-534"><a href="#cb1-534" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-535"><a href="#cb1-535" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-536"><a href="#cb1-536" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Sparse Grids**</span><span class="co">](uq_with_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-537"><a href="#cb1-537" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-538"><a href="#cb1-538" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-539"><a href="#cb1-539" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-540"><a href="#cb1-540" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-541"><a href="#cb1-541" aria-hidden="true" tabindex="-1"></a><span class="fu">### Gaussian Processes {.sub-heading}</span></span>
+<span id="cb1-542"><a href="#cb1-542" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-543"><a href="#cb1-543" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-544"><a href="#cb1-544" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a GP Surrogate**</span><span class="co">](gp_surrogate.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-545"><a href="#cb1-545" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a Gaussian process and quantify prediction uncertainty</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-546"><a href="#cb1-546" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-547"><a href="#cb1-547" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-548"><a href="#cb1-548" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-549"><a href="#cb1-549" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-550"><a href="#cb1-550" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Gaussian Processes**</span><span class="co">](uq_with_gp.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-551"><a href="#cb1-551" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute analytical moments, marginal densities, and main effects from a fitted GP</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-552"><a href="#cb1-552" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-553"><a href="#cb1-553" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-554"><a href="#cb1-554" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-555"><a href="#cb1-555" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-556"><a href="#cb1-556" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive GP Sampling**</span><span class="co">](adaptive_gp_sampling.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-557"><a href="#cb1-557" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-558"><a href="#cb1-558" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-559"><a href="#cb1-559" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-560"><a href="#cb1-560" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-561"><a href="#cb1-561" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-562"><a href="#cb1-562" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Fidelity Gaussian Processes**</span><span class="co">](multioutput_gp.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-563"><a href="#cb1-563" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-564"><a href="#cb1-564" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-565"><a href="#cb1-565" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-566"><a href="#cb1-566" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-567"><a href="#cb1-567" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-568"><a href="#cb1-568" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-569"><a href="#cb1-569" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sensitivity Analysis {.topic-heading}</span></span>
+<span id="cb1-570"><a href="#cb1-570" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-571"><a href="#cb1-571" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Identify which uncertain inputs drive output variability using variance decomposition and screening.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-572"><a href="#cb1-572" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-573"><a href="#cb1-573" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-574"><a href="#cb1-574" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sensitivity Analysis Concept**</span><span class="co">](sensitivity_analysis_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-575"><a href="#cb1-575" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-576"><a href="#cb1-576" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-577"><a href="#cb1-577" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-578"><a href="#cb1-578" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-579"><a href="#cb1-579" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-580"><a href="#cb1-580" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sobol Sensitivity Analysis**</span><span class="co">](sobol_sensitivity_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-581"><a href="#cb1-581" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices for identifying important parameters</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-582"><a href="#cb1-582" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-583"><a href="#cb1-583" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-584"><a href="#cb1-584" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-585"><a href="#cb1-585" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-586"><a href="#cb1-586" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**PCE-Based Sensitivity**</span><span class="co">](pce_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-587"><a href="#cb1-587" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from polynomial chaos expansion coefficients</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-588"><a href="#cb1-588" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-589"><a href="#cb1-589" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-590"><a href="#cb1-590" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-591"><a href="#cb1-591" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-592"><a href="#cb1-592" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**GP-Based Sensitivity**</span><span class="co">](gp_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-593"><a href="#cb1-593" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-594"><a href="#cb1-594" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-595"><a href="#cb1-595" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-596"><a href="#cb1-596" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-597"><a href="#cb1-597" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-598"><a href="#cb1-598" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Morris Screening**</span><span class="co">](morris_screening.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-599"><a href="#cb1-599" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">One-at-a-time elementary effects for cheap parameter screening</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-600"><a href="#cb1-600" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-601"><a href="#cb1-601" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-602"><a href="#cb1-602" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-603"><a href="#cb1-603" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-604"><a href="#cb1-604" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Bin-Based Sensitivity**</span><span class="co">](bin_based_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-605"><a href="#cb1-605" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices via binning estimation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-606"><a href="#cb1-606" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-607"><a href="#cb1-607" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-608"><a href="#cb1-608" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-609"><a href="#cb1-609" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-610"><a href="#cb1-610" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Math**</span><span class="co">](functiontrain_sensitivity_math.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-611"><a href="#cb1-611" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving Sobol indices analytically from PCE FunctionTrain structure</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-612"><a href="#cb1-612" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-613"><a href="#cb1-613" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-614"><a href="#cb1-614" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-615"><a href="#cb1-615" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-616"><a href="#cb1-616" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Usage**</span><span class="co">](functiontrain_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-617"><a href="#cb1-617" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically with FunctionTrainSensitivity</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-618"><a href="#cb1-618" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-619"><a href="#cb1-619" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-620"><a href="#cb1-620" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-621"><a href="#cb1-621" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-622"><a href="#cb1-622" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-623"><a href="#cb1-623" aria-hidden="true" tabindex="-1"></a><span class="fu">## Random Fields {.topic-heading}</span></span>
+<span id="cb1-624"><a href="#cb1-624" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-625"><a href="#cb1-625" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Represent spatially correlated uncertainty using Karhunen-Loeve expansions.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-626"><a href="#cb1-626" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-627"><a href="#cb1-627" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-628"><a href="#cb1-628" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE Introduction**</span><span class="co">](kle_introduction.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-629"><a href="#cb1-629" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-630"><a href="#cb1-630" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-631"><a href="#cb1-631" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-632"><a href="#cb1-632" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-633"><a href="#cb1-633" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-634"><a href="#cb1-634" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: Mesh and Data-Driven**</span><span class="co">](kle_mesh_and_data_driven.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-635"><a href="#cb1-635" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Building KLE from mesh-based covariance or data-driven empirical covariance</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-636"><a href="#cb1-636" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-637"><a href="#cb1-637" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-638"><a href="#cb1-638" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-639"><a href="#cb1-639" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-640"><a href="#cb1-640" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: SPDE Approach**</span><span class="co">](kle_spde.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-641"><a href="#cb1-641" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Stochastic PDE approach to efficient random field generation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-642"><a href="#cb1-642" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-643"><a href="#cb1-643" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-644"><a href="#cb1-644" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-645"><a href="#cb1-645" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-646"><a href="#cb1-646" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-647"><a href="#cb1-647" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimization Under Uncertainty {.topic-heading}</span></span>
+<span id="cb1-648"><a href="#cb1-648" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-649"><a href="#cb1-649" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimize system design when model inputs are uncertain.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-650"><a href="#cb1-650" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-651"><a href="#cb1-651" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-652"><a href="#cb1-652" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Design Under Uncertainty**</span><span class="co">](design_under_uncertainty.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-653"><a href="#cb1-653" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimizing system design when model inputs are uncertain</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-654"><a href="#cb1-654" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-655"><a href="#cb1-655" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

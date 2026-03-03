@@ -1,6 +1,0 @@
-get_bayesian_oed_optimizer
-==========================
-
-.. currentmodule:: pyapprox.expdesign
-
-.. autofunction:: get_bayesian_oed_optimizer

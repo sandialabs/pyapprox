@@ -1,7 +1,0 @@
-ApproximateResult
-=================
-
-.. currentmodule:: pyapprox.approximate
-
-.. autoclass:: ApproximateResult
-   :show-inheritance:

@@ -1,6 +1,0 @@
-compute_l2_error
-================
-
-.. currentmodule:: pyapprox.approximate
-
-.. autofunction:: compute_l2_error

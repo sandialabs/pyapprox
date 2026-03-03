@@ -1,6 +1,0 @@
-setup_polynomial_ensemble
-=========================
-
-.. currentmodule:: pyapprox.benchmarks
-
-.. autofunction:: setup_polynomial_ensemble

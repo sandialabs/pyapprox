@@ -1,6 +1,0 @@
-get_approximate_control_variate_weights
-=======================================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: get_approximate_control_variate_weights

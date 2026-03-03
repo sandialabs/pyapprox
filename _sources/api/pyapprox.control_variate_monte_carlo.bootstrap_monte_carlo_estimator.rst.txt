@@ -1,6 +1,0 @@
-bootstrap_monte_carlo_estimator
-===============================
-
-.. currentmodule:: pyapprox.control_variate_monte_carlo
-
-.. autofunction:: bootstrap_monte_carlo_estimator

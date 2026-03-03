@@ -1,6 +1,0 @@
-plot_estimator_sample_allocation_comparison
-===========================================
-
-.. currentmodule:: pyapprox.multifidelity
-
-.. autofunction:: plot_estimator_sample_allocation_comparison
