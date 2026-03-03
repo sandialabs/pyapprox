@@ -276,7 +276,10 @@ class BaseSympyTransform(Generic[Array], ABC):
             phys_coords = [
                 self._bkd.to_numpy(physical_pts[i, :]) for i in range(self.ndim())
             ]
-            ref = [self._bkd.asarray(np.asarray(f(*phys_coords))) for f in self._inv_funcs]
+            ref = [
+                self._bkd.asarray(np.asarray(f(*phys_coords)))
+                for f in self._inv_funcs
+            ]
             return self._bkd.stack(ref, axis=0)
         else:
             # Numerical inversion via optimization
@@ -338,7 +341,8 @@ class BaseSympyTransform(Generic[Array], ABC):
         jac = self._bkd.zeros((npts, ndim, ndim))
         for i in range(ndim):
             for j in range(ndim):
-                jac[:, i, j] = self._bkd.asarray(np.asarray(self._jac_funcs[i][j](*coords)))
+                val = np.asarray(self._jac_funcs[i][j](*coords))
+                jac[:, i, j] = self._bkd.asarray(val)
         return jac
 
     def jacobian_determinant(self, reference_pts: Array) -> Array:
@@ -406,7 +410,8 @@ class BaseSympyTransform(Generic[Array], ABC):
         basis = self._bkd.zeros((npts, ndim, ndim))
         for i in range(ndim):  # Cartesian component
             for j in range(ndim):  # basis vector index
-                basis[:, i, j] = self._bkd.asarray(np.asarray(self._e_funcs[i][j](*coords)))
+                val = np.asarray(self._e_funcs[i][j](*coords))
+                basis[:, i, j] = self._bkd.asarray(val)
         return basis
 
     def gradient_factors(self, reference_pts: Array) -> Array:
