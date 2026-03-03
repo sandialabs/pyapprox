@@ -194,6 +194,9 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
     # creates the shared directories that parallel workers expect.
     echo "  Bootstrapping project scaffolding..."
     quarto render index.qmd --no-execute > /dev/null 2>&1 || true
+    # Ensure shared directories exist even if bootstrap render failed
+    mkdir -p site_libs
+    mkdir -p .quarto
 
     # Pre-create *_files/ stubs so Quarto's project-level glob
     # resolution doesn't fail when a tutorial is rendered before another

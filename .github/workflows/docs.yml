@@ -27,7 +27,7 @@ jobs:
           pip install ipykernel
           python -m ipykernel install --user
       - name: Render tutorials
-        run: cd tutorials && ./build.sh -j auto
+        run: cd tutorials && ./build.sh
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4

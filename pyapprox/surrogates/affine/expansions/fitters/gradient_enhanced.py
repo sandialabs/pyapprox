@@ -77,7 +77,7 @@ class GradientEnhancedPCEFitter(Generic[Array]):
         Raises
         ------
         ValueError
-            If nqoi > 1 or if nsamples < nterms (underdetermined constraints).
+            If nqoi > 1, or if total rows (value + gradient) < nterms.
         TypeError
             If expansion lacks required jacobian_batch method.
         """
@@ -103,11 +103,15 @@ class GradientEnhancedPCEFitter(Generic[Array]):
         nvars, nsamples = samples.shape
         nterms = expansion.nterms()
 
-        # Validate we have enough samples for the constraints
-        if nsamples < nterms:
+        # DGGLSE-style validation: n <= m + p
+        # n = nterms, m = nsamples * nvars (gradient rows), p = nsamples (value rows)
+        # Need enough total rows to determine all coefficients.
+        total_rows = nsamples + nsamples * nvars
+        if nterms > total_rows:
             raise ValueError(
-                f"Need at least {nterms} samples for {nterms} constraints, "
-                f"got {nsamples}"
+                f"Underdetermined: {nterms} terms but only "
+                f"{nsamples} value + {nsamples * nvars} gradient = "
+                f"{total_rows} total rows"
             )
 
         # Build basis matrix for function values: Phi (nsamples, nterms)

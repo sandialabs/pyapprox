@@ -3,9 +3,9 @@
 Tests focus on:
 - Returning DirectSolverResult
 - Constraint satisfaction (function value interpolation)
-- Coefficient recovery when gradients available
+- Coefficient recovery when gradients available (overdetermined & underdetermined)
 - Multi-QoI rejection
-- Underdetermined system rejection
+- Truly underdetermined system rejection (not enough total rows)
 """
 
 import numpy as np
@@ -216,25 +216,98 @@ class TestGradientEnhancedPCEFitter:
         with pytest.raises(ValueError, match="nqoi=1"):
             fitter.fit(expansion, samples, values, gradients)
 
-    def test_underdetermined_raises(self, bkd) -> None:
-        """nsamples < nterms raises ValueError."""
-        nvars, max_level = 1, 5
+    def test_truly_underdetermined_raises(self, bkd) -> None:
+        """Raises when total rows (value + gradient) < nterms."""
+        # nvars=1, so gradient rows = nsamples * 1 = nsamples
+        # total rows = nsamples + nsamples = 2 * nsamples
+        # Need 2 * nsamples >= nterms, so nsamples < nterms / 2 fails
+        nvars, max_level = 1, 9  # nterms = 10
 
         target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
         nterms = target_expansion.nterms()
         true_coef = bkd.asarray(np.random.randn(nterms, 1))
         target_expansion = target_expansion.with_params(true_coef)
 
-        # Too few samples (nsamples < nterms)
-        nsamples = nterms - 2
+        # With nvars=1: total_rows = 2*nsamples, need < nterms=10
+        # So nsamples=4 gives total_rows=8 < 10
+        nsamples = 4
+        assert nsamples + nsamples * nvars < nterms  # verify truly underdetermined
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
         gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
-        with pytest.raises(ValueError, match="(?i)samples"):
+        with pytest.raises(ValueError, match="(?i)underdetermined"):
             fitter.fit(fit_expansion, samples, values, gradients)
+
+    def test_underdetermined_constraints_coefficient_recovery(self, bkd) -> None:
+        """Recover coefficients when nsamples < nterms (gradient rows fill gap).
+
+        This is the key use case for gradient enhancement: fewer value
+        samples than unknowns, but gradient information provides enough
+        equations to determine all coefficients.
+
+        With nvars=2 and nsamples value rows + nsamples*nvars gradient rows,
+        the gradient rows compensate for the underdetermined constraints.
+        """
+        nvars, max_level = 2, 3
+
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
+        nterms = target_expansion.nterms()
+        true_coef = bkd.asarray(np.random.randn(nterms, 1))
+        target_expansion = target_expansion.with_params(true_coef)
+
+        # nsamples < nterms but total_rows = nsamples*(1+nvars) >= nterms
+        # nterms = 10 for nvars=2, max_level=3
+        # Use nsamples=5: total_rows = 5 + 5*2 = 15 >= 10
+        nsamples = 5
+        assert nsamples < nterms  # constraints are underdetermined
+        assert nsamples + nsamples * nvars >= nterms  # but total rows suffice
+
+        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
+        values = target_expansion(samples)
+        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+
+        fitter = GradientEnhancedPCEFitter(bkd)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
+        result = fitter.fit(fit_expansion, samples, values, gradients)
+
+        # Should recover coefficients even with underdetermined constraints
+        bkd.assert_allclose(result.params(), true_coef, rtol=1e-8)
+
+    def test_underdetermined_constraints_interpolation(self, bkd) -> None:
+        """Constraint satisfaction with underdetermined constraints.
+
+        Even when nsamples < nterms, the fitted expansion should interpolate
+        function values at the training points.
+        """
+        nvars, max_level = 2, 3
+
+        target_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
+        nterms = target_expansion.nterms()
+        true_coef = bkd.asarray(np.random.randn(nterms, 1))
+        target_expansion = target_expansion.with_params(true_coef)
+
+        nsamples = 5
+        assert nsamples < nterms
+
+        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
+        values = target_expansion(samples)
+        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+
+        fitter = GradientEnhancedPCEFitter(bkd)
+        fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
+        result = fitter.fit(fit_expansion, samples, values, gradients)
+
+        # Verify constraint satisfaction: Phi @ coef = y
+        Phi = fit_expansion.basis_matrix(samples)
+        constraint_error = bkd.norm(Phi @ result.params() - values.T)
+        bkd.assert_allclose(
+            bkd.asarray([float(constraint_error)]),
+            bkd.asarray([0.0]),
+            atol=1e-10,
+        )
 
     def test_multivariate_gradient_recovery(self, bkd) -> None:
         """Gradient-enhanced fitting works for multivariate polynomials.

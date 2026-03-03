@@ -100,14 +100,18 @@ class RidgeRegressionSolver(LinearSystemSolver[Array], Generic[Array]):
 class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
     """Least squares solver with linear equality constraints.
 
-    Solves: min_c ||Φc - y||_2^2
+    Solves: min_c ||Ac - b||_2^2
             subject to: Cc = d
 
-    Uses the KKT system for numerical stability:
-    [A^T A,  C^T] [theta ]   [A^T y]
-    [C,      0  ] [lambda] = [d    ]
+    Uses the null-space method:
+    1. Compute null space Z of C via SVD
+    2. Find particular solution c_p satisfying C c_p = d (via lstsq)
+    3. Solve unconstrained lstsq: min ||A Z alpha - (b - A c_p)||^2
+    4. c = c_p + Z alpha
 
-    Solved via lstsq for robustness to near-singular cases.
+    Handles both p <= n (standard) and p > n (overconstrained equality)
+    cases. When rank(C) = n, the constraints fully determine c and
+    the objective is irrelevant.
 
     Parameters
     ----------
@@ -155,7 +159,17 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
             self._constraint_vector = self._bkd.reshape(constraint_vector, (-1, 1))
 
     def _solve(self, basis_matrix: Array, values: Array) -> Array:
-        """Solve constrained least squares problem via KKT system.
+        """Solve constrained least squares via null-space method.
+
+        min ||A theta - b||^2  s.t.  C theta = d
+
+        1. Compute null space Z of C via SVD
+        2. Find particular solution theta_p satisfying C theta_p = d
+        3. Solve unconstrained lstsq: min ||A Z alpha - (b - A theta_p)||^2
+        4. theta = theta_p + Z alpha
+
+        No KKT or saddle-point system is formed, avoiding ill-
+        conditioned augmented matrices entirely.
 
         Parameters
         ----------
@@ -172,32 +186,27 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
         C = self._constraint_matrix
         d = self._constraint_vector
         A = basis_matrix
-        y = values
+        b = values
         bkd = self._bkd
 
-        nterms = A.shape[1]
-        nconstraints = C.shape[0]
+        # Step 1: Null space of C via SVD of C^T
+        # C is (p, n). SVD of C^T = U S V^T gives null space as
+        # columns of U beyond the rank.
+        U, S, _Vh = bkd.svd(C.T, full_matrices=True)
+        tol = 1e-12 * bkd.to_float(S[0]) if S.shape[0] > 0 else 1e-12
+        rank_C = int(bkd.to_float(
+            bkd.sum(bkd.asarray([1.0 if bkd.to_float(s) > tol else 0.0
+                                  for s in S]))
+        ))
+        Z = U[:, rank_C:]  # (n, n - rank_C)
 
-        # Build KKT matrix:
-        # [A^T A,  C^T] [theta ]   [A^T y]
-        # [C,      0  ] [lambda] = [d    ]
-        ATA = bkd.dot(A.T, A)
-        ATy = bkd.dot(A.T, y)
+        # Step 2: Particular solution satisfying C theta_p = d
+        theta_p = bkd.lstsq(C, d, rcond=self._rcond)
 
-        zeros = bkd.zeros((nconstraints, nconstraints))
+        # Step 3: Unconstrained lstsq in null-space coordinates
+        AZ = bkd.dot(A, Z)
+        rhs = b - bkd.dot(A, theta_p)
+        alpha = bkd.lstsq(AZ, rhs, rcond=self._rcond)
 
-        # Build augmented KKT matrix
-        top_row = bkd.concatenate([ATA, C.T], axis=1)
-        bottom_row = bkd.concatenate([C, zeros], axis=1)
-        KKT = bkd.concatenate([top_row, bottom_row], axis=0)
-
-        # Build augmented RHS
-        rhs = bkd.concatenate([ATy, d], axis=0)
-
-        # Solve full system using lstsq for robustness
-        solution = bkd.lstsq(KKT, rhs, rcond=self._rcond)
-
-        # Extract coefficients (first nterms rows)
-        coef = solution[:nterms, :]
-
-        return coef
+        # Step 4: Reconstruct full solution
+        return theta_p + bkd.dot(Z, alpha)
