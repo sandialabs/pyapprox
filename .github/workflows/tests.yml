@@ -37,7 +37,7 @@ jobs:
           python -m pip install -e ".[fem,umbridge,test]"
       - name: Run fast tests (PR — fail-fast)
         if: github.event_name == 'pull_request'
-        run: pytest pyapprox -v --tb=short -x --timeout=300
+        run: pytest pyapprox -v --tb=short --timeout=300
       - name: Run fast tests (push — show all failures)
         if: github.event_name != 'pull_request'
         run: pytest pyapprox -v --tb=short --timeout=300
@@ -63,7 +63,7 @@ jobs:
       - name: Verify package imports
         run: python -c "import pyapprox; print('Core import OK')"
       - name: Run fast tests (no optional deps)
-        run: pytest pyapprox -v --tb=short --timeout=300 -x
+        run: pytest pyapprox -v --tb=short --timeout=300
 
   slow:
     name: Slow tests (>5s)

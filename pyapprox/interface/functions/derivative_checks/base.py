@@ -114,4 +114,6 @@ class JVPChecker(Generic[Array]):
                         errors[ii],
                     )
                 )
-        return self._bkd.asarray(errors)
+        return self._bkd.asarray(
+            [self._bkd.to_float(e) for e in errors]
+        )

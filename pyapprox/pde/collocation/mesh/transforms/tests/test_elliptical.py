@@ -217,7 +217,7 @@ class TestEllipticalTransform:
         # Sample many v values at constant u
         v_vals = np.linspace(0.01, 2 * np.pi - 0.01, 50)
         u_vals = np.full_like(v_vals, u_val)
-        ref_pts = bkd.asarray([u_vals, v_vals])
+        ref_pts = bkd.asarray(np.array([u_vals, v_vals]))
         phys_pts = transform.map_to_physical(ref_pts)
 
         x = bkd.to_numpy(phys_pts[0, :])

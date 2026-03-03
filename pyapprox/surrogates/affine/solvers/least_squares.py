@@ -170,29 +170,22 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
         d = self._constraint_vector
         A = basis_matrix
         y = values
+        bkd = self._bkd
 
-        # Compute (A^T A)^-1
-        ATA = self._bkd.dot(A.T, A)
-        ATA_inv = self._bkd.inv(ATA)
+        nterms = A.shape[1]
+        ncon = C.shape[0]
 
-        # Compute A^T y
-        ATy = self._bkd.dot(A.T, y)
+        # Form the KKT system:
+        # [A^T A   C^T] [x]   [A^T y]
+        # [C       0  ] [λ] = [d    ]
+        ATA = bkd.dot(A.T, A)
+        ATy = bkd.dot(A.T, y)
 
-        # Compute (A^T A)^-1 A^T y
-        ATA_inv_ATy = self._bkd.dot(ATA_inv, ATy)
+        KKT = bkd.block([
+            [ATA, C.T],
+            [C, bkd.zeros((ncon, ncon))],
+        ])
+        rhs = bkd.vstack([ATy, d])
 
-        # Compute C (A^T A)^-1 C^T
-        C_ATA_inv = self._bkd.dot(C, ATA_inv)
-        C_ATA_inv_CT = self._bkd.dot(C_ATA_inv, C.T)
-
-        # Compute C (A^T A)^-1 A^T y - d
-        C_ATA_inv_ATy = self._bkd.dot(C, ATA_inv_ATy)
-        residual = C_ATA_inv_ATy - d
-
-        # Solve for Lagrange multipliers
-        lagrange = self._bkd.solve(C_ATA_inv_CT, residual)
-
-        # Compute solution
-        coef = ATA_inv_ATy - self._bkd.dot(C_ATA_inv.T, lagrange)
-
-        return coef
+        sol = bkd.lstsq(KKT, rhs, rcond=self._rcond)
+        return sol[:nterms]

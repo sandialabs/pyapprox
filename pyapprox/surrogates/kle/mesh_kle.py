@@ -131,6 +131,7 @@ class MeshKLE(Generic[Array]):
                 K, self._quad_weights, self._nterms, self._bkd
             )
 
+        eig_vals = self._bkd.maximum(eig_vals, self._bkd.asarray([0.0]))
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals)
         self._unweighted_eig_vecs = eig_vecs
         # Pre-multiply by sqrt(eigenvalues) and sigma
