@@ -195,12 +195,15 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
     echo "  Bootstrapping project scaffolding..."
     quarto render index.qmd --no-execute > /dev/null 2>&1 || true
 
-    # Pre-create *_files/mediabag stubs so Quarto's project-level glob
+    # Pre-create *_files/ stubs so Quarto's project-level glob
     # resolution doesn't fail when a tutorial is rendered before another
-    # tutorial that produces figures.
+    # tutorial that produces outputs.
     for f in "${QMD_FILES[@]}"; do
         name="${f%.qmd}"
         mkdir -p "${name}_files/mediabag"
+        mkdir -p "${name}_files/execute-results"
+        mkdir -p "${name}_files/figure-html"
+        mkdir -p "${name}_files/figure-pdf"
     done
 
     # Render individual files using xargs
@@ -245,10 +248,13 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         exit 1
     fi
 
-    # Clean up empty mediabag stubs created for parallel safety
+    # Clean up empty stubs created for parallel safety
     for f in "${QMD_FILES[@]}"; do
         name="${f%.qmd}"
         rmdir "${name}_files/mediabag" 2>/dev/null || true
+        rmdir "${name}_files/execute-results" 2>/dev/null || true
+        rmdir "${name}_files/figure-html" 2>/dev/null || true
+        rmdir "${name}_files/figure-pdf" 2>/dev/null || true
         rmdir "${name}_files" 2>/dev/null || true
     done
 
