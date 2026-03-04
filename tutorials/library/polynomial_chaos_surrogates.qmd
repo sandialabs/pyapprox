@@ -8,7 +8,7 @@ difficulty: intermediate
 estimated_time: 8
 render_time: 21
 prerequisites:
-  - setup_environment
+  - surrogate_workflow
 tags:
   - surrogate
   - polynomial-chaos
@@ -33,19 +33,13 @@ jupyter: python3
 
 After completing this tutorial, you will be able to:
 
-- Explain why surrogate models are needed for expensive simulators
 - Construct a polynomial chaos expansion (PCE) and connect basis polynomials to the input distribution
 - Fit a PCE from training data using least squares
 - Assess surrogate accuracy on an independent test set
 - Visualize how the surrogate captures the model's input--output relationship
 
 
-## The Cost Problem
-
-Computational models in engineering and science can take minutes, hours, or days per evaluation. When we want to understand how uncertain inputs affect the model outputs --- computing means, variances, failure probabilities --- we need hundreds to thousands of evaluations. A Monte Carlo estimate of the mean converges only as $1/\sqrt{M}$; estimating variances or tail probabilities requires even more samples.
-
-The idea behind a **surrogate model** is simple: replace the expensive simulator $f(\boldsymbol{\theta})$ with a cheap approximation $\hat{f}(\boldsymbol{\theta})$ that can be evaluated millions of times at negligible cost. We invest a modest number of expensive model evaluations to *train* the surrogate, then use it as a stand-in for all subsequent analysis.
-
+Surrogate models replace expensive simulators with cheap approximations --- see [The Surrogate Modeling Workflow](surrogate_workflow.qmd) for an introduction to the four-step surrogate workflow.
 
 ## Setup: The Beam Benchmark
 

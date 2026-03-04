@@ -1,0 +1,371 @@
+---
+title: "Quasi–Monte Carlo Sampling"
+subtitle: "PyApprox Tutorial Library"
+description: "Low-discrepancy sequences fill space more evenly than random samples, yielding faster convergence for smooth integrands."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 10
+render_time: 30
+prerequisites:
+  - monte_carlo_sampling
+  - estimator_accuracy_mse
+tags:
+  - uq
+  - monte-carlo
+  - quasi-monte-carlo
+  - halton
+  - sobol
+  - low-discrepancy
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/quasi_monte_carlo_sampling.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why random samples "waste" evaluations through gaps and clusters
+- Generate Halton and Sobol low-discrepancy sequences using PyApprox's `HaltonSampler` and `SobolSampler`
+- Transform uniform QMC samples to arbitrary prior distributions via inverse CDF
+- Show empirically that QMC converges faster than MC for smooth integrands
+
+## Prerequisites
+
+Complete [Monte Carlo Sampling](monte_carlo_sampling.qmd) and [Estimator Accuracy and MSE](estimator_accuracy_mse.qmd) before this tutorial.
+
+
+## The Cost of $1/\sqrt{M}$
+
+The [previous tutorials](estimator_accuracy_mse.qmd) established a fundamental fact about Monte Carlo estimation: every estimator variance has the form $C/M$, where $M$ is the number of samples and $C$ is a constant that depends on the statistic and the QoI distribution. For the mean estimator, $C = \sigma^2$; for the variance estimator, $C = \kappa_4 - \sigma^4$ --- a larger constant involving the fourth central moment. The [budget tutorial](mc_budget_estimation.qmd) showed how to translate a target accuracy into a required sample count. The rate $1/M$ for the MSE (equivalently, $1/\sqrt{M}$ for the standard error) governs everything.
+
+That rate has a brutal practical consequence. Reducing the standard error by a factor of 10 requires $100\times$ more model evaluations. The 1D beam used in these tutorials evaluates in roughly 1 ms, so even $M = 100{,}000$ samples finish in seconds. But realistic UQ targets --- 3D finite-element solves, CFD simulations, multiphysics coupled models --- can take minutes to hours per evaluation. At 10 minutes per solve, $M = 10{,}000$ evaluations costs 69 CPU-days. For variance and covariance estimation, the larger constant $C$ from the MSE tutorial compounds the problem further, demanding even more samples for the same precision.
+
+There are two complementary paths to break this bottleneck. Later tutorials introduce **multi-fidelity methods** that reduce the constant $C$ by combining cheap low-fidelity models with the expensive target model. This tutorial takes a different approach: replace the random samples themselves with **structured point sets** that converge faster than $1/\sqrt{M}$. The model does not change. The estimator formulas do not change. Only the input samples change --- making quasi--Monte Carlo a drop-in improvement to any existing MC workflow.
+
+To see why the samples themselves are the bottleneck, we return to the beam model and examine what random sampling actually does in the input space.
+
+
+## Setup: The Beam Model
+
+We use the analytical composite cantilever beam model. The two uncertain parameters $E_1, E_2$ --- skin and core Young's moduli with $\mathrm{Beta}(2,5)$ priors on bounded intervals --- control the effective bending stiffness, and the model returns three QoIs: tip deflection, integrated stress, and maximum curvature.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.analytic.cantilever_beam import (
+    cantilever_beam_1d_analytical,
+)
+
+bkd = NumpyBkd()
+
+benchmark = cantilever_beam_1d_analytical(bkd)
+model = benchmark.function()
+variable = benchmark.prior()
+
+print(f"Number of uncertain parameters: {model.nvars()}")
+print(f"Number of QoIs: {model.nqoi()}")
+```
+
+We also compute a high-accuracy reference mean via quadrature, so we can measure integration error precisely.
+
+```{python}
+#| echo: false
+from pyapprox.surrogates.quadrature import (
+    TensorProductQuadratureRule,
+    gauss_quadrature_rule,
+)
+
+nquad = 20
+marginals = variable.marginals()
+quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
+
+quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * len(marginals))
+quad_pts, quad_wts = quad_rule()
+
+qoi_quad = model(quad_pts)[0]
+
+true_mean = bkd.to_float(bkd.dot(quad_wts, qoi_quad))
+true_var = bkd.to_float(
+    bkd.dot(quad_wts, (qoi_quad - true_mean) ** 2)
+)
+```
+
+
+## The Problem with Random Samples
+
+Part of the answer lies in the samples themselves. Random points inevitably **cluster** in some regions and leave **gaps** in others. Every gap is a region where the integrand goes unsampled --- wasted information. Every cluster means redundant evaluations of nearly the same function value.
+
+What if we could place the sample points more carefully, filling the space *evenly* rather than randomly? This is the idea behind **quasi--Monte Carlo (QMC)** methods: replace the random point set with a deterministic **low-discrepancy sequence** that covers the domain more uniformly.
+
+
+## Low-Discrepancy Sequences: Halton and Sobol
+
+PyApprox provides two standard low-discrepancy sequence generators:
+
+- `HaltonSampler`: uses the radical-inverse function in successive prime bases (base 2 for $x_1$, base 3 for $x_2$, base 5 for $x_3$, etc.). Simple and effective in low dimensions, but quality can degrade as the prime bases grow.
+- `SobolSampler`: uses direction numbers and bitwise operations to construct a $(t, s)$-sequence with strong equidistribution properties. Generally preferred for most applications.
+
+Both produce points in $[0, 1]^d$ that fill the space progressively --- each new point lands in a region that is currently undersampled.
+
+```{python}
+from pyapprox.expdesign.quadrature.halton import HaltonSampler
+from pyapprox.expdesign.quadrature.sobol import SobolSampler
+
+N = 256
+
+# Pseudorandom samples in [0, 1]^2
+np.random.seed(42)
+random_pts = np.random.rand(2, N)
+
+# Halton sequence (deterministic)
+halton = HaltonSampler(2, bkd, scramble=False)
+halton_pts, _ = halton.sample(N)
+
+# Sobol sequence (deterministic)
+sobol = SobolSampler(2, bkd, scramble=False)
+sobol_pts, _ = sobol.sample(N)
+
+print(f"Random points shape:  {random_pts.shape}")
+print(f"Halton points shape:  {bkd.to_numpy(halton_pts).shape}")
+print(f"Sobol points shape:   {bkd.to_numpy(sobol_pts).shape}")
+```
+
+@fig-random-vs-qmc-2d compares the three point sets. The random samples show visible clumps and voids; the Halton and Sobol sequences fill $[0,1]^2$ much more uniformly. Points are colored by generation order --- notice that even the first few dozen QMC points already provide good coverage.
+
+```{python}
+#| echo: false
+#| fig-cap: "$N = 256$ points in $[0,1]^2$. Left: pseudorandom samples show visible gaps and clusters. Center: Halton sequence. Right: Sobol sequence. Both QMC sequences fill the space more uniformly. Points are colored by generation order (dark = early, bright = late), showing that even the first few dozen points provide good coverage."
+#| label: fig-random-vs-qmc-2d
+
+halton_np = bkd.to_numpy(halton_pts)
+sobol_np = bkd.to_numpy(sobol_pts)
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+point_sets = [random_pts, halton_np, sobol_np]
+titles = ["Pseudorandom", "Halton", "Sobol"]
+
+for ax, pts, title in zip(axes, point_sets, titles):
+    sc = ax.scatter(pts[0], pts[1], c=np.arange(N), cmap="viridis",
+                    s=10, alpha=0.8, edgecolors="none")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect("equal")
+    ax.set_title(title, fontsize=13)
+    ax.set_xlabel(r"$x_1$")
+    ax.set_ylabel(r"$x_2$")
+    ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.grid(True, alpha=0.3, linestyle="--")
+
+fig.colorbar(sc, ax=axes, label="Generation index", shrink=0.8)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Checking Uniformity in Projections
+
+A good point set should look uniform not only in the full $d$-dimensional space but also when **projected** onto individual coordinates. This matters because many functions depend more strongly on some variables than others --- uniform marginals ensure every one-dimensional "slice" is well-sampled.
+
+@fig-projections-1d compares the $x_1$ marginal histograms for the three point sets. The pseudorandom samples show noticeable bumps, while Halton and Sobol are nearly flat.
+
+```{python}
+#| echo: false
+#| fig-cap: "Marginal histograms of the $x_1$ coordinate for $N = 256$ points. Pseudorandom samples (left) show substantial fluctuations around the uniform density. Halton (center) and Sobol (right) marginals are nearly flat, confirming better one-dimensional coverage."
+#| label: fig-projections-1d
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 3.5), sharey=True)
+nbins = 20
+
+for ax, pts, title in zip(axes, point_sets, titles):
+    ax.hist(pts[0], bins=nbins, density=True, alpha=0.7,
+            color="steelblue", edgecolor="white", linewidth=0.5)
+    ax.axhline(1.0, color="red", linestyle="--", linewidth=1.5,
+               label="Uniform density")
+    ax.set_xlim(0, 1)
+    ax.set_title(title, fontsize=13)
+    ax.set_xlabel(r"$x_1$")
+    if ax == axes[0]:
+        ax.set_ylabel("Density")
+    ax.legend(fontsize=9)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Transforming QMC Samples to the Prior
+
+So far the points live in $[0,1]^d$. To use them with the beam model, we need samples from the prior $\pi(\boldsymbol{\theta})$. Both samplers accept a `distribution` argument that applies the prior's inverse CDF to each uniform coordinate, producing QMC samples in the model's input space.
+
+```{python}
+halton_beam = HaltonSampler(
+    model.nvars(), bkd, distribution=variable, scramble=False
+)
+samples_qmc, weights_qmc = halton_beam.sample(256)
+
+# For comparison: random samples from the prior
+np.random.seed(42)
+samples_mc = variable.rvs(256)
+
+print(f"QMC samples shape: {bkd.to_numpy(samples_qmc).shape}")
+print(f"MC  samples shape: {samples_mc.shape}")
+```
+
+@fig-prior-scatter compares the two sample sets in the beam model's $(E_1, E_2)$ input space. The QMC samples are visibly more evenly spread through the prior's support.
+
+```{python}
+#| echo: false
+#| fig-cap: "$N = 256$ samples in the beam model's input space $(E_1, E_2)$. Left: pseudorandom draws from the Beta prior show clusters and gaps. Right: Halton samples transformed through the prior's inverse CDF fill the support more uniformly."
+#| label: fig-prior-scatter
+
+samples_qmc_np = bkd.to_numpy(samples_qmc)
+samples_mc_np = bkd.to_numpy(samples_mc)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+ax1.scatter(samples_mc_np[0], samples_mc_np[1], s=8, alpha=0.6,
+            color="steelblue", edgecolors="none")
+ax1.set_title("Pseudorandom (MC)", fontsize=13)
+ax1.set_xlabel(r"$E_1$")
+ax1.set_ylabel(r"$E_2$")
+ax1.grid(True, alpha=0.2)
+
+ax2.scatter(samples_qmc_np[0], samples_qmc_np[1], s=8, alpha=0.6,
+            color="darkorange", edgecolors="none")
+ax2.set_title("Halton (QMC)", fontsize=13)
+ax2.set_xlabel(r"$E_1$")
+ax2.set_ylabel(r"$E_2$")
+ax2.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Convergence: MC vs. QMC
+
+We now arrive at the central question: **does better space-filling translate into faster convergence of the integral estimate?**
+
+We estimate the mean tip deflection $\mathbb{E}[\delta_{\text{tip}}]$ using MC, Halton, and Sobol at increasing sample sizes $N$ and measure the absolute error against the quadrature reference.
+
+```{python}
+N_values = [2**k for k in range(4, 13)]
+
+errors_mc = []
+errors_halton = []
+errors_sobol = []
+
+for N in N_values:
+    # MC: average absolute error over 50 replicates
+    mc_means = []
+    for rep in range(50):
+        np.random.seed(rep)
+        s = variable.rvs(N)
+        q = model(s)[0]
+        mc_means.append(bkd.to_float(bkd.mean(q)))
+    errors_mc.append(np.mean(np.abs(np.array(mc_means) - true_mean)))
+
+    # Halton (deterministic, single run)
+    h = HaltonSampler(
+        model.nvars(), bkd, distribution=variable, scramble=False
+    )
+    sh, wh = h.sample(N)
+    qh = model(sh)[0]
+    errors_halton.append(abs(bkd.to_float(bkd.dot(wh, qh)) - true_mean))
+
+    # Sobol (deterministic, single run)
+    sb = SobolSampler(
+        model.nvars(), bkd, distribution=variable, scramble=False
+    )
+    ss, ws = sb.sample(N)
+    qs = model(ss)[0]
+    errors_sobol.append(abs(bkd.to_float(bkd.dot(ws, qs)) - true_mean))
+```
+
+@fig-convergence-mc-vs-qmc is the payoff: on a log-log plot, the MC error tracks the $O(N^{-1/2})$ reference line, while both QMC methods converge much faster --- close to $O(N^{-1})$ for this smooth, two-dimensional problem.
+
+```{python}
+#| echo: false
+#| fig-cap: "Convergence of mean tip-deflection estimates. MC error (blue, averaged over 50 replicates) follows the theoretical $O(N^{-1/2})$ rate. Halton (orange) and Sobol (green) errors decay much faster, close to $O(N^{-1})$, reaching the same accuracy as MC with roughly $10$--$50\\times$ fewer samples."
+#| label: fig-convergence-mc-vs-qmc
+
+fig, ax = plt.subplots(figsize=(8, 5))
+
+ax.loglog(N_values, errors_mc, "o-", color="steelblue", label="MC",
+          markersize=6, linewidth=1.5)
+ax.loglog(N_values, errors_halton, "s--", color="darkorange", label="Halton",
+          markersize=6, linewidth=1.5)
+ax.loglog(N_values, errors_sobol, "^--", color="seagreen", label="Sobol",
+          markersize=6, linewidth=1.5)
+
+# Reference slopes
+N_ref = np.array(N_values, dtype=float)
+c_half = errors_mc[0] * N_ref[0]**0.5
+c_one = errors_halton[0] * N_ref[0]**1.0
+ax.loglog(N_ref, c_half * N_ref**(-0.5), ":", color="gray", linewidth=1,
+          label=r"$O(N^{-1/2})$")
+ax.loglog(N_ref, c_one * N_ref**(-1.0), "-.", color="gray", linewidth=1,
+          label=r"$O(N^{-1})$")
+
+ax.set_xlabel("Number of samples $N$", fontsize=12)
+ax.set_ylabel(r"$|\hat{\mu}_N - \mu|$", fontsize=12)
+ax.set_title("Integration Error: MC vs. QMC", fontsize=13)
+ax.legend(fontsize=10)
+ax.grid(True, which="both", alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+The practical implication is striking. To reach the accuracy that MC achieves at $N = 4096$, Sobol needs roughly $N = 64$--$256$ --- a reduction of $16$--$64\times$ in the number of model evaluations. For an expensive simulation, this can mean the difference between a feasible and infeasible computation.
+
+
+## When Does QMC Help Most?
+
+The convergence advantage depends on two properties of the problem:
+
+**Smoothness of the integrand.** The beam model's tip deflection is a smooth function of $(E_1, E_2)$. QMC excels for such integrands. For rough or discontinuous functions --- such as an indicator $\mathbb{1}[\delta_{\text{tip}} > c]$ --- the advantage shrinks or disappears.
+
+**Dimensionality.** Both Halton and Sobol work best in low-to-moderate dimensions. Our beam model has $d = 2$, which is ideal QMC territory. As $d$ grows, the theoretical convergence rate degrades. The [next tutorial](qmc_practical.qmd) investigates this in detail.
+
+
+## What We Have Not Addressed
+
+This tutorial demonstrated QMC's faster convergence but left two important questions open:
+
+1. **Error bars.** Deterministic QMC gives the same answer every time --- there is no built-in variance estimate. How do we construct confidence intervals?
+2. **Theory.** Why exactly does better space-filling yield faster convergence? What is the precise bound?
+3. **High dimensions.** Does the QMC advantage survive when $d$ is 10, 20, or 100?
+
+All three are addressed in the [next tutorial](qmc_practical.qmd), which introduces Owen scrambling, the Koksma--Hlawka inequality, and explores the effect of dimension.
+
+
+## Exercises
+
+1. Repeat the convergence comparison from @fig-convergence-mc-vs-qmc for QoI #2 (integrated bending stress) and QoI #3 (maximum curvature). Does QMC converge equally fast for all three? What does this suggest about the smoothness of each QoI?
+
+2. Generate $N = 1024$ Halton samples in $[0,1]^{10}$ (10 dimensions). Plot the 2D projections onto $(x_1, x_2)$, $(x_3, x_7)$, and $(x_8, x_9)$. Do all projections look equally well-distributed? (Hint: look at pairs involving higher-indexed dimensions.)
+
+3. **(Challenge)** Modify the convergence experiment to use a discontinuous integrand: $g(\boldsymbol{\xi}) = \mathbb{1}[\delta_{\text{tip}} > c]$ for a threshold $c$ near the median deflection. Does QMC still beat MC? What convergence rate do you observe?
+
+
+## Next Steps
+
+Continue with:
+
+- [Practical QMC: Scrambling, Error Bars, and High Dimensions](qmc_practical.qmd) --- Error estimation, Owen scrambling, and dimensional effects
+- [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) --- Predicting the sample budget for a target accuracy

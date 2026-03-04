@@ -8,7 +8,8 @@ difficulty: beginner
 estimated_time: 10
 render_time: 16
 prerequisites:
-  - setup_environment
+  - surrogate_workflow
+  - surrogate_design
 tags:
   - function-train
   - low-rank
@@ -41,21 +42,11 @@ After completing this tutorial, you will be able to:
 - Build a simple rank-2 function train using PyApprox and verify its output
 
 
-## Why Not Just Use a Full Grid?
+## Why Function Trains?
 
-Suppose you want to approximate a function $f(x_1, x_2, \ldots, x_d)$ by evaluating it on a
-grid. With $n$ grid points per dimension and $d$ variables, the total number of evaluations
-scales as $n^d$ --- the infamous **curse of dimensionality**. For $d = 20$ and $n = 10$, that
-is $10^{20}$ evaluations. No computer will ever finish.
+Approximating a $d$-dimensional function on a full grid requires $n^d$ evaluations --- the curse of dimensionality discussed in [What Makes a Good Surrogate?](surrogate_design.qmd). The **function train (FT)** decomposition breaks this barrier by exploiting **low-rank structure**: when variables interact in a limited way, the FT represents the function with parameters scaling linearly in $d$ rather than exponentially.
 
-The way out is to exploit **structure**. Many functions that arise in practice are not
-completely entangled across all their inputs. Some variables contribute nearly independently;
-interactions may be local or low-dimensional. The **function train** (FT) decomposition is a
-way of making this structure explicit and exploiting it for fast approximation, integration,
-and sampling.
-
-This tutorial builds intuition for the FT from the ground up, starting from the simplest
-possible case: a rank-1 function of two variables.
+This tutorial builds intuition for the FT from the ground up, starting from the simplest possible case: a rank-1 function of two variables.
 
 
 ## Low-Rank Functions

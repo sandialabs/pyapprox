@@ -1,0 +1,465 @@
+---
+title: "Practical QMC: Scrambling, Error Bars, and High Dimensions"
+subtitle: "PyApprox Tutorial Library"
+description: "Owen scrambling for error estimation, star discrepancy as a measure of uniformity, and how the QMC advantage depends on dimension."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 10
+render_time: 30
+prerequisites:
+  - quasi_monte_carlo_sampling
+tags:
+  - uq
+  - quasi-monte-carlo
+  - scrambling
+  - discrepancy
+  - rqmc
+  - koksma-hlawka
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/qmc_practical.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why deterministic QMC provides no built-in error estimate
+- Use Owen scrambling to create randomized QMC replicates for error bars
+- Define star discrepancy and state the Koksma--Hlawka inequality as the theoretical basis for QMC
+- Quantify empirically how the QMC advantage depends on dimension
+- Make practical decisions about when to prefer QMC vs. MC
+
+## Prerequisites
+
+Complete [Quasi--Monte Carlo Sampling](quasi_monte_carlo_sampling.qmd) before this tutorial.
+
+
+## Setup
+
+We continue with the beam model and QMC samplers from the [previous tutorial](quasi_monte_carlo_sampling.qmd).
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.analytic.cantilever_beam import (
+    cantilever_beam_1d_analytical,
+)
+from pyapprox.expdesign.quadrature.halton import HaltonSampler
+from pyapprox.expdesign.quadrature.sobol import SobolSampler
+
+bkd = NumpyBkd()
+
+benchmark = cantilever_beam_1d_analytical(bkd)
+model = benchmark.function()
+variable = benchmark.prior()
+```
+
+```{python}
+#| echo: false
+from pyapprox.surrogates.quadrature import (
+    TensorProductQuadratureRule,
+    gauss_quadrature_rule,
+)
+
+nquad = 20
+marginals = variable.marginals()
+quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
+
+quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * len(marginals))
+quad_pts, quad_wts = quad_rule()
+
+qoi_quad = model(quad_pts)[0]
+
+true_mean = bkd.to_float(bkd.dot(quad_wts, qoi_quad))
+```
+
+
+## The Error Bar Problem
+
+The [previous tutorial](quasi_monte_carlo_sampling.qmd) showed that Halton and Sobol sequences converge faster than MC. But there is a catch: deterministic QMC gives the **same answer every time**. Run it again with the same parameters, and you get the identical estimate --- there is no built-in notion of variability and therefore no standard error.
+
+In contrast, MC's randomness is a *feature* for error estimation: repeat the experiment with a different random seed and you get a different estimate; the spread of estimates gives a variance.
+
+We need a way to introduce just enough randomness into QMC to enable error estimation, without destroying the low-discrepancy structure that makes it converge fast.
+
+
+## Owen Scrambling: Randomized QMC
+
+**Owen scrambling** solves this problem. It randomly permutes the digits in the radical-inverse representation of each QMC point. Crucially, the permutations preserve the equidistribution properties of the sequence --- each scrambled replicate is itself a valid low-discrepancy point set --- while introducing enough randomness that independent replicates give different estimates.
+
+The resulting method is called **randomized quasi--Monte Carlo (RQMC)**. The workflow is:
+
+1. Generate $R$ independent scrambled replicates (different `seed` values).
+2. Compute the integral estimate from each replicate.
+3. Average the estimates and use their sample standard deviation to form a standard error.
+
+```{python}
+R = 30     # number of scrambled replicates
+N = 256    # samples per replicate
+
+replicate_means = []
+for seed in range(R):
+    sampler = SobolSampler(
+        model.nvars(), bkd, distribution=variable,
+        scramble=True, seed=seed,
+    )
+    samples, weights = sampler.sample(N)
+    qoi = model(samples)[0]
+    replicate_means.append(bkd.to_float(bkd.dot(weights, qoi)))
+
+replicate_means = np.array(replicate_means)
+rqmc_mean = np.mean(replicate_means)
+rqmc_se = np.std(replicate_means, ddof=1) / np.sqrt(R)
+
+print(f"RQMC estimate:       {rqmc_mean:.6f}")
+print(f"RQMC standard error: {rqmc_se:.6f}")
+print(f"True mean:           {true_mean:.6f}")
+```
+
+The standard error is a practical error bar: a 95% confidence interval is approximately $\hat{\mu}_{\text{RQMC}} \pm 1.96 \cdot \text{SE}$.
+
+
+## RQMC vs. MC Variability
+
+@fig-rqmc-histogram compares the variability of MC and RQMC estimates side-by-side, using the same format as the histogram experiments in the [MC tutorial](monte_carlo_sampling.qmd). Each method runs 200 independent experiments with $N = 256$ samples per experiment.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variability of mean estimates from 200 independent experiments, each using $N = 256$ samples. Left: pseudorandom MC. Right: scrambled Sobol (RQMC). The RQMC histogram is much narrower, confirming that QMC's faster convergence is preserved under scrambling. The spread of the RQMC estimates enables standard error computation."
+#| label: fig-rqmc-histogram
+
+n_reps = 200
+N_hist = 256
+
+# MC replicates
+mc_means = np.empty(n_reps)
+for i in range(n_reps):
+    np.random.seed(i)
+    s = variable.rvs(N_hist)
+    q = model(s)[0]
+    mc_means[i] = bkd.to_float(bkd.mean(q))
+
+# RQMC replicates (scrambled Sobol)
+rqmc_means = np.empty(n_reps)
+for i in range(n_reps):
+    sampler = SobolSampler(
+        model.nvars(), bkd, distribution=variable,
+        scramble=True, seed=i,
+    )
+    s, w = sampler.sample(N_hist)
+    q = model(s)[0]
+    rqmc_means[i] = bkd.to_float(bkd.dot(w, q))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+
+# Shared bin range
+combined = np.concatenate([mc_means, rqmc_means])
+bin_lo = min(combined) - 0.1 * np.ptp(combined)
+bin_hi = max(combined) + 0.1 * np.ptp(combined)
+bins = np.linspace(bin_lo, bin_hi, 35)
+
+for ax, data, title, color in [
+    (ax1, mc_means, f"MC ($N = {N_hist}$)", "steelblue"),
+    (ax2, rqmc_means, f"Scrambled Sobol ($N = {N_hist}$)", "seagreen"),
+]:
+    ax.hist(data, bins=bins, density=True, alpha=0.7,
+            color=color, edgecolor="white", linewidth=0.5)
+    ax.axvline(true_mean, color="red", linestyle="--", linewidth=1.5,
+               label="True mean")
+    ax.axvline(np.mean(data), color="green", linestyle="-", linewidth=1.5,
+               label="Mean of estimates")
+    ax.set_title(title, fontsize=13)
+    ax.set_xlabel(r"$\hat{\mu}_N$")
+    ax.legend(fontsize=9)
+
+ax1.set_ylabel("Density")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Why QMC Works: Star Discrepancy and Koksma--Hlawka
+
+The convergence advantage of QMC has a precise theoretical basis. To state it, we need one definition.
+
+**Star discrepancy** $D_N^*$ measures how uniformly a point set $\{x_1, \ldots, x_N\} \subset [0,1]^d$ fills the unit hypercube. For every axis-aligned box $[0, u_1] \times \cdots \times [0, u_d]$ anchored at the origin, we compare the fraction of points inside the box to the box's volume:
+
+$$
+D_N^* = \sup_{\mathbf{u} \in [0,1]^d} \left| \frac{\#\{x_i \in [\mathbf{0}, \mathbf{u}]\}}{N} - \prod_{j=1}^d u_j \right|
+$$
+
+A small $D_N^*$ means the empirical distribution of the points closely matches the uniform distribution. For pseudorandom samples, $D_N^* = O(N^{-1/2})$ (by the DKW inequality). Halton and Sobol sequences achieve:
+
+$$
+D_N^* = O\!\left(\frac{(\log N)^d}{N}\right)
+$$
+
+which is asymptotically much faster for moderate $d$.
+
+The **Koksma--Hlawka inequality** connects discrepancy to integration error:
+
+$$
+\left|\frac{1}{N}\sum_{i=1}^N f(\mathbf{x}_i) - \int_{[0,1]^d} f(\mathbf{x})\,d\mathbf{x}\right| \le V_{\mathrm{HK}}(f) \cdot D_N^*
+$$
+
+where $V_{\mathrm{HK}}(f)$ is the **variation of $f$ in the sense of Hardy--Krause** --- a measure of how "wiggly" the integrand is. The bound says: *integration error is at most the integrand's roughness times the point set's non-uniformity.* QMC reduces the second factor.
+
+::: {.callout-note}
+## Two levers for integration accuracy
+The Koksma--Hlawka bound identifies two independent levers:
+
+- **Reduce $D_N^*$** by using a better point set (QMC instead of MC) --- this is what this tutorial series is about.
+- **Reduce $V_{\mathrm{HK}}(f)$** by smoothing or transforming the integrand --- this is the idea behind importance sampling and control variates, covered in later tutorials.
+:::
+
+
+## Visualizing Discrepancy
+
+@fig-discrepancy-visual makes star discrepancy concrete. For a small point set ($N = 32$), we find the axis-aligned box $[\mathbf{0}, \mathbf{u}^*]$ where the discrepancy is largest and overlay it on the point set. The random sample has a much larger worst-case deviation than the Sobol sequence.
+
+```{python}
+#| echo: false
+#| fig-cap: "Star discrepancy illustrated for $N = 32$ points. The shaded box $[0, u_1] \\times [0, u_2]$ is the axis-aligned region anchored at the origin where the fraction of points inside deviates most from the box's area. Left: pseudorandom ($D_N^*$ is large). Right: Sobol ($D_N^*$ is small). Lower discrepancy corresponds to a tighter integration error bound."
+#| label: fig-discrepancy-visual
+
+def compute_star_discrepancy_2d(points, grid_res=200):
+    """
+    Brute-force star discrepancy for 2D point sets.
+
+    Searches over a grid of box corners (u1, u2) in [0,1]^2 to find
+    the box [0, u1] x [0, u2] that maximizes
+    |fraction_of_points_inside - u1 * u2|.
+
+    Parameters
+    ----------
+    points : ndarray, shape (2, N)
+        Point set in [0, 1]^2.
+    grid_res : int
+        Resolution of the search grid.
+
+    Returns
+    -------
+    d_star : float
+        Estimated star discrepancy.
+    worst_u : tuple (u1, u2)
+        Corner of the worst-case box.
+    """
+    N = points.shape[1]
+    u_vals = np.linspace(0.01, 1.0, grid_res)
+    best_disc = 0.0
+    worst_u = (0.5, 0.5)
+    for u1 in u_vals:
+        for u2 in u_vals:
+            inside = np.sum((points[0] <= u1) & (points[1] <= u2))
+            disc = abs(inside / N - u1 * u2)
+            if disc > best_disc:
+                best_disc = disc
+                worst_u = (u1, u2)
+    return best_disc, worst_u
+
+
+N_disc = 32
+np.random.seed(7)
+pts_rand = np.random.rand(2, N_disc)
+
+sobol_disc = SobolSampler(2, bkd, scramble=False)
+pts_sobol = bkd.to_numpy(sobol_disc.sample(N_disc)[0])
+
+d_rand, u_rand = compute_star_discrepancy_2d(pts_rand)
+d_sobol, u_sobol = compute_star_discrepancy_2d(pts_sobol)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
+
+for ax, pts, d_star, u_star, title, color in [
+    (ax1, pts_rand, d_rand, u_rand, "Pseudorandom", "steelblue"),
+    (ax2, pts_sobol, d_sobol, u_sobol, "Sobol", "seagreen"),
+]:
+    # Shaded worst box
+    from matplotlib.patches import Rectangle
+    rect = Rectangle((0, 0), u_star[0], u_star[1],
+                      facecolor=color, alpha=0.15, edgecolor=color,
+                      linewidth=2, linestyle="--")
+    ax.add_patch(rect)
+
+    # Points
+    inside = (pts[0] <= u_star[0]) & (pts[1] <= u_star[1])
+    ax.scatter(pts[0, ~inside], pts[1, ~inside], s=25, color="gray",
+               edgecolors="black", linewidth=0.5, zorder=3)
+    ax.scatter(pts[0, inside], pts[1, inside], s=35, color=color,
+               edgecolors="black", linewidth=0.5, zorder=3)
+
+    # Annotation
+    n_inside = np.sum(inside)
+    area = u_star[0] * u_star[1]
+    ax.annotate(
+        f"$D_N^* \\approx {d_star:.3f}$\n"
+        f"Box area = {area:.2f}\n"
+        f"Fraction inside = {n_inside}/{N_disc} = {n_inside/N_disc:.2f}",
+        xy=(0.98, 0.98), xycoords="axes fraction",
+        ha="right", va="top", fontsize=9,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+    )
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect("equal")
+    ax.set_title(f"{title} ($N = {N_disc}$)", fontsize=13)
+    ax.set_xlabel(r"$x_1$")
+    ax.set_ylabel(r"$x_2$")
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Effect of Dimension
+
+The Koksma--Hlawka bound includes the factor $(\log N)^d$, which grows rapidly with dimension $d$. Does this mean QMC is useless in high dimensions?
+
+Not necessarily. The bound is often pessimistic because many real-world functions have low **effective dimension** --- they depend primarily on a few coordinates, even if the nominal dimension is large. Still, the QMC advantage does erode as $d$ grows, and it is important to quantify this empirically.
+
+We test with a smooth, separable integrand whose true integral is known analytically:
+
+$$
+f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in [0,1]^d
+$$
+
+Each factor integrates to 1, so $\int f\,d\mathbf{x} = 1$ for all $d$.
+
+```{python}
+def product_integrand(x):
+    """
+    Separable product integrand with known integral = 1.
+
+    Parameters
+    ----------
+    x : ndarray, shape (d, N)
+        Points in [0, 1]^d.
+
+    Returns
+    -------
+    ndarray, shape (N,)
+        Function values.
+    """
+    return np.prod((3 * x**2 + 1) / 2, axis=0)
+
+
+true_integral = 1.0
+```
+
+@fig-dimension-effect shows convergence for $d = 2, 5, 10, 20$. The MC error is dimension-independent (all solid curves overlap), while the QMC error increases with $d$ but remains below MC for all dimensions tested.
+
+```{python}
+#| echo: false
+#| fig-cap: "Integration error vs. $N$ for a smooth product integrand in $d = 2, 5, 10, 20$ dimensions. MC error (solid lines) is independent of $d$ and follows $O(N^{-1/2})$. Sobol error (dashed lines) increases with $d$ but remains below MC for all dimensions shown. The QMC advantage is largest in low dimensions and erodes gradually."
+#| label: fig-dimension-effect
+
+dims = [2, 5, 10, 20]
+N_values_dim = [2**k for k in range(6, 15)]
+n_mc_reps = 30
+colors_dim = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+
+fig, ax = plt.subplots(figsize=(9, 5.5))
+
+for d, color in zip(dims, colors_dim):
+    errors_mc_d = []
+    errors_sobol_d = []
+
+    for N in N_values_dim:
+        # MC: average absolute error
+        mc_errs = []
+        for rep in range(n_mc_reps):
+            np.random.seed(rep + d * 10000)
+            x = np.random.rand(d, N)
+            mc_errs.append(abs(np.mean(product_integrand(x)) - true_integral))
+        errors_mc_d.append(np.mean(mc_errs))
+
+        # Sobol (deterministic)
+        sb = SobolSampler(d, bkd, scramble=False)
+        xs, ws = sb.sample(N)
+        xs_np = bkd.to_numpy(xs)
+        ws_np = bkd.to_numpy(ws)
+        fvals = product_integrand(xs_np)
+        errors_sobol_d.append(abs(np.dot(ws_np, fvals) - true_integral))
+
+    ax.loglog(N_values_dim, errors_mc_d, "o-", color=color, alpha=0.4,
+              markersize=4, linewidth=1.2, label=f"MC  $d={d}$")
+    ax.loglog(N_values_dim, errors_sobol_d, "s--", color=color,
+              markersize=4, linewidth=1.5, label=f"Sobol $d={d}$")
+
+# Reference slopes
+N_ref = np.array(N_values_dim, dtype=float)
+c05 = 0.3 * N_ref[0]**0.5
+ax.loglog(N_ref, c05 * N_ref**(-0.5), ":", color="gray", linewidth=1,
+          label=r"$O(N^{-1/2})$")
+
+ax.set_xlabel("Number of samples $N$", fontsize=12)
+ax.set_ylabel("Absolute integration error", fontsize=12)
+ax.set_title("QMC Advantage vs. Dimension", fontsize=13)
+ax.legend(fontsize=8, ncol=3, loc="lower left")
+ax.grid(True, which="both", alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Practical Decision Guide
+
+The following table summarizes when to use QMC vs. MC:
+
+| Situation | Recommendation |
+|-----------|---------------|
+| $d \le 10$, smooth integrand | QMC (Sobol preferred) |
+| $d \le 10$, discontinuous integrand | MC or RQMC with many replicates |
+| $10 < d \le 50$, smooth | Try RQMC; compare to MC empirically |
+| $d > 50$ or rough integrand | MC (dimension-free convergence rate) |
+| Need error bars | Always use scrambled RQMC |
+| Need reproducibility | Deterministic QMC with fixed seed |
+
+::: {.callout-tip}
+## Rule of thumb
+When in doubt, try scrambled Sobol first. It is never *worse* than MC (both are unbiased with the same weights), and it is often dramatically better. If your problem is high-dimensional or has discontinuities, you can always fall back to MC.
+:::
+
+
+## Key Takeaways
+
+- **Scrambling** (Owen) turns deterministic QMC into randomized QMC (RQMC): it preserves the low-discrepancy structure and fast convergence while enabling standard error estimation via independent replicates
+- **Star discrepancy** $D_N^*$ measures how uniformly a point set fills the domain; QMC sequences achieve $D_N^* = O((\log N)^d / N)$ vs. MC's $O(N^{-1/2})$
+- The **Koksma--Hlawka inequality** bounds integration error as $V_{\mathrm{HK}}(f) \cdot D_N^*$ --- the product of integrand roughness and point set non-uniformity
+- **Dimension matters:** the QMC advantage is largest for smooth, low-dimensional problems and erodes with $d$, though effective dimension often keeps QMC competitive even in moderately high dimensions
+- In practice, **always try RQMC** and compare empirically --- it is never worse than MC and is often orders of magnitude better
+
+
+## Exercises
+
+1. Compute the star discrepancy (brute-force grid search as in @fig-discrepancy-visual) for Halton and Sobol at $N = 64, 256, 1024$. Plot $D_N^*$ vs. $N$ on a log-log axis. What convergence rate do you observe?
+
+2. In @fig-dimension-effect, replace the smooth product integrand with a "corner peak": $f(\mathbf{x}) = (1 + \sum_j x_j)^{-(d+1)}$. Does the QMC advantage change? (This function is smooth but has most of its mass in one corner of the hypercube.)
+
+3. Using scrambled Sobol, construct a 95% confidence interval for the beam model's mean tip deflection at $N = 512$ with $R = 30$ replicates. Compare the interval width to a MC confidence interval based on the same total budget of $30 \times 512 = 15360$ samples. How many MC samples would be needed to match the RQMC interval width?
+
+4. **(Challenge)** The `SobolSampler` returns equal weights $w_i = 1/N$. Investigate whether using the QMC samples as nodes in a **weighted least-squares** regression (polynomial chaos) further improves convergence compared to using random samples as regression nodes.
+
+
+## Next Steps
+
+Continue with:
+
+- [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) --- Predicting the sample budget for a target accuracy
+- [Multi-Fidelity Monte Carlo](control_variate_concept.qmd) --- Using cheap surrogate models to reduce the constant in the $1/M$ convergence rate

@@ -56,6 +56,9 @@ website:
             - random_variables_distributions.qmd
             - monte_carlo_sampling.qmd
             - estimator_accuracy_mse.qmd
+            - quasi_monte_carlo_sampling.qmd
+            - qmc_practical.qmd
+            - importance_sampling_concept.qmd
             - mc_budget_estimation.qmd
         - section: "Multifidelity Estimation"
           contents:
@@ -120,6 +123,8 @@ website:
             - leja_sequences.qmd
         - section: "Surrogate Modeling"
           contents:
+            - surrogate_workflow.qmd
+            - surrogate_design.qmd
             - section: "Polynomial Chaos"
               contents:
                 - polynomial_chaos_surrogates.qmd

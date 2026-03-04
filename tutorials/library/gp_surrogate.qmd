@@ -8,7 +8,7 @@ difficulty: intermediate
 estimated_time: 10
 render_time: 42
 prerequisites:
-  - setup_environment
+  - surrogate_workflow
 tags:
   - surrogate
   - gaussian-process
@@ -43,25 +43,7 @@ After completing this tutorial, you will be able to:
 - Visualise how the GP posterior uncertainty reflects data coverage
 
 
-## The Cost Problem
-
-Computational models in engineering and science can take minutes, hours, or days per
-evaluation. When we want to understand how uncertain inputs affect the model outputs ---
-computing means, variances, failure probabilities --- we need hundreds to thousands of
-evaluations. A Monte Carlo estimate of the mean converges only as $1/\sqrt{N}$;
-estimating variances or tail probabilities requires even more samples.
-
-A **surrogate model** replaces the expensive simulator $f(\boldsymbol{\xi})$ with a
-cheap approximation $\hat{f}(\boldsymbol{\xi})$ that can be evaluated millions of times
-at negligible cost. We invest a modest number of expensive model evaluations to *train*
-the surrogate, then use it as a stand-in for all subsequent analysis.
-
-A **Gaussian process (GP)** surrogate goes one step further than a polynomial: it does
-not just predict a single value at each new point, it returns a full probability
-distribution. The posterior mean $\mu^*(\mathbf{x})$ is the best estimate, and the
-posterior standard deviation $\sigma^*(\mathbf{x})$ tells us how confident the surrogate
-is at that location. This built-in uncertainty quantification is the defining advantage
-of GP surrogates over polynomial or neural network alternatives.
+Surrogate models replace expensive simulators with cheap approximations --- see [The Surrogate Modeling Workflow](surrogate_workflow.qmd) for an introduction. A **Gaussian process (GP)** surrogate goes one step further than a polynomial: it returns not just a prediction but a full probability distribution. The posterior mean $\mu^*(\mathbf{x})$ is the best estimate, and the posterior standard deviation $\sigma^*(\mathbf{x})$ tells us how confident the surrogate is at that location. This built-in uncertainty quantification is the defining advantage of GP surrogates.
 
 
 ## Setup: The Beam Benchmark

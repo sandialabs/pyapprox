@@ -143,6 +143,24 @@ Run the first cell to install PyApprox, then run all remaining cells
 :::
 
 ::: {.tutorial-card}
+[**Quasi--Monte Carlo Sampling**](quasi_monte_carlo_sampling.qmd){.tutorial-title}
+[Low-discrepancy sequences fill space more evenly than random samples, yielding faster convergence for smooth integrands]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Practical QMC: Scrambling, Error Bars, and High Dimensions**](qmc_practical.qmd){.tutorial-title}
+[Owen scrambling for error estimation, star discrepancy as a measure of uniformity, and how the QMC advantage depends on dimension]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Importance Sampling for Rare Events**](importance_sampling_concept.qmd){.tutorial-title}
+[When Monte Carlo needs millions of samples to see a single failure, importance sampling targets the tail and corrects with likelihood ratios]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
 [**Monte Carlo Budget Estimation**](mc_budget_estimation.qmd){.tutorial-title}
 [Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy]{.tutorial-desc}
 [Hands-on]{.badge-hands-on}
@@ -465,6 +483,18 @@ Run the first cell to install PyApprox, then run all remaining cells
 ## Surrogate Modeling {.topic-heading}
 
 [Build fast approximations of expensive models using polynomials, sparse grids, and Gaussian processes.]{.section-desc}
+
+::: {.tutorial-card}
+[**The Surrogate Modeling Workflow**](surrogate_workflow.qmd){.tutorial-title}
+[Build your first surrogate model and learn the four-step workflow that every surrogate method follows]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**What Makes a Good Surrogate?**](surrogate_design.qmd){.tutorial-title}
+[How the choice of ansatz, training data, and fitting strategy affect surrogate quality, and how different surrogates exploit different kinds of function structure]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
 
 ### Polynomial Chaos {.sub-heading}
 

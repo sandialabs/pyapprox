@@ -11,6 +11,10 @@
 #   --execute       Force re-execute all code (ignores freeze cache)
 #   -j N            Parallel execution: render N tutorials concurrently (default: 1)
 #                   Use -j auto to detect CPU count automatically
+#                   NOTE: Quarto has race conditions in parallel mode — a few
+#                   tutorials may fail with "No such file or directory" errors.
+#                   Simply re-run the same command; previously succeeded tutorials
+#                   are cached in _freeze/ and skipped, so only failures re-execute.
 #   --html-fast     Build HTML site from freeze cache only (skips all execution)
 #   --pdf           Generate PDF user manual (uses freeze cache, executes if needed)
 #   --notebooks     Generate downloadable notebooks (library only)
@@ -248,6 +252,9 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
             echo ""
             echo "Partial timings saved to: $TIMINGS_FILE"
         fi
+        echo ""
+        echo "TIP: Parallel builds can fail due to Quarto race conditions."
+        echo "     Re-run the same command — cached tutorials are skipped."
         exit 1
     fi
 

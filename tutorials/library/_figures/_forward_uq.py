@@ -32,7 +32,6 @@ def plot_forward_uq_schematic(ax_in, ax_mid, ax_out):
     ax_in.set_xlabel(r"$\theta_1$", fontsize=12)
     ax_in.set_ylabel(r"$\theta_2$", fontsize=12)
     ax_in.set_title(r"Input distribution $p(\boldsymbol{\theta})$", fontsize=11)
-    ax_in.set_aspect("equal")
     ax_in.set_xlim(-3, 3)
     ax_in.set_ylim(-3, 3)
 

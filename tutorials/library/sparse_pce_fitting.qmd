@@ -180,6 +180,135 @@ plt.show()
 ```
 
 
+## Why Does L1 Promote Sparsity?
+
+Before applying BPDN, it helps to understand *geometrically* why the $\ell_1$ penalty
+drives coefficients to exactly zero while the more familiar $\ell_2$ penalty does not.
+
+Consider a simple model with two coefficients $\theta_1, \theta_2$. The unconstrained
+least-squares solution is $\theta^*_{\mathrm{LS}} = (2.5, 1.5)$. The contours of the
+least-squares objective $J(\theta) = \|\Phi\theta - y\|_2^2$ are ellipses centred on
+$\theta^*_{\mathrm{LS}}$.
+
+Now impose a budget constraint $\|\theta\|_p \leq t$ with $t = 1.8$. The constrained
+solution is the point inside the constraint region that minimises $J$ --- equivalently,
+the first contour of $J$ that touches the constraint boundary.
+
+The geometry of the constraint region is the key:
+
+- The $\ell_1$ constraint $|\theta_1| + |\theta_2| \leq t$ is a **diamond** with sharp
+  corners on the coordinate axes. As we expand the elliptical contours outward from
+  $\theta^*_{\mathrm{LS}}$, they almost always first touch the diamond at one of these
+  corners --- a point where one coordinate is exactly zero. The solution is **sparse**.
+
+- The $\ell_2$ constraint $\theta_1^2 + \theta_2^2 \leq t^2$ is a **circle** with no
+  corners. The contours touch the circle on its smooth boundary, generically at a point
+  where both coordinates are nonzero. The solution **shrinks** coefficients but does not
+  zero them out.
+
+```{python}
+#| echo: false
+#| fig-cap: "Why L₁ promotes sparsity. Left: the L₁ constraint region (diamond) has corners on the axes. The smallest objective contour touching the diamond hits a corner, forcing θ₂ = 0. Right: the L₂ constraint region (circle) is smooth, so the tangent point has both components nonzero. Both panels use the same objective with unconstrained optimum θ* = (2.5, 1.5) and budget t = 1.8."
+#| label: fig-l1-vs-l2
+
+from matplotlib.patches import Polygon
+
+theta_star = np.array([2.5, 1.5])
+t = 1.8
+H = np.array([[1.0, 0.3], [0.3, 0.6]])
+
+th1 = np.linspace(-1.2, 4.2, 600)
+th2 = np.linspace(-1.2, 3.8, 600)
+T1, T2 = np.meshgrid(th1, th2)
+D1, D2 = T1 - theta_star[0], T2 - theta_star[1]
+J = 0.5 * (H[0,0]*D1**2 + 2*H[0,1]*D1*D2 + H[1,1]*D2**2)
+
+diamond_verts = np.array([[t, 0], [0, t], [-t, 0], [0, -t], [t, 0]])
+
+# ── Find L1-constrained solution (search diamond boundary) ──
+n_bnd = 8000
+l1_boundary = []
+for i in range(n_bnd):
+    frac = i / n_bnd
+    seg = min(int(frac * 4), 3)
+    s = (frac * 4) - seg
+    l1_boundary.append((1-s)*diamond_verts[seg] + s*diamond_verts[seg+1])
+l1_boundary = np.array(l1_boundary)
+d1b, d2b = l1_boundary[:, 0] - theta_star[0], l1_boundary[:, 1] - theta_star[1]
+j_bnd = 0.5 * (H[0,0]*d1b**2 + 2*H[0,1]*d1b*d2b + H[1,1]*d2b**2)
+l1_sol = l1_boundary[np.argmin(j_bnd)]
+j_l1 = j_bnd.min()
+
+# ── L2-constrained solution ──
+l2_sol = t * theta_star / np.linalg.norm(theta_star)
+d_l2 = l2_sol - theta_star
+j_l2 = 0.5 * (H[0,0]*d_l2[0]**2 + 2*H[0,1]*d_l2[0]*d_l2[1] + H[1,1]*d_l2[1]**2)
+
+# ── Plot ──
+fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+levels = np.linspace(0.1, 5.5, 18)
+
+for panel, (ax, j_sol, sol) in enumerate(zip(axes, [j_l1, j_l2], [l1_sol, l2_sol])):
+    ax.contourf(T1, T2, J, levels=levels, cmap="magma_r", alpha=0.5)
+    ax.contour(T1, T2, J, levels=levels, cmap="magma_r", linewidths=0.7, alpha=0.7)
+    ax.contour(T1, T2, J, levels=[j_sol], colors=["#d62828"], linewidths=2.5, zorder=5)
+
+    if panel == 0:
+        patch = Polygon(diamond_verts[:-1], closed=True, facecolor="#2a9d8f",
+                        alpha=0.2, edgecolor="#264653", linewidth=2.5, zorder=4)
+        ax.add_patch(patch)
+        for v in diamond_verts[:-1]:
+            ax.plot(v[0], v[1], "o", color="#264653", ms=6, zorder=6)
+        label = r"$\hat{\theta} = (1.8,\; \mathbf{0})$"
+        txt_offset = (-1.8, -0.9)
+        ax.annotate(r"$\theta_2 = 0$ (sparse!)", xy=(sol[0]+0.1, sol[1]+0.05),
+                    xytext=(sol[0]+0.4, sol[1]-0.7), fontsize=10, color="#264653",
+                    fontstyle="italic",
+                    arrowprops=dict(arrowstyle="->", color="#264653", lw=1.2), zorder=9)
+    else:
+        circ = np.linspace(0, 2*np.pi, 300)
+        ax.fill(t*np.cos(circ), t*np.sin(circ), facecolor="#2a9d8f", alpha=0.2, zorder=4)
+        ax.plot(t*np.cos(circ), t*np.sin(circ), color="#264653", lw=2.5, zorder=4)
+        label = rf"$\hat{{\theta}} = ({sol[0]:.2f},\; {sol[1]:.2f})$"
+        txt_offset = (-2.0, 0.8)
+
+    ax.plot(*sol, "*", color="#d62828", ms=20, zorder=8,
+            markeredgecolor="white", markeredgewidth=1.0)
+    ax.annotate(label, xy=sol, xytext=(sol[0]+txt_offset[0], sol[1]+txt_offset[1]),
+                fontsize=11.5, color="#d62828", fontweight="bold",
+                arrowprops=dict(arrowstyle="->", color="#d62828", lw=1.5), zorder=9,
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="none", alpha=0.8))
+
+    ax.plot(*theta_star, "k+", ms=15, mew=2.5, zorder=8)
+    ax.annotate(r"$\theta^*_{\mathrm{LS}}$", xy=theta_star,
+                xytext=(theta_star[0]+0.2, theta_star[1]+0.3), fontsize=11, zorder=9)
+
+    ax.axhline(0, color="#adb5bd", lw=0.5, zorder=1)
+    ax.axvline(0, color="#adb5bd", lw=0.5, zorder=1)
+    ax.set_xlabel(r"$\theta_1$", fontsize=13)
+    ax.set_ylabel(r"$\theta_2$", fontsize=13)
+    ax.set_xlim(-1.2, 4.2)
+    ax.set_ylim(-1.2, 3.8)
+    ax.set_aspect("equal")
+
+axes[0].set_title(r"$\ell_1$ constraint: $|\theta_1| + |\theta_2| \leq t$", fontsize=12)
+axes[1].set_title(r"$\ell_2$ constraint: $\theta_1^2 + \theta_2^2 \leq t^2$", fontsize=12)
+plt.tight_layout(w_pad=2)
+plt.show()
+```
+
+This geometry extends to higher dimensions. In $P$-dimensional coefficient space, the
+$\ell_1$ ball is a **cross-polytope** with $2P$ vertices, all on the coordinate axes.
+Every vertex has $P - 1$ coordinates exactly equal to zero. Edges, faces, and higher-dimensional
+facets also lie on coordinate subspaces. An ellipsoidal objective contour expanding
+outward from $\theta^*_{\mathrm{LS}}$ will generically first touch the polytope on a
+low-dimensional face, producing a solution with many zero components.
+
+For a PCE with hundreds or thousands of candidate terms, this means the BPDN/LASSO
+solution retains only the handful of basis functions that contribute most to explaining
+the training data --- exactly the sparsity we want.
+
+
 ## Basis Pursuit Denoising (BPDN / LASSO)
 
 BPDN solves the L1-regularized least-squares problem:
