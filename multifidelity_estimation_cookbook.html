@@ -357,6 +357,24 @@ MathJax = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -731,6 +749,18 @@ MathJax = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1107,7 +1137,7 @@ MathJax = {
 <section id="shared-setup" class="level2">
 <h2 class="anchored" data-anchor-id="shared-setup">Shared Setup</h2>
 <p>All examples use the five-model polynomial benchmark. Replace <code>benchmark</code> with your own models and prior to apply any recipe to your problem.</p>
-<div id="bb88e89e" class="cell" data-execution_count="1">
+<div id="577f9ad7" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1163,7 +1193,7 @@ MathJax = {
 <section id="stage-1-pilot-study" class="level3">
 <h3 class="anchored" data-anchor-id="stage-1-pilot-study">Stage 1: Pilot study</h3>
 <p>Evaluate all models at a shared set of pilot samples to estimate the cross-covariance.</p>
-<div id="1c1aa091" class="cell" data-execution_count="2">
+<div id="658ad46f" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>N_pilot <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>samples_pilot <span class="op">=</span> variable.rvs(N_pilot)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>vals_pilot <span class="op">=</span> [m(samples_pilot) <span class="cf">for</span> m <span class="kw">in</span> models]</span>
@@ -1197,7 +1227,7 @@ MathJax = {
 <p>The pilot uses real budget. Pass <code>total_budget - pilot_cost</code> to the allocator.</p>
 </div>
 </div>
-<div id="af107fc6" class="cell" data-execution_count="3">
+<div id="59c3ba78" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>total_budget <span class="op">=</span> <span class="fl">500.0</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>pilot_cost   <span class="op">=</span> <span class="bu">float</span>(costs_np.<span class="bu">sum</span>()) <span class="op">*</span> N_pilot</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>remaining    <span class="op">=</span> total_budget <span class="op">-</span> pilot_cost</span>
@@ -1209,7 +1239,7 @@ MathJax = {
 </section>
 <section id="stage-2-build-estimator-and-allocate" class="level3">
 <h3 class="anchored" data-anchor-id="stage-2-build-estimator-and-allocate">Stage 2: Build estimator and allocate</h3>
-<div id="4a514f0d" class="cell" data-execution_count="4">
+<div id="489c8deb" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>est <span class="op">=</span> MFMCEstimator(stat, costs)</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>allocator <span class="op">=</span> default_allocator_factory(est)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> allocator.allocate(remaining)</span>
@@ -1225,7 +1255,7 @@ Predicted std:     0.002432</code></pre>
 </section>
 <section id="stage-3-generate-samples" class="level3">
 <h3 class="anchored" data-anchor-id="stage-3-generate-samples">Stage 3: Generate samples</h3>
-<div id="586b6554" class="cell" data-execution_count="5">
+<div id="4ba0e35b" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>samples_per_model <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Sample shapes: </span><span class="sc">{</span>[s.shape <span class="cf">for</span> s <span class="kw">in</span> samples_per_model]<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -1235,13 +1265,13 @@ Predicted std:     0.002432</code></pre>
 </section>
 <section id="stage-4-evaluate-models" class="level3">
 <h3 class="anchored" data-anchor-id="stage-4-evaluate-models">Stage 4: Evaluate models</h3>
-<div id="965b8e3f" class="cell" data-execution_count="6">
+<div id="4df496bb" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>values_per_model <span class="op">=</span> [models[a](samples_per_model[a]) <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(nmodels)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="stage-5-compute-estimate" class="level3">
 <h3 class="anchored" data-anchor-id="stage-5-compute-estimate">Stage 5: Compute estimate</h3>
-<div id="ba42c9af" class="cell" data-execution_count="7">
+<div id="8b2aecef" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> est(values_per_model)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(benchmark.ensemble_means()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
@@ -1257,7 +1287,7 @@ Error:     0.000864</code></pre>
 </section>
 <section id="compare-against-mc" class="level3">
 <h3 class="anchored" data-anchor-id="compare-against-mc">Compare against MC</h3>
-<div id="b6b75065" class="cell" data-execution_count="8">
+<div id="17619950" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>stat_mc <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>stat_mc.set_pilot_quantities(cov_pilot[:<span class="dv">1</span>, :<span class="dv">1</span>])</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat_mc, costs[:<span class="dv">1</span>])</span>
@@ -1284,7 +1314,7 @@ Variance reduction: 22.4×</code></pre>
 <div class="tab-content">
 <div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
 <p>Classical control variate. Requires the <strong>known</strong> LF population mean — rare in practice. Use ACV instead when the LF mean is unknown.</p>
-<div id="37451382" class="cell" data-execution_count="9">
+<div id="2cdd5782" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> CVEstimator</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Only works with known LF mean (set via benchmark here)</span></span>
@@ -1302,7 +1332,7 @@ Variance reduction: 22.4×</code></pre>
 </div>
 <div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
 <p>Multi-Level Monte Carlo. Decomposes the HF mean into telescoping level corrections. Best when models form a natural refinement hierarchy (mesh levels).</p>
-<div id="cb986236" class="cell" data-execution_count="10">
+<div id="9c0dd322" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>est_mlmc <span class="op">=</span> MLMCEstimator(stat, costs)</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>mlmc_allocator <span class="op">=</span> default_allocator_factory(est_mlmc)</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>mlmc_result <span class="op">=</span> mlmc_allocator.allocate(remaining)</span>
@@ -1319,7 +1349,7 @@ MLMC predicted std: 0.002513</code></pre>
 </div>
 <div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
 <p>Multi-Fidelity Monte Carlo. Nested sample structure with closed-form allocation. Fast and robust for well-correlated hierarchies.</p>
-<div id="207d7736" class="cell" data-execution_count="11">
+<div id="95ecb2f3" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>est_mfmc <span class="op">=</span> MFMCEstimator(stat, costs)</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>mfmc_allocator <span class="op">=</span> default_allocator_factory(est_mfmc)</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>mfmc_result <span class="op">=</span> mfmc_allocator.allocate(remaining)</span>
@@ -1348,7 +1378,7 @@ MFMC predicted std: 0.002432</code></pre>
 </div>
 <div id="tabset-1-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-4-tab">
 <p>Best Linear Unbiased Estimator via GLS. Solves an SDP for the optimal allocation. Especially powerful when models share subsets of inputs.</p>
-<div id="31948c50" class="cell" data-execution_count="12">
+<div id="ba917e89" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> MLBLUEEstimator</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.groupacv <span class="im">import</span> MLBLUESPDAllocationOptimizer</span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1376,7 +1406,7 @@ MFMC predicted std: 0.002432</code></pre>
 <p>Reasons to use a named estimator instead: (a) you know from theory which estimator is best, (b) you have many models and cannot afford enumeration time, (c) you specifically need MLMC (which is not an ACV estimator).</p>
 <section id="search-all-families-default" class="level3">
 <h3 class="anchored" data-anchor-id="search-all-families-default">Search all families (default)</h3>
-<div id="1cf7d4a0" class="cell" data-execution_count="13">
+<div id="f4df8147" class="cell" data-execution_count="13">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>search_all <span class="op">=</span> ACVSearch(stat, costs, allocator_factory<span class="op">=</span>allocator_factory)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>result_all <span class="op">=</span> search_all.search(remaining)</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>best <span class="op">=</span> result_all.estimator</span>
@@ -1392,7 +1422,7 @@ Predicted std:  0.002432</code></pre>
 </section>
 <section id="restrict-to-specific-families" class="level3">
 <h3 class="anchored" data-anchor-id="restrict-to-specific-families">Restrict to specific families</h3>
-<div id="4b803901" class="cell" data-execution_count="14">
+<div id="a09d1337" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>search_gmf <span class="op">=</span> ACVSearch(stat, costs, estimator_classes<span class="op">=</span>[GMFEstimator, GRDEstimator],</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>                       allocator_factory<span class="op">=</span>allocator_factory)</span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>result_gmf <span class="op">=</span> search_gmf.search(remaining)</span>
@@ -1408,7 +1438,7 @@ Predicted std:  0.002432</code></pre>
 </section>
 <section id="restrict-search-depth-fast-for-many-models" class="level3">
 <h3 class="anchored" data-anchor-id="restrict-search-depth-fast-for-many-models">Restrict search depth (fast for many models)</h3>
-<div id="5724c384" class="cell" data-execution_count="15">
+<div id="230f7b91" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>search_shallow <span class="op">=</span> ACVSearch(</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span><span class="dv">2</span>),</span>
@@ -1427,7 +1457,7 @@ Predicted std:  0.001352</code></pre>
 </section>
 <section id="fix-a-specific-recursion-index" class="level3">
 <h3 class="anchored" data-anchor-id="fix-a-specific-recursion-index">Fix a specific recursion index</h3>
-<div id="cd18bad7" class="cell" data-execution_count="16">
+<div id="693c33e6" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Star topology: every LF model corrects HF directly (= ACVMF)</span></span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>ri_star <span class="op">=</span> <span class="bu">tuple</span>([<span class="dv">0</span>] <span class="op">*</span> (nmodels <span class="op">-</span> <span class="dv">1</span>))</span>
 <span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1474,7 +1504,7 @@ Figure&nbsp;1: Variance reduction of the best estimator found by ACVSearch vs MC
 <section id="multi-output-estimation" class="level2">
 <h2 class="anchored" data-anchor-id="multi-output-estimation">Multi-Output Estimation</h2>
 <p>When the HF model produces multiple QoIs, estimating them jointly can reduce variance for each individual QoI compared to running separate scalar ACVs.</p>
-<div id="9ed70828" class="cell" data-execution_count="18">
+<div id="b6119014" class="cell" data-execution_count="18">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    multioutput_ensemble_3x3,</span>
 <span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1522,7 +1552,7 @@ QoI 1: SOACV std=0.00948  MOACV std=0.00302  gain=89.8%</code></pre>
 <section id="ensemble-selection" class="level2">
 <h2 class="anchored" data-anchor-id="ensemble-selection">Ensemble Selection</h2>
 <p>When your model library contains models that may hurt rather than help, use <code>AllSubsetsStrategy</code> to search over model subsets.</p>
-<div id="00da391e" class="cell" data-execution_count="19">
+<div id="daae250d" class="cell" data-execution_count="19">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> AllSubsetsStrategy</span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>search_ens <span class="op">=</span> ACVSearch(</span>
@@ -1594,7 +1624,7 @@ Figure&nbsp;2: Allocation matrix for the best ACVSearch estimator. Each row is a
 <section id="near-singular-pilot-covariance" class="level3">
 <h3 class="anchored" data-anchor-id="near-singular-pilot-covariance">Near-singular pilot covariance</h3>
 <p>If the pilot covariance is nearly singular (small eigenvalues), the optimal weights become unstable. Fix: increase <code>N_pilot</code>, or remove highly collinear models.</p>
-<div id="5a6cff4c" class="cell" data-execution_count="21">
+<div id="29e8a831" class="cell" data-execution_count="21">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check pilot covariance condition number</span></span>
 <span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(cov_np)</span>
 <span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Condition number: </span><span class="sc">{</span>eigvals<span class="sc">.</span><span class="bu">max</span>() <span class="op">/</span> eigvals<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.1e}</span><span class="ss">"</span>)</span>
@@ -1608,7 +1638,7 @@ Smallest eigenvalue: 8.13e-08</code></pre>
 <section id="optimizer-convergence-trust-constr-vs-slsqp" class="level3">
 <h3 class="anchored" data-anchor-id="optimizer-convergence-trust-constr-vs-slsqp">Optimizer convergence (trust-constr vs SLSQP)</h3>
 <p>The default <code>trust-constr</code> optimizer can stall when the optimal allocation sits on a constraint boundary. Fix: pass an SLSQP optimizer to <code>default_allocator_factory</code>.</p>
-<div id="0166b578" class="cell" data-execution_count="22">
+<div id="7ba97bda" class="cell" data-execution_count="22">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pass optimizer to default_allocator_factory</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>slsqp <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>slsqp_factory <span class="op">=</span> <span class="kw">lambda</span> est: default_allocator_factory(est, optimizer<span class="op">=</span>slsqp)</span>

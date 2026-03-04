@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1206,7 +1236,7 @@ window.Quarto = {
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We manually construct <span class="math inline">\(\boldsymbol{\Psi}\)</span> for the three-subset example from the concept tutorial and verify <a href="#eq-variance" class="quarto-xref">Equation&nbsp;6</a> against empirical variance from repeated trials.</p>
-<div id="085d9f3a" class="cell" data-execution_count="1">
+<div id="5e31aa74" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1245,7 +1275,7 @@ window.Quarto = {
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>beta <span class="op">=</span> np.zeros(M <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span> beta[<span class="dv">0</span>] <span class="op">=</span> <span class="fl">1.0</span>   <span class="co"># extract HF mean</span></span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>var_theo <span class="op">=</span> <span class="bu">float</span>(beta <span class="op">@</span> Psi_inv <span class="op">@</span> beta)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="c006fc17" class="cell" data-execution_count="2">
+<div id="48fd93d4" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-subset information contributions — shows which subsets inform which means</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (sidx, mk) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(subsets_idx, m_counts)):</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Rk <span class="op">=</span> restriction(sidx, M)</span>

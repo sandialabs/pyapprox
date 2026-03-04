@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1114,7 +1144,7 @@ Figure&nbsp;1: Two strategies for posterior inference. Left: MCMC generates a cl
 \delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
 \]</span></p>
 <p>We place a Gaussian prior on <span class="math inline">\(E\)</span> and observe tip deflection with Gaussian noise.</p>
-<div id="a4c06f58" class="cell" data-execution_count="3">
+<div id="8fadb875" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
@@ -1226,7 +1256,7 @@ Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its 
 <li><strong>Build the objective</strong>: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.</li>
 <li><strong>Optimize</strong>: adjust the parameters to improve the fit.</li>
 </ol>
-<div id="04fbe354" class="cell" data-execution_count="7">
+<div id="f0b06373" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
@@ -1273,7 +1303,7 @@ Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its 
 <pre><code>Variational parameters to optimize: 2</code></pre>
 </div>
 </div>
-<div id="6bdb6e37" class="cell" data-execution_count="8">
+<div id="52de1c52" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>

@@ -406,6 +406,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -780,6 +798,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1150,7 +1180,7 @@ window.Quarto = {
 \]</span></p>
 </div>
 </div>
-<div id="1f5fa713" class="cell" data-execution_count="1">
+<div id="dc8895ed" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1183,7 +1213,7 @@ Cost per evaluation: 2.1</code></pre>
 <section id="stage-1-pilot-samples" class="level2">
 <h2 class="anchored" data-anchor-id="stage-1-pilot-samples">Stage 1: Pilot Samples</h2>
 <p>We draw a modest number of pilot samples <span class="math inline">\(M_{\text{pilot}}\)</span>, evaluate the model, and estimate the three moment quantities from the resulting QoI values.</p>
-<div id="53569650" class="cell" data-execution_count="2">
+<div id="9b6f4506" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_pilot <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_pilot <span class="op">=</span> variable.rvs(M_pilot)</span>
@@ -1205,7 +1235,7 @@ Values shape: (3, 50)</code></pre>
 <li><span class="math inline">\(\hat{\mathbf{B}}\)</span>: the sample covariance between the QoI values and their centered outer products (<span class="math inline">\(K \times K^2\)</span>)</li>
 </ul>
 <p>The <code>MultiOutputMeanAndVariance</code> statistic class provides <code>compute_pilot_quantities</code> to compute all three from raw model evaluations:</p>
-<div id="fb801af4" class="cell" data-execution_count="3">
+<div id="fcd0eef3" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>stat_mv <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cov_pilot, W_pilot, B_pilot <span class="op">=</span> stat_mv.compute_pilot_quantities([values_pilot])</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1252,7 +1282,7 @@ B shape: (3, 9)</code></pre>
 <li>Create an <strong>estimator</strong> (here, <code>MCEstimator</code>).</li>
 <li>Call <code>allocate_samples</code> with a target computational cost to determine the optimal number of samples.</li>
 </ol>
-<div id="6a138543" class="cell" data-execution_count="4">
+<div id="a167bce0" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1-2: Create stat and set pilot quantities</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(cov_pilot, W_pilot, B_pilot)</span>
@@ -1276,7 +1306,7 @@ Actual cost: 499.8</code></pre>
 <h3 class="anchored" data-anchor-id="understanding-the-output">Understanding the Output</h3>
 <p>The <code>allocate_samples</code> call determines how many model evaluations to run. For single-model Monte Carlo, this is simply <span class="math inline">\(M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor\)</span>. Because the number of samples must be an integer, the actual cost is generally less than the target — no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.</p>
 <p>We can also inspect the <strong>predicted estimator covariance</strong> at this allocation:</p>
-<div id="9a24ffd9" class="cell" data-execution_count="5">
+<div id="3d3187db" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>predicted_est_cov <span class="op">=</span> est.optimized_covariance()</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>nstats <span class="op">=</span> stat.nstats()</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of statistics: </span><span class="sc">{</span>nstats<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -1297,7 +1327,7 @@ Diagonal (individual estimator variances):
 <section id="running-the-allocated-experiment" class="level2">
 <h2 class="anchored" data-anchor-id="running-the-allocated-experiment">Running the Allocated Experiment</h2>
 <p>With the budget determined, we generate samples, evaluate the model, and compute the statistics:</p>
-<div id="d9fd3323" class="cell" data-execution_count="6">
+<div id="ad5d6b77" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples according to the allocation</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>samples_allocated <span class="op">=</span> est.generate_samples_per_model(variable.rvs)[<span class="dv">0</span>]</span>
@@ -1390,7 +1420,7 @@ Figure&nbsp;3: Sensitivity of the budget prediction to pilot size. Each point is
 <section id="the-complete-two-stage-workflow" class="level2">
 <h2 class="anchored" data-anchor-id="the-complete-two-stage-workflow">The Complete Two-Stage Workflow</h2>
 <p>Putting it all together, the practical MC workflow for a target accuracy is:</p>
-<div id="6666b58d" class="cell" data-execution_count="10">
+<div id="cd025c57" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Full workflow ---</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Choose target accuracy and statistic</span></span>

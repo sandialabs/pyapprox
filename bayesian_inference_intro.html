@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1123,7 +1153,7 @@ Figure&nbsp;1: Forward UQ (top, faded) propagates a prior distribution through t
 \delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
 \]</span></p>
 <p>with fixed values <span class="math inline">\(q_0 = 10\)</span>, <span class="math inline">\(L = 100\)</span>, <span class="math inline">\(I = H^3/12\)</span>, <span class="math inline">\(H = 30\)</span>. The only uncertain parameter is <span class="math inline">\(E\)</span>.</p>
-<div id="4c740ff1" class="cell" data-execution_count="3">
+<div id="3d6c0915" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
@@ -1142,7 +1172,7 @@ Figure&nbsp;1: Forward UQ (top, faded) propagates a prior distribution through t
 <p><span class="math display">\[
 E \sim \mathcal{N}(\mu_{\text{prior}},\, \sigma_{\text{prior}}^2) = \mathcal{N}(12{,}000,\; 2{,}000^2)
 \]</span></p>
-<div id="957d5acb" class="cell" data-execution_count="4">
+<div id="eb42be40" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>mu_prior <span class="op">=</span> <span class="dv">12_000</span></span>
@@ -1153,7 +1183,7 @@ E \sim \mathcal{N}(\mu_{\text{prior}},\, \sigma_{\text{prior}}^2) = \mathcal{N}(
 <section id="generating-synthetic-data" class="level2">
 <h2 class="anchored" data-anchor-id="generating-synthetic-data">Generating Synthetic Data</h2>
 <p>To see Bayesian inference in action, we create a controlled experiment. We pick a “true” parameter value, run the model, and add measurement noise to produce a synthetic observation — mimicking what would happen in a real experiment.</p>
-<div id="2c0d476f" class="cell" data-execution_count="5">
+<div id="a6856801" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
@@ -1217,7 +1247,7 @@ Noise std dev:       0.4</code></pre>
 <p><span class="math display">\[
 E = \frac{11\, q_0\, L^4}{120\, y_{\text{obs}}\, I}
 \]</span></p>
-<div id="31d74622" class="cell" data-execution_count="6">
+<div id="31f44703" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>I_rect <span class="op">=</span> H<span class="op">**</span><span class="dv">3</span> <span class="op">/</span> <span class="fl">12.0</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>E_point_estimate <span class="op">=</span> (<span class="dv">11</span> <span class="op">*</span> q0 <span class="op">*</span> L<span class="op">**</span><span class="dv">4</span>) <span class="op">/</span> (<span class="dv">120</span> <span class="op">*</span> y_obs <span class="op">*</span> I_rect)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Point estimate of E: </span><span class="sc">{</span>E_point_estimate<span class="sc">:.1f}</span><span class="ss">"</span>)</span>
@@ -1283,7 +1313,7 @@ Figure&nbsp;3: The prior distribution (blue) encodes our belief before seeing da
 \tag{1}\]</span></span></p>
 <p>The <strong>evidence</strong> <span class="math inline">\(p(y_{\text{obs}}) = \int \mathcal{L}(E)\, p(E)\, dE\)</span> is a normalizing constant that ensures the posterior integrates to one. Because this integral is an expectation with respect to the prior, we can evaluate it accurately with Gauss quadrature: a small set of carefully chosen points and weights that exactly integrate polynomials of high degree.</p>
 <p>The intuition is simple: <strong>the posterior is high where both the prior and the likelihood are high</strong>. Where the prior thinks <span class="math inline">\(E\)</span> is plausible <em>and</em> the data agrees, we have high posterior probability.</p>
-<div id="564b60f8" class="cell" data-execution_count="9">
+<div id="5797972a" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature <span class="im">import</span> gauss_quadrature_rule</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Gauss quadrature rule for the prior: points and probability-measure weights</span></span>
@@ -1335,7 +1365,7 @@ Figure&nbsp;4: Bayes’ theorem in action. The posterior (orange) combines the p
 <li>The <strong>posterior mean is shifted</strong> from the prior mean (<span class="math inline">\(12{,}000\)</span>) toward the data-consistent value (<span class="math inline">\(\approx 10{,}000\)</span>): the observation has updated our belief.</li>
 <li>The <strong>true value</strong> falls within the posterior’s support: the inference is working correctly.</li>
 </ul>
-<div id="1a7d49f9" class="cell" data-execution_count="11">
+<div id="c6a607ba" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior summary statistics via quadrature</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># E[E | y] = sum_i w_i * E_i * L(E_i) / evidence</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>posterior_mean <span class="op">=</span> <span class="bu">float</span>(</span>

@@ -223,7 +223,7 @@ window.Quarto = {
 <meta property="og:image" content="https://sandialabs.github.io/pyapprox/polynomial_chaos_surrogates_files/figure-html/fig-pce-predictions-output-1.png">
 <meta property="og:site_name" content="PyApprox">
 <meta property="og:image:height" content="835">
-<meta property="og:image:width" content="1919">
+<meta property="og:image:width" content="1909">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
@@ -1012,7 +1042,6 @@ window.Quarto = {
    
   <ul>
   <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
-  <li><a href="#the-cost-problem" id="toc-the-cost-problem" class="nav-link" data-scroll-target="#the-cost-problem">The Cost Problem</a></li>
   <li><a href="#setup-the-beam-benchmark" id="toc-setup-the-beam-benchmark" class="nav-link" data-scroll-target="#setup-the-beam-benchmark">Setup: The Beam Benchmark</a></li>
   <li><a href="#the-polynomial-chaos-expansion" id="toc-the-polynomial-chaos-expansion" class="nav-link" data-scroll-target="#the-polynomial-chaos-expansion">The Polynomial Chaos Expansion</a>
   <ul class="collapse">
@@ -1036,7 +1065,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Building a Polynomial Chaos Surrogate</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1081,22 +1110,17 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
 <p>After completing this tutorial, you will be able to:</p>
 <ul>
-<li>Explain why surrogate models are needed for expensive simulators</li>
 <li>Construct a polynomial chaos expansion (PCE) and connect basis polynomials to the input distribution</li>
 <li>Fit a PCE from training data using least squares</li>
 <li>Assess surrogate accuracy on an independent test set</li>
 <li>Visualize how the surrogate captures the model’s input–output relationship</li>
 </ul>
-</section>
-<section id="the-cost-problem" class="level2">
-<h2 class="anchored" data-anchor-id="the-cost-problem">The Cost Problem</h2>
-<p>Computational models in engineering and science can take minutes, hours, or days per evaluation. When we want to understand how uncertain inputs affect the model outputs — computing means, variances, failure probabilities — we need hundreds to thousands of evaluations. A Monte Carlo estimate of the mean converges only as <span class="math inline">\(1/\sqrt{M}\)</span>; estimating variances or tail probabilities requires even more samples.</p>
-<p>The idea behind a <strong>surrogate model</strong> is simple: replace the expensive simulator <span class="math inline">\(f(\boldsymbol{\theta})\)</span> with a cheap approximation <span class="math inline">\(\hat{f}(\boldsymbol{\theta})\)</span> that can be evaluated millions of times at negligible cost. We invest a modest number of expensive model evaluations to <em>train</em> the surrogate, then use it as a stand-in for all subsequent analysis.</p>
+<p>Surrogate models replace expensive simulators with cheap approximations — see <a href="./surrogate_workflow.html">The Surrogate Modeling Workflow</a> for an introduction to the four-step surrogate workflow.</p>
 </section>
 <section id="setup-the-beam-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-benchmark">Setup: The Beam Benchmark</h2>
 <p>We use a 2D cantilever beam with <span class="math inline">\(d = 3\)</span> uncertain parameters (one KLE mode coefficient per subdomain) parameterizing a spatially varying Young’s modulus field, and <span class="math inline">\(K = 2\)</span> quantities of interest (QoIs): tip deflection and total von Mises stress.</p>
-<div id="b95d1fb7" class="cell" data-execution_count="1">
+<div id="cdd2c547" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1167,7 +1191,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <p><span class="math display">\[
 \Lambda_p = \left\{ \mathbf{j} \in \mathbb{N}_0^d : \|\mathbf{j}\|_1 \leq p \right\}
 \]</span></p>
-<div id="f6177fe2" class="cell" data-execution_count="2">
+<div id="689c23c8" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1180,7 +1204,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <section id="collecting-training-data" class="level2">
 <h2 class="anchored" data-anchor-id="collecting-training-data">Collecting Training Data</h2>
 <p>To fit the PCE, we need <strong>training data</strong>: pairs <span class="math inline">\(\{(\boldsymbol{\theta}^{(i)}, \mathbf{q}^{(i)})\}_{i=1}^N\)</span> where <span class="math inline">\(\mathbf{q}^{(i)} = f(\boldsymbol{\theta}^{(i)})\)</span>. The simplest strategy is to draw random samples from the prior.</p>
-<div id="1eab78c0" class="cell" data-execution_count="3">
+<div id="f98113fa" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)       <span class="co"># (nvars, N_train)</span></span>
@@ -1200,7 +1224,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 </div>
 </div>
 <p>We also set aside an independent <strong>test set</strong> to evaluate surrogate accuracy:</p>
-<div id="dfe57d06" class="cell" data-execution_count="4">
+<div id="25f22e4f" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1212,7 +1236,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <section id="building-the-expansion" class="level3">
 <h3 class="anchored" data-anchor-id="building-the-expansion">Building the Expansion</h3>
 <p>We construct a PCE using <code>create_pce_from_marginals</code>, which automatically selects Hermite polynomials for Gaussian marginals and builds the orthonormal basis with a total-degree index set at the specified degree.</p>
-<div id="a1c0ce38" class="cell" data-execution_count="5">
+<div id="44104bcd" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1231,7 +1255,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 \]</span></p>
 <p>In matrix form: <span class="math inline">\(\hat{\mathbf{C}} = (\boldsymbol{\Phi}^\top \boldsymbol{\Phi})^{-1} \boldsymbol{\Phi}^\top \mathbf{V}\)</span>, where <span class="math inline">\(\Phi_{ij} = \Psi_j(\boldsymbol{\theta}^{(i)})\)</span> is the basis matrix and <span class="math inline">\(\mathbf{V}\)</span> contains the training values.</p>
 <p>We use <code>LeastSquaresFitter</code> to solve this:</p>
-<div id="0f524dbb" class="cell" data-execution_count="6">
+<div id="58370962" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1261,7 +1285,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <p><span class="math display">\[
 \epsilon_k = \frac{\| f_k(\boldsymbol{\Theta}_{\text{test}}) - \hat{f}_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}{\| f_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}, \qquad k = 1, \ldots, K
 \]</span></p>
-<div id="bdf6cad0" class="cell" data-execution_count="7">
+<div id="8732bd48" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>predictions_test <span class="op">=</span> pce(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1272,7 +1296,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <div id="fig-pce-predictions" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-pce-predictions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="polynomial_chaos_surrogates_files/figure-html/fig-pce-predictions-output-1.png" width="960" height="418" class="figure-img">
+<img src="polynomial_chaos_surrogates_files/figure-html/fig-pce-predictions-output-1.png" width="955" height="418" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-predictions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;1: PCE predictions vs.&nbsp;true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy.
@@ -1812,7 +1836,7 @@ Figure&nbsp;2: PCE cross sections for tip deflection. Diagonal: 1D slices throug
 <span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 8</span></span>
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 21</span></span>
 <span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - setup_environment</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate_workflow</span></span>
 <span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
 <span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
 <span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - polynomial-chaos</span></span>
@@ -1837,249 +1861,243 @@ Figure&nbsp;2: PCE cross sections for tip deflection. Diagonal: 1D slices throug
 <span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
 <span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why surrogate models are needed for expensive simulators</span>
-<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a polynomial chaos expansion (PCE) and connect basis polynomials to the input distribution</span>
-<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fit a PCE from training data using least squares</span>
-<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Assess surrogate accuracy on an independent test set</span>
-<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Visualize how the surrogate captures the model's input--output relationship</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a polynomial chaos expansion (PCE) and connect basis polynomials to the input distribution</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fit a PCE from training data using least squares</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Assess surrogate accuracy on an independent test set</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Visualize how the surrogate captures the model's input--output relationship</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Cost Problem</span></span>
-<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>Computational models in engineering and science can take minutes, hours, or days per evaluation. When we want to understand how uncertain inputs affect the model outputs --- computing means, variances, failure probabilities --- we need hundreds to thousands of evaluations. A Monte Carlo estimate of the mean converges only as $1/\sqrt{M}$; estimating variances or tail probabilities requires even more samples.</span>
-<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>The idea behind a **surrogate model** is simple: replace the expensive simulator $f(\boldsymbol{\theta})$ with a cheap approximation $\hat{f}(\boldsymbol{\theta})$ that can be evaluated millions of times at negligible cost. We invest a modest number of expensive model evaluations to *train* the surrogate, then use it as a stand-in for all subsequent analysis.</span>
-<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Benchmark</span></span>
-<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>We use a 2D cantilever beam with $d = 3$ uncertain parameters (one KLE mode coefficient per subdomain) parameterizing a spatially varying Young's modulus field, and $K = 2$ quantities of interest (QoIs): tip deflection and total von Mises stress.</span>
-<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
-<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
-<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
-<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
-<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()</span>
-<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Polynomial Chaos Expansion</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>Surrogate models replace expensive simulators with cheap approximations --- see <span class="co">[</span><span class="ot">The Surrogate Modeling Workflow</span><span class="co">](surrogate_workflow.qmd)</span> for an introduction to the four-step surrogate workflow.</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Benchmark</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>We use a 2D cantilever beam with $d = 3$ uncertain parameters (one KLE mode coefficient per subdomain) parameterizing a spatially varying Young's modulus field, and $K = 2$ quantities of interest (QoIs): tip deflection and total von Mises stress.</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()</span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Polynomial Chaos Expansion</span></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>A PCE approximates the model output as a finite sum of multivariate polynomials:</span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c_j \, \Psi_j(\boldsymbol{\theta})</span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>A PCE approximates the model output as a finite sum of multivariate polynomials:</span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>where:</span>
 <span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a>f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c_j \, \Psi_j(\boldsymbol{\theta})</span>
-<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$c_j \in \mathbb{R}^K$ are the **expansion coefficients** (one per QoI)</span>
+<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Psi_j(\boldsymbol{\theta})$ are **multivariate polynomial basis functions**</span>
+<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$P$ is the number of terms, determined by the polynomial degree and the number of input variables</span>
 <span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a>where:</span>
+<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a><span class="fu">### Basis Polynomials and the Input Distribution</span></span>
 <span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$c_j \in \mathbb{R}^K$ are the **expansion coefficients** (one per QoI)</span>
-<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Psi_j(\boldsymbol{\theta})$ are **multivariate polynomial basis functions**</span>
-<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$P$ is the number of terms, determined by the polynomial degree and the number of input variables</span>
-<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a><span class="fu">### Basis Polynomials and the Input Distribution</span></span>
+<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>The basis functions are products of univariate orthogonal polynomials:</span>
+<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>\Psi_j(\boldsymbol{\theta}) = \prod_{i=1}^d \psi_{j_i}^{(i)}(\theta_i)</span>
+<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>The basis functions are products of univariate orthogonal polynomials:</span>
+<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>where $\psi_n^{(i)}$ is the degree-$n$ polynomial orthogonal with respect to the marginal distribution of $\theta_i$. The key correspondence is:</span>
 <span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a>\Psi_j(\boldsymbol{\theta}) = \prod_{i=1}^d \psi_{j_i}^{(i)}(\theta_i)</span>
-<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a>where $\psi_n^{(i)}$ is the degree-$n$ polynomial orthogonal with respect to the marginal distribution of $\theta_i$. The key correspondence is:</span>
-<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-99"><a href="#cb9-99" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Input distribution <span class="pp">|</span> Orthogonal polynomials <span class="pp">|</span></span>
-<span id="cb9-100"><a href="#cb9-100" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|</span></span>
-<span id="cb9-101"><a href="#cb9-101" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Gaussian ($\mathcal{N}(0,1)$) <span class="pp">|</span> Hermite <span class="pp">|</span></span>
-<span id="cb9-102"><a href="#cb9-102" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Uniform ($\mathcal{U}(-1,1)$) <span class="pp">|</span> Legendre <span class="pp">|</span></span>
-<span id="cb9-103"><a href="#cb9-103" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Beta <span class="pp">|</span> Jacobi <span class="pp">|</span></span>
-<span id="cb9-104"><a href="#cb9-104" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Gamma <span class="pp">|</span> Laguerre <span class="pp">|</span></span>
+<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Input distribution <span class="pp">|</span> Orthogonal polynomials <span class="pp">|</span></span>
+<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|</span></span>
+<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Gaussian ($\mathcal{N}(0,1)$) <span class="pp">|</span> Hermite <span class="pp">|</span></span>
+<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Uniform ($\mathcal{U}(-1,1)$) <span class="pp">|</span> Legendre <span class="pp">|</span></span>
+<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Beta <span class="pp">|</span> Jacobi <span class="pp">|</span></span>
+<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Gamma <span class="pp">|</span> Laguerre <span class="pp">|</span></span>
+<span id="cb9-99"><a href="#cb9-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-100"><a href="#cb9-100" aria-hidden="true" tabindex="-1"></a>For our beam benchmark, the KLE coefficients are standard normal, so the basis is a product of **Hermite polynomials**. PyApprox selects the correct polynomial family automatically from the marginal distributions via <span class="in">`create_pce_from_marginals`</span>.</span>
+<span id="cb9-101"><a href="#cb9-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-102"><a href="#cb9-102" aria-hidden="true" tabindex="-1"></a><span class="fu">### Index Sets</span></span>
+<span id="cb9-103"><a href="#cb9-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-104"><a href="#cb9-104" aria-hidden="true" tabindex="-1"></a>For $d = 3$ variables and polynomial degree $p$, the number of multivariate basis functions grows rapidly. A **total-degree** index set keeps the expansion manageable by excluding high-order interaction terms:</span>
 <span id="cb9-105"><a href="#cb9-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-106"><a href="#cb9-106" aria-hidden="true" tabindex="-1"></a>For our beam benchmark, the KLE coefficients are standard normal, so the basis is a product of **Hermite polynomials**. PyApprox selects the correct polynomial family automatically from the marginal distributions via <span class="in">`create_pce_from_marginals`</span>.</span>
-<span id="cb9-107"><a href="#cb9-107" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-108"><a href="#cb9-108" aria-hidden="true" tabindex="-1"></a><span class="fu">### Index Sets</span></span>
+<span id="cb9-106"><a href="#cb9-106" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-107"><a href="#cb9-107" aria-hidden="true" tabindex="-1"></a>\Lambda_p = \left<span class="sc">\{</span> \mathbf{j} \in \mathbb{N}_0^d : <span class="sc">\|</span>\mathbf{j}<span class="sc">\|</span>_1 \leq p \right<span class="sc">\}</span></span>
+<span id="cb9-108"><a href="#cb9-108" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb9-109"><a href="#cb9-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-110"><a href="#cb9-110" aria-hidden="true" tabindex="-1"></a>For $d = 3$ variables and polynomial degree $p$, the number of multivariate basis functions grows rapidly. A **total-degree** index set keeps the expansion manageable by excluding high-order interaction terms:</span>
-<span id="cb9-111"><a href="#cb9-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-112"><a href="#cb9-112" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-113"><a href="#cb9-113" aria-hidden="true" tabindex="-1"></a>\Lambda_p = \left<span class="sc">\{</span> \mathbf{j} \in \mathbb{N}_0^d : <span class="sc">\|</span>\mathbf{j}<span class="sc">\|</span>_1 \leq p \right<span class="sc">\}</span></span>
-<span id="cb9-114"><a href="#cb9-114" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-115"><a href="#cb9-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-118"><a href="#cb9-118" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-119"><a href="#cb9-119" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
-<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
-<span id="cb9-121"><a href="#cb9-121" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-122"><a href="#cb9-122" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-123"><a href="#cb9-123" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> deg <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>]:</span>
-<span id="cb9-124"><a href="#cb9-124" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(nvars, deg, <span class="fl">1.0</span>, bkd)</span>
-<span id="cb9-125"><a href="#cb9-125" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-126"><a href="#cb9-126" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-127"><a href="#cb9-127" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-128"><a href="#cb9-128" aria-hidden="true" tabindex="-1"></a><span class="fu">## Collecting Training Data</span></span>
-<span id="cb9-129"><a href="#cb9-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-130"><a href="#cb9-130" aria-hidden="true" tabindex="-1"></a>To fit the PCE, we need **training data**: pairs $<span class="sc">\{</span>(\boldsymbol{\theta}^{(i)}, \mathbf{q}^{(i)})<span class="sc">\}</span>_{i=1}^N$ where $\mathbf{q}^{(i)} = f(\boldsymbol{\theta}^{(i)})$. The simplest strategy is to draw random samples from the prior.</span>
-<span id="cb9-131"><a href="#cb9-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-134"><a href="#cb9-134" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-135"><a href="#cb9-135" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
-<span id="cb9-136"><a href="#cb9-136" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb9-137"><a href="#cb9-137" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)       <span class="co"># (nvars, N_train)</span></span>
-<span id="cb9-138"><a href="#cb9-138" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> model(samples_train)       <span class="co"># (nqoi, N_train)</span></span>
-<span id="cb9-139"><a href="#cb9-139" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-140"><a href="#cb9-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-141"><a href="#cb9-141" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb9-142"><a href="#cb9-142" aria-hidden="true" tabindex="-1"></a><span class="fu">## Better sampling strategies exist</span></span>
-<span id="cb9-143"><a href="#cb9-143" aria-hidden="true" tabindex="-1"></a>Random sampling from the prior is the simplest approach, but not the most efficient. The accuracy of a least-squares fit depends on the sample locations relative to the polynomial basis. **Induced sampling** draws samples from a distribution weighted by the basis functions, producing better-conditioned design matrices and more accurate surrogates for the same number of samples. Choosing the right number of samples and polynomial degree is covered in <span class="co">[</span><span class="ot">Overfitting and Cross-Validation</span><span class="co">](practical_pce_fitting.qmd)</span>.</span>
-<span id="cb9-144"><a href="#cb9-144" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb9-145"><a href="#cb9-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-146"><a href="#cb9-146" aria-hidden="true" tabindex="-1"></a>We also set aside an independent **test set** to evaluate surrogate accuracy:</span>
-<span id="cb9-147"><a href="#cb9-147" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-150"><a href="#cb9-150" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-151"><a href="#cb9-151" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb9-152"><a href="#cb9-152" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
-<span id="cb9-153"><a href="#cb9-153" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
-<span id="cb9-154"><a href="#cb9-154" aria-hidden="true" tabindex="-1"></a>values_test <span class="op">=</span> model(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
-<span id="cb9-155"><a href="#cb9-155" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-156"><a href="#cb9-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-112"><a href="#cb9-112" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-113"><a href="#cb9-113" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
+<span id="cb9-114"><a href="#cb9-114" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
+<span id="cb9-115"><a href="#cb9-115" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-116"><a href="#cb9-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-117"><a href="#cb9-117" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> deg <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>]:</span>
+<span id="cb9-118"><a href="#cb9-118" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(nvars, deg, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb9-119"><a href="#cb9-119" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-121"><a href="#cb9-121" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-122"><a href="#cb9-122" aria-hidden="true" tabindex="-1"></a><span class="fu">## Collecting Training Data</span></span>
+<span id="cb9-123"><a href="#cb9-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-124"><a href="#cb9-124" aria-hidden="true" tabindex="-1"></a>To fit the PCE, we need **training data**: pairs $<span class="sc">\{</span>(\boldsymbol{\theta}^{(i)}, \mathbf{q}^{(i)})<span class="sc">\}</span>_{i=1}^N$ where $\mathbf{q}^{(i)} = f(\boldsymbol{\theta}^{(i)})$. The simplest strategy is to draw random samples from the prior.</span>
+<span id="cb9-125"><a href="#cb9-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-128"><a href="#cb9-128" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-129"><a href="#cb9-129" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb9-130"><a href="#cb9-130" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb9-131"><a href="#cb9-131" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)       <span class="co"># (nvars, N_train)</span></span>
+<span id="cb9-132"><a href="#cb9-132" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> model(samples_train)       <span class="co"># (nqoi, N_train)</span></span>
+<span id="cb9-133"><a href="#cb9-133" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-134"><a href="#cb9-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-135"><a href="#cb9-135" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb9-136"><a href="#cb9-136" aria-hidden="true" tabindex="-1"></a><span class="fu">## Better sampling strategies exist</span></span>
+<span id="cb9-137"><a href="#cb9-137" aria-hidden="true" tabindex="-1"></a>Random sampling from the prior is the simplest approach, but not the most efficient. The accuracy of a least-squares fit depends on the sample locations relative to the polynomial basis. **Induced sampling** draws samples from a distribution weighted by the basis functions, producing better-conditioned design matrices and more accurate surrogates for the same number of samples. Choosing the right number of samples and polynomial degree is covered in <span class="co">[</span><span class="ot">Overfitting and Cross-Validation</span><span class="co">](practical_pce_fitting.qmd)</span>.</span>
+<span id="cb9-138"><a href="#cb9-138" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb9-139"><a href="#cb9-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-140"><a href="#cb9-140" aria-hidden="true" tabindex="-1"></a>We also set aside an independent **test set** to evaluate surrogate accuracy:</span>
+<span id="cb9-141"><a href="#cb9-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-144"><a href="#cb9-144" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-145"><a href="#cb9-145" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb9-146"><a href="#cb9-146" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
+<span id="cb9-147"><a href="#cb9-147" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
+<span id="cb9-148"><a href="#cb9-148" aria-hidden="true" tabindex="-1"></a>values_test <span class="op">=</span> model(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
+<span id="cb9-149"><a href="#cb9-149" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-150"><a href="#cb9-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-151"><a href="#cb9-151" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-152"><a href="#cb9-152" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fitting the PCE</span></span>
+<span id="cb9-153"><a href="#cb9-153" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-154"><a href="#cb9-154" aria-hidden="true" tabindex="-1"></a><span class="fu">### Building the Expansion</span></span>
+<span id="cb9-155"><a href="#cb9-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-156"><a href="#cb9-156" aria-hidden="true" tabindex="-1"></a>We construct a PCE using <span class="in">`create_pce_from_marginals`</span>, which automatically selects Hermite polynomials for Gaussian marginals and builds the orthonormal basis with a total-degree index set at the specified degree.</span>
 <span id="cb9-157"><a href="#cb9-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-158"><a href="#cb9-158" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fitting the PCE</span></span>
-<span id="cb9-159"><a href="#cb9-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-160"><a href="#cb9-160" aria-hidden="true" tabindex="-1"></a><span class="fu">### Building the Expansion</span></span>
-<span id="cb9-161"><a href="#cb9-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-162"><a href="#cb9-162" aria-hidden="true" tabindex="-1"></a>We construct a PCE using <span class="in">`create_pce_from_marginals`</span>, which automatically selects Hermite polynomials for Gaussian marginals and builds the orthonormal basis with a total-degree index set at the specified degree.</span>
-<span id="cb9-163"><a href="#cb9-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-166"><a href="#cb9-166" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-167"><a href="#cb9-167" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
-<span id="cb9-168"><a href="#cb9-168" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
-<span id="cb9-169"><a href="#cb9-169" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-160"><a href="#cb9-160" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-161"><a href="#cb9-161" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
+<span id="cb9-162"><a href="#cb9-162" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
+<span id="cb9-163"><a href="#cb9-163" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-164"><a href="#cb9-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-165"><a href="#cb9-165" aria-hidden="true" tabindex="-1"></a>degree <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb9-166"><a href="#cb9-166" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> create_pce_from_marginals(marginals, degree, bkd, nqoi<span class="op">=</span>nqoi)</span>
+<span id="cb9-167"><a href="#cb9-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-168"><a href="#cb9-168" aria-hidden="true" tabindex="-1"></a>nterms <span class="op">=</span> pce.nterms()</span>
+<span id="cb9-169"><a href="#cb9-169" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb9-170"><a href="#cb9-170" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-171"><a href="#cb9-171" aria-hidden="true" tabindex="-1"></a>degree <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb9-172"><a href="#cb9-172" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> create_pce_from_marginals(marginals, degree, bkd, nqoi<span class="op">=</span>nqoi)</span>
-<span id="cb9-173"><a href="#cb9-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-174"><a href="#cb9-174" aria-hidden="true" tabindex="-1"></a>nterms <span class="op">=</span> pce.nterms()</span>
-<span id="cb9-175"><a href="#cb9-175" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-176"><a href="#cb9-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-177"><a href="#cb9-177" aria-hidden="true" tabindex="-1"></a><span class="fu">### Least-Squares Fitting</span></span>
+<span id="cb9-171"><a href="#cb9-171" aria-hidden="true" tabindex="-1"></a><span class="fu">### Least-Squares Fitting</span></span>
+<span id="cb9-172"><a href="#cb9-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-173"><a href="#cb9-173" aria-hidden="true" tabindex="-1"></a>The coefficients are found by solving a least-squares problem:</span>
+<span id="cb9-174"><a href="#cb9-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-175"><a href="#cb9-175" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-176"><a href="#cb9-176" aria-hidden="true" tabindex="-1"></a>\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \sum_{i=1}^N \left<span class="sc">\|</span> \mathbf{q}^{(i)} - \sum_{j=0}^{P-1} c_j\, \Psi_j(\boldsymbol{\theta}^{(i)}) \right<span class="sc">\|</span>^2</span>
+<span id="cb9-177"><a href="#cb9-177" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb9-178"><a href="#cb9-178" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-179"><a href="#cb9-179" aria-hidden="true" tabindex="-1"></a>The coefficients are found by solving a least-squares problem:</span>
+<span id="cb9-179"><a href="#cb9-179" aria-hidden="true" tabindex="-1"></a>In matrix form: $\hat{\mathbf{C}} = (\boldsymbol{\Phi}^\top \boldsymbol{\Phi})^{-1} \boldsymbol{\Phi}^\top \mathbf{V}$, where $\Phi_{ij} = \Psi_j(\boldsymbol{\theta}^{(i)})$ is the basis matrix and $\mathbf{V}$ contains the training values.</span>
 <span id="cb9-180"><a href="#cb9-180" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-181"><a href="#cb9-181" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-182"><a href="#cb9-182" aria-hidden="true" tabindex="-1"></a>\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \sum_{i=1}^N \left<span class="sc">\|</span> \mathbf{q}^{(i)} - \sum_{j=0}^{P-1} c_j\, \Psi_j(\boldsymbol{\theta}^{(i)}) \right<span class="sc">\|</span>^2</span>
-<span id="cb9-183"><a href="#cb9-183" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-184"><a href="#cb9-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-185"><a href="#cb9-185" aria-hidden="true" tabindex="-1"></a>In matrix form: $\hat{\mathbf{C}} = (\boldsymbol{\Phi}^\top \boldsymbol{\Phi})^{-1} \boldsymbol{\Phi}^\top \mathbf{V}$, where $\Phi_{ij} = \Psi_j(\boldsymbol{\theta}^{(i)})$ is the basis matrix and $\mathbf{V}$ contains the training values.</span>
-<span id="cb9-186"><a href="#cb9-186" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-187"><a href="#cb9-187" aria-hidden="true" tabindex="-1"></a>We use <span class="in">`LeastSquaresFitter`</span> to solve this:</span>
-<span id="cb9-188"><a href="#cb9-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-191"><a href="#cb9-191" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-192"><a href="#cb9-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
-<span id="cb9-193"><a href="#cb9-193" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
-<span id="cb9-194"><a href="#cb9-194" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-195"><a href="#cb9-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-196"><a href="#cb9-196" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
-<span id="cb9-197"><a href="#cb9-197" aria-hidden="true" tabindex="-1"></a>ls_result <span class="op">=</span> ls_fitter.fit(pce, samples_train, values_train)</span>
-<span id="cb9-198"><a href="#cb9-198" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> ls_result.surrogate()</span>
-<span id="cb9-199"><a href="#cb9-199" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-181"><a href="#cb9-181" aria-hidden="true" tabindex="-1"></a>We use <span class="in">`LeastSquaresFitter`</span> to solve this:</span>
+<span id="cb9-182"><a href="#cb9-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-185"><a href="#cb9-185" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-186"><a href="#cb9-186" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
+<span id="cb9-187"><a href="#cb9-187" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
+<span id="cb9-188"><a href="#cb9-188" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-189"><a href="#cb9-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-190"><a href="#cb9-190" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
+<span id="cb9-191"><a href="#cb9-191" aria-hidden="true" tabindex="-1"></a>ls_result <span class="op">=</span> ls_fitter.fit(pce, samples_train, values_train)</span>
+<span id="cb9-192"><a href="#cb9-192" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> ls_result.surrogate()</span>
+<span id="cb9-193"><a href="#cb9-193" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-194"><a href="#cb9-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-195"><a href="#cb9-195" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb9-196"><a href="#cb9-196" aria-hidden="true" tabindex="-1"></a><span class="fu">## Alternative fitters</span></span>
+<span id="cb9-197"><a href="#cb9-197" aria-hidden="true" tabindex="-1"></a>Least squares is the simplest fitting method, but others exist. For high-dimensional problems where most coefficients are near zero, **Orthogonal Matching Pursuit (OMP)** or **BPDN** (L1-regularized least squares) exploit sparsity by selecting only the most important basis terms. These are covered in <span class="co">[</span><span class="ot">Sparse Polynomial Approximation</span><span class="co">](sparse_pce_fitting.qmd)</span>.</span>
+<span id="cb9-198"><a href="#cb9-198" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb9-199"><a href="#cb9-199" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-200"><a href="#cb9-200" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-201"><a href="#cb9-201" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb9-202"><a href="#cb9-202" aria-hidden="true" tabindex="-1"></a><span class="fu">## Alternative fitters</span></span>
-<span id="cb9-203"><a href="#cb9-203" aria-hidden="true" tabindex="-1"></a>Least squares is the simplest fitting method, but others exist. For high-dimensional problems where most coefficients are near zero, **Orthogonal Matching Pursuit (OMP)** or **BPDN** (L1-regularized least squares) exploit sparsity by selecting only the most important basis terms. These are covered in <span class="co">[</span><span class="ot">Sparse Polynomial Approximation</span><span class="co">](sparse_pce_fitting.qmd)</span>.</span>
-<span id="cb9-204"><a href="#cb9-204" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb9-205"><a href="#cb9-205" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-206"><a href="#cb9-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-207"><a href="#cb9-207" aria-hidden="true" tabindex="-1"></a><span class="fu">## Assessing Surrogate Accuracy</span></span>
+<span id="cb9-201"><a href="#cb9-201" aria-hidden="true" tabindex="-1"></a><span class="fu">## Assessing Surrogate Accuracy</span></span>
+<span id="cb9-202"><a href="#cb9-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-203"><a href="#cb9-203" aria-hidden="true" tabindex="-1"></a>We evaluate the fitted PCE on the independent test set and compute the relative $L_2$ error for each QoI:</span>
+<span id="cb9-204"><a href="#cb9-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-205"><a href="#cb9-205" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb9-206"><a href="#cb9-206" aria-hidden="true" tabindex="-1"></a>\epsilon_k = \frac{<span class="sc">\|</span> f_k(\boldsymbol{\Theta}_{\text{test}}) - \hat{f}_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}{\| f_k(\boldsymbol{\Theta}_{\text{test}}) <span class="sc">\|</span>_2}, \qquad k = 1, \ldots, K</span>
+<span id="cb9-207"><a href="#cb9-207" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb9-208"><a href="#cb9-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-209"><a href="#cb9-209" aria-hidden="true" tabindex="-1"></a>We evaluate the fitted PCE on the independent test set and compute the relative $L_2$ error for each QoI:</span>
-<span id="cb9-210"><a href="#cb9-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-211"><a href="#cb9-211" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-212"><a href="#cb9-212" aria-hidden="true" tabindex="-1"></a>\epsilon_k = \frac{<span class="sc">\|</span> f_k(\boldsymbol{\Theta}_{\text{test}}) - \hat{f}_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}{\| f_k(\boldsymbol{\Theta}_{\text{test}}) <span class="sc">\|</span>_2}, \qquad k = 1, \ldots, K</span>
-<span id="cb9-213"><a href="#cb9-213" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-214"><a href="#cb9-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-217"><a href="#cb9-217" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-218"><a href="#cb9-218" aria-hidden="true" tabindex="-1"></a>predictions_test <span class="op">=</span> pce(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
-<span id="cb9-219"><a href="#cb9-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-220"><a href="#cb9-220" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span>
-<span id="cb9-221"><a href="#cb9-221" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-222"><a href="#cb9-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-223"><a href="#cb9-223" aria-hidden="true" tabindex="-1"></a>@fig-pce-predictions shows the predicted vs. true QoI values on the test set. Points near the diagonal indicate a good fit.</span>
-<span id="cb9-224"><a href="#cb9-224" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-227"><a href="#cb9-227" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-228"><a href="#cb9-228" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb9-229"><a href="#cb9-229" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE predictions vs. true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy."</span></span>
-<span id="cb9-230"><a href="#cb9-230" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pce-predictions</span></span>
-<span id="cb9-231"><a href="#cb9-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-232"><a href="#cb9-232" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_pce_predictions</span>
+<span id="cb9-211"><a href="#cb9-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-212"><a href="#cb9-212" aria-hidden="true" tabindex="-1"></a>predictions_test <span class="op">=</span> pce(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
+<span id="cb9-213"><a href="#cb9-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-214"><a href="#cb9-214" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span>
+<span id="cb9-215"><a href="#cb9-215" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-216"><a href="#cb9-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-217"><a href="#cb9-217" aria-hidden="true" tabindex="-1"></a>@fig-pce-predictions shows the predicted vs. true QoI values on the test set. Points near the diagonal indicate a good fit.</span>
+<span id="cb9-218"><a href="#cb9-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-221"><a href="#cb9-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-222"><a href="#cb9-222" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb9-223"><a href="#cb9-223" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE predictions vs. true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy."</span></span>
+<span id="cb9-224"><a href="#cb9-224" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pce-predictions</span></span>
+<span id="cb9-225"><a href="#cb9-225" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-226"><a href="#cb9-226" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_pce_predictions</span>
+<span id="cb9-227"><a href="#cb9-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-228"><a href="#cb9-228" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, nqoi, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
+<span id="cb9-229"><a href="#cb9-229" aria-hidden="true" tabindex="-1"></a>plot_pce_predictions(pce, samples_test, values_test, qoi_labels, bkd, axes)</span>
+<span id="cb9-230"><a href="#cb9-230" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb9-231"><a href="#cb9-231" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb9-232"><a href="#cb9-232" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb9-233"><a href="#cb9-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-234"><a href="#cb9-234" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, nqoi, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
-<span id="cb9-235"><a href="#cb9-235" aria-hidden="true" tabindex="-1"></a>plot_pce_predictions(pce, samples_test, values_test, qoi_labels, bkd, axes)</span>
-<span id="cb9-236"><a href="#cb9-236" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb9-237"><a href="#cb9-237" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb9-238"><a href="#cb9-238" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-234"><a href="#cb9-234" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exploring the Surrogate</span></span>
+<span id="cb9-235"><a href="#cb9-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-236"><a href="#cb9-236" aria-hidden="true" tabindex="-1"></a>With the expensive model, generating a dense cross-section plot --- fixing some inputs and sweeping others --- would require hundreds of additional FEM solves. With the fitted PCE, we can produce these plots instantaneously.</span>
+<span id="cb9-237"><a href="#cb9-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-238"><a href="#cb9-238" aria-hidden="true" tabindex="-1"></a>PyApprox provides <span class="in">`CrossSectionReducer`</span> and <span class="in">`PairPlotter`</span> to automate this. The reducer fixes non-plotted variables at nominal values (here, zero for standard-normal inputs); the pair plotter creates a lower-triangular grid of 1D cross sections (diagonal) and 2D contours (off-diagonal).</span>
 <span id="cb9-239"><a href="#cb9-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-240"><a href="#cb9-240" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exploring the Surrogate</span></span>
-<span id="cb9-241"><a href="#cb9-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-242"><a href="#cb9-242" aria-hidden="true" tabindex="-1"></a>With the expensive model, generating a dense cross-section plot --- fixing some inputs and sweeping others --- would require hundreds of additional FEM solves. With the fitted PCE, we can produce these plots instantaneously.</span>
-<span id="cb9-243"><a href="#cb9-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-244"><a href="#cb9-244" aria-hidden="true" tabindex="-1"></a>PyApprox provides <span class="in">`CrossSectionReducer`</span> and <span class="in">`PairPlotter`</span> to automate this. The reducer fixes non-plotted variables at nominal values (here, zero for standard-normal inputs); the pair plotter creates a lower-triangular grid of 1D cross sections (diagonal) and 2D contours (off-diagonal).</span>
+<span id="cb9-242"><a href="#cb9-242" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb9-243"><a href="#cb9-243" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE cross sections for tip deflection. Diagonal: 1D slices through each input. Lower triangle: 2D contour plots for each pair of inputs. Non-plotted variables are fixed at zero."</span></span>
+<span id="cb9-244"><a href="#cb9-244" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-sections</span></span>
 <span id="cb9-245"><a href="#cb9-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-248"><a href="#cb9-248" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-249"><a href="#cb9-249" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE cross sections for tip deflection. Diagonal: 1D slices through each input. Lower triangle: 2D contour plots for each pair of inputs. Non-plotted variables are fixed at zero."</span></span>
-<span id="cb9-250"><a href="#cb9-250" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-sections</span></span>
-<span id="cb9-251"><a href="#cb9-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-252"><a href="#cb9-252" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> CrossSectionReducer</span>
-<span id="cb9-253"><a href="#cb9-253" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
-<span id="cb9-254"><a href="#cb9-254" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-255"><a href="#cb9-255" aria-hidden="true" tabindex="-1"></a>nominal <span class="op">=</span> bkd.zeros(nvars)</span>
-<span id="cb9-256"><a href="#cb9-256" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> bkd.full((nvars, <span class="dv">2</span>), <span class="fl">0.0</span>)</span>
-<span id="cb9-257"><a href="#cb9-257" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">0</span>] <span class="op">=</span> <span class="op">-</span><span class="fl">3.0</span></span>
-<span id="cb9-258"><a href="#cb9-258" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">1</span>] <span class="op">=</span> <span class="fl">3.0</span></span>
-<span id="cb9-259"><a href="#cb9-259" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-260"><a href="#cb9-260" aria-hidden="true" tabindex="-1"></a>input_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_</span><span class="ch">{{</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
-<span id="cb9-261"><a href="#cb9-261" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-262"><a href="#cb9-262" aria-hidden="true" tabindex="-1"></a>reducer <span class="op">=</span> CrossSectionReducer(pce, nominal, bkd)</span>
-<span id="cb9-263"><a href="#cb9-263" aria-hidden="true" tabindex="-1"></a>plotter <span class="op">=</span> PairPlotter(reducer, plot_limits, bkd, variable_names<span class="op">=</span>input_labels)</span>
-<span id="cb9-264"><a href="#cb9-264" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-265"><a href="#cb9-265" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plotter.plot(npts_1d<span class="op">=</span><span class="dv">61</span>,</span>
-<span id="cb9-266"><a href="#cb9-266" aria-hidden="true" tabindex="-1"></a>                         contour_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>, <span class="st">"cmap"</span>: <span class="st">"cividis"</span>, <span class="st">"levels"</span>: <span class="dv">20</span>},</span>
-<span id="cb9-267"><a href="#cb9-267" aria-hidden="true" tabindex="-1"></a>                         line_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>})</span>
-<span id="cb9-268"><a href="#cb9-268" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb9-269"><a href="#cb9-269" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb9-270"><a href="#cb9-270" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-271"><a href="#cb9-271" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-272"><a href="#cb9-272" aria-hidden="true" tabindex="-1"></a>These plots reveal how each input affects tip deflection and where interactions between inputs are strong (curved contours) or weak (parallel lines). Producing them required zero additional model evaluations --- only cheap polynomial evaluations through the surrogate.</span>
-<span id="cb9-273"><a href="#cb9-273" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-274"><a href="#cb9-274" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-275"><a href="#cb9-275" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb9-246"><a href="#cb9-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> CrossSectionReducer</span>
+<span id="cb9-247"><a href="#cb9-247" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
+<span id="cb9-248"><a href="#cb9-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-249"><a href="#cb9-249" aria-hidden="true" tabindex="-1"></a>nominal <span class="op">=</span> bkd.zeros(nvars)</span>
+<span id="cb9-250"><a href="#cb9-250" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> bkd.full((nvars, <span class="dv">2</span>), <span class="fl">0.0</span>)</span>
+<span id="cb9-251"><a href="#cb9-251" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">0</span>] <span class="op">=</span> <span class="op">-</span><span class="fl">3.0</span></span>
+<span id="cb9-252"><a href="#cb9-252" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">1</span>] <span class="op">=</span> <span class="fl">3.0</span></span>
+<span id="cb9-253"><a href="#cb9-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-254"><a href="#cb9-254" aria-hidden="true" tabindex="-1"></a>input_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_</span><span class="ch">{{</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
+<span id="cb9-255"><a href="#cb9-255" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-256"><a href="#cb9-256" aria-hidden="true" tabindex="-1"></a>reducer <span class="op">=</span> CrossSectionReducer(pce, nominal, bkd)</span>
+<span id="cb9-257"><a href="#cb9-257" aria-hidden="true" tabindex="-1"></a>plotter <span class="op">=</span> PairPlotter(reducer, plot_limits, bkd, variable_names<span class="op">=</span>input_labels)</span>
+<span id="cb9-258"><a href="#cb9-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-259"><a href="#cb9-259" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plotter.plot(npts_1d<span class="op">=</span><span class="dv">61</span>,</span>
+<span id="cb9-260"><a href="#cb9-260" aria-hidden="true" tabindex="-1"></a>                         contour_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>, <span class="st">"cmap"</span>: <span class="st">"cividis"</span>, <span class="st">"levels"</span>: <span class="dv">20</span>},</span>
+<span id="cb9-261"><a href="#cb9-261" aria-hidden="true" tabindex="-1"></a>                         line_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>})</span>
+<span id="cb9-262"><a href="#cb9-262" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb9-263"><a href="#cb9-263" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb9-264"><a href="#cb9-264" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb9-265"><a href="#cb9-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-266"><a href="#cb9-266" aria-hidden="true" tabindex="-1"></a>These plots reveal how each input affects tip deflection and where interactions between inputs are strong (curved contours) or weak (parallel lines). Producing them required zero additional model evaluations --- only cheap polynomial evaluations through the surrogate.</span>
+<span id="cb9-267"><a href="#cb9-267" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-268"><a href="#cb9-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-269"><a href="#cb9-269" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb9-270"><a href="#cb9-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-271"><a href="#cb9-271" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Surrogate models** replace expensive simulators with cheap approximations, enabling analyses --- like dense cross-section sweeps --- that would be infeasible with the original model</span>
+<span id="cb9-272"><a href="#cb9-272" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **polynomial chaos expansion** represents the QoI as a polynomial in the uncertain inputs, with basis functions chosen to be orthogonal with respect to the input distribution</span>
+<span id="cb9-273"><a href="#cb9-273" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>PyApprox automatically selects the correct polynomial family from the marginal distributions via <span class="in">`create_pce_from_marginals`</span></span>
+<span id="cb9-274"><a href="#cb9-274" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A degree-3 PCE fitted with 100 training samples already captures the beam model's behavior well, as verified by test-set error</span>
+<span id="cb9-275"><a href="#cb9-275" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-276"><a href="#cb9-276" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-277"><a href="#cb9-277" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Surrogate models** replace expensive simulators with cheap approximations, enabling analyses --- like dense cross-section sweeps --- that would be infeasible with the original model</span>
-<span id="cb9-278"><a href="#cb9-278" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **polynomial chaos expansion** represents the QoI as a polynomial in the uncertain inputs, with basis functions chosen to be orthogonal with respect to the input distribution</span>
-<span id="cb9-279"><a href="#cb9-279" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>PyApprox automatically selects the correct polynomial family from the marginal distributions via <span class="in">`create_pce_from_marginals`</span></span>
-<span id="cb9-280"><a href="#cb9-280" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A degree-3 PCE fitted with 100 training samples already captures the beam model's behavior well, as verified by test-set error</span>
-<span id="cb9-281"><a href="#cb9-281" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-277"><a href="#cb9-277" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb9-278"><a href="#cb9-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-279"><a href="#cb9-279" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Increase the polynomial degree from 3 to 5. How does the test-set error change? What happens to the oversampling ratio?</span>
+<span id="cb9-280"><a href="#cb9-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-281"><a href="#cb9-281" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In the cross-section plots, change the nominal values from zero to $\pm 1$ using <span class="in">`CrossSectionReducer`</span>. How do the cross sections change?</span>
 <span id="cb9-282"><a href="#cb9-282" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-283"><a href="#cb9-283" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb9-283"><a href="#cb9-283" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Reduce the training set to $N = 30$. How does the scatter plot change? At what oversampling ratio does the fit start to degrade?</span>
 <span id="cb9-284"><a href="#cb9-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-285"><a href="#cb9-285" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Increase the polynomial degree from 3 to 5. How does the test-set error change? What happens to the oversampling ratio?</span>
-<span id="cb9-286"><a href="#cb9-286" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-287"><a href="#cb9-287" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In the cross-section plots, change the nominal values from zero to $\pm 1$ using <span class="in">`CrossSectionReducer`</span>. How do the cross sections change?</span>
-<span id="cb9-288"><a href="#cb9-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-289"><a href="#cb9-289" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Reduce the training set to $N = 30$. How does the scatter plot change? At what oversampling ratio does the fit start to degrade?</span>
-<span id="cb9-290"><a href="#cb9-290" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-291"><a href="#cb9-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-292"><a href="#cb9-292" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb9-293"><a href="#cb9-293" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-294"><a href="#cb9-294" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Polynomial Chaos</span><span class="co">](uq_with_pce.qmd)</span> --- Use the fitted PCE to compute moments, marginal densities, and compare to Monte Carlo</span>
-<span id="cb9-295"><a href="#cb9-295" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Overfitting and Cross-Validation</span><span class="co">](practical_pce_fitting.qmd)</span> --- Choose the polynomial degree using LOO cross-validation</span>
-<span id="cb9-296"><a href="#cb9-296" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sparse Polynomial Approximation</span><span class="co">](sparse_pce_fitting.qmd)</span> --- OMP and BPDN/LASSO for high-dimensional polynomial chaos</span>
+<span id="cb9-285"><a href="#cb9-285" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-286"><a href="#cb9-286" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb9-287"><a href="#cb9-287" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-288"><a href="#cb9-288" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Polynomial Chaos</span><span class="co">](uq_with_pce.qmd)</span> --- Use the fitted PCE to compute moments, marginal densities, and compare to Monte Carlo</span>
+<span id="cb9-289"><a href="#cb9-289" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Overfitting and Cross-Validation</span><span class="co">](practical_pce_fitting.qmd)</span> --- Choose the polynomial degree using LOO cross-validation</span>
+<span id="cb9-290"><a href="#cb9-290" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sparse Polynomial Approximation</span><span class="co">](sparse_pce_fitting.qmd)</span> --- OMP and BPDN/LASSO for high-dimensional polynomial chaos</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

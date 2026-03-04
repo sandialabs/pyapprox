@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1096,7 +1126,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="f888c7d0" class="cell" data-execution_count="1">
+<div id="82464d4e" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1143,7 +1173,7 @@ window.Quarto = {
 <section id="using-gaussquadraturerule" class="level2">
 <h2 class="anchored" data-anchor-id="using-gaussquadraturerule">Using <code>GaussQuadratureRule</code></h2>
 <p><code>GaussQuadratureRule</code> constructs the quadrature rule from any orthonormal polynomial family. Pass the polynomial object and call with the desired number of points.</p>
-<div id="70264fb8" class="cell" data-execution_count="2">
+<div id="f80574f1" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create Legendre polynomial and Gauss quadrature rule</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>poly <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>poly.set_nterms(<span class="dv">20</span>)  <span class="co"># Pre-allocate recurrence coefficients</span></span>
@@ -1174,7 +1204,7 @@ Figure&nbsp;1: Gauss-Legendre nodes for M = 3, 5, 9 points on [-1, 1]. Nodes clu
 <section id="verifying-polynomial-exactness" class="level3">
 <h3 class="anchored" data-anchor-id="verifying-polynomial-exactness">Verifying Polynomial Exactness</h3>
 <p>An <span class="math inline">\(M\)</span>-point Gauss rule integrates all polynomials up to degree <span class="math inline">\(2M-1\)</span> exactly. PyApprox’s Legendre quadrature uses the <strong>probability measure</strong> <span class="math inline">\(w(x) = 1/2\)</span> on <span class="math inline">\([-1,1]\)</span>, so the weights sum to 1 and compute expectations <span class="math inline">\(\mathbb{E}[f]\)</span> rather than raw integrals <span class="math inline">\(\int f\,dx\)</span>.</p>
-<div id="4bb4ee4a" class="cell" data-execution_count="4">
+<div id="b9918221" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>nodes, weights <span class="op">=</span> gauss_rule(M)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>

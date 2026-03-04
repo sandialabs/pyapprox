@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1094,7 +1124,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="0edb1177" class="cell" data-execution_count="1">
+<div id="7bb15b43" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1107,7 +1137,7 @@ U_\mathrm{std}(\mathbf{w})
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="290bc460" class="cell" data-execution_count="2">
+<div id="f083f29a" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1125,11 +1155,11 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="analytical-reference-value" class="level2">
 <h2 class="anchored" data-anchor-id="analytical-reference-value">Analytical Reference Value</h2>
-<div id="d3793204" class="cell" data-execution_count="3">
+<div id="d51b90a3" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> diagnostics.exact_utility(weights)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>A single numerical estimate:</p>
-<div id="8bba5f8b" class="cell" data-execution_count="4">
+<div id="74e8f095" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">500</span>,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">1000</span>,</span>
@@ -1140,7 +1170,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="mse-decomposition" class="level2">
 <h2 class="anchored" data-anchor-id="mse-decomposition">MSE Decomposition</h2>
-<div id="8fe7a950" class="cell" data-execution_count="5">
+<div id="13e3fcd0" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> diagnostics.compute_mse(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">100</span>,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">500</span>,</span>
@@ -1165,7 +1195,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="mse-vs.-inner-sample-count-mc" class="level2">
 <h2 class="anchored" data-anchor-id="mse-vs.-inner-sample-count-mc">MSE vs.&nbsp;Inner Sample Count (MC)</h2>
-<div id="1d78bc25" class="cell" data-execution_count="6">
+<div id="bccefcaa" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1191,7 +1221,7 @@ Figure&nbsp;1: MSE of the goal-oriented utility estimator vs.&nbsp;number of inn
 </div>
 </div>
 </div>
-<div id="f5061291" class="cell" data-execution_count="8">
+<div id="e1a78095" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
@@ -1202,7 +1232,7 @@ Figure&nbsp;1: MSE of the goal-oriented utility estimator vs.&nbsp;number of inn
 <section id="avar-deviation-variant" class="level2">
 <h2 class="anchored" data-anchor-id="avar-deviation-variant">AVaR Deviation Variant</h2>
 <p>Switching to AVaR deviation requires only changing the utility type in the <code>create_prediction_oed_diagnostics</code> call.</p>
-<div id="2969cbfb" class="cell" data-execution_count="9">
+<div id="f6942069" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    benchmark, <span class="st">"linear_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>

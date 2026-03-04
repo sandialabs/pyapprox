@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1098,7 +1128,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="92ef22c5" class="cell" data-execution_count="1">
+<div id="840a1346" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1162,7 +1192,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <li><strong>Bounds</strong> for the domain</li>
 </ul>
 <p>The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.</p>
-<div id="c935497e" class="cell" data-execution_count="3">
+<div id="ba9265ca" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_node_distribution</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Leja sequence on [-1, 1] with Christoffel weighting</span></span>
@@ -1202,7 +1232,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="nestedness-verification" class="level3">
 <h3 class="anchored" data-anchor-id="nestedness-verification">Nestedness verification</h3>
 <p>Leja sequences are nested by construction: the first <span class="math inline">\(M\)</span> points of an <span class="math inline">\(N\)</span>-point sequence (<span class="math inline">\(N &gt; M\)</span>) are identical to the <span class="math inline">\(M\)</span>-point sequence.</p>
-<div id="7e0cd216" class="cell" data-execution_count="4">
+<div id="71029cae" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify nestedness</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>nodes5, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">5</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>nodes10, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">10</span>)</span>
@@ -1220,7 +1250,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="using-lagrangebasis1d-with-leja-points" class="level2">
 <h2 class="anchored" data-anchor-id="using-lagrangebasis1d-with-leja-points">Using <code>LagrangeBasis1D</code> with Leja Points</h2>
 <p><code>LagrangeBasis1D</code> accepts any quadrature rule callable with signature <code>(npoints) → (samples, weights)</code>. We can pass <code>leja.quadrature_rule</code> directly:</p>
-<div id="556790d4" class="cell" data-execution_count="5">
+<div id="29d42add" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Lagrange basis on Leja points</span></span>
@@ -1251,7 +1281,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="lejalagrangefactory-for-sparse-grids" class="level2">
 <h2 class="anchored" data-anchor-id="lejalagrangefactory-for-sparse-grids"><code>LejaLagrangeFactory</code> for Sparse Grids</h2>
 <p>In the sparse grid framework (Tutorial 6), each dimension of the grid needs a <strong>factory object</strong> that produces the 1D basis at any requested level. <code>LejaLagrangeFactory</code> wraps the Leja sequence construction into this interface.</p>
-<div id="6b548e61" class="cell" data-execution_count="6">
+<div id="07e676d6" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># LejaLagrangeFactory takes a marginal and backend;</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># it lazily constructs a LejaSequence1D and wraps it</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># as a LagrangeBasis1D.</span></span>
@@ -1349,7 +1379,7 @@ Figure&nbsp;2: Interpolation error vs.&nbsp;M for an analytic function. Leja and
 <section id="constructing-a-two-point-leja-sequence" class="level3">
 <h3 class="anchored" data-anchor-id="constructing-a-two-point-leja-sequence">Constructing a Two-Point Leja Sequence</h3>
 <p>Pass <code>objective_class=TwoPointLejaObjective</code> to <code>LejaSequence1D</code>:</p>
-<div id="23445b3b" class="cell" data-execution_count="8">
+<div id="20af75d1" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.leja <span class="im">import</span> TwoPointLejaObjective</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Fresh polynomial and weighting objects for each sequence</span></span>

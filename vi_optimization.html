@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1152,7 +1182,7 @@ Figure&nbsp;2: The reparameterization trick visualized. Top: 15 base samples <sp
 <section id="watching-the-elbo-converge" class="level2">
 <h2 class="anchored" data-anchor-id="watching-the-elbo-converge">Watching the ELBO Converge</h2>
 <p>With the reparameterization trick in hand, the optimizer can compute gradients and descend the ELBO surface. <a href="#fig-elbo-convergence" class="quarto-xref">Figure&nbsp;3</a> tracks the negative ELBO and the variational parameters across iterations. Most of the progress happens in the first 50 steps.</p>
-<div id="2bd9ec09" class="cell" data-execution_count="4">
+<div id="82602c81" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Track convergence by running with increasing iteration budgets</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>maxiters <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">15</span>, <span class="dv">50</span>]</span>
@@ -1242,7 +1272,7 @@ E_{\text{eff}} = \frac{A_{\text{skin}}\, E_1 + A_{\text{core}}\, E_2}{A_{\text{s
 \]</span></p>
 <p>Because only the combination <span class="math inline">\(E_{\text{eff}}\)</span> determines the tip deflection, observing the deflection creates a <strong>correlation</strong> between <span class="math inline">\(E_1\)</span> and <span class="math inline">\(E_2\)</span> in the posterior: if <span class="math inline">\(E_1\)</span> is large, <span class="math inline">\(E_2\)</span> must be smaller to explain the same observation, and vice versa.</p>
 <p>With a <strong>diagonal (mean-field) Gaussian</strong> variational family, VI optimizes four parameters: <span class="math inline">\((\mu_1, \log\sigma_1, \mu_2, \log\sigma_2)\)</span>. The reparameterization trick applies independently to each dimension: <span class="math inline">\(z_i = \mu_{z,i} + \sigma_{z,i} \varepsilon_i\)</span>.</p>
-<div id="76f3a1d5" class="cell" data-execution_count="7">
+<div id="01164776" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    CantileverBeam1DAnalytical,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1297,7 +1327,7 @@ E_{\text{eff}} = \frac{A_{\text{skin}}\, E_1 + A_{\text{core}}\, E_2}{A_{\text{s
 Observed tip deflection: 5.377065</code></pre>
 </div>
 </div>
-<div id="c788adcc" class="cell" data-execution_count="8">
+<div id="9ea8d72c" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build 2D diagonal Gaussian VI (in standardized space)</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>conds_2d <span class="op">=</span> []</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>):</span>
@@ -1359,7 +1389,7 @@ Negative ELBO: 2.9044</code></pre>
 </div>
 </div>
 <p>We can also fit a <strong>full-covariance Gaussian</strong> that captures correlations. Instead of independent per-dimension parameters, we parameterize the covariance via its Cholesky factor <span class="math inline">\(L\)</span> so that <span class="math inline">\(\Sigma = LL^\top\)</span> is guaranteed positive-definite. The reparameterization becomes <span class="math inline">\(\theta = \mu + L\varepsilon\)</span>, and the optimizer learns both <span class="math inline">\(\mu\)</span> and the entries of <span class="math inline">\(L\)</span>.</p>
-<div id="16c83978" class="cell" data-execution_count="9">
+<div id="ffb255ce" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.multivariate_gaussian <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    ConditionalDenseCholGaussian,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>

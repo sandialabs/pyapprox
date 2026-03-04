@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1083,7 +1113,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="c9e2d9e1" class="cell" data-execution_count="1">
+<div id="534d4210" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1093,7 +1123,7 @@ window.Quarto = {
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="1dba19f2" class="cell" data-execution_count="2">
+<div id="4f62c066" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Problem parameters — match test_kl_oed_convergence.py for reproducibility</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">2</span></span>
@@ -1110,11 +1140,11 @@ window.Quarto = {
 <section id="exact-eig-as-ground-truth" class="level2">
 <h2 class="anchored" data-anchor-id="exact-eig-as-ground-truth">Exact EIG as Ground Truth</h2>
 <p><code>LinearGaussianOEDBenchmark</code> provides a closed-form EIG for any design weights, giving us an exact reference against which to measure numerical error.</p>
-<div id="80113b3d" class="cell" data-execution_count="3">
+<div id="6f7e2820" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> diagnostics.exact_eig(weights)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>A single numerical estimate with moderate sample counts:</p>
-<div id="9e23d192" class="cell" data-execution_count="4">
+<div id="52e66c19" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_eig(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">200</span>,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">100</span>,</span>
@@ -1139,7 +1169,7 @@ window.Quarto = {
 <section id="mse-decomposition-bias-and-variance" class="level2">
 <h2 class="anchored" data-anchor-id="mse-decomposition-bias-and-variance">MSE Decomposition: Bias and Variance</h2>
 <p><code>compute_mse</code> runs <code>nrealizations</code> independent estimates and decomposes total MSE into squared bias and variance: <span class="math inline">\(\text{MSE} = \text{bias}^2 + \text{variance}\)</span>.</p>
-<div id="b10be6d3" class="cell" data-execution_count="5">
+<div id="0bed7589" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> diagnostics.compute_mse(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">100</span>,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">50</span>,</span>
@@ -1152,7 +1182,7 @@ window.Quarto = {
 <section id="outer-vs.-inner-which-budget-matters-more" class="level2">
 <h2 class="anchored" data-anchor-id="outer-vs.-inner-which-budget-matters-more">Outer vs.&nbsp;Inner: Which Budget Matters More?</h2>
 <p>The two figures below answer this directly. The left panel sweeps <span class="math inline">\(M\)</span> (outer samples) with fixed <span class="math inline">\(N_\text{in}\)</span>, showing how MSE decays with the outer budget. The right panel sweeps <span class="math inline">\(N_\text{in}\)</span> (inner samples) with fixed <span class="math inline">\(M\)</span>, showing how bias² and variance each respond to the inner budget.</p>
-<div id="7aa45e21" class="cell" data-execution_count="6">
+<div id="0b995a4a" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">250</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>]</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">50</span>, <span class="dv">200</span>]</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>M_fixed      <span class="op">=</span> <span class="dv">500</span></span>
@@ -1190,7 +1220,7 @@ Figure&nbsp;1: Left: MSE vs.&nbsp;outer sample count M for two inner counts (MC 
 </div>
 </div>
 </div>
-<div id="e75815f1" class="cell" data-execution_count="8">
+<div id="fc7085ce" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convergence rates</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ii, ninner <span class="kw">in</span> <span class="bu">enumerate</span>(inner_counts):</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    rate <span class="op">=</span> KLOEDDiagnostics.compute_convergence_rate(</span>

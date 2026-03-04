@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1089,7 +1119,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="setup-the-beam-model-and-prior">Setup: The Beam Model and Prior</h2>
 <p>Throughout this tutorial we use a <strong>1D Euler–Bernoulli beam</strong> as a fast surrogate for a more expensive 2D finite-element cantilever beam model. The 1D simplification captures the essential physics — spatially varying bending stiffness, tip deflection, stress, and curvature — while running in about 1 ms per sample, making the Monte Carlo experiments below feasible.</p>
 <p>The bending stiffness <span class="math inline">\(EI(x)\)</span> is modeled by a two-term Karhunen–Lo`eve expansion (KLE). The two uncertain parameters <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> control the dominant modes of the stiffness field. The model returns three QoIs: tip deflection, integrated bending stress, and maximum curvature.</p>
-<div id="f84678e4" class="cell" data-execution_count="1">
+<div id="275680cb" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1130,7 +1160,7 @@ Figure&nbsp;1: Deflected beam shapes for two different KLE parameter values. Col
 <section id="sampling-the-prior-and-evaluating-the-model" class="level2">
 <h2 class="anchored" data-anchor-id="sampling-the-prior-and-evaluating-the-model">Sampling the Prior and Evaluating the Model</h2>
 <p>The Monte Carlo idea is direct: draw <span class="math inline">\(M\)</span> independent samples <span class="math inline">\(\boldsymbol{\theta}^{(1)}, \dots, \boldsymbol{\theta}^{(M)}\)</span> from the prior <span class="math inline">\(\pi(\boldsymbol{\theta})\)</span>, evaluate the model at each, and use the results to estimate statistics of the QoI.</p>
-<div id="f5eeeda6" class="cell" data-execution_count="3">
+<div id="18ca678a" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> variable.rvs(M)                          <span class="co"># shape: (2, M)</span></span>
@@ -1165,7 +1195,7 @@ Figure&nbsp;2: Left: <span class="math inline">\(M = 50\)</span> samples drawn f
 <section id="accelerating-evaluation-with-make_parallel" class="level2">
 <h2 class="anchored" data-anchor-id="accelerating-evaluation-with-make_parallel">Accelerating Evaluation with <code>make_parallel</code></h2>
 <p>Each call to the beam model solves a separate FEM problem. When <span class="math inline">\(M\)</span> is large, these independent solves can run in parallel across CPU cores. PyApprox’s <code>make_parallel</code> wraps any model satisfying <code>FunctionProtocol</code> with a parallel backend:</p>
-<div id="50277a3e" class="cell" data-execution_count="5">
+<div id="0a477b41" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.parallel <span class="im">import</span> make_parallel</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_parallel(model, backend<span class="op">=</span><span class="st">"joblib_processes"</span>, n_jobs<span class="op">=-</span><span class="dv">1</span>)</span>
@@ -1202,7 +1232,7 @@ Workers: -1</code></pre>
 <p><span class="math display">\[
 \hat{\sigma}^2_M = \frac{1}{M-1} \sum_{i=1}^{M} \left(q^{(i)} - \hat{\mu}_M\right)^2
 \]</span></p>
-<div id="a7a8d5eb" class="cell" data-execution_count="6">
+<div id="e447e5b7" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>mc_mean <span class="op">=</span> bkd.to_float(bkd.mean(qoi_values))</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> bkd.to_float(bkd.var(qoi_values, ddof<span class="op">=</span><span class="dv">1</span>))</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1218,10 +1248,10 @@ MC variance estimate (M=50): 7.244091</code></pre>
 <section id="estimates-are-random" class="level2">
 <h2 class="anchored" data-anchor-id="estimates-are-random">Estimates Are Random</h2>
 <p>To judge the accuracy of Monte Carlo, we need a reference answer. We compute the true mean and variance of the QoI using a high-accuracy deterministic method (quadrature rules are covered in a later tutorial).</p>
-<div id="ea88db80" class="cell" data-execution_count="7">
+<div id="5ebb2754" class="cell" data-execution_count="7">
 <div class="cell-output cell-output-stdout">
 <pre><code>True mean (quadrature):     9.526642
-True variance (quadrature): 6.4281436658</code></pre>
+True variance (quadrature): 6.4281436677</code></pre>
 </div>
 </div>
 <p>Because the samples are random, the estimates <span class="math inline">\(\hat{\mu}_M\)</span> and <span class="math inline">\(\hat{\sigma}^2_M\)</span> are themselves <strong>random variables</strong>. A different draw of <span class="math inline">\(M\)</span> samples gives a different estimate. <a href="#fig-mc-variability-small" class="quarto-xref">Figure&nbsp;3</a> demonstrates this: we repeat the Monte Carlo experiment 200 times, each with <span class="math inline">\(M = 10\)</span> samples, and collect the resulting mean estimates into a histogram.</p>
@@ -1293,7 +1323,7 @@ Figure&nbsp;4: Same experiment with <span class="math inline">\(M = 100\)</span>
 <section id="multiple-qois-and-covariance" class="level2">
 <h2 class="anchored" data-anchor-id="multiple-qois-and-covariance">Multiple QoIs and Covariance</h2>
 <p>So far we have tracked a single QoI — the tip deflection. In practice, a model often produces <strong>several</strong> quantities of interest simultaneously. Our beam model returns three QoIs: the tip deflection <span class="math inline">\(\delta_{\text{tip}}\)</span>, the integrated bending stress <span class="math inline">\(\int_0^L \sigma(x)\,dx\)</span>, and the maximum absolute curvature <span class="math inline">\(\kappa_{\max}\)</span>.</p>
-<div id="c17c80f3" class="cell" data-execution_count="10">
+<div id="7aa44f87" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>M_multi <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>samples_multi <span class="op">=</span> variable.rvs(M_multi)</span>
@@ -1345,7 +1375,7 @@ Figure&nbsp;5: Pairwise scatter of three QoIs across <span class="math inline">\
 \left(\mathbf{q}^{(i)} - \hat{\boldsymbol{\mu}}_M\right)^{\!\top}
 \]</span></p>
 <p>where <span class="math inline">\(\mathbf{q}^{(i)} \in \mathbb{R}^{n_{\text{qoi}}}\)</span> and <span class="math inline">\(\hat{\boldsymbol{\mu}}_M\)</span> is the sample mean vector. The diagonal entries are the marginal variances; the off-diagonal entries measure linear dependence between QoIs.</p>
-<div id="709a3fda" class="cell" data-execution_count="12">
+<div id="5d11b008" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> np.cov(qoi_multi_np)</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>corr_matrix <span class="op">=</span> np.corrcoef(qoi_multi_np)</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Sample covariance matrix:"</span>)</span>
@@ -1354,14 +1384,14 @@ Figure&nbsp;5: Pairwise scatter of three QoIs across <span class="math inline">\
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(np.array2string(corr_matrix, precision<span class="op">=</span><span class="dv">3</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Sample covariance matrix:
-[[7.24409098e+00 5.49726193e-08 2.31062053e-03]
- [5.49726193e-08 9.90917444e-15 1.51906221e-11]
- [2.31062053e-03 1.51906221e-11 7.92114571e-07]]
+[[7.24409097e+00 1.77240227e-08 2.31062053e-03]
+ [1.77240227e-08 1.15061074e-14 4.07291859e-12]
+ [2.31062053e-03 4.07291859e-12 7.92114571e-07]]
 
 Correlation matrix:
-[[1.    0.205 0.965]
- [0.205 1.    0.171]
- [0.965 0.171 1.   ]]</code></pre>
+[[1.    0.061 0.965]
+ [0.061 1.    0.043]
+ [0.965 0.043 1.   ]]</code></pre>
 </div>
 </div>
 <p>The correlation matrix reveals the structure: tip deflection and max curvature are strongly correlated (<span class="math inline">\(\rho \approx 0.96\)</span>) because both are global measures of how much the beam bends. Integrated stress, however, is nearly uncorrelated with both (<span class="math inline">\(\rho \approx 0\)</span>) because it depends on the <em>local</em> product <span class="math inline">\(EI(x) \cdot \kappa(x)\)</span> — where the stiffness is high, the stress is high even if curvature is low.</p>

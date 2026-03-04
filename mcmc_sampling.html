@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1189,7 +1219,7 @@ Figure&nbsp;2: Three scenarios for a proposed move. Top: the proposal lands in a
 <section id="running-mcmc-on-the-1d-beam" class="level2">
 <h2 class="anchored" data-anchor-id="running-mcmc-on-the-1d-beam">Running MCMC on the 1D Beam</h2>
 <p>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>. We observe the tip deflection with 10% Gaussian noise and want to infer <span class="math inline">\(\xi\)</span>. Rather than writing a manual Metropolis-Hastings loop, we use the <code>LogUnNormalizedPosterior</code> and <code>MetropolisHastingsSampler</code> classes from the typing API.</p>
-<div id="e2aa508f" class="cell" data-execution_count="3">
+<div id="a3620f3b" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1248,7 +1278,7 @@ Figure&nbsp;3: MCMC output for the 1D beam problem. Left: trace plot showing the
 \log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i
 \]</span></p>
 <p>where <span class="math inline">\(\overline{EI}\)</span> is the mean stiffness, <span class="math inline">\((\lambda_i, \phi_i)\)</span> are the KLE eigenvalues and eigenfunctions, and <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</p>
-<div id="c05f93a0" class="cell" data-execution_count="5">
+<div id="6c043aae" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
@@ -1286,7 +1316,7 @@ Observed:             10.120178
 Noise std (10%):      0.865673</code></pre>
 </div>
 </div>
-<div id="11db11d1" class="cell" data-execution_count="6">
+<div id="229006e7" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>

@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1038,7 +1068,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1097,7 +1127,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="88bc827f" class="cell" data-execution_count="1">
+<div id="3561f337" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1166,7 +1196,7 @@ f_{\mathcal{I}}(\mathbf{z}) = \sum_{\beta \in \mathcal{I}} c_\beta\, f_\beta(\ma
 \gamma \leq \beta \text{ (entry-wise) and } \beta \in \mathcal{I} \implies \gamma \in \mathcal{I}.
 \]</span></p>
 <p>Intuitively, you cannot include a high-resolution sub-grid in dimension <span class="math inline">\(i\)</span> without also including all coarser sub-grids.</p>
-<div id="29f6a296" class="cell" data-execution_count="2">
+<div id="db35331e" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: 2D isotropic index set at level l=2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># I(2) = {β : ||β||_1 ≤ 2}</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>indices_valid <span class="op">=</span> bkd.asarray(</span>
@@ -1191,7 +1221,7 @@ f_{\mathcal{I}}(\mathbf{z}) = \sum_{\beta \in \mathcal{I}} c_\beta\, f_\beta(\ma
 c_\beta = \sum_{\substack{i \in \{0,1\}^D \\ \beta + i \in \mathcal{I}}} (-1)^{\lVert i \rVert_1}.
 \]</span></p>
 <p>For the <strong>isotropic</strong> index set <span class="math inline">\(\mathcal{I}(l) = \{\beta : \lVert \beta \rVert_1 \leq l\}\)</span> with level <span class="math inline">\(l\)</span> and <span class="math inline">\(D\)</span> dimensions, the coefficients alternate in sign and their magnitudes are given by binomial coefficients. A key property is that the coefficients always <strong>sum to 1</strong>.</p>
-<div id="792109b8" class="cell" data-execution_count="3">
+<div id="6e489e66" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>coefs <span class="op">=</span> compute_smolyak_coefficients(indices_valid, bkd)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
@@ -1274,7 +1304,7 @@ Figure&nbsp;1: Tensor product sub-grids contributing to the 2D isotropic sparse 
 <li>Evaluate your function at those locations</li>
 <li>Call <code>fit(values)</code> to get the result containing the surrogate</li>
 </ol>
-<div id="0ba1332f" class="cell" data-execution_count="5">
+<div id="a866838c" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>factories <span class="op">=</span> [leja_factory] <span class="op">*</span> nvars</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>growth <span class="op">=</span> ClenshawCurtisGrowthRule()</span>
@@ -1574,7 +1604,7 @@ Figure&nbsp;6: Two standard univariate growth rules. Clenshaw-Curtis growth is n
 <section id="computing-statistics-with-surrogate.mean" class="level2">
 <h2 class="anchored" data-anchor-id="computing-statistics-with-surrogate.mean">Computing Statistics with <code>surrogate.mean()</code></h2>
 <p>Sparse grids double as <strong>quadrature rules</strong>: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly. The <code>surrogate.mean()</code> method returns <span class="math inline">\(\mathbb{E}[f(\mathbf{Z})]\)</span> for the measure determined by the 1D bases.</p>
-<div id="f4022521" class="cell" data-execution_count="12">
+<div id="b76a4faf" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute E[cos(πZ₁)cos(πZ₂/2)] over U(-1,1)²</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact: (1/4)∫cos(πz₁)dz₁ · ∫cos(πz₂/2)dz₂ = (1/4)·0·(4/π) = 0</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># because ∫_{-1}^{1} cos(πz₁) dz₁ = [sin(πz₁)/π]_{-1}^{1} = 0</span></span>

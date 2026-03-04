@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1089,7 +1119,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="635a66ff" class="cell" data-execution_count="1">
+<div id="a26b3309" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1141,7 +1171,7 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <section id="using-lagrangebasis1d" class="level3">
 <h3 class="anchored" data-anchor-id="using-lagrangebasis1d">Using <code>LagrangeBasis1D</code></h3>
 <p><code>LagrangeBasis1D</code> takes a <strong>quadrature rule callable</strong> — any function with signature <code>(npoints) → (samples, weights)</code> — and builds the Lagrange basis at the rule’s nodes. This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.</p>
-<div id="32d230a8" class="cell" data-execution_count="3">
+<div id="2231c587" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Clenshaw-Curtis basis ---</span></span>
@@ -1253,7 +1283,7 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 \]</span></p>
 <p>These are the projection of equally spaced points on the unit circle onto the real axis. They minimise <span class="math inline">\(\max_{x \in [-1,1]} \prod_j |x - x^{(j)}|\)</span> among all <span class="math inline">\(M\)</span>-point sets with endpoints fixed at <span class="math inline">\(\pm 1\)</span>, making them near-optimal for interpolation.</p>
 <p>A critical property for sparse grids is that CC nodes are <strong>nested</strong>: the <span class="math inline">\(M = 2^k + 1\)</span> point CC grid contains all points of the <span class="math inline">\(M = 2^{k-1} + 1\)</span> point grid.</p>
-<div id="e22af7ef" class="cell" data-execution_count="5">
+<div id="527b1bde" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_nested_cc</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>]</span>
@@ -1336,7 +1366,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 \int_a^b f_M(x)\, dx = \sum_{j=1}^{M} f\!\left(x^{(j)}\right) \underbrace{\int_a^b \phi_j(x)\, dx}_{=:\, w_j}.
 \]</span></p>
 <p>The quadrature weights <span class="math inline">\(w_j\)</span> are exactly the <strong>integrals of the Lagrange basis functions</strong>. This means that any quadrature rule based on Lagrange interpolation (Gauss, Clenshaw-Curtis, and many others) can be recovered by integrating the basis polynomials analytically.</p>
-<div id="b3cf57ad" class="cell" data-execution_count="7">
+<div id="b1b19a41" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify: CC quadrature weights via basis integration agree with the rule's weights.</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>basis_verify <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>

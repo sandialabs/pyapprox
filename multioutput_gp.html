@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1030,7 +1060,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./multioutput_gp.html">Multi-Fidelity Gaussian Processes</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Multi-Fidelity Gaussian Processes</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1089,7 +1119,7 @@ window.Quarto = {
 <section id="setup-the-forrester-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-forrester-benchmark">Setup: The Forrester Benchmark</h2>
 <p>We use the Forrester multi-fidelity benchmark — a pair of 1D functions sharing the same oscillatory structure but differing in scale and offset. The high-fidelity function <span class="math inline">\(f_h(x) = (6x - 2)^2 \sin(12x - 4)\)</span> is expensive; the low-fidelity approximation <span class="math inline">\(f_l(x) = 0.5\, f_h(x) + 10(x - 0.5) - 5\)</span> is cheap but biased.</p>
-<div id="deb02f84" class="cell" data-execution_count="1">
+<div id="0f331b98" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
@@ -1140,7 +1170,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 </section>
 <section id="building-the-multilevelkernel" class="level2">
 <h2 class="anchored" data-anchor-id="building-the-multilevelkernel">Building the MultiLevelKernel</h2>
-<div id="74951f6a" class="cell" data-execution_count="3">
+<div id="5bd3796c" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> SquaredExponentialKernel</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.multioutput.multilevel <span class="im">import</span> MultiLevelKernel</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.scalings <span class="im">import</span> PolynomialScaling</span>
@@ -1182,7 +1212,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 <section id="training-data" class="level2">
 <h2 class="anchored" data-anchor-id="training-data">Training Data</h2>
 <p>We allocate 100 cheap low-fidelity evaluations and only 4 expensive high-fidelity evaluations. The total cost is <span class="math inline">\(100 \times 0.05 + 4 \times 1.0 = 9\)</span> seconds — equivalent to 9 high-fidelity evaluations.</p>
-<div id="806a1676" class="cell" data-execution_count="4">
+<div id="bc1de8dc" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>n_lf, n_hf <span class="op">=</span> <span class="dv">100</span>, <span class="dv">4</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>X_lf <span class="op">=</span> prior.rvs(n_lf)</span>
@@ -1198,7 +1228,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 </section>
 <section id="fitting-and-predicting" class="level2">
 <h2 class="anchored" data-anchor-id="fitting-and-predicting">Fitting and Predicting</h2>
-<div id="19dd69c6" class="cell" data-execution_count="5">
+<div id="97f27edb" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fit() optimises all active hyperparameters (length scales) via MLL</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mf_gp.fit(samples_list, y_train_list)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1217,7 +1247,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 <section id="hf-only-baseline" class="level2">
 <h2 class="anchored" data-anchor-id="hf-only-baseline">HF-Only Baseline</h2>
 <p>For a fair comparison, we build a single-fidelity GP using the same total computational budget spent entirely on high-fidelity evaluations.</p>
-<div id="c01a54db" class="cell" data-execution_count="6">
+<div id="bc727b1a" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>

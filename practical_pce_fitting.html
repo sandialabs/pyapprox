@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./practical_pce_fitting.html">Overfitting and Cross-Validation</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./practical_pce_fitting.html">Overfitting and Cross-Validation</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
@@ -1032,7 +1062,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./practical_pce_fitting.html">Overfitting and Cross-Validation</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./polynomial_chaos_surrogates.html">Polynomial Chaos</a></li><li class="breadcrumb-item"><a href="./practical_pce_fitting.html">Overfitting and Cross-Validation</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Overfitting and Cross-Validation</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1095,7 +1125,7 @@ window.Quarto = {
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1).
 \]</span></p>
 <p>The <span class="math inline">\(x_3^4 \sin(x_1)\)</span> interaction term makes this function challenging for polynomial approximation — it requires high-degree cross-terms to resolve.</p>
-<div id="c4ed5e92" class="cell" data-execution_count="1">
+<div id="cdd479aa" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1125,7 +1155,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1).
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We generate a fixed test set for evaluating all surrogates built in this tutorial:</p>
-<div id="cdba4219" class="cell" data-execution_count="2">
+<div id="a1383b7e" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1269,7 +1299,7 @@ Figure&nbsp;3: Test error and 5-fold CV score vs.&nbsp;total polynomial degree f
 <h2 class="anchored" data-anchor-id="automated-degree-selection-with-pcedegreeselectionfitter">Automated Degree Selection with <code>PCEDegreeSelectionFitter</code></h2>
 <p>Manually sweeping degrees is instructive but tedious. The <code>PCEDegreeSelectionFitter</code> automates this: it evaluates the CV score for each candidate level and returns the surrogate fitted at the best level.</p>
 <p>The fitter takes an <code>IndexSequenceProtocol</code> object that maps an integer level to a multi-index set. Here we use <code>HyperbolicIndexSequence</code> with <span class="math inline">\(p\)</span>-norm = 1 (total degree):</p>
-<div id="42d4766c" class="cell" data-execution_count="7">
+<div id="90681b29" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.pce_cv <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    PCEDegreeSelectionFitter,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1302,7 +1332,7 @@ Figure&nbsp;3: Test error and 5-fold CV score vs.&nbsp;total polynomial degree f
 <span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>best_level <span class="op">=</span> cv_result.best_label()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We can verify that the selected degree matches the visual minimum and check the test-set error:</p>
-<div id="6358e52b" class="cell" data-execution_count="8">
+<div id="0af78080" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>best_pce <span class="op">=</span> cv_result.surrogate()</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>preds_cv <span class="op">=</span> bkd.to_numpy(best_pce(samples_test))</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1312,7 +1342,7 @@ Figure&nbsp;3: Test error and 5-fold CV score vs.&nbsp;total polynomial degree f
 <section id="loo-vs.-k-fold-cv" class="level3">
 <h3 class="anchored" data-anchor-id="loo-vs.-k-fold-cv">LOO vs.&nbsp;K-Fold CV</h3>
 <p>LOO cross-validation uses all but one sample for fitting, maximizing the effective training size, but requires the system to be overdetermined (<code>N &gt; P + 2</code>). K-fold CV is more flexible — it can handle higher degrees — and is faster for large datasets. You can switch to LOO by setting <code>nfolds=None</code>:</p>
-<div id="96046cca" class="cell" data-execution_count="9">
+<div id="9aec0498" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>fitter_loo <span class="op">=</span> PCEDegreeSelectionFitter(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    bkd,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    levels<span class="op">=</span><span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">8</span>)),</span>

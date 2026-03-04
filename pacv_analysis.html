@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1125,7 +1155,7 @@ window.Quarto = {
 = \mathbf{A}_\text{ACVMF}
 \]</span></p>
 <p>The difference is in row 1, column 4 (model <span class="math inline">\(f_1\)</span>’s <span class="math inline">\(\mathcal{Z}_2^*\)</span> column): in MFMC (<span class="math inline">\(\gamma_2=1\)</span>), <span class="math inline">\(f_1\)</span>’s sample set is the anchor for <span class="math inline">\(f_2\)</span>, so partition <span class="math inline">\(\mathcal{P}_1\)</span> is included in <span class="math inline">\(\mathcal{Z}_2^*\)</span>. In ACVMF (<span class="math inline">\(\gamma_2=0\)</span>), <span class="math inline">\(f_0\)</span>’s set is the anchor, so <span class="math inline">\(\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*\)</span>.</p>
-<div id="4ae71d7a" class="cell" data-execution_count="1">
+<div id="4375de96" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1331,7 +1361,7 @@ c_k = \sum_{\alpha=0}^{M} C_\alpha \cdot \mathbf{1}[\mathcal{P}_k \subseteq \mat
 <section id="how-get_all_recursion_indices-works" class="level2">
 <h2 class="anchored" data-anchor-id="how-get_all_recursion_indices-works">How <code>get_all_recursion_indices</code> Works</h2>
 <p>The valid recursion indices form a product space: <span class="math inline">\(\gamma_j \in \{0, \ldots, j-1\}\)</span> for <span class="math inline">\(j = 1, \ldots, M\)</span>. The total count is <span class="math inline">\(\prod_{j=1}^M j = M!\)</span>.</p>
-<div id="6076a2eb" class="cell" data-execution_count="4">
+<div id="51189d3e" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Recursion index counts by M:"</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>

@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1137,7 +1167,7 @@ V_p = \E_{\boldsymbol{\xi}_{\sim p}}\bigl[
 <p><span class="math display">\[
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 \]</span></p>
-<div id="41d3e6df" class="cell" data-execution_count="1">
+<div id="12e5db2d" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1176,7 +1206,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <p>As explained <a href="#why-a-separable-kernel">above</a>, the analytical formulas require a <strong>separable product kernel</strong> so that all multivariate kernel integrals reduce to products of 1D Gauss quadrature sums. We use a <code>SeparableProductKernel</code> composed of independent 1D squared-exponential kernels, one per input dimension.</p>
 </div>
 </div>
-<div id="f2386e12" class="cell" data-execution_count="2">
+<div id="7c4e1795" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit GP with separable SE kernel</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>kernels <span class="op">=</span> [</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">20.0</span>), <span class="dv">1</span>, bkd)</span>
@@ -1206,7 +1236,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="gp-kernel-integral-sobol-indices" class="level2">
 <h2 class="anchored" data-anchor-id="gp-kernel-integral-sobol-indices">GP Kernel-Integral Sobol Indices</h2>
 <p>The <code>GaussianProcessSensitivity</code> class wraps a <code>GaussianProcessStatistics</code> object and computes Sobol indices from the conditional P matrices described above.</p>
-<div id="3c3d8a98" class="cell" data-execution_count="3">
+<div id="f380277b" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis_factory <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    create_basis_factories,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1239,7 +1269,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="fix-and-freeze-verification" class="level2">
 <h2 class="anchored" data-anchor-id="fix-and-freeze-verification">Fix-and-Freeze Verification</h2>
 <p>As an independent check, we compute Sobol indices via the Saltelli/Jansen <strong>fix-and-freeze</strong> estimator, evaluating the GP surrogate at the Saltelli sample matrices. Since the GP is cheap to evaluate, this uses the surrogate in place of the true model.</p>
-<div id="91cc2490" class="cell" data-execution_count="4">
+<div id="f05a3410" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> SobolSequenceSensitivityAnalysis</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> SobolSequenceSensitivityAnalysis(prior, bkd, seed<span class="op">=</span><span class="dv">42</span>)</span>
@@ -1302,7 +1332,7 @@ V_i^{(r)} = \Var_{\xi_i}\!\bigl[\E_{\boldsymbol{\xi}_{\sim i}}[f^{(r)} \mid \xi_
 <p>The analytical formula computes <span class="math inline">\(\E[\Sobol{i}]\)</span> only approximately, because <span class="math inline">\(\Sobol{i} = V_i / \gamma_f\)</span> is a <strong>ratio of random variables</strong> and <span class="math inline">\(\E[V_i / \gamma_f] \neq \E[V_i] / \E[\gamma_f]\)</span> (Jensen’s inequality). The ensemble approach evaluates the ratio for each realization, correctly capturing the full distribution including any skewness.</p>
 </div>
 </div>
-<div id="930f063c" class="cell" data-execution_count="6">
+<div id="4d485437" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.statistics <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    GaussianProcessEnsemble,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>

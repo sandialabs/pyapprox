@@ -383,6 +383,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -757,6 +775,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1129,7 +1159,7 @@ window.Quarto = {
 <section id="verifying-installation" class="level2">
 <h2 class="anchored" data-anchor-id="verifying-installation">Verifying Installation</h2>
 <p>Let’s verify that PyApprox is installed correctly by importing key modules.</p>
-<div id="ab903d7b" class="cell" data-execution_count="1">
+<div id="a0adc8ef" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Core backend for array operations</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1155,7 +1185,7 @@ window.Quarto = {
 <p>For these tutorials, we use the NumPy backend exclusively.</p>
 <section id="creating-a-backend" class="level3">
 <h3 class="anchored" data-anchor-id="creating-a-backend">Creating a Backend</h3>
-<div id="9613507e" class="cell" data-execution_count="2">
+<div id="b98b9e1d" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the NumPy backend</span></span>
@@ -1174,7 +1204,7 @@ Array values: [[1. 2. 3.]]</code></pre>
 <section id="backend-operations" class="level3">
 <h3 class="anchored" data-anchor-id="backend-operations">Backend Operations</h3>
 <p>The backend provides methods for common array operations:</p>
-<div id="65dade7c" class="cell" data-execution_count="3">
+<div id="3879c0c8" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Array creation</span></span>
@@ -1202,7 +1232,7 @@ Solution to Ax=b: [-4.   4.5]</code></pre>
 <section id="loading-a-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="loading-a-benchmark">Loading a Benchmark</h2>
 <p>Benchmarks are pre-configured test problems with known solutions. Let’s load the Lotka-Volterra ecosystem model that we’ll use throughout these tutorials.</p>
-<div id="5faae445" class="cell" data-execution_count="4">
+<div id="eeaaae10" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create backend and load benchmark</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> lotka_volterra_3species(bkd)</span>
@@ -1253,7 +1283,7 @@ Number of states: 3</code></pre>
 </tr>
 </tbody>
 </table>
-<div id="639f198c" class="cell" data-execution_count="5">
+<div id="67adcef1" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: 3 variables, 5 samples</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>nvars, nsamples <span class="op">=</span> <span class="dv">3</span>, <span class="dv">5</span></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.array(np.random.rand(nvars, nsamples))</span>
@@ -1261,7 +1291,7 @@ Number of states: 3</code></pre>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"First sample (column): </span><span class="sc">{</span>samples[:, <span class="dv">0</span>]<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Samples shape: (3, 5)
-First sample (column): [0.87713864 0.57702538 0.54178561]</code></pre>
+First sample (column): [0.37785249 0.69160444 0.44506635]</code></pre>
 </div>
 </div>
 </section>

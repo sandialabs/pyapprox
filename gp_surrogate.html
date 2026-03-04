@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1012,7 +1042,6 @@ window.Quarto = {
    
   <ul>
   <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
-  <li><a href="#the-cost-problem" id="toc-the-cost-problem" class="nav-link" data-scroll-target="#the-cost-problem">The Cost Problem</a></li>
   <li><a href="#setup-the-beam-benchmark" id="toc-setup-the-beam-benchmark" class="nav-link" data-scroll-target="#setup-the-beam-benchmark">Setup: The Beam Benchmark</a></li>
   <li><a href="#the-gaussian-process-prior" id="toc-the-gaussian-process-prior" class="nav-link" data-scroll-target="#the-gaussian-process-prior">The Gaussian Process Prior</a>
   <ul class="collapse">
@@ -1044,7 +1073,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Gaussian Processes</a></li><li class="breadcrumb-item"><a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Building a Gaussian Process Surrogate</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1096,17 +1125,12 @@ window.Quarto = {
 <li>Assess surrogate accuracy and calibration on an independent test set</li>
 <li>Visualise how the GP posterior uncertainty reflects data coverage</li>
 </ul>
-</section>
-<section id="the-cost-problem" class="level2">
-<h2 class="anchored" data-anchor-id="the-cost-problem">The Cost Problem</h2>
-<p>Computational models in engineering and science can take minutes, hours, or days per evaluation. When we want to understand how uncertain inputs affect the model outputs — computing means, variances, failure probabilities — we need hundreds to thousands of evaluations. A Monte Carlo estimate of the mean converges only as <span class="math inline">\(1/\sqrt{N}\)</span>; estimating variances or tail probabilities requires even more samples.</p>
-<p>A <strong>surrogate model</strong> replaces the expensive simulator <span class="math inline">\(f(\boldsymbol{\xi})\)</span> with a cheap approximation <span class="math inline">\(\hat{f}(\boldsymbol{\xi})\)</span> that can be evaluated millions of times at negligible cost. We invest a modest number of expensive model evaluations to <em>train</em> the surrogate, then use it as a stand-in for all subsequent analysis.</p>
-<p>A <strong>Gaussian process (GP)</strong> surrogate goes one step further than a polynomial: it does not just predict a single value at each new point, it returns a full probability distribution. The posterior mean <span class="math inline">\(\mu^*(\mathbf{x})\)</span> is the best estimate, and the posterior standard deviation <span class="math inline">\(\sigma^*(\mathbf{x})\)</span> tells us how confident the surrogate is at that location. This built-in uncertainty quantification is the defining advantage of GP surrogates over polynomial or neural network alternatives.</p>
+<p>Surrogate models replace expensive simulators with cheap approximations — see <a href="./surrogate_workflow.html">The Surrogate Modeling Workflow</a> for an introduction. A <strong>Gaussian process (GP)</strong> surrogate goes one step further than a polynomial: it returns not just a prediction but a full probability distribution. The posterior mean <span class="math inline">\(\mu^*(\mathbf{x})\)</span> is the best estimate, and the posterior standard deviation <span class="math inline">\(\sigma^*(\mathbf{x})\)</span> tells us how confident the surrogate is at that location. This built-in uncertainty quantification is the defining advantage of GP surrogates.</p>
 </section>
 <section id="setup-the-beam-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-benchmark">Setup: The Beam Benchmark</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with a spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> modelled as a log-normal random field parameterised by three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0, 1)\)</span>. The model returns the tip deflection as the QoI.</p>
-<div id="e37b7cef" class="cell" data-execution_count="1">
+<div id="cfcf769e" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1270,7 +1294,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 </div>
 <p>For a <span class="math inline">\(d\)</span>-dimensional input, we need <span class="math inline">\(d\)</span> length scale hyperparameters (one per dimension) so the kernel can adapt to different rates of variation along each axis.</p>
 <p>Our beam model has Gaussian inputs, but the kernel acts on the parameter space <span class="math inline">\(\mathbb{R}^d\)</span> directly — the choice of kernel is about the <em>smoothness</em> of the model output, not the input distribution. We use a Matérn 5/2 kernel, which is a good default for twice-differentiable engineering responses.</p>
-<div id="75dcc7ea" class="cell" data-execution_count="4">
+<div id="9e4924bf" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1298,7 +1322,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 </section>
 <section id="collecting-training-data" class="level2">
 <h2 class="anchored" data-anchor-id="collecting-training-data">Collecting Training Data</h2>
-<div id="bbd884e2" class="cell" data-execution_count="5">
+<div id="7b4e1560" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">80</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)      <span class="co"># (nvars, N_train)</span></span>
@@ -1320,7 +1344,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 <p>Random sampling from the prior is the simplest approach. For GPs, <strong>Cholesky-greedy</strong> and <strong>IVAR</strong> adaptive strategies can achieve better surrogate accuracy for the same number of model evaluations by choosing sample locations that maximally reduce posterior uncertainty. These are covered in <a href="./adaptive_gp_sampling.html">Adaptive Sampling for Gaussian Processes</a>.</p>
 </div>
 </div>
-<div id="7c500fb7" class="cell" data-execution_count="6">
+<div id="5146ea25" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1363,7 +1387,7 @@ Figure&nbsp;3: Negative log marginal likelihood as a function of the first two l
 </div>
 </div>
 </div>
-<div id="77a5ed08" class="cell" data-execution_count="8">
+<div id="ca6253cf" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1397,7 +1421,7 @@ Figure&nbsp;4: Fitted length scales per input dimension (blue bars) vs the initi
 \left[\sigma^*(\boldsymbol{\xi}^*)\right]^2 = k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^*) - \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{k}^*
 \]</span></p>
 <p>where <span class="math inline">\(\mathbf{k}^* = [k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^{(i)})]_i\)</span> is the vector of covariances between the test point and all training points. The posterior variance is the prior variance minus the information gained from the data.</p>
-<div id="444daf26" class="cell" data-execution_count="10">
+<div id="1099bde8" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior mean: shape (nqoi, N_test)</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>mean_test <span class="op">=</span> gp.predict(samples_test)</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1413,7 +1437,7 @@ Figure&nbsp;4: Fitted length scales per input dimension (blue bars) vs the initi
 \epsilon = \frac{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) - \hat{f}(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}
 \]</span></p>
 <p>The <strong>coverage</strong> checks calibration: 95% of test points should lie within the GP’s <span class="math inline">\(\pm 2\sigma^*\)</span> interval if the uncertainty estimates are reliable.</p>
-<div id="7b83ffe9" class="cell" data-execution_count="11">
+<div id="c8a44d0c" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>vals_np  <span class="op">=</span> bkd.to_numpy(values_test)[<span class="dv">0</span>, :]</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>mean_np  <span class="op">=</span> bkd.to_numpy(mean_test)[<span class="dv">0</span>, :]</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>std_np   <span class="op">=</span> bkd.to_numpy(std_test)[<span class="dv">0</span>, :]</span>
@@ -2053,7 +2077,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
 <span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 42</span></span>
 <span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - setup_environment</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate_workflow</span></span>
 <span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
 <span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
 <span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - gaussian-process</span></span>
@@ -2088,518 +2112,500 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Visualise how the GP posterior uncertainty reflects data coverage</span>
 <span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Cost Problem</span></span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a>Surrogate models replace expensive simulators with cheap approximations --- see <span class="co">[</span><span class="ot">The Surrogate Modeling Workflow</span><span class="co">](surrogate_workflow.qmd)</span> for an introduction. A **Gaussian process (GP)** surrogate goes one step further than a polynomial: it returns not just a prediction but a full probability distribution. The posterior mean $\mu^*(\mathbf{x})$ is the best estimate, and the posterior standard deviation $\sigma^*(\mathbf{x})$ tells us how confident the surrogate is at that location. This built-in uncertainty quantification is the defining advantage of GP surrogates.</span>
 <span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a>Computational models in engineering and science can take minutes, hours, or days per</span>
-<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a>evaluation. When we want to understand how uncertain inputs affect the model outputs ---</span>
-<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a>computing means, variances, failure probabilities --- we need hundreds to thousands of</span>
-<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a>evaluations. A Monte Carlo estimate of the mean converges only as $1/\sqrt{N}$;</span>
-<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a>estimating variances or tail probabilities requires even more samples.</span>
-<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a>A **surrogate model** replaces the expensive simulator $f(\boldsymbol{\xi})$ with a</span>
-<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a>cheap approximation $\hat{f}(\boldsymbol{\xi})$ that can be evaluated millions of times</span>
-<span id="cb16-56"><a href="#cb16-56" aria-hidden="true" tabindex="-1"></a>at negligible cost. We invest a modest number of expensive model evaluations to *train*</span>
-<span id="cb16-57"><a href="#cb16-57" aria-hidden="true" tabindex="-1"></a>the surrogate, then use it as a stand-in for all subsequent analysis.</span>
-<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a>A **Gaussian process (GP)** surrogate goes one step further than a polynomial: it does</span>
-<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a>not just predict a single value at each new point, it returns a full probability</span>
-<span id="cb16-61"><a href="#cb16-61" aria-hidden="true" tabindex="-1"></a>distribution. The posterior mean $\mu^*(\mathbf{x})$ is the best estimate, and the</span>
-<span id="cb16-62"><a href="#cb16-62" aria-hidden="true" tabindex="-1"></a>posterior standard deviation $\sigma^*(\mathbf{x})$ tells us how confident the surrogate</span>
-<span id="cb16-63"><a href="#cb16-63" aria-hidden="true" tabindex="-1"></a>is at that location. This built-in uncertainty quantification is the defining advantage</span>
-<span id="cb16-64"><a href="#cb16-64" aria-hidden="true" tabindex="-1"></a>of GP surrogates over polynomial or neural network alternatives.</span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Benchmark</span></span>
+<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a>We use a 1D Euler–Bernoulli cantilever beam with a spatially varying bending</span>
+<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a>stiffness $EI(x)$ modelled as a log-normal random field parameterised by three</span>
+<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a>KLE coefficients $\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0, 1)$. The model</span>
+<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a>returns the tip deflection as the QoI.</span>
+<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb16-61"><a href="#cb16-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb16-62"><a href="#cb16-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb16-63"><a href="#cb16-63" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb16-64"><a href="#cb16-64" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb16-65"><a href="#cb16-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-66"><a href="#cb16-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-67"><a href="#cb16-67" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Benchmark</span></span>
-<span id="cb16-68"><a href="#cb16-68" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-69"><a href="#cb16-69" aria-hidden="true" tabindex="-1"></a>We use a 1D Euler–Bernoulli cantilever beam with a spatially varying bending</span>
-<span id="cb16-70"><a href="#cb16-70" aria-hidden="true" tabindex="-1"></a>stiffness $EI(x)$ modelled as a log-normal random field parameterised by three</span>
-<span id="cb16-71"><a href="#cb16-71" aria-hidden="true" tabindex="-1"></a>KLE coefficients $\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0, 1)$. The model</span>
-<span id="cb16-72"><a href="#cb16-72" aria-hidden="true" tabindex="-1"></a>returns the tip deflection as the QoI.</span>
-<span id="cb16-73"><a href="#cb16-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-76"><a href="#cb16-76" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-77"><a href="#cb16-77" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb16-78"><a href="#cb16-78" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb16-79"><a href="#cb16-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb16-80"><a href="#cb16-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb16-81"><a href="#cb16-81" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
-<span id="cb16-82"><a href="#cb16-82" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-83"><a href="#cb16-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-84"><a href="#cb16-84" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb16-66"><a href="#cb16-66" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb16-67"><a href="#cb16-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-68"><a href="#cb16-68" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb16-69"><a href="#cb16-69" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> benchmark.function()</span>
+<span id="cb16-70"><a href="#cb16-70" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
+<span id="cb16-71"><a href="#cb16-71" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb16-72"><a href="#cb16-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-73"><a href="#cb16-73" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
+<span id="cb16-74"><a href="#cb16-74" aria-hidden="true" tabindex="-1"></a>nqoi  <span class="op">=</span> model.nqoi()</span>
+<span id="cb16-75"><a href="#cb16-75" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-76"><a href="#cb16-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-77"><a href="#cb16-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-78"><a href="#cb16-78" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Gaussian Process Prior</span></span>
+<span id="cb16-79"><a href="#cb16-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-80"><a href="#cb16-80" aria-hidden="true" tabindex="-1"></a>A GP places a probability distribution over functions. We write:</span>
+<span id="cb16-81"><a href="#cb16-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-82"><a href="#cb16-82" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-83"><a href="#cb16-83" aria-hidden="true" tabindex="-1"></a>f(\boldsymbol{\xi}) \sim \mathcal{GP}<span class="sc">\!</span>\left(m(\boldsymbol{\xi}),\, k(\boldsymbol{\xi}, \boldsymbol{\xi}')\right)</span>
+<span id="cb16-84"><a href="#cb16-84" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb16-85"><a href="#cb16-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">3</span>)</span>
-<span id="cb16-87"><a href="#cb16-87" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> benchmark.function()</span>
-<span id="cb16-88"><a href="#cb16-88" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
-<span id="cb16-89"><a href="#cb16-89" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a>where $m(\boldsymbol{\xi}) = \mathbb{E}<span class="co">[</span><span class="ot">f(\boldsymbol{\xi})</span><span class="co">]</span>$ is the **mean function**</span>
+<span id="cb16-87"><a href="#cb16-87" aria-hidden="true" tabindex="-1"></a>(usually taken to be zero or a simple polynomial) and $k(\boldsymbol{\xi}, \boldsymbol{\xi}')$</span>
+<span id="cb16-88"><a href="#cb16-88" aria-hidden="true" tabindex="-1"></a>is the **kernel** (or covariance function), which controls the smoothness and scale of</span>
+<span id="cb16-89"><a href="#cb16-89" aria-hidden="true" tabindex="-1"></a>functions drawn from the prior.</span>
 <span id="cb16-90"><a href="#cb16-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-91"><a href="#cb16-91" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
-<span id="cb16-92"><a href="#cb16-92" aria-hidden="true" tabindex="-1"></a>nqoi  <span class="op">=</span> model.nqoi()</span>
-<span id="cb16-93"><a href="#cb16-93" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-91"><a href="#cb16-91" aria-hidden="true" tabindex="-1"></a>The key property of the GP is that any finite collection of function values</span>
+<span id="cb16-92"><a href="#cb16-92" aria-hidden="true" tabindex="-1"></a>$\mathbf{f} = <span class="co">[</span><span class="ot">f(\boldsymbol{\xi}^{(1)}), \ldots, f(\boldsymbol{\xi}^{(N)})</span><span class="co">]</span>^\top$</span>
+<span id="cb16-93"><a href="#cb16-93" aria-hidden="true" tabindex="-1"></a>follows a multivariate Gaussian distribution:</span>
 <span id="cb16-94"><a href="#cb16-94" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-95"><a href="#cb16-95" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Gaussian Process Prior</span></span>
-<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a>A GP places a probability distribution over functions. We write:</span>
+<span id="cb16-95"><a href="#cb16-95" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a>\mathbf{f} \sim \mathcal{N}<span class="sc">\!</span>\left(\mathbf{m}, \mathbf{K}\right), \qquad</span>
+<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a>K_{ij} = k(\boldsymbol{\xi}^{(i)}, \boldsymbol{\xi}^{(j)})</span>
+<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb16-99"><a href="#cb16-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-100"><a href="#cb16-100" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-101"><a href="#cb16-101" aria-hidden="true" tabindex="-1"></a>f(\boldsymbol{\xi}) \sim \mathcal{GP}<span class="sc">\!</span>\left(m(\boldsymbol{\xi}),\, k(\boldsymbol{\xi}, \boldsymbol{\xi}')\right)</span>
-<span id="cb16-102"><a href="#cb16-102" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-100"><a href="#cb16-100" aria-hidden="true" tabindex="-1"></a>This Gaussian structure is what makes posterior inference exact.</span>
+<span id="cb16-101"><a href="#cb16-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-102"><a href="#cb16-102" aria-hidden="true" tabindex="-1"></a><span class="fu">### Prior and Posterior Sample Paths</span></span>
 <span id="cb16-103"><a href="#cb16-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-104"><a href="#cb16-104" aria-hidden="true" tabindex="-1"></a>where $m(\boldsymbol{\xi}) = \mathbb{E}<span class="co">[</span><span class="ot">f(\boldsymbol{\xi})</span><span class="co">]</span>$ is the **mean function**</span>
-<span id="cb16-105"><a href="#cb16-105" aria-hidden="true" tabindex="-1"></a>(usually taken to be zero or a simple polynomial) and $k(\boldsymbol{\xi}, \boldsymbol{\xi}')$</span>
-<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a>is the **kernel** (or covariance function), which controls the smoothness and scale of</span>
-<span id="cb16-107"><a href="#cb16-107" aria-hidden="true" tabindex="-1"></a>functions drawn from the prior.</span>
-<span id="cb16-108"><a href="#cb16-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-109"><a href="#cb16-109" aria-hidden="true" tabindex="-1"></a>The key property of the GP is that any finite collection of function values</span>
-<span id="cb16-110"><a href="#cb16-110" aria-hidden="true" tabindex="-1"></a>$\mathbf{f} = <span class="co">[</span><span class="ot">f(\boldsymbol{\xi}^{(1)}), \ldots, f(\boldsymbol{\xi}^{(N)})</span><span class="co">]</span>^\top$</span>
-<span id="cb16-111"><a href="#cb16-111" aria-hidden="true" tabindex="-1"></a>follows a multivariate Gaussian distribution:</span>
-<span id="cb16-112"><a href="#cb16-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-113"><a href="#cb16-113" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-114"><a href="#cb16-114" aria-hidden="true" tabindex="-1"></a>\mathbf{f} \sim \mathcal{N}<span class="sc">\!</span>\left(\mathbf{m}, \mathbf{K}\right), \qquad</span>
-<span id="cb16-115"><a href="#cb16-115" aria-hidden="true" tabindex="-1"></a>K_{ij} = k(\boldsymbol{\xi}^{(i)}, \boldsymbol{\xi}^{(j)})</span>
-<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-104"><a href="#cb16-104" aria-hidden="true" tabindex="-1"></a>The best way to build intuition for a GP is to draw samples from it. A **prior sample**</span>
+<span id="cb16-105"><a href="#cb16-105" aria-hidden="true" tabindex="-1"></a>is a plausible function before we see any data; a **posterior sample** is a plausible</span>
+<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a>function after conditioning on the training observations.</span>
+<span id="cb16-107"><a href="#cb16-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-110"><a href="#cb16-110" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-111"><a href="#cb16-111" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: five sample paths drawn from the GP prior along a 1D slice (ξ₂ = ξ₃ = 0). The shaded band is the ±2σ prior envelope. Right: the same five paths conditioned on 8 training observations (black dots). All paths are pinched through the data and fan out again where observations are sparse — the 'sausage' effect."</span></span>
+<span id="cb16-112"><a href="#cb16-112" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-prior-posterior-samples</span></span>
+<span id="cb16-113"><a href="#cb16-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-114"><a href="#cb16-114" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb16-115"><a href="#cb16-115" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
+<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
 <span id="cb16-117"><a href="#cb16-117" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-118"><a href="#cb16-118" aria-hidden="true" tabindex="-1"></a>This Gaussian structure is what makes posterior inference exact.</span>
-<span id="cb16-119"><a href="#cb16-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-120"><a href="#cb16-120" aria-hidden="true" tabindex="-1"></a><span class="fu">### Prior and Posterior Sample Paths</span></span>
+<span id="cb16-118"><a href="#cb16-118" aria-hidden="true" tabindex="-1"></a>bkd_preview <span class="op">=</span> NumpyBkd()</span>
+<span id="cb16-119"><a href="#cb16-119" aria-hidden="true" tabindex="-1"></a>_k <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>], (<span class="fl">0.1</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd_preview)</span>
+<span id="cb16-120"><a href="#cb16-120" aria-hidden="true" tabindex="-1"></a>_gp_prior <span class="op">=</span> ExactGaussianProcess(_k, nvars<span class="op">=</span><span class="dv">1</span>, bkd<span class="op">=</span>bkd_preview, nugget<span class="op">=</span><span class="fl">1e-8</span>)</span>
 <span id="cb16-121"><a href="#cb16-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-122"><a href="#cb16-122" aria-hidden="true" tabindex="-1"></a>The best way to build intuition for a GP is to draw samples from it. A **prior sample**</span>
-<span id="cb16-123"><a href="#cb16-123" aria-hidden="true" tabindex="-1"></a>is a plausible function before we see any data; a **posterior sample** is a plausible</span>
-<span id="cb16-124"><a href="#cb16-124" aria-hidden="true" tabindex="-1"></a>function after conditioning on the training observations.</span>
+<span id="cb16-122"><a href="#cb16-122" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D grid for plotting</span></span>
+<span id="cb16-123"><a href="#cb16-123" aria-hidden="true" tabindex="-1"></a>xi_grid <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">200</span>)</span>
+<span id="cb16-124"><a href="#cb16-124" aria-hidden="true" tabindex="-1"></a>X_grid  <span class="op">=</span> xi_grid.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
 <span id="cb16-125"><a href="#cb16-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-128"><a href="#cb16-128" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-129"><a href="#cb16-129" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: five sample paths drawn from the GP prior along a 1D slice (ξ₂ = ξ₃ = 0). The shaded band is the ±2σ prior envelope. Right: the same five paths conditioned on 8 training observations (black dots). All paths are pinched through the data and fan out again where observations are sparse — the 'sausage' effect."</span></span>
-<span id="cb16-130"><a href="#cb16-130" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-prior-posterior-samples</span></span>
-<span id="cb16-131"><a href="#cb16-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-132"><a href="#cb16-132" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
-<span id="cb16-133"><a href="#cb16-133" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
-<span id="cb16-134"><a href="#cb16-134" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
-<span id="cb16-135"><a href="#cb16-135" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-136"><a href="#cb16-136" aria-hidden="true" tabindex="-1"></a>bkd_preview <span class="op">=</span> NumpyBkd()</span>
-<span id="cb16-137"><a href="#cb16-137" aria-hidden="true" tabindex="-1"></a>_k <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>], (<span class="fl">0.1</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd_preview)</span>
-<span id="cb16-138"><a href="#cb16-138" aria-hidden="true" tabindex="-1"></a>_gp_prior <span class="op">=</span> ExactGaussianProcess(_k, nvars<span class="op">=</span><span class="dv">1</span>, bkd<span class="op">=</span>bkd_preview, nugget<span class="op">=</span><span class="fl">1e-8</span>)</span>
-<span id="cb16-139"><a href="#cb16-139" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-140"><a href="#cb16-140" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D grid for plotting</span></span>
-<span id="cb16-141"><a href="#cb16-141" aria-hidden="true" tabindex="-1"></a>xi_grid <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">200</span>)</span>
-<span id="cb16-142"><a href="#cb16-142" aria-hidden="true" tabindex="-1"></a>X_grid  <span class="op">=</span> xi_grid.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb16-126"><a href="#cb16-126" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Prior samples ----</span></span>
+<span id="cb16-127"><a href="#cb16-127" aria-hidden="true" tabindex="-1"></a>K_prior <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_grid))</span>
+<span id="cb16-128"><a href="#cb16-128" aria-hidden="true" tabindex="-1"></a>K_prior <span class="op">+=</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
+<span id="cb16-129"><a href="#cb16-129" aria-hidden="true" tabindex="-1"></a>L_prior  <span class="op">=</span> np.linalg.cholesky(K_prior)</span>
+<span id="cb16-130"><a href="#cb16-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-131"><a href="#cb16-131" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">7</span>)</span>
+<span id="cb16-132"><a href="#cb16-132" aria-hidden="true" tabindex="-1"></a>n_samples <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb16-133"><a href="#cb16-133" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> rng.standard_normal((<span class="bu">len</span>(xi_grid), n_samples))</span>
+<span id="cb16-134"><a href="#cb16-134" aria-hidden="true" tabindex="-1"></a>prior_paths <span class="op">=</span> L_prior <span class="op">@</span> Z</span>
+<span id="cb16-135"><a href="#cb16-135" aria-hidden="true" tabindex="-1"></a>prior_std   <span class="op">=</span> np.sqrt(np.diag(K_prior))</span>
+<span id="cb16-136"><a href="#cb16-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-137"><a href="#cb16-137" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Condition on 8 pseudo-observations of sin(pi*xi) ----</span></span>
+<span id="cb16-138"><a href="#cb16-138" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">11</span>)</span>
+<span id="cb16-139"><a href="#cb16-139" aria-hidden="true" tabindex="-1"></a>X_obs   <span class="op">=</span> np.sort(rng.uniform(<span class="op">-</span><span class="fl">2.5</span>, <span class="fl">2.5</span>, <span class="dv">8</span>)).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb16-140"><a href="#cb16-140" aria-hidden="true" tabindex="-1"></a>y_obs   <span class="op">=</span> (np.sin(np.pi <span class="op">*</span> X_obs) <span class="op">+</span> <span class="fl">0.15</span> <span class="op">*</span> rng.standard_normal(X_obs.shape))</span>
+<span id="cb16-141"><a href="#cb16-141" aria-hidden="true" tabindex="-1"></a>y_obs_arr <span class="op">=</span> bkd_preview.asarray(y_obs)</span>
+<span id="cb16-142"><a href="#cb16-142" aria-hidden="true" tabindex="-1"></a>X_obs_arr <span class="op">=</span> bkd_preview.asarray(X_obs)</span>
 <span id="cb16-143"><a href="#cb16-143" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-144"><a href="#cb16-144" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Prior samples ----</span></span>
-<span id="cb16-145"><a href="#cb16-145" aria-hidden="true" tabindex="-1"></a>K_prior <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_grid))</span>
-<span id="cb16-146"><a href="#cb16-146" aria-hidden="true" tabindex="-1"></a>K_prior <span class="op">+=</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
-<span id="cb16-147"><a href="#cb16-147" aria-hidden="true" tabindex="-1"></a>L_prior  <span class="op">=</span> np.linalg.cholesky(K_prior)</span>
-<span id="cb16-148"><a href="#cb16-148" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-149"><a href="#cb16-149" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">7</span>)</span>
-<span id="cb16-150"><a href="#cb16-150" aria-hidden="true" tabindex="-1"></a>n_samples <span class="op">=</span> <span class="dv">5</span></span>
-<span id="cb16-151"><a href="#cb16-151" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> rng.standard_normal((<span class="bu">len</span>(xi_grid), n_samples))</span>
-<span id="cb16-152"><a href="#cb16-152" aria-hidden="true" tabindex="-1"></a>prior_paths <span class="op">=</span> L_prior <span class="op">@</span> Z</span>
-<span id="cb16-153"><a href="#cb16-153" aria-hidden="true" tabindex="-1"></a>prior_std   <span class="op">=</span> np.sqrt(np.diag(K_prior))</span>
-<span id="cb16-154"><a href="#cb16-154" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-155"><a href="#cb16-155" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Condition on 8 pseudo-observations of sin(pi*xi) ----</span></span>
-<span id="cb16-156"><a href="#cb16-156" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">11</span>)</span>
-<span id="cb16-157"><a href="#cb16-157" aria-hidden="true" tabindex="-1"></a>X_obs   <span class="op">=</span> np.sort(rng.uniform(<span class="op">-</span><span class="fl">2.5</span>, <span class="fl">2.5</span>, <span class="dv">8</span>)).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
-<span id="cb16-158"><a href="#cb16-158" aria-hidden="true" tabindex="-1"></a>y_obs   <span class="op">=</span> (np.sin(np.pi <span class="op">*</span> X_obs) <span class="op">+</span> <span class="fl">0.15</span> <span class="op">*</span> rng.standard_normal(X_obs.shape))</span>
-<span id="cb16-159"><a href="#cb16-159" aria-hidden="true" tabindex="-1"></a>y_obs_arr <span class="op">=</span> bkd_preview.asarray(y_obs)</span>
-<span id="cb16-160"><a href="#cb16-160" aria-hidden="true" tabindex="-1"></a>X_obs_arr <span class="op">=</span> bkd_preview.asarray(X_obs)</span>
+<span id="cb16-144"><a href="#cb16-144" aria-hidden="true" tabindex="-1"></a>_gp_prior.hyp_list().set_all_inactive()</span>
+<span id="cb16-145"><a href="#cb16-145" aria-hidden="true" tabindex="-1"></a>_gp_prior.fit(X_obs_arr, y_obs_arr)</span>
+<span id="cb16-146"><a href="#cb16-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-147"><a href="#cb16-147" aria-hidden="true" tabindex="-1"></a>mu_post  <span class="op">=</span> bkd_preview.to_numpy(_gp_prior.predict(X_grid))[<span class="dv">0</span>, :]</span>
+<span id="cb16-148"><a href="#cb16-148" aria-hidden="true" tabindex="-1"></a>std_post <span class="op">=</span> bkd_preview.to_numpy(_gp_prior.predict_std(X_grid))[<span class="dv">0</span>, :]</span>
+<span id="cb16-149"><a href="#cb16-149" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-150"><a href="#cb16-150" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior samples via Matheron's rule</span></span>
+<span id="cb16-151"><a href="#cb16-151" aria-hidden="true" tabindex="-1"></a>K_ss <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_grid)) <span class="op">+</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
+<span id="cb16-152"><a href="#cb16-152" aria-hidden="true" tabindex="-1"></a>K_so <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_obs_arr))</span>
+<span id="cb16-153"><a href="#cb16-153" aria-hidden="true" tabindex="-1"></a>K_oo <span class="op">=</span> bkd_preview.to_numpy(_k(X_obs_arr, X_obs_arr)) <span class="op">+</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(X_obs.shape[<span class="dv">1</span>])</span>
+<span id="cb16-154"><a href="#cb16-154" aria-hidden="true" tabindex="-1"></a>L_oo <span class="op">=</span> np.linalg.cholesky(K_oo)</span>
+<span id="cb16-155"><a href="#cb16-155" aria-hidden="true" tabindex="-1"></a>A    <span class="op">=</span> np.linalg.solve(L_oo, K_so.T)</span>
+<span id="cb16-156"><a href="#cb16-156" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">=</span> K_ss <span class="op">-</span> A.T <span class="op">@</span> A</span>
+<span id="cb16-157"><a href="#cb16-157" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (K_cond <span class="op">+</span> K_cond.T)</span>
+<span id="cb16-158"><a href="#cb16-158" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">+=</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
+<span id="cb16-159"><a href="#cb16-159" aria-hidden="true" tabindex="-1"></a>L_cond <span class="op">=</span> np.linalg.cholesky(K_cond)</span>
+<span id="cb16-160"><a href="#cb16-160" aria-hidden="true" tabindex="-1"></a>post_paths <span class="op">=</span> mu_post[:, <span class="va">None</span>] <span class="op">+</span> L_cond <span class="op">@</span> rng.standard_normal((<span class="bu">len</span>(xi_grid), n_samples))</span>
 <span id="cb16-161"><a href="#cb16-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-162"><a href="#cb16-162" aria-hidden="true" tabindex="-1"></a>_gp_prior.hyp_list().set_all_inactive()</span>
-<span id="cb16-163"><a href="#cb16-163" aria-hidden="true" tabindex="-1"></a>_gp_prior.fit(X_obs_arr, y_obs_arr)</span>
-<span id="cb16-164"><a href="#cb16-164" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-165"><a href="#cb16-165" aria-hidden="true" tabindex="-1"></a>mu_post  <span class="op">=</span> bkd_preview.to_numpy(_gp_prior.predict(X_grid))[<span class="dv">0</span>, :]</span>
-<span id="cb16-166"><a href="#cb16-166" aria-hidden="true" tabindex="-1"></a>std_post <span class="op">=</span> bkd_preview.to_numpy(_gp_prior.predict_std(X_grid))[<span class="dv">0</span>, :]</span>
-<span id="cb16-167"><a href="#cb16-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-168"><a href="#cb16-168" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior samples via Matheron's rule</span></span>
-<span id="cb16-169"><a href="#cb16-169" aria-hidden="true" tabindex="-1"></a>K_ss <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_grid)) <span class="op">+</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
-<span id="cb16-170"><a href="#cb16-170" aria-hidden="true" tabindex="-1"></a>K_so <span class="op">=</span> bkd_preview.to_numpy(_k(X_grid, X_obs_arr))</span>
-<span id="cb16-171"><a href="#cb16-171" aria-hidden="true" tabindex="-1"></a>K_oo <span class="op">=</span> bkd_preview.to_numpy(_k(X_obs_arr, X_obs_arr)) <span class="op">+</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(X_obs.shape[<span class="dv">1</span>])</span>
-<span id="cb16-172"><a href="#cb16-172" aria-hidden="true" tabindex="-1"></a>L_oo <span class="op">=</span> np.linalg.cholesky(K_oo)</span>
-<span id="cb16-173"><a href="#cb16-173" aria-hidden="true" tabindex="-1"></a>A    <span class="op">=</span> np.linalg.solve(L_oo, K_so.T)</span>
-<span id="cb16-174"><a href="#cb16-174" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">=</span> K_ss <span class="op">-</span> A.T <span class="op">@</span> A</span>
-<span id="cb16-175"><a href="#cb16-175" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (K_cond <span class="op">+</span> K_cond.T)</span>
-<span id="cb16-176"><a href="#cb16-176" aria-hidden="true" tabindex="-1"></a>K_cond <span class="op">+=</span> <span class="fl">1e-8</span> <span class="op">*</span> np.eye(<span class="bu">len</span>(xi_grid))</span>
-<span id="cb16-177"><a href="#cb16-177" aria-hidden="true" tabindex="-1"></a>L_cond <span class="op">=</span> np.linalg.cholesky(K_cond)</span>
-<span id="cb16-178"><a href="#cb16-178" aria-hidden="true" tabindex="-1"></a>post_paths <span class="op">=</span> mu_post[:, <span class="va">None</span>] <span class="op">+</span> L_cond <span class="op">@</span> rng.standard_normal((<span class="bu">len</span>(xi_grid), n_samples))</span>
+<span id="cb16-162"><a href="#cb16-162" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb16-163"><a href="#cb16-163" aria-hidden="true" tabindex="-1"></a>plot_prior_posterior_samples(</span>
+<span id="cb16-164"><a href="#cb16-164" aria-hidden="true" tabindex="-1"></a>    axes, xi_grid, prior_std, prior_paths, mu_post, std_post,</span>
+<span id="cb16-165"><a href="#cb16-165" aria-hidden="true" tabindex="-1"></a>    post_paths, X_obs, y_obs, n_samples,</span>
+<span id="cb16-166"><a href="#cb16-166" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-167"><a href="#cb16-167" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-168"><a href="#cb16-168" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-169"><a href="#cb16-169" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-170"><a href="#cb16-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-171"><a href="#cb16-171" aria-hidden="true" tabindex="-1"></a>The key observations: all posterior paths agree at the training points (black dots), spread</span>
+<span id="cb16-172"><a href="#cb16-172" aria-hidden="true" tabindex="-1"></a>widely between them, and converge back to the prior away from the data. The width of the</span>
+<span id="cb16-173"><a href="#cb16-173" aria-hidden="true" tabindex="-1"></a>sausage at any location is exactly $\sigma^*(\boldsymbol{\xi})$.</span>
+<span id="cb16-174"><a href="#cb16-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-175"><a href="#cb16-175" aria-hidden="true" tabindex="-1"></a><span class="fu">### Choosing a Kernel</span></span>
+<span id="cb16-176"><a href="#cb16-176" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-177"><a href="#cb16-177" aria-hidden="true" tabindex="-1"></a>The kernel determines what the GP "believes" about the function before seeing any</span>
+<span id="cb16-178"><a href="#cb16-178" aria-hidden="true" tabindex="-1"></a>data. The most widely used kernels for smooth physical models are:</span>
 <span id="cb16-179"><a href="#cb16-179" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-180"><a href="#cb16-180" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb16-181"><a href="#cb16-181" aria-hidden="true" tabindex="-1"></a>plot_prior_posterior_samples(</span>
-<span id="cb16-182"><a href="#cb16-182" aria-hidden="true" tabindex="-1"></a>    axes, xi_grid, prior_std, prior_paths, mu_post, std_post,</span>
-<span id="cb16-183"><a href="#cb16-183" aria-hidden="true" tabindex="-1"></a>    post_paths, X_obs, y_obs, n_samples,</span>
-<span id="cb16-184"><a href="#cb16-184" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-185"><a href="#cb16-185" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-186"><a href="#cb16-186" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-187"><a href="#cb16-187" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-188"><a href="#cb16-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-189"><a href="#cb16-189" aria-hidden="true" tabindex="-1"></a>The key observations: all posterior paths agree at the training points (black dots), spread</span>
-<span id="cb16-190"><a href="#cb16-190" aria-hidden="true" tabindex="-1"></a>widely between them, and converge back to the prior away from the data. The width of the</span>
-<span id="cb16-191"><a href="#cb16-191" aria-hidden="true" tabindex="-1"></a>sausage at any location is exactly $\sigma^*(\boldsymbol{\xi})$.</span>
-<span id="cb16-192"><a href="#cb16-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-193"><a href="#cb16-193" aria-hidden="true" tabindex="-1"></a><span class="fu">### Choosing a Kernel</span></span>
-<span id="cb16-194"><a href="#cb16-194" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-195"><a href="#cb16-195" aria-hidden="true" tabindex="-1"></a>The kernel determines what the GP "believes" about the function before seeing any</span>
-<span id="cb16-196"><a href="#cb16-196" aria-hidden="true" tabindex="-1"></a>data. The most widely used kernels for smooth physical models are:</span>
-<span id="cb16-197"><a href="#cb16-197" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-198"><a href="#cb16-198" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Kernel <span class="pp">|</span> Differentiability <span class="pp">|</span> Good for <span class="pp">|</span></span>
-<span id="cb16-199"><a href="#cb16-199" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|</span></span>
-<span id="cb16-200"><a href="#cb16-200" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Squared Exponential (SE) <span class="pp">|</span> Infinitely differentiable <span class="pp">|</span> Very smooth functions <span class="pp">|</span></span>
-<span id="cb16-201"><a href="#cb16-201" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Matérn 5/2 <span class="pp">|</span> Twice differentiable <span class="pp">|</span> Most engineering models <span class="pp">|</span></span>
-<span id="cb16-202"><a href="#cb16-202" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Matérn 3/2 <span class="pp">|</span> Once differentiable <span class="pp">|</span> Rough physical fields <span class="pp">|</span></span>
-<span id="cb16-203"><a href="#cb16-203" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-206"><a href="#cb16-206" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-207"><a href="#cb16-207" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five prior sample paths for three common kernels (same random seed, same length scale ℓ=0.8). The Squared Exponential produces glass-smooth paths; Matérn 5/2 paths have visible small-scale curvature but remain smooth; Matérn 3/2 paths have occasional kinks. For most engineering models, Matérn 5/2 is the right trade-off."</span></span>
-<span id="cb16-208"><a href="#cb16-208" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-kernel-comparison</span></span>
+<span id="cb16-180"><a href="#cb16-180" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Kernel <span class="pp">|</span> Differentiability <span class="pp">|</span> Good for <span class="pp">|</span></span>
+<span id="cb16-181"><a href="#cb16-181" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|</span></span>
+<span id="cb16-182"><a href="#cb16-182" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Squared Exponential (SE) <span class="pp">|</span> Infinitely differentiable <span class="pp">|</span> Very smooth functions <span class="pp">|</span></span>
+<span id="cb16-183"><a href="#cb16-183" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Matérn 5/2 <span class="pp">|</span> Twice differentiable <span class="pp">|</span> Most engineering models <span class="pp">|</span></span>
+<span id="cb16-184"><a href="#cb16-184" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Matérn 3/2 <span class="pp">|</span> Once differentiable <span class="pp">|</span> Rough physical fields <span class="pp">|</span></span>
+<span id="cb16-185"><a href="#cb16-185" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-188"><a href="#cb16-188" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-189"><a href="#cb16-189" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five prior sample paths for three common kernels (same random seed, same length scale ℓ=0.8). The Squared Exponential produces glass-smooth paths; Matérn 5/2 paths have visible small-scale curvature but remain smooth; Matérn 3/2 paths have occasional kinks. For most engineering models, Matérn 5/2 is the right trade-off."</span></span>
+<span id="cb16-190"><a href="#cb16-190" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-kernel-comparison</span></span>
+<span id="cb16-191"><a href="#cb16-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-192"><a href="#cb16-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_kernel_comparison</span>
+<span id="cb16-193"><a href="#cb16-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-194"><a href="#cb16-194" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb16-195"><a href="#cb16-195" aria-hidden="true" tabindex="-1"></a>plot_kernel_comparison(axes, bkd_preview)</span>
+<span id="cb16-196"><a href="#cb16-196" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="vs">r"Prior sample paths: </span><span class="dv">$</span><span class="er">\</span><span class="vs">ell = 0</span><span class="dv">.</span><span class="vs">8</span><span class="dv">$</span><span class="vs">, same random seed"</span>,</span>
+<span id="cb16-197"><a href="#cb16-197" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">10</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
+<span id="cb16-198"><a href="#cb16-198" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-199"><a href="#cb16-199" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-200"><a href="#cb16-200" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-201"><a href="#cb16-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-202"><a href="#cb16-202" aria-hidden="true" tabindex="-1"></a>For a $d$-dimensional input, we need $d$ length scale hyperparameters (one per</span>
+<span id="cb16-203"><a href="#cb16-203" aria-hidden="true" tabindex="-1"></a>dimension) so the kernel can adapt to different rates of variation along each axis.</span>
+<span id="cb16-204"><a href="#cb16-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-205"><a href="#cb16-205" aria-hidden="true" tabindex="-1"></a>Our beam model has Gaussian inputs, but the kernel acts on the parameter space</span>
+<span id="cb16-206"><a href="#cb16-206" aria-hidden="true" tabindex="-1"></a>$\mathbb{R}^d$ directly --- the choice of kernel is about the *smoothness* of the</span>
+<span id="cb16-207"><a href="#cb16-207" aria-hidden="true" tabindex="-1"></a>model output, not the input distribution. We use a Matérn 5/2 kernel, which is a</span>
+<span id="cb16-208"><a href="#cb16-208" aria-hidden="true" tabindex="-1"></a>good default for twice-differentiable engineering responses.</span>
 <span id="cb16-209"><a href="#cb16-209" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-210"><a href="#cb16-210" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_kernel_comparison</span>
-<span id="cb16-211"><a href="#cb16-211" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-212"><a href="#cb16-212" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb16-213"><a href="#cb16-213" aria-hidden="true" tabindex="-1"></a>plot_kernel_comparison(axes, bkd_preview)</span>
-<span id="cb16-214"><a href="#cb16-214" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="vs">r"Prior sample paths: </span><span class="dv">$</span><span class="er">\</span><span class="vs">ell = 0</span><span class="dv">.</span><span class="vs">8</span><span class="dv">$</span><span class="vs">, same random seed"</span>,</span>
-<span id="cb16-215"><a href="#cb16-215" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">10</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
-<span id="cb16-216"><a href="#cb16-216" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-217"><a href="#cb16-217" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-218"><a href="#cb16-218" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-219"><a href="#cb16-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-220"><a href="#cb16-220" aria-hidden="true" tabindex="-1"></a>For a $d$-dimensional input, we need $d$ length scale hyperparameters (one per</span>
-<span id="cb16-221"><a href="#cb16-221" aria-hidden="true" tabindex="-1"></a>dimension) so the kernel can adapt to different rates of variation along each axis.</span>
-<span id="cb16-222"><a href="#cb16-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-223"><a href="#cb16-223" aria-hidden="true" tabindex="-1"></a>Our beam model has Gaussian inputs, but the kernel acts on the parameter space</span>
-<span id="cb16-224"><a href="#cb16-224" aria-hidden="true" tabindex="-1"></a>$\mathbb{R}^d$ directly --- the choice of kernel is about the *smoothness* of the</span>
-<span id="cb16-225"><a href="#cb16-225" aria-hidden="true" tabindex="-1"></a>model output, not the input distribution. We use a Matérn 5/2 kernel, which is a</span>
-<span id="cb16-226"><a href="#cb16-226" aria-hidden="true" tabindex="-1"></a>good default for twice-differentiable engineering responses.</span>
-<span id="cb16-227"><a href="#cb16-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-230"><a href="#cb16-230" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-231"><a href="#cb16-231" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
-<span id="cb16-232"><a href="#cb16-232" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
+<span id="cb16-212"><a href="#cb16-212" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-213"><a href="#cb16-213" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb16-214"><a href="#cb16-214" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
+<span id="cb16-215"><a href="#cb16-215" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-216"><a href="#cb16-216" aria-hidden="true" tabindex="-1"></a><span class="co"># Matérn 5/2 kernel with one length scale per input dimension</span></span>
+<span id="cb16-217"><a href="#cb16-217" aria-hidden="true" tabindex="-1"></a><span class="co"># Initial length scales: 1.0 for each variable</span></span>
+<span id="cb16-218"><a href="#cb16-218" aria-hidden="true" tabindex="-1"></a><span class="co"># Bounds: each length scale in [0.1, 10.0]</span></span>
+<span id="cb16-219"><a href="#cb16-219" aria-hidden="true" tabindex="-1"></a>kernel <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb16-220"><a href="#cb16-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-221"><a href="#cb16-221" aria-hidden="true" tabindex="-1"></a>gp <span class="op">=</span> ExactGaussianProcess(kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb16-222"><a href="#cb16-222" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-223"><a href="#cb16-223" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-224"><a href="#cb16-224" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb16-225"><a href="#cb16-225" aria-hidden="true" tabindex="-1"></a><span class="fu">## The nugget parameter</span></span>
+<span id="cb16-226"><a href="#cb16-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-227"><a href="#cb16-227" aria-hidden="true" tabindex="-1"></a>The <span class="in">`nugget`</span> adds a small constant to the kernel matrix diagonal:</span>
+<span id="cb16-228"><a href="#cb16-228" aria-hidden="true" tabindex="-1"></a>$K_{\text{noisy}} = K + \nu \mathbf{I}$. This is a purely numerical device to ensure</span>
+<span id="cb16-229"><a href="#cb16-229" aria-hidden="true" tabindex="-1"></a>the Cholesky factorisation succeeds and does not model observation noise. To include</span>
+<span id="cb16-230"><a href="#cb16-230" aria-hidden="true" tabindex="-1"></a>noise explicitly, add an <span class="in">`IIDGaussianNoise`</span> kernel term via <span class="in">`SumKernel`</span>.</span>
+<span id="cb16-231"><a href="#cb16-231" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb16-232"><a href="#cb16-232" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-233"><a href="#cb16-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-234"><a href="#cb16-234" aria-hidden="true" tabindex="-1"></a><span class="co"># Matérn 5/2 kernel with one length scale per input dimension</span></span>
-<span id="cb16-235"><a href="#cb16-235" aria-hidden="true" tabindex="-1"></a><span class="co"># Initial length scales: 1.0 for each variable</span></span>
-<span id="cb16-236"><a href="#cb16-236" aria-hidden="true" tabindex="-1"></a><span class="co"># Bounds: each length scale in [0.1, 10.0]</span></span>
-<span id="cb16-237"><a href="#cb16-237" aria-hidden="true" tabindex="-1"></a>kernel <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
-<span id="cb16-238"><a href="#cb16-238" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-239"><a href="#cb16-239" aria-hidden="true" tabindex="-1"></a>gp <span class="op">=</span> ExactGaussianProcess(kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
-<span id="cb16-240"><a href="#cb16-240" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-241"><a href="#cb16-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-242"><a href="#cb16-242" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb16-243"><a href="#cb16-243" aria-hidden="true" tabindex="-1"></a><span class="fu">## The nugget parameter</span></span>
-<span id="cb16-244"><a href="#cb16-244" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-245"><a href="#cb16-245" aria-hidden="true" tabindex="-1"></a>The <span class="in">`nugget`</span> adds a small constant to the kernel matrix diagonal:</span>
-<span id="cb16-246"><a href="#cb16-246" aria-hidden="true" tabindex="-1"></a>$K_{\text{noisy}} = K + \nu \mathbf{I}$. This is a purely numerical device to ensure</span>
-<span id="cb16-247"><a href="#cb16-247" aria-hidden="true" tabindex="-1"></a>the Cholesky factorisation succeeds and does not model observation noise. To include</span>
-<span id="cb16-248"><a href="#cb16-248" aria-hidden="true" tabindex="-1"></a>noise explicitly, add an <span class="in">`IIDGaussianNoise`</span> kernel term via <span class="in">`SumKernel`</span>.</span>
-<span id="cb16-249"><a href="#cb16-249" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb16-250"><a href="#cb16-250" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-251"><a href="#cb16-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-252"><a href="#cb16-252" aria-hidden="true" tabindex="-1"></a><span class="fu">## Collecting Training Data</span></span>
-<span id="cb16-253"><a href="#cb16-253" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-256"><a href="#cb16-256" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-257"><a href="#cb16-257" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">80</span></span>
-<span id="cb16-258"><a href="#cb16-258" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb16-259"><a href="#cb16-259" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)      <span class="co"># (nvars, N_train)</span></span>
-<span id="cb16-260"><a href="#cb16-260" aria-hidden="true" tabindex="-1"></a>values_train  <span class="op">=</span> model(samples_train)    <span class="co"># (nqoi, N_train)</span></span>
-<span id="cb16-261"><a href="#cb16-261" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-262"><a href="#cb16-262" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip deflection (single QoI)</span></span>
-<span id="cb16-263"><a href="#cb16-263" aria-hidden="true" tabindex="-1"></a>values_train_tip <span class="op">=</span> values_train[:<span class="dv">1</span>, :]  <span class="co"># (1, N_train)</span></span>
+<span id="cb16-234"><a href="#cb16-234" aria-hidden="true" tabindex="-1"></a><span class="fu">## Collecting Training Data</span></span>
+<span id="cb16-235"><a href="#cb16-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-238"><a href="#cb16-238" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-239"><a href="#cb16-239" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">80</span></span>
+<span id="cb16-240"><a href="#cb16-240" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb16-241"><a href="#cb16-241" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)      <span class="co"># (nvars, N_train)</span></span>
+<span id="cb16-242"><a href="#cb16-242" aria-hidden="true" tabindex="-1"></a>values_train  <span class="op">=</span> model(samples_train)    <span class="co"># (nqoi, N_train)</span></span>
+<span id="cb16-243"><a href="#cb16-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-244"><a href="#cb16-244" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip deflection (single QoI)</span></span>
+<span id="cb16-245"><a href="#cb16-245" aria-hidden="true" tabindex="-1"></a>values_train_tip <span class="op">=</span> values_train[:<span class="dv">1</span>, :]  <span class="co"># (1, N_train)</span></span>
+<span id="cb16-246"><a href="#cb16-246" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-247"><a href="#cb16-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-248"><a href="#cb16-248" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb16-249"><a href="#cb16-249" aria-hidden="true" tabindex="-1"></a><span class="fu">## Better sampling strategies exist</span></span>
+<span id="cb16-250"><a href="#cb16-250" aria-hidden="true" tabindex="-1"></a>Random sampling from the prior is the simplest approach. For GPs, **Cholesky-greedy**</span>
+<span id="cb16-251"><a href="#cb16-251" aria-hidden="true" tabindex="-1"></a>and **IVAR** adaptive strategies can achieve better surrogate accuracy for the same</span>
+<span id="cb16-252"><a href="#cb16-252" aria-hidden="true" tabindex="-1"></a>number of model evaluations by choosing sample locations that maximally reduce</span>
+<span id="cb16-253"><a href="#cb16-253" aria-hidden="true" tabindex="-1"></a>posterior uncertainty. These are covered in</span>
+<span id="cb16-254"><a href="#cb16-254" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span>.</span>
+<span id="cb16-255"><a href="#cb16-255" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb16-256"><a href="#cb16-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-259"><a href="#cb16-259" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-260"><a href="#cb16-260" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb16-261"><a href="#cb16-261" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
+<span id="cb16-262"><a href="#cb16-262" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
+<span id="cb16-263"><a href="#cb16-263" aria-hidden="true" tabindex="-1"></a>values_test  <span class="op">=</span> model(samples_test)[:<span class="dv">1</span>, :]   <span class="co"># (1, N_test)</span></span>
 <span id="cb16-264"><a href="#cb16-264" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb16-265"><a href="#cb16-265" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-266"><a href="#cb16-266" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb16-267"><a href="#cb16-267" aria-hidden="true" tabindex="-1"></a><span class="fu">## Better sampling strategies exist</span></span>
-<span id="cb16-268"><a href="#cb16-268" aria-hidden="true" tabindex="-1"></a>Random sampling from the prior is the simplest approach. For GPs, **Cholesky-greedy**</span>
-<span id="cb16-269"><a href="#cb16-269" aria-hidden="true" tabindex="-1"></a>and **IVAR** adaptive strategies can achieve better surrogate accuracy for the same</span>
-<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a>number of model evaluations by choosing sample locations that maximally reduce</span>
-<span id="cb16-271"><a href="#cb16-271" aria-hidden="true" tabindex="-1"></a>posterior uncertainty. These are covered in</span>
-<span id="cb16-272"><a href="#cb16-272" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span>.</span>
-<span id="cb16-273"><a href="#cb16-273" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb16-274"><a href="#cb16-274" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-277"><a href="#cb16-277" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-278"><a href="#cb16-278" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb16-279"><a href="#cb16-279" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
-<span id="cb16-280"><a href="#cb16-280" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
-<span id="cb16-281"><a href="#cb16-281" aria-hidden="true" tabindex="-1"></a>values_test  <span class="op">=</span> model(samples_test)[:<span class="dv">1</span>, :]   <span class="co"># (1, N_test)</span></span>
-<span id="cb16-282"><a href="#cb16-282" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-283"><a href="#cb16-283" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-284"><a href="#cb16-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-285"><a href="#cb16-285" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fitting the GP</span></span>
-<span id="cb16-286"><a href="#cb16-286" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-287"><a href="#cb16-287" aria-hidden="true" tabindex="-1"></a><span class="fu">### Maximum Marginal Likelihood</span></span>
-<span id="cb16-288"><a href="#cb16-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-289"><a href="#cb16-289" aria-hidden="true" tabindex="-1"></a>The GP has hyperparameters: the output scale (variance) and one length scale per</span>
-<span id="cb16-290"><a href="#cb16-290" aria-hidden="true" tabindex="-1"></a>input dimension. We fit them by maximising the **log marginal likelihood**:</span>
-<span id="cb16-291"><a href="#cb16-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-292"><a href="#cb16-292" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-293"><a href="#cb16-293" aria-hidden="true" tabindex="-1"></a>\log p(\mathbf{y} \mid \mathbf{X}, \boldsymbol{\theta})</span>
-<span id="cb16-294"><a href="#cb16-294" aria-hidden="true" tabindex="-1"></a>= -\tfrac{1}{2}\mathbf{y}^\top K^{-1}\mathbf{y}</span>
-<span id="cb16-295"><a href="#cb16-295" aria-hidden="true" tabindex="-1"></a>  -\tfrac{1}{2}\log|K|</span>
-<span id="cb16-296"><a href="#cb16-296" aria-hidden="true" tabindex="-1"></a>  -\tfrac{N}{2}\log(2\pi)</span>
-<span id="cb16-297"><a href="#cb16-297" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-266"><a href="#cb16-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-267"><a href="#cb16-267" aria-hidden="true" tabindex="-1"></a><span class="fu">## Fitting the GP</span></span>
+<span id="cb16-268"><a href="#cb16-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-269"><a href="#cb16-269" aria-hidden="true" tabindex="-1"></a><span class="fu">### Maximum Marginal Likelihood</span></span>
+<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-271"><a href="#cb16-271" aria-hidden="true" tabindex="-1"></a>The GP has hyperparameters: the output scale (variance) and one length scale per</span>
+<span id="cb16-272"><a href="#cb16-272" aria-hidden="true" tabindex="-1"></a>input dimension. We fit them by maximising the **log marginal likelihood**:</span>
+<span id="cb16-273"><a href="#cb16-273" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-274"><a href="#cb16-274" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-275"><a href="#cb16-275" aria-hidden="true" tabindex="-1"></a>\log p(\mathbf{y} \mid \mathbf{X}, \boldsymbol{\theta})</span>
+<span id="cb16-276"><a href="#cb16-276" aria-hidden="true" tabindex="-1"></a>= -\tfrac{1}{2}\mathbf{y}^\top K^{-1}\mathbf{y}</span>
+<span id="cb16-277"><a href="#cb16-277" aria-hidden="true" tabindex="-1"></a>  -\tfrac{1}{2}\log|K|</span>
+<span id="cb16-278"><a href="#cb16-278" aria-hidden="true" tabindex="-1"></a>  -\tfrac{N}{2}\log(2\pi)</span>
+<span id="cb16-279"><a href="#cb16-279" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-280"><a href="#cb16-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-281"><a href="#cb16-281" aria-hidden="true" tabindex="-1"></a>The first term rewards data fit; the second term penalises complexity (large</span>
+<span id="cb16-282"><a href="#cb16-282" aria-hidden="true" tabindex="-1"></a>determinant means the GP spreads its probability mass over a large function space).</span>
+<span id="cb16-283"><a href="#cb16-283" aria-hidden="true" tabindex="-1"></a>Maximising the sum balances these competing objectives automatically, selecting</span>
+<span id="cb16-284"><a href="#cb16-284" aria-hidden="true" tabindex="-1"></a>length scales that match the observed variation in the data.</span>
+<span id="cb16-285"><a href="#cb16-285" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-286"><a href="#cb16-286" aria-hidden="true" tabindex="-1"></a><span class="fu">### The Marginal Likelihood Landscape</span></span>
+<span id="cb16-287"><a href="#cb16-287" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-288"><a href="#cb16-288" aria-hidden="true" tabindex="-1"></a>Before running the optimiser, it is instructive to visualise what it is maximising.</span>
+<span id="cb16-289"><a href="#cb16-289" aria-hidden="true" tabindex="-1"></a>The plot below sweeps over a 2D grid of length scales $(ℓ_1, ℓ_2)$ (with $ℓ_3$</span>
+<span id="cb16-290"><a href="#cb16-290" aria-hidden="true" tabindex="-1"></a>fixed) and evaluates the NLML at each point. The optimum — where the landscape is</span>
+<span id="cb16-291"><a href="#cb16-291" aria-hidden="true" tabindex="-1"></a>lowest — is where the fitted GP will land.</span>
+<span id="cb16-292"><a href="#cb16-292" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-295"><a href="#cb16-295" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-296"><a href="#cb16-296" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Negative log marginal likelihood as a function of the first two length scales (ℓ₁, ℓ₂), with ℓ₃ fixed at 1.0 and the output variance fixed. The ★ marks the grid minimum. A well-defined single minimum means the optimiser will reliably find the best hyperparameters. Note that the full optimiser also tunes ℓ₃ and the output variance jointly, so its solution may differ slightly from this 2D slice."</span></span>
+<span id="cb16-297"><a href="#cb16-297" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-nlml-landscape</span></span>
 <span id="cb16-298"><a href="#cb16-298" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-299"><a href="#cb16-299" aria-hidden="true" tabindex="-1"></a>The first term rewards data fit; the second term penalises complexity (large</span>
-<span id="cb16-300"><a href="#cb16-300" aria-hidden="true" tabindex="-1"></a>determinant means the GP spreads its probability mass over a large function space).</span>
-<span id="cb16-301"><a href="#cb16-301" aria-hidden="true" tabindex="-1"></a>Maximising the sum balances these competing objectives automatically, selecting</span>
-<span id="cb16-302"><a href="#cb16-302" aria-hidden="true" tabindex="-1"></a>length scales that match the observed variation in the data.</span>
-<span id="cb16-303"><a href="#cb16-303" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-304"><a href="#cb16-304" aria-hidden="true" tabindex="-1"></a><span class="fu">### The Marginal Likelihood Landscape</span></span>
-<span id="cb16-305"><a href="#cb16-305" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-306"><a href="#cb16-306" aria-hidden="true" tabindex="-1"></a>Before running the optimiser, it is instructive to visualise what it is maximising.</span>
-<span id="cb16-307"><a href="#cb16-307" aria-hidden="true" tabindex="-1"></a>The plot below sweeps over a 2D grid of length scales $(ℓ_1, ℓ_2)$ (with $ℓ_3$</span>
-<span id="cb16-308"><a href="#cb16-308" aria-hidden="true" tabindex="-1"></a>fixed) and evaluates the NLML at each point. The optimum — where the landscape is</span>
-<span id="cb16-309"><a href="#cb16-309" aria-hidden="true" tabindex="-1"></a>lowest — is where the fitted GP will land.</span>
-<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-313"><a href="#cb16-313" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-314"><a href="#cb16-314" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Negative log marginal likelihood as a function of the first two length scales (ℓ₁, ℓ₂), with ℓ₃ fixed at 1.0 and the output variance fixed. The ★ marks the grid minimum. A well-defined single minimum means the optimiser will reliably find the best hyperparameters. Note that the full optimiser also tunes ℓ₃ and the output variance jointly, so its solution may differ slightly from this 2D slice."</span></span>
-<span id="cb16-315"><a href="#cb16-315" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-nlml-landscape</span></span>
-<span id="cb16-316"><a href="#cb16-316" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-317"><a href="#cb16-317" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_nlml_landscape</span>
+<span id="cb16-299"><a href="#cb16-299" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_nlml_landscape</span>
+<span id="cb16-300"><a href="#cb16-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-301"><a href="#cb16-301" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.5</span>, <span class="fl">4.5</span>))</span>
+<span id="cb16-302"><a href="#cb16-302" aria-hidden="true" tabindex="-1"></a>plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip)</span>
+<span id="cb16-303"><a href="#cb16-303" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-304"><a href="#cb16-304" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-305"><a href="#cb16-305" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-306"><a href="#cb16-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-309"><a href="#cb16-309" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb16-311"><a href="#cb16-311" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
+<span id="cb16-312"><a href="#cb16-312" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-313"><a href="#cb16-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-314"><a href="#cb16-314" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> GPMaximumLikelihoodFitter(bkd)</span>
+<span id="cb16-315"><a href="#cb16-315" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(gp, samples_train, values_train_tip)</span>
+<span id="cb16-316"><a href="#cb16-316" aria-hidden="true" tabindex="-1"></a>gp     <span class="op">=</span> result.surrogate()</span>
+<span id="cb16-317"><a href="#cb16-317" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb16-318"><a href="#cb16-318" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-319"><a href="#cb16-319" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.5</span>, <span class="fl">4.5</span>))</span>
-<span id="cb16-320"><a href="#cb16-320" aria-hidden="true" tabindex="-1"></a>plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip)</span>
-<span id="cb16-321"><a href="#cb16-321" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-322"><a href="#cb16-322" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-323"><a href="#cb16-323" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-324"><a href="#cb16-324" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-327"><a href="#cb16-327" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-328"><a href="#cb16-328" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
-<span id="cb16-329"><a href="#cb16-329" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
-<span id="cb16-330"><a href="#cb16-330" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-331"><a href="#cb16-331" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-332"><a href="#cb16-332" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> GPMaximumLikelihoodFitter(bkd)</span>
-<span id="cb16-333"><a href="#cb16-333" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(gp, samples_train, values_train_tip)</span>
-<span id="cb16-334"><a href="#cb16-334" aria-hidden="true" tabindex="-1"></a>gp     <span class="op">=</span> result.surrogate()</span>
-<span id="cb16-335"><a href="#cb16-335" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-336"><a href="#cb16-336" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-339"><a href="#cb16-339" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-340"><a href="#cb16-340" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb16-341"><a href="#cb16-341" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Fitted length scales per input dimension (blue bars) vs the initial value of 1.0 (dashed line). A short bar indicates the model output varies rapidly along that input axis — the GP needed a short length scale to track those rapid changes. A long bar indicates a slowly varying, less influential input."</span></span>
-<span id="cb16-342"><a href="#cb16-342" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-length-scales</span></span>
-<span id="cb16-343"><a href="#cb16-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-344"><a href="#cb16-344" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_length_scales</span>
-<span id="cb16-345"><a href="#cb16-345" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-346"><a href="#cb16-346" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="fl">2.8</span>))</span>
-<span id="cb16-347"><a href="#cb16-347" aria-hidden="true" tabindex="-1"></a>plot_length_scales(ax, gp, bkd)</span>
-<span id="cb16-348"><a href="#cb16-348" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-349"><a href="#cb16-349" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-350"><a href="#cb16-350" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-351"><a href="#cb16-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-352"><a href="#cb16-352" aria-hidden="true" tabindex="-1"></a>The fitted length scales tell us the characteristic length over which the beam model</span>
-<span id="cb16-353"><a href="#cb16-353" aria-hidden="true" tabindex="-1"></a>varies in each KLE direction. A long length scale means the output changes slowly</span>
-<span id="cb16-354"><a href="#cb16-354" aria-hidden="true" tabindex="-1"></a>along that input axis; a short length scale means the output is sensitive to small</span>
-<span id="cb16-355"><a href="#cb16-355" aria-hidden="true" tabindex="-1"></a>changes there.</span>
-<span id="cb16-356"><a href="#cb16-356" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-357"><a href="#cb16-357" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-358"><a href="#cb16-358" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Posterior Predictive Distribution</span></span>
+<span id="cb16-321"><a href="#cb16-321" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-322"><a href="#cb16-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb16-323"><a href="#cb16-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Fitted length scales per input dimension (blue bars) vs the initial value of 1.0 (dashed line). A short bar indicates the model output varies rapidly along that input axis — the GP needed a short length scale to track those rapid changes. A long bar indicates a slowly varying, less influential input."</span></span>
+<span id="cb16-324"><a href="#cb16-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-length-scales</span></span>
+<span id="cb16-325"><a href="#cb16-325" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-326"><a href="#cb16-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_length_scales</span>
+<span id="cb16-327"><a href="#cb16-327" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-328"><a href="#cb16-328" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="fl">2.8</span>))</span>
+<span id="cb16-329"><a href="#cb16-329" aria-hidden="true" tabindex="-1"></a>plot_length_scales(ax, gp, bkd)</span>
+<span id="cb16-330"><a href="#cb16-330" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-331"><a href="#cb16-331" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-332"><a href="#cb16-332" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-333"><a href="#cb16-333" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-334"><a href="#cb16-334" aria-hidden="true" tabindex="-1"></a>The fitted length scales tell us the characteristic length over which the beam model</span>
+<span id="cb16-335"><a href="#cb16-335" aria-hidden="true" tabindex="-1"></a>varies in each KLE direction. A long length scale means the output changes slowly</span>
+<span id="cb16-336"><a href="#cb16-336" aria-hidden="true" tabindex="-1"></a>along that input axis; a short length scale means the output is sensitive to small</span>
+<span id="cb16-337"><a href="#cb16-337" aria-hidden="true" tabindex="-1"></a>changes there.</span>
+<span id="cb16-338"><a href="#cb16-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-339"><a href="#cb16-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-340"><a href="#cb16-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Posterior Predictive Distribution</span></span>
+<span id="cb16-341"><a href="#cb16-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-342"><a href="#cb16-342" aria-hidden="true" tabindex="-1"></a>Given the training data, the GP posterior at a new point $\boldsymbol{\xi}^*$ is</span>
+<span id="cb16-343"><a href="#cb16-343" aria-hidden="true" tabindex="-1"></a>exactly Gaussian with mean and variance:</span>
+<span id="cb16-344"><a href="#cb16-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-345"><a href="#cb16-345" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-346"><a href="#cb16-346" aria-hidden="true" tabindex="-1"></a>\mu^*(\boldsymbol{\xi}^*) = \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{y}, \qquad</span>
+<span id="cb16-347"><a href="#cb16-347" aria-hidden="true" tabindex="-1"></a>\left<span class="co">[</span><span class="ot">\sigma^*(\boldsymbol{\xi}^*)\right</span><span class="co">]</span>^2 = k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^*) - \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{k}^*</span>
+<span id="cb16-348"><a href="#cb16-348" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-349"><a href="#cb16-349" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-350"><a href="#cb16-350" aria-hidden="true" tabindex="-1"></a>where $\mathbf{k}^* = <span class="co">[</span><span class="ot">k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^{(i)})</span><span class="co">]</span>_i$ is the vector</span>
+<span id="cb16-351"><a href="#cb16-351" aria-hidden="true" tabindex="-1"></a>of covariances between the test point and all training points. The posterior variance</span>
+<span id="cb16-352"><a href="#cb16-352" aria-hidden="true" tabindex="-1"></a>is the prior variance minus the information gained from the data.</span>
+<span id="cb16-353"><a href="#cb16-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-356"><a href="#cb16-356" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-357"><a href="#cb16-357" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior mean: shape (nqoi, N_test)</span></span>
+<span id="cb16-358"><a href="#cb16-358" aria-hidden="true" tabindex="-1"></a>mean_test <span class="op">=</span> gp.predict(samples_test)</span>
 <span id="cb16-359"><a href="#cb16-359" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-360"><a href="#cb16-360" aria-hidden="true" tabindex="-1"></a>Given the training data, the GP posterior at a new point $\boldsymbol{\xi}^*$ is</span>
-<span id="cb16-361"><a href="#cb16-361" aria-hidden="true" tabindex="-1"></a>exactly Gaussian with mean and variance:</span>
-<span id="cb16-362"><a href="#cb16-362" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-363"><a href="#cb16-363" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-364"><a href="#cb16-364" aria-hidden="true" tabindex="-1"></a>\mu^*(\boldsymbol{\xi}^*) = \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{y}, \qquad</span>
-<span id="cb16-365"><a href="#cb16-365" aria-hidden="true" tabindex="-1"></a>\left<span class="co">[</span><span class="ot">\sigma^*(\boldsymbol{\xi}^*)\right</span><span class="co">]</span>^2 = k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^*) - \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{k}^*</span>
-<span id="cb16-366"><a href="#cb16-366" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-367"><a href="#cb16-367" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-368"><a href="#cb16-368" aria-hidden="true" tabindex="-1"></a>where $\mathbf{k}^* = <span class="co">[</span><span class="ot">k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^{(i)})</span><span class="co">]</span>_i$ is the vector</span>
-<span id="cb16-369"><a href="#cb16-369" aria-hidden="true" tabindex="-1"></a>of covariances between the test point and all training points. The posterior variance</span>
-<span id="cb16-370"><a href="#cb16-370" aria-hidden="true" tabindex="-1"></a>is the prior variance minus the information gained from the data.</span>
-<span id="cb16-371"><a href="#cb16-371" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-374"><a href="#cb16-374" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-375"><a href="#cb16-375" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior mean: shape (nqoi, N_test)</span></span>
-<span id="cb16-376"><a href="#cb16-376" aria-hidden="true" tabindex="-1"></a>mean_test <span class="op">=</span> gp.predict(samples_test)</span>
+<span id="cb16-360"><a href="#cb16-360" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior standard deviation: shape (nqoi, N_test)</span></span>
+<span id="cb16-361"><a href="#cb16-361" aria-hidden="true" tabindex="-1"></a>std_test <span class="op">=</span> gp.predict_std(samples_test)</span>
+<span id="cb16-362"><a href="#cb16-362" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-363"><a href="#cb16-363" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-364"><a href="#cb16-364" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-365"><a href="#cb16-365" aria-hidden="true" tabindex="-1"></a><span class="fu">## Assessing Surrogate Accuracy</span></span>
+<span id="cb16-366"><a href="#cb16-366" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-367"><a href="#cb16-367" aria-hidden="true" tabindex="-1"></a>We report two metrics on the independent test set.</span>
+<span id="cb16-368"><a href="#cb16-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-369"><a href="#cb16-369" aria-hidden="true" tabindex="-1"></a>The **relative $L_2$ error** measures how well the surrogate reproduces the model values:</span>
+<span id="cb16-370"><a href="#cb16-370" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-371"><a href="#cb16-371" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-372"><a href="#cb16-372" aria-hidden="true" tabindex="-1"></a>\epsilon = \frac{<span class="sc">\|</span> f(\boldsymbol{\Xi}_{\mathrm{test}}) - \hat{f}(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) <span class="sc">\|</span>_2}</span>
+<span id="cb16-373"><a href="#cb16-373" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb16-374"><a href="#cb16-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-375"><a href="#cb16-375" aria-hidden="true" tabindex="-1"></a>The **coverage** checks calibration: 95% of test points should lie within the GP's</span>
+<span id="cb16-376"><a href="#cb16-376" aria-hidden="true" tabindex="-1"></a>$\pm 2\sigma^*$ interval if the uncertainty estimates are reliable.</span>
 <span id="cb16-377"><a href="#cb16-377" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-378"><a href="#cb16-378" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior standard deviation: shape (nqoi, N_test)</span></span>
-<span id="cb16-379"><a href="#cb16-379" aria-hidden="true" tabindex="-1"></a>std_test <span class="op">=</span> gp.predict_std(samples_test)</span>
-<span id="cb16-380"><a href="#cb16-380" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-381"><a href="#cb16-381" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-382"><a href="#cb16-382" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-383"><a href="#cb16-383" aria-hidden="true" tabindex="-1"></a><span class="fu">## Assessing Surrogate Accuracy</span></span>
+<span id="cb16-380"><a href="#cb16-380" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-381"><a href="#cb16-381" aria-hidden="true" tabindex="-1"></a>vals_np  <span class="op">=</span> bkd.to_numpy(values_test)[<span class="dv">0</span>, :]</span>
+<span id="cb16-382"><a href="#cb16-382" aria-hidden="true" tabindex="-1"></a>mean_np  <span class="op">=</span> bkd.to_numpy(mean_test)[<span class="dv">0</span>, :]</span>
+<span id="cb16-383"><a href="#cb16-383" aria-hidden="true" tabindex="-1"></a>std_np   <span class="op">=</span> bkd.to_numpy(std_test)[<span class="dv">0</span>, :]</span>
 <span id="cb16-384"><a href="#cb16-384" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-385"><a href="#cb16-385" aria-hidden="true" tabindex="-1"></a>We report two metrics on the independent test set.</span>
-<span id="cb16-386"><a href="#cb16-386" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-387"><a href="#cb16-387" aria-hidden="true" tabindex="-1"></a>The **relative $L_2$ error** measures how well the surrogate reproduces the model values:</span>
-<span id="cb16-388"><a href="#cb16-388" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-389"><a href="#cb16-389" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-390"><a href="#cb16-390" aria-hidden="true" tabindex="-1"></a>\epsilon = \frac{<span class="sc">\|</span> f(\boldsymbol{\Xi}_{\mathrm{test}}) - \hat{f}(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) <span class="sc">\|</span>_2}</span>
-<span id="cb16-391"><a href="#cb16-391" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb16-392"><a href="#cb16-392" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-393"><a href="#cb16-393" aria-hidden="true" tabindex="-1"></a>The **coverage** checks calibration: 95% of test points should lie within the GP's</span>
-<span id="cb16-394"><a href="#cb16-394" aria-hidden="true" tabindex="-1"></a>$\pm 2\sigma^*$ interval if the uncertainty estimates are reliable.</span>
-<span id="cb16-395"><a href="#cb16-395" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-398"><a href="#cb16-398" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-399"><a href="#cb16-399" aria-hidden="true" tabindex="-1"></a>vals_np  <span class="op">=</span> bkd.to_numpy(values_test)[<span class="dv">0</span>, :]</span>
-<span id="cb16-400"><a href="#cb16-400" aria-hidden="true" tabindex="-1"></a>mean_np  <span class="op">=</span> bkd.to_numpy(mean_test)[<span class="dv">0</span>, :]</span>
-<span id="cb16-401"><a href="#cb16-401" aria-hidden="true" tabindex="-1"></a>std_np   <span class="op">=</span> bkd.to_numpy(std_test)[<span class="dv">0</span>, :]</span>
-<span id="cb16-402"><a href="#cb16-402" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-403"><a href="#cb16-403" aria-hidden="true" tabindex="-1"></a>l2_err <span class="op">=</span> np.linalg.norm(vals_np <span class="op">-</span> mean_np) <span class="op">/</span> np.linalg.norm(vals_np)</span>
-<span id="cb16-404"><a href="#cb16-404" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error: </span><span class="sc">{</span>l2_err<span class="sc">:.4e}</span><span class="ss">"</span>)</span>
+<span id="cb16-385"><a href="#cb16-385" aria-hidden="true" tabindex="-1"></a>l2_err <span class="op">=</span> np.linalg.norm(vals_np <span class="op">-</span> mean_np) <span class="op">/</span> np.linalg.norm(vals_np)</span>
+<span id="cb16-386"><a href="#cb16-386" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error: </span><span class="sc">{</span>l2_err<span class="sc">:.4e}</span><span class="ss">"</span>)</span>
+<span id="cb16-387"><a href="#cb16-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-388"><a href="#cb16-388" aria-hidden="true" tabindex="-1"></a><span class="co"># 95% coverage: |f - mu| &lt; 2*sigma</span></span>
+<span id="cb16-389"><a href="#cb16-389" aria-hidden="true" tabindex="-1"></a>in_band <span class="op">=</span> np.<span class="bu">abs</span>(vals_np <span class="op">-</span> mean_np) <span class="op">&lt;</span> <span class="fl">2.0</span> <span class="op">*</span> std_np</span>
+<span id="cb16-390"><a href="#cb16-390" aria-hidden="true" tabindex="-1"></a>coverage <span class="op">=</span> <span class="fl">100.0</span> <span class="op">*</span> np.mean(in_band)</span>
+<span id="cb16-391"><a href="#cb16-391" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"95% coverage: </span><span class="sc">{</span>coverage<span class="sc">:.1f}</span><span class="ss">%  (target: ~95%)"</span>)</span>
+<span id="cb16-392"><a href="#cb16-392" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-393"><a href="#cb16-393" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-394"><a href="#cb16-394" aria-hidden="true" tabindex="-1"></a>@fig-gp-predictions shows the predicted vs. true QoI values on the test set. Points</span>
+<span id="cb16-395"><a href="#cb16-395" aria-hidden="true" tabindex="-1"></a>near the diagonal indicate a good mean prediction. The colour encodes the posterior</span>
+<span id="cb16-396"><a href="#cb16-396" aria-hidden="true" tabindex="-1"></a>standard deviation: darker points are locations where the GP is less certain.</span>
+<span id="cb16-397"><a href="#cb16-397" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-398"><a href="#cb16-398" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-401"><a href="#cb16-401" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-402"><a href="#cb16-402" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb16-403"><a href="#cb16-403" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GP predictions vs. true model values on the independent test set (tip deflection). Points near the diagonal indicate good surrogate accuracy. Colour encodes posterior standard deviation: darker points have higher uncertainty."</span></span>
+<span id="cb16-404"><a href="#cb16-404" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gp-predictions</span></span>
 <span id="cb16-405"><a href="#cb16-405" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-406"><a href="#cb16-406" aria-hidden="true" tabindex="-1"></a><span class="co"># 95% coverage: |f - mu| &lt; 2*sigma</span></span>
-<span id="cb16-407"><a href="#cb16-407" aria-hidden="true" tabindex="-1"></a>in_band <span class="op">=</span> np.<span class="bu">abs</span>(vals_np <span class="op">-</span> mean_np) <span class="op">&lt;</span> <span class="fl">2.0</span> <span class="op">*</span> std_np</span>
-<span id="cb16-408"><a href="#cb16-408" aria-hidden="true" tabindex="-1"></a>coverage <span class="op">=</span> <span class="fl">100.0</span> <span class="op">*</span> np.mean(in_band)</span>
-<span id="cb16-409"><a href="#cb16-409" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"95% coverage: </span><span class="sc">{</span>coverage<span class="sc">:.1f}</span><span class="ss">%  (target: ~95%)"</span>)</span>
-<span id="cb16-410"><a href="#cb16-410" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-411"><a href="#cb16-411" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-412"><a href="#cb16-412" aria-hidden="true" tabindex="-1"></a>@fig-gp-predictions shows the predicted vs. true QoI values on the test set. Points</span>
-<span id="cb16-413"><a href="#cb16-413" aria-hidden="true" tabindex="-1"></a>near the diagonal indicate a good mean prediction. The colour encodes the posterior</span>
-<span id="cb16-414"><a href="#cb16-414" aria-hidden="true" tabindex="-1"></a>standard deviation: darker points are locations where the GP is less certain.</span>
-<span id="cb16-415"><a href="#cb16-415" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-416"><a href="#cb16-416" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-419"><a href="#cb16-419" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-420"><a href="#cb16-420" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb16-421"><a href="#cb16-421" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GP predictions vs. true model values on the independent test set (tip deflection). Points near the diagonal indicate good surrogate accuracy. Colour encodes posterior standard deviation: darker points have higher uncertainty."</span></span>
-<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gp-predictions</span></span>
-<span id="cb16-423"><a href="#cb16-423" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-424"><a href="#cb16-424" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_predictions</span>
+<span id="cb16-406"><a href="#cb16-406" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_predictions</span>
+<span id="cb16-407"><a href="#cb16-407" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-408"><a href="#cb16-408" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
+<span id="cb16-409"><a href="#cb16-409" aria-hidden="true" tabindex="-1"></a>plot_gp_predictions(axes, vals_np, mean_np, std_np, l2_err)</span>
+<span id="cb16-410"><a href="#cb16-410" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-411"><a href="#cb16-411" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-412"><a href="#cb16-412" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-413"><a href="#cb16-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-414"><a href="#cb16-414" aria-hidden="true" tabindex="-1"></a>A well-calibrated GP should have standardised residuals that closely follow $\mathcal{N}(0, 1)$.</span>
+<span id="cb16-415"><a href="#cb16-415" aria-hidden="true" tabindex="-1"></a>Overly narrow confidence bands (coverage below 95%) indicate the GP is underestimating</span>
+<span id="cb16-416"><a href="#cb16-416" aria-hidden="true" tabindex="-1"></a>uncertainty; overly wide bands (coverage above 95%) indicate overestimation.</span>
+<span id="cb16-417"><a href="#cb16-417" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-418"><a href="#cb16-418" aria-hidden="true" tabindex="-1"></a><span class="fu">### Calibration Diagram</span></span>
+<span id="cb16-419"><a href="#cb16-419" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-420"><a href="#cb16-420" aria-hidden="true" tabindex="-1"></a>The standardised residual histogram checks the *shape* of the uncertainty distribution</span>
+<span id="cb16-421"><a href="#cb16-421" aria-hidden="true" tabindex="-1"></a>but not the *level* at every confidence threshold. A **reliability diagram** (or</span>
+<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a>calibration curve) tests both simultaneously: for each nominal coverage probability</span>
+<span id="cb16-423"><a href="#cb16-423" aria-hidden="true" tabindex="-1"></a>$p$, it asks "what fraction of test points actually fell inside the $p$-credible</span>
+<span id="cb16-424"><a href="#cb16-424" aria-hidden="true" tabindex="-1"></a>interval?"</span>
 <span id="cb16-425"><a href="#cb16-425" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-426"><a href="#cb16-426" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
-<span id="cb16-427"><a href="#cb16-427" aria-hidden="true" tabindex="-1"></a>plot_gp_predictions(axes, vals_np, mean_np, std_np, l2_err)</span>
-<span id="cb16-428"><a href="#cb16-428" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-429"><a href="#cb16-429" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-430"><a href="#cb16-430" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-428"><a href="#cb16-428" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-429"><a href="#cb16-429" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Calibration (reliability) diagram. A perfectly calibrated GP lies on the dashed diagonal. Points above the diagonal mean the GP is over-confident (intervals too narrow); points below mean it is under-confident (intervals too wide). Each dot corresponds to a distinct nominal coverage level from 5% to 99%."</span></span>
+<span id="cb16-430"><a href="#cb16-430" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-calibration</span></span>
 <span id="cb16-431"><a href="#cb16-431" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-432"><a href="#cb16-432" aria-hidden="true" tabindex="-1"></a>A well-calibrated GP should have standardised residuals that closely follow $\mathcal{N}(0, 1)$.</span>
-<span id="cb16-433"><a href="#cb16-433" aria-hidden="true" tabindex="-1"></a>Overly narrow confidence bands (coverage below 95%) indicate the GP is underestimating</span>
-<span id="cb16-434"><a href="#cb16-434" aria-hidden="true" tabindex="-1"></a>uncertainty; overly wide bands (coverage above 95%) indicate overestimation.</span>
-<span id="cb16-435"><a href="#cb16-435" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-436"><a href="#cb16-436" aria-hidden="true" tabindex="-1"></a><span class="fu">### Calibration Diagram</span></span>
-<span id="cb16-437"><a href="#cb16-437" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-438"><a href="#cb16-438" aria-hidden="true" tabindex="-1"></a>The standardised residual histogram checks the *shape* of the uncertainty distribution</span>
-<span id="cb16-439"><a href="#cb16-439" aria-hidden="true" tabindex="-1"></a>but not the *level* at every confidence threshold. A **reliability diagram** (or</span>
-<span id="cb16-440"><a href="#cb16-440" aria-hidden="true" tabindex="-1"></a>calibration curve) tests both simultaneously: for each nominal coverage probability</span>
-<span id="cb16-441"><a href="#cb16-441" aria-hidden="true" tabindex="-1"></a>$p$, it asks "what fraction of test points actually fell inside the $p$-credible</span>
-<span id="cb16-442"><a href="#cb16-442" aria-hidden="true" tabindex="-1"></a>interval?"</span>
-<span id="cb16-443"><a href="#cb16-443" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-446"><a href="#cb16-446" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-447"><a href="#cb16-447" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Calibration (reliability) diagram. A perfectly calibrated GP lies on the dashed diagonal. Points above the diagonal mean the GP is over-confident (intervals too narrow); points below mean it is under-confident (intervals too wide). Each dot corresponds to a distinct nominal coverage level from 5% to 99%."</span></span>
-<span id="cb16-448"><a href="#cb16-448" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-calibration</span></span>
-<span id="cb16-449"><a href="#cb16-449" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-450"><a href="#cb16-450" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_calibration</span>
-<span id="cb16-451"><a href="#cb16-451" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-452"><a href="#cb16-452" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">5</span>))</span>
-<span id="cb16-453"><a href="#cb16-453" aria-hidden="true" tabindex="-1"></a>plot_calibration(ax, vals_np, mean_np, std_np)</span>
-<span id="cb16-454"><a href="#cb16-454" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-455"><a href="#cb16-455" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-456"><a href="#cb16-456" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-457"><a href="#cb16-457" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-458"><a href="#cb16-458" aria-hidden="true" tabindex="-1"></a>The green region (above the diagonal) means the GP is providing *conservatively wide*</span>
-<span id="cb16-459"><a href="#cb16-459" aria-hidden="true" tabindex="-1"></a>intervals — it is uncertain where the truth still lies. The red region (below the</span>
-<span id="cb16-460"><a href="#cb16-460" aria-hidden="true" tabindex="-1"></a>diagonal) means the GP is overconfident and its intervals miss the truth more often</span>
-<span id="cb16-461"><a href="#cb16-461" aria-hidden="true" tabindex="-1"></a>than they should. For downstream UQ, over-confidence is the more dangerous failure</span>
-<span id="cb16-462"><a href="#cb16-462" aria-hidden="true" tabindex="-1"></a>mode: it can mask regions where the surrogate has not converged.</span>
-<span id="cb16-463"><a href="#cb16-463" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-464"><a href="#cb16-464" aria-hidden="true" tabindex="-1"></a><span class="fu">### How Many Training Points Do You Need?</span></span>
+<span id="cb16-432"><a href="#cb16-432" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_calibration</span>
+<span id="cb16-433"><a href="#cb16-433" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-434"><a href="#cb16-434" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">5</span>))</span>
+<span id="cb16-435"><a href="#cb16-435" aria-hidden="true" tabindex="-1"></a>plot_calibration(ax, vals_np, mean_np, std_np)</span>
+<span id="cb16-436"><a href="#cb16-436" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-437"><a href="#cb16-437" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-438"><a href="#cb16-438" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-439"><a href="#cb16-439" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-440"><a href="#cb16-440" aria-hidden="true" tabindex="-1"></a>The green region (above the diagonal) means the GP is providing *conservatively wide*</span>
+<span id="cb16-441"><a href="#cb16-441" aria-hidden="true" tabindex="-1"></a>intervals — it is uncertain where the truth still lies. The red region (below the</span>
+<span id="cb16-442"><a href="#cb16-442" aria-hidden="true" tabindex="-1"></a>diagonal) means the GP is overconfident and its intervals miss the truth more often</span>
+<span id="cb16-443"><a href="#cb16-443" aria-hidden="true" tabindex="-1"></a>than they should. For downstream UQ, over-confidence is the more dangerous failure</span>
+<span id="cb16-444"><a href="#cb16-444" aria-hidden="true" tabindex="-1"></a>mode: it can mask regions where the surrogate has not converged.</span>
+<span id="cb16-445"><a href="#cb16-445" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-446"><a href="#cb16-446" aria-hidden="true" tabindex="-1"></a><span class="fu">### How Many Training Points Do You Need?</span></span>
+<span id="cb16-447"><a href="#cb16-447" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-448"><a href="#cb16-448" aria-hidden="true" tabindex="-1"></a>A single accuracy figure for $N = 80$ does not reveal whether the surrogate has</span>
+<span id="cb16-449"><a href="#cb16-449" aria-hidden="true" tabindex="-1"></a>converged or whether more data would help substantially.</span>
+<span id="cb16-450"><a href="#cb16-450" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-453"><a href="#cb16-453" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-454"><a href="#cb16-454" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Relative L₂ error vs training set size on a log-log scale for both Matérn 5/2 and Squared Exponential kernels. The SE kernel converges faster because the beam response is infinitely smooth (it solves a linear ODE), matching the SE kernel's smoothness assumption. The dashed line shows an N⁻¹ reference slope."</span></span>
+<span id="cb16-455"><a href="#cb16-455" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence-n</span></span>
+<span id="cb16-456"><a href="#cb16-456" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-457"><a href="#cb16-457" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
+<span id="cb16-458"><a href="#cb16-458" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-459"><a href="#cb16-459" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
+<span id="cb16-460"><a href="#cb16-460" aria-hidden="true" tabindex="-1"></a>plot_gp_convergence_n(ax, bkd, nvars, prior, model, samples_test, vals_np)</span>
+<span id="cb16-461"><a href="#cb16-461" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-462"><a href="#cb16-462" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-463"><a href="#cb16-463" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-464"><a href="#cb16-464" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-465"><a href="#cb16-465" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-466"><a href="#cb16-466" aria-hidden="true" tabindex="-1"></a>A single accuracy figure for $N = 80$ does not reveal whether the surrogate has</span>
-<span id="cb16-467"><a href="#cb16-467" aria-hidden="true" tabindex="-1"></a>converged or whether more data would help substantially.</span>
-<span id="cb16-468"><a href="#cb16-468" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-471"><a href="#cb16-471" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-472"><a href="#cb16-472" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Relative L₂ error vs training set size on a log-log scale for both Matérn 5/2 and Squared Exponential kernels. The SE kernel converges faster because the beam response is infinitely smooth (it solves a linear ODE), matching the SE kernel's smoothness assumption. The dashed line shows an N⁻¹ reference slope."</span></span>
-<span id="cb16-473"><a href="#cb16-473" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence-n</span></span>
-<span id="cb16-474"><a href="#cb16-474" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-475"><a href="#cb16-475" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
-<span id="cb16-476"><a href="#cb16-476" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-477"><a href="#cb16-477" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
-<span id="cb16-478"><a href="#cb16-478" aria-hidden="true" tabindex="-1"></a>plot_gp_convergence_n(ax, bkd, nvars, prior, model, samples_test, vals_np)</span>
-<span id="cb16-479"><a href="#cb16-479" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-480"><a href="#cb16-480" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-481"><a href="#cb16-481" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-482"><a href="#cb16-482" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-483"><a href="#cb16-483" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-484"><a href="#cb16-484" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exploring the Surrogate</span></span>
-<span id="cb16-485"><a href="#cb16-485" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-486"><a href="#cb16-486" aria-hidden="true" tabindex="-1"></a>With the expensive model, generating a dense cross-section plot would require hundreds</span>
-<span id="cb16-487"><a href="#cb16-487" aria-hidden="true" tabindex="-1"></a>of additional FEM solves. With the fitted GP, we can produce these plots instantaneously</span>
-<span id="cb16-488"><a href="#cb16-488" aria-hidden="true" tabindex="-1"></a>and also overlay the posterior uncertainty.</span>
+<span id="cb16-466"><a href="#cb16-466" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exploring the Surrogate</span></span>
+<span id="cb16-467"><a href="#cb16-467" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-468"><a href="#cb16-468" aria-hidden="true" tabindex="-1"></a>With the expensive model, generating a dense cross-section plot would require hundreds</span>
+<span id="cb16-469"><a href="#cb16-469" aria-hidden="true" tabindex="-1"></a>of additional FEM solves. With the fitted GP, we can produce these plots instantaneously</span>
+<span id="cb16-470"><a href="#cb16-470" aria-hidden="true" tabindex="-1"></a>and also overlay the posterior uncertainty.</span>
+<span id="cb16-471"><a href="#cb16-471" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-474"><a href="#cb16-474" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-475"><a href="#cb16-475" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GP cross sections for tip deflection. Diagonal: 1D slices through each input with ±2σ* uncertainty bands. Lower triangle: 2D posterior mean contours. Non-plotted variables are fixed at zero (the prior mean)."</span></span>
+<span id="cb16-476"><a href="#cb16-476" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-sections</span></span>
+<span id="cb16-477"><a href="#cb16-477" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-478"><a href="#cb16-478" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> CrossSectionReducer</span>
+<span id="cb16-479"><a href="#cb16-479" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
+<span id="cb16-480"><a href="#cb16-480" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-481"><a href="#cb16-481" aria-hidden="true" tabindex="-1"></a>nominal       <span class="op">=</span> bkd.zeros(nvars)</span>
+<span id="cb16-482"><a href="#cb16-482" aria-hidden="true" tabindex="-1"></a>plot_limits   <span class="op">=</span> bkd.full((nvars, <span class="dv">2</span>), <span class="fl">0.0</span>)</span>
+<span id="cb16-483"><a href="#cb16-483" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">0</span>] <span class="op">=</span> <span class="op">-</span><span class="fl">3.0</span></span>
+<span id="cb16-484"><a href="#cb16-484" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">1</span>] <span class="op">=</span>  <span class="fl">3.0</span></span>
+<span id="cb16-485"><a href="#cb16-485" aria-hidden="true" tabindex="-1"></a>input_labels  <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">xi_</span><span class="ch">{{</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
+<span id="cb16-486"><a href="#cb16-486" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-487"><a href="#cb16-487" aria-hidden="true" tabindex="-1"></a>reducer <span class="op">=</span> CrossSectionReducer(gp, nominal, bkd)</span>
+<span id="cb16-488"><a href="#cb16-488" aria-hidden="true" tabindex="-1"></a>plotter <span class="op">=</span> PairPlotter(reducer, plot_limits, bkd, variable_names<span class="op">=</span>input_labels)</span>
 <span id="cb16-489"><a href="#cb16-489" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-492"><a href="#cb16-492" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-493"><a href="#cb16-493" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GP cross sections for tip deflection. Diagonal: 1D slices through each input with ±2σ* uncertainty bands. Lower triangle: 2D posterior mean contours. Non-plotted variables are fixed at zero (the prior mean)."</span></span>
-<span id="cb16-494"><a href="#cb16-494" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-sections</span></span>
-<span id="cb16-495"><a href="#cb16-495" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-496"><a href="#cb16-496" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> CrossSectionReducer</span>
-<span id="cb16-497"><a href="#cb16-497" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
+<span id="cb16-490"><a href="#cb16-490" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plotter.plot(</span>
+<span id="cb16-491"><a href="#cb16-491" aria-hidden="true" tabindex="-1"></a>    npts_1d<span class="op">=</span><span class="dv">61</span>,</span>
+<span id="cb16-492"><a href="#cb16-492" aria-hidden="true" tabindex="-1"></a>    contour_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>, <span class="st">"cmap"</span>: <span class="st">"cividis"</span>, <span class="st">"levels"</span>: <span class="dv">20</span>},</span>
+<span id="cb16-493"><a href="#cb16-493" aria-hidden="true" tabindex="-1"></a>    line_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>},</span>
+<span id="cb16-494"><a href="#cb16-494" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-495"><a href="#cb16-495" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-496"><a href="#cb16-496" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-497"><a href="#cb16-497" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb16-498"><a href="#cb16-498" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-499"><a href="#cb16-499" aria-hidden="true" tabindex="-1"></a>nominal       <span class="op">=</span> bkd.zeros(nvars)</span>
-<span id="cb16-500"><a href="#cb16-500" aria-hidden="true" tabindex="-1"></a>plot_limits   <span class="op">=</span> bkd.full((nvars, <span class="dv">2</span>), <span class="fl">0.0</span>)</span>
-<span id="cb16-501"><a href="#cb16-501" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">0</span>] <span class="op">=</span> <span class="op">-</span><span class="fl">3.0</span></span>
-<span id="cb16-502"><a href="#cb16-502" aria-hidden="true" tabindex="-1"></a>plot_limits[:, <span class="dv">1</span>] <span class="op">=</span>  <span class="fl">3.0</span></span>
-<span id="cb16-503"><a href="#cb16-503" aria-hidden="true" tabindex="-1"></a>input_labels  <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">xi_</span><span class="ch">{{</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
+<span id="cb16-499"><a href="#cb16-499" aria-hidden="true" tabindex="-1"></a>The 1D panels show the posterior mean (solid line) with $\pm 2\sigma^*$ confidence</span>
+<span id="cb16-500"><a href="#cb16-500" aria-hidden="true" tabindex="-1"></a>bands (shaded). Near the training data, the bands are narrow; in regions with few</span>
+<span id="cb16-501"><a href="#cb16-501" aria-hidden="true" tabindex="-1"></a>nearby training points the GP correctly widens its uncertainty.</span>
+<span id="cb16-502"><a href="#cb16-502" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-503"><a href="#cb16-503" aria-hidden="true" tabindex="-1"></a><span class="fu">### 2D Posterior Uncertainty Map</span></span>
 <span id="cb16-504"><a href="#cb16-504" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-505"><a href="#cb16-505" aria-hidden="true" tabindex="-1"></a>reducer <span class="op">=</span> CrossSectionReducer(gp, nominal, bkd)</span>
-<span id="cb16-506"><a href="#cb16-506" aria-hidden="true" tabindex="-1"></a>plotter <span class="op">=</span> PairPlotter(reducer, plot_limits, bkd, variable_names<span class="op">=</span>input_labels)</span>
-<span id="cb16-507"><a href="#cb16-507" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-508"><a href="#cb16-508" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plotter.plot(</span>
-<span id="cb16-509"><a href="#cb16-509" aria-hidden="true" tabindex="-1"></a>    npts_1d<span class="op">=</span><span class="dv">61</span>,</span>
-<span id="cb16-510"><a href="#cb16-510" aria-hidden="true" tabindex="-1"></a>    contour_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>, <span class="st">"cmap"</span>: <span class="st">"cividis"</span>, <span class="st">"levels"</span>: <span class="dv">20</span>},</span>
-<span id="cb16-511"><a href="#cb16-511" aria-hidden="true" tabindex="-1"></a>    line_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>},</span>
-<span id="cb16-512"><a href="#cb16-512" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-513"><a href="#cb16-513" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-514"><a href="#cb16-514" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-515"><a href="#cb16-515" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-516"><a href="#cb16-516" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-517"><a href="#cb16-517" aria-hidden="true" tabindex="-1"></a>The 1D panels show the posterior mean (solid line) with $\pm 2\sigma^*$ confidence</span>
-<span id="cb16-518"><a href="#cb16-518" aria-hidden="true" tabindex="-1"></a>bands (shaded). Near the training data, the bands are narrow; in regions with few</span>
-<span id="cb16-519"><a href="#cb16-519" aria-hidden="true" tabindex="-1"></a>nearby training points the GP correctly widens its uncertainty.</span>
-<span id="cb16-520"><a href="#cb16-520" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-521"><a href="#cb16-521" aria-hidden="true" tabindex="-1"></a><span class="fu">### 2D Posterior Uncertainty Map</span></span>
-<span id="cb16-522"><a href="#cb16-522" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-523"><a href="#cb16-523" aria-hidden="true" tabindex="-1"></a>The 1D cross-sections above show uncertainty along individual axes, but they do not</span>
-<span id="cb16-524"><a href="#cb16-524" aria-hidden="true" tabindex="-1"></a>reveal which *regions* of the joint input space are well-covered. The map below</span>
-<span id="cb16-525"><a href="#cb16-525" aria-hidden="true" tabindex="-1"></a>projects the uncertainty $\sigma^*(\xi_1, \xi_2)$ onto the first two KLE dimensions</span>
-<span id="cb16-526"><a href="#cb16-526" aria-hidden="true" tabindex="-1"></a>(with $\xi_3 = 0$) and overlays the training point locations.</span>
-<span id="cb16-527"><a href="#cb16-527" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-530"><a href="#cb16-530" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb16-531"><a href="#cb16-531" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Dark blue regions are well-constrained by nearby training data (black crosses). Yellow regions have high uncertainty because they lie far from any training point. This map directly shows where additional evaluations would most reduce surrogate error."</span></span>
-<span id="cb16-532"><a href="#cb16-532" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-uncertainty-map</span></span>
-<span id="cb16-533"><a href="#cb16-533" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-534"><a href="#cb16-534" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_uncertainty_map</span>
-<span id="cb16-535"><a href="#cb16-535" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-536"><a href="#cb16-536" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
-<span id="cb16-537"><a href="#cb16-537" aria-hidden="true" tabindex="-1"></a>plot_uncertainty_map(ax, gp, bkd, samples_train, N_train)</span>
-<span id="cb16-538"><a href="#cb16-538" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb16-539"><a href="#cb16-539" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb16-540"><a href="#cb16-540" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb16-541"><a href="#cb16-541" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-542"><a href="#cb16-542" aria-hidden="true" tabindex="-1"></a>The causal link between data coverage and uncertainty is immediate: the GP is confident</span>
-<span id="cb16-543"><a href="#cb16-543" aria-hidden="true" tabindex="-1"></a>(dark) exactly where the training points are dense, and uncertain (yellow) in the gaps.</span>
-<span id="cb16-544"><a href="#cb16-544" aria-hidden="true" tabindex="-1"></a>This is precisely what the adaptive sampling strategies in</span>
-<span id="cb16-545"><a href="#cb16-545" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span> are designed to</span>
-<span id="cb16-546"><a href="#cb16-546" aria-hidden="true" tabindex="-1"></a>fix — they greedily fill the yellow regions first.</span>
-<span id="cb16-547"><a href="#cb16-547" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-505"><a href="#cb16-505" aria-hidden="true" tabindex="-1"></a>The 1D cross-sections above show uncertainty along individual axes, but they do not</span>
+<span id="cb16-506"><a href="#cb16-506" aria-hidden="true" tabindex="-1"></a>reveal which *regions* of the joint input space are well-covered. The map below</span>
+<span id="cb16-507"><a href="#cb16-507" aria-hidden="true" tabindex="-1"></a>projects the uncertainty $\sigma^*(\xi_1, \xi_2)$ onto the first two KLE dimensions</span>
+<span id="cb16-508"><a href="#cb16-508" aria-hidden="true" tabindex="-1"></a>(with $\xi_3 = 0$) and overlays the training point locations.</span>
+<span id="cb16-509"><a href="#cb16-509" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-512"><a href="#cb16-512" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb16-513"><a href="#cb16-513" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Dark blue regions are well-constrained by nearby training data (black crosses). Yellow regions have high uncertainty because they lie far from any training point. This map directly shows where additional evaluations would most reduce surrogate error."</span></span>
+<span id="cb16-514"><a href="#cb16-514" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-uncertainty-map</span></span>
+<span id="cb16-515"><a href="#cb16-515" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-516"><a href="#cb16-516" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_uncertainty_map</span>
+<span id="cb16-517"><a href="#cb16-517" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-518"><a href="#cb16-518" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
+<span id="cb16-519"><a href="#cb16-519" aria-hidden="true" tabindex="-1"></a>plot_uncertainty_map(ax, gp, bkd, samples_train, N_train)</span>
+<span id="cb16-520"><a href="#cb16-520" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb16-521"><a href="#cb16-521" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb16-522"><a href="#cb16-522" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb16-523"><a href="#cb16-523" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-524"><a href="#cb16-524" aria-hidden="true" tabindex="-1"></a>The causal link between data coverage and uncertainty is immediate: the GP is confident</span>
+<span id="cb16-525"><a href="#cb16-525" aria-hidden="true" tabindex="-1"></a>(dark) exactly where the training points are dense, and uncertain (yellow) in the gaps.</span>
+<span id="cb16-526"><a href="#cb16-526" aria-hidden="true" tabindex="-1"></a>This is precisely what the adaptive sampling strategies in</span>
+<span id="cb16-527"><a href="#cb16-527" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span> are designed to</span>
+<span id="cb16-528"><a href="#cb16-528" aria-hidden="true" tabindex="-1"></a>fix — they greedily fill the yellow regions first.</span>
+<span id="cb16-529"><a href="#cb16-529" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-530"><a href="#cb16-530" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-531"><a href="#cb16-531" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb16-532"><a href="#cb16-532" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-533"><a href="#cb16-533" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **Gaussian process** is a probability distribution over functions defined by a</span>
+<span id="cb16-534"><a href="#cb16-534" aria-hidden="true" tabindex="-1"></a>  mean function and a kernel; after conditioning on training data, the posterior is</span>
+<span id="cb16-535"><a href="#cb16-535" aria-hidden="true" tabindex="-1"></a>  a new GP with analytically computable mean and variance at any test point</span>
+<span id="cb16-536"><a href="#cb16-536" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **kernel** encodes smoothness assumptions; Matérn 5/2 is a good default for</span>
+<span id="cb16-537"><a href="#cb16-537" aria-hidden="true" tabindex="-1"></a>  twice-differentiable engineering responses</span>
+<span id="cb16-538"><a href="#cb16-538" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Maximum marginal likelihood** automatically tunes the length scales and output</span>
+<span id="cb16-539"><a href="#cb16-539" aria-hidden="true" tabindex="-1"></a>  variance, balancing data fit against model complexity</span>
+<span id="cb16-540"><a href="#cb16-540" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The GP provides built-in **uncertainty quantification**: the posterior standard</span>
+<span id="cb16-541"><a href="#cb16-541" aria-hidden="true" tabindex="-1"></a>  deviation reflects how confident the surrogate is, and should be calibrated (i.e.,</span>
+<span id="cb16-542"><a href="#cb16-542" aria-hidden="true" tabindex="-1"></a>  standardised residuals should follow $\mathcal{N}(0,1)$)</span>
+<span id="cb16-543"><a href="#cb16-543" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A GP fitted with 80 training samples already achieves low relative $L_2$ error on</span>
+<span id="cb16-544"><a href="#cb16-544" aria-hidden="true" tabindex="-1"></a>  the beam benchmark, with well-calibrated uncertainty</span>
+<span id="cb16-545"><a href="#cb16-545" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-546"><a href="#cb16-546" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-547"><a href="#cb16-547" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
 <span id="cb16-548"><a href="#cb16-548" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-549"><a href="#cb16-549" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb16-550"><a href="#cb16-550" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-551"><a href="#cb16-551" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **Gaussian process** is a probability distribution over functions defined by a</span>
-<span id="cb16-552"><a href="#cb16-552" aria-hidden="true" tabindex="-1"></a>  mean function and a kernel; after conditioning on training data, the posterior is</span>
-<span id="cb16-553"><a href="#cb16-553" aria-hidden="true" tabindex="-1"></a>  a new GP with analytically computable mean and variance at any test point</span>
-<span id="cb16-554"><a href="#cb16-554" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **kernel** encodes smoothness assumptions; Matérn 5/2 is a good default for</span>
-<span id="cb16-555"><a href="#cb16-555" aria-hidden="true" tabindex="-1"></a>  twice-differentiable engineering responses</span>
-<span id="cb16-556"><a href="#cb16-556" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Maximum marginal likelihood** automatically tunes the length scales and output</span>
-<span id="cb16-557"><a href="#cb16-557" aria-hidden="true" tabindex="-1"></a>  variance, balancing data fit against model complexity</span>
-<span id="cb16-558"><a href="#cb16-558" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The GP provides built-in **uncertainty quantification**: the posterior standard</span>
-<span id="cb16-559"><a href="#cb16-559" aria-hidden="true" tabindex="-1"></a>  deviation reflects how confident the surrogate is, and should be calibrated (i.e.,</span>
-<span id="cb16-560"><a href="#cb16-560" aria-hidden="true" tabindex="-1"></a>  standardised residuals should follow $\mathcal{N}(0,1)$)</span>
-<span id="cb16-561"><a href="#cb16-561" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A GP fitted with 80 training samples already achieves low relative $L_2$ error on</span>
-<span id="cb16-562"><a href="#cb16-562" aria-hidden="true" tabindex="-1"></a>  the beam benchmark, with well-calibrated uncertainty</span>
-<span id="cb16-563"><a href="#cb16-563" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-549"><a href="#cb16-549" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Halve the training set to $N = 40$. How does the relative $L_2$ error and coverage</span>
+<span id="cb16-550"><a href="#cb16-550" aria-hidden="true" tabindex="-1"></a>   change? Plot the standardised residuals again --- does the GP remain calibrated?</span>
+<span id="cb16-551"><a href="#cb16-551" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-552"><a href="#cb16-552" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Replace the Matérn 5/2 kernel with a Squared Exponential kernel. Compare the fitted</span>
+<span id="cb16-553"><a href="#cb16-553" aria-hidden="true" tabindex="-1"></a>   length scales and the test-set error. Which kernel gives better predictions?</span>
+<span id="cb16-554"><a href="#cb16-554" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-555"><a href="#cb16-555" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>In the cross-section plots, change the nominal value from zero to $\pm 1$ using</span>
+<span id="cb16-556"><a href="#cb16-556" aria-hidden="true" tabindex="-1"></a>   <span class="in">`CrossSectionReducer`</span>. How do the uncertainty bands change near the edge of the</span>
+<span id="cb16-557"><a href="#cb16-557" aria-hidden="true" tabindex="-1"></a>   training data support?</span>
+<span id="cb16-558"><a href="#cb16-558" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-559"><a href="#cb16-559" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Increase the number of KLE terms to 5 (<span class="in">`cantilever_beam_1d(bkd, num_kle_terms=5)`</span>).</span>
+<span id="cb16-560"><a href="#cb16-560" aria-hidden="true" tabindex="-1"></a>   How many additional training points do you need to maintain the same accuracy?</span>
+<span id="cb16-561"><a href="#cb16-561" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-562"><a href="#cb16-562" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-563"><a href="#cb16-563" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
 <span id="cb16-564"><a href="#cb16-564" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-565"><a href="#cb16-565" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb16-566"><a href="#cb16-566" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-567"><a href="#cb16-567" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Halve the training set to $N = 40$. How does the relative $L_2$ error and coverage</span>
-<span id="cb16-568"><a href="#cb16-568" aria-hidden="true" tabindex="-1"></a>   change? Plot the standardised residuals again --- does the GP remain calibrated?</span>
-<span id="cb16-569"><a href="#cb16-569" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-570"><a href="#cb16-570" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Replace the Matérn 5/2 kernel with a Squared Exponential kernel. Compare the fitted</span>
-<span id="cb16-571"><a href="#cb16-571" aria-hidden="true" tabindex="-1"></a>   length scales and the test-set error. Which kernel gives better predictions?</span>
-<span id="cb16-572"><a href="#cb16-572" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-573"><a href="#cb16-573" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>In the cross-section plots, change the nominal value from zero to $\pm 1$ using</span>
-<span id="cb16-574"><a href="#cb16-574" aria-hidden="true" tabindex="-1"></a>   <span class="in">`CrossSectionReducer`</span>. How do the uncertainty bands change near the edge of the</span>
-<span id="cb16-575"><a href="#cb16-575" aria-hidden="true" tabindex="-1"></a>   training data support?</span>
-<span id="cb16-576"><a href="#cb16-576" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-577"><a href="#cb16-577" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Increase the number of KLE terms to 5 (<span class="in">`cantilever_beam_1d(bkd, num_kle_terms=5)`</span>).</span>
-<span id="cb16-578"><a href="#cb16-578" aria-hidden="true" tabindex="-1"></a>   How many additional training points do you need to maintain the same accuracy?</span>
-<span id="cb16-579"><a href="#cb16-579" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-580"><a href="#cb16-580" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-581"><a href="#cb16-581" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb16-582"><a href="#cb16-582" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-583"><a href="#cb16-583" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Gaussian Processes</span><span class="co">](uq_with_gp.qmd)</span> --- Compute analytical moments and</span>
-<span id="cb16-584"><a href="#cb16-584" aria-hidden="true" tabindex="-1"></a>  input marginals from a fitted GP</span>
-<span id="cb16-585"><a href="#cb16-585" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span> --- Use</span>
-<span id="cb16-586"><a href="#cb16-586" aria-hidden="true" tabindex="-1"></a>  Cholesky-greedy and IVAR samplers to choose training points that minimise</span>
-<span id="cb16-587"><a href="#cb16-587" aria-hidden="true" tabindex="-1"></a>  posterior uncertainty</span>
-<span id="cb16-588"><a href="#cb16-588" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> --- The</span>
-<span id="cb16-589"><a href="#cb16-589" aria-hidden="true" tabindex="-1"></a>  analogous workflow using a PCE surrogate; compare fitting cost and accuracy</span>
+<span id="cb16-565"><a href="#cb16-565" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Gaussian Processes</span><span class="co">](uq_with_gp.qmd)</span> --- Compute analytical moments and</span>
+<span id="cb16-566"><a href="#cb16-566" aria-hidden="true" tabindex="-1"></a>  input marginals from a fitted GP</span>
+<span id="cb16-567"><a href="#cb16-567" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Adaptive Sampling for Gaussian Processes</span><span class="co">](adaptive_gp_sampling.qmd)</span> --- Use</span>
+<span id="cb16-568"><a href="#cb16-568" aria-hidden="true" tabindex="-1"></a>  Cholesky-greedy and IVAR samplers to choose training points that minimise</span>
+<span id="cb16-569"><a href="#cb16-569" aria-hidden="true" tabindex="-1"></a>  posterior uncertainty</span>
+<span id="cb16-570"><a href="#cb16-570" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> --- The</span>
+<span id="cb16-571"><a href="#cb16-571" aria-hidden="true" tabindex="-1"></a>  analogous workflow using a PCE surrogate; compare fitting cost and accuracy</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

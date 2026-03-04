@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1104,7 +1134,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="ba64951f" class="cell" data-execution_count="1">
+<div id="3bb366c0" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1115,7 +1145,7 @@ window.Quarto = {
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate <span class="im">import</span> GaussianMarginal</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We use the same linear Gaussian model as in earlier tutorials — a degree-2 polynomial basis with 5 sensors — so results are directly comparable to the convergence plots in <a href="./boed_kl_usage.html">Verifying Convergence</a>.</p>
-<div id="bbfb10b5" class="cell" data-execution_count="2">
+<div id="6901f4c2" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>nobs, degree, noise_std, prior_std <span class="op">=</span> <span class="dv">5</span>, <span class="dv">2</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span></span>
@@ -1150,7 +1180,7 @@ Figure&nbsp;1: 200 samples in 2-D: standard MC (left) vs.&nbsp;randomly-shifted 
 <section id="eig-estimator-with-rqmc-outer-loop" class="level2">
 <h2 class="anchored" data-anchor-id="eig-estimator-with-rqmc-outer-loop">EIG Estimator with RQMC Outer Loop</h2>
 <p>The double-loop EIG estimator is unchanged — we simply replace the i.i.d. outer draws with RQMC samples. The <code>create_kl_oed_objective_from_data</code> factory builds a <code>KLOEDObjective</code> from pre-computed forward model outputs and latent noise, so swapping MC for RQMC only changes how those arrays are generated.</p>
-<div id="6455f328" class="cell" data-execution_count="4">
+<div id="5f61fd24" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>A_bkd <span class="op">=</span> bkd.array(A)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>noise_var <span class="op">=</span> bkd.full((K,), noise_std<span class="op">**</span><span class="dv">2</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1176,7 +1206,7 @@ Figure&nbsp;1: 200 samples in 2-D: standard MC (left) vs.&nbsp;randomly-shifted 
 <section id="convergence-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-comparison">Convergence Comparison</h2>
 <p>We measure MSE over <code>N_rep=50</code> independent realizations at each sample count, using a shared inner MC seed to isolate the effect of the outer sampling strategy.</p>
-<div id="cdd0cf36" class="cell" data-execution_count="5">
+<div id="ec91d672" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">200</span>, <span class="dv">400</span>, <span class="dv">800</span>, <span class="dv">1600</span>]</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>N_in         <span class="op">=</span> <span class="dv">500</span>     <span class="co"># large enough that inner bias is negligible</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>N_rep        <span class="op">=</span> <span class="dv">50</span></span>
@@ -1217,7 +1247,7 @@ Figure&nbsp;2: MSE vs.&nbsp;outer sample count M for standard MC (blue) and rand
 </div>
 </div>
 </div>
-<div id="5d337c9d" class="cell" data-execution_count="7">
+<div id="183c1fe5" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>slope_mc  <span class="op">=</span> np.polyfit(np.log(outer_counts), np.log(mse_mc),  <span class="dv">1</span>)[<span class="dv">0</span>]</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>slope_qmc <span class="op">=</span> np.polyfit(np.log(outer_counts), np.log(mse_qmc), <span class="dv">1</span>)[<span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>

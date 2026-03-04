@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1148,7 +1178,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="8ff5ff3d" class="cell" data-execution_count="1">
+<div id="630ac2db" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1172,7 +1202,7 @@ window.Quarto = {
 <section id="generate-sample-matrices" class="level3">
 <h3 class="anchored" data-anchor-id="generate-sample-matrices">Generate Sample Matrices</h3>
 <p>The Sobol method requires two independent sample matrices:</p>
-<div id="6915c9d6" class="cell" data-execution_count="2">
+<div id="70aba5cf" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">1000</span>  <span class="co"># Base sample size</span></span>
@@ -1193,7 +1223,7 @@ Matrix B shape: (12, 1000)</code></pre>
 </section>
 <section id="evaluate-base-cases" class="level3">
 <h3 class="anchored" data-anchor-id="evaluate-base-cases">Evaluate Base Cases</h3>
-<div id="eed91420" class="cell" data-execution_count="3">
+<div id="b9ac5344" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate f(A) and f(B)</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>f_A <span class="op">=</span> bkd.to_numpy(qoi_func(bkd.asarray(A))).flatten()</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>f_B <span class="op">=</span> bkd.to_numpy(qoi_func(bkd.asarray(B))).flatten()</span>
@@ -1209,7 +1239,7 @@ f(B) mean: 0.6412</code></pre>
 <section id="create-mixed-matrices" class="level3">
 <h3 class="anchored" data-anchor-id="create-mixed-matrices">Create Mixed Matrices</h3>
 <p>For each parameter <span class="math inline">\(i\)</span>, create a matrix <span class="math inline">\(C_i\)</span> that equals <span class="math inline">\(B\)</span> except column <span class="math inline">\(i\)</span> comes from <span class="math inline">\(A\)</span>:</p>
-<div id="9c201a32" class="cell" data-execution_count="4">
+<div id="70f92260" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_C_matrix(A, B, i):</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Create C_i matrix: B with column i from A."""</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    C <span class="op">=</span> B.copy()</span>
@@ -1232,7 +1262,7 @@ f(B) mean: 0.6412</code></pre>
 </section>
 <section id="compute-first-order-indices" class="level3">
 <h3 class="anchored" data-anchor-id="compute-first-order-indices">Compute First-Order Indices</h3>
-<div id="5dd02989" class="cell" data-execution_count="5">
+<div id="d1d3a2ec" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Estimate variance</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>var_total <span class="op">=</span> np.var(np.concatenate([f_A, f_B]))</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1266,7 +1296,7 @@ f(B) mean: 0.6412</code></pre>
 </section>
 <section id="compute-total-order-indices" class="level3">
 <h3 class="anchored" data-anchor-id="compute-total-order-indices">Compute Total-Order Indices</h3>
-<div id="593707c8" class="cell" data-execution_count="6">
+<div id="dedf116d" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>total_order <span class="op">=</span> np.zeros(d)</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(d):</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    C_i <span class="op">=</span> make_C_matrix(A, B, i)</span>
@@ -1325,7 +1355,7 @@ Figure&nbsp;1: Sobol index estimates for the 3-species Lotka–Volterra model (Q
 </section>
 <section id="interpreting-results" class="level2">
 <h2 class="anchored" data-anchor-id="interpreting-results">Interpreting Results</h2>
-<div id="2e2480e6" class="cell" data-execution_count="8">
+<div id="b31543b0" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sort parameters by total-order importance</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>importance_order <span class="op">=</span> np.argsort(total_order)[::<span class="op">-</span><span class="dv">1</span>]</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1352,7 +1382,7 @@ Rank  Param   S_i       S^T_i     Interaction
 </div>
 <section id="key-observations" class="level3">
 <h3 class="anchored" data-anchor-id="key-observations">Key Observations</h3>
-<div id="d51a4409" class="cell" data-execution_count="9">
+<div id="85b3d525" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sum of first-order indices</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>sum_first <span class="op">=</span> np.<span class="bu">sum</span>(first_order)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Sum of first-order indices: </span><span class="sc">{</span>sum_first<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
@@ -1377,7 +1407,7 @@ Sum of first-order indices: 11.7096
 <section id="sensitivity-by-parameter-group" class="level2">
 <h2 class="anchored" data-anchor-id="sensitivity-by-parameter-group">Sensitivity by Parameter Group</h2>
 <p>Let’s aggregate sensitivity by parameter type:</p>
-<div id="d992471b" class="cell" data-execution_count="10">
+<div id="df22ed88" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Group indices</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>growth_rates <span class="op">=</span> [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>]  <span class="co"># r_1, r_2, r_3</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>competition_diag <span class="op">=</span> [<span class="dv">3</span>, <span class="dv">6</span>, <span class="dv">9</span>]  <span class="co"># a_11, a_22, a_33 (self-competition)</span></span>
@@ -1422,7 +1452,7 @@ Figure&nbsp;2: Total-order sensitivity aggregated by parameter group. Growth rat
 <section id="practical-implications" class="level2">
 <h2 class="anchored" data-anchor-id="practical-implications">Practical Implications</h2>
 <p>Based on the sensitivity analysis:</p>
-<div id="7b0a9a7b" class="cell" data-execution_count="12">
+<div id="8634a2c0" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Find unimportant parameters (S^T &lt; 0.01)</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>unimportant <span class="op">=</span> np.where(total_order <span class="op">&lt;</span> <span class="fl">0.01</span>)[<span class="dv">0</span>]</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Parameters with negligible influence (S^T &lt; 0.01):"</span>)</span>

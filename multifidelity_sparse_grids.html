@@ -311,7 +311,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./multifidelity_sparse_grids.html">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./multifidelity_sparse_grids.html">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -385,6 +385,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -763,6 +781,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1050,7 +1080,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./multifidelity_sparse_grids.html">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./isotropic_sparse_grids.html">Sparse Grids</a></li><li class="breadcrumb-item"><a href="./multifidelity_sparse_grids.html">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1109,7 +1139,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="62ad0fc8" class="cell" data-execution_count="1">
+<div id="aa87900a" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1246,7 +1276,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 </ul>
 <p>The config index is a tuple of integers, e.g.&nbsp;<code>(0,)</code> for low fidelity and <code>(1,)</code> for high fidelity.</p>
 <p>You can implement the protocol as a class, or use the convenience <code>DictModelFactory</code> which wraps a dictionary of callables:</p>
-<div id="a3c75d87" class="cell" data-execution_count="4">
+<div id="f39edf9e" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    DictModelFactory,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    ModelFactoryProtocol,</span>
@@ -1297,7 +1327,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 <li><strong><code>nconfig_vars</code></strong> — number of configuration dimensions (required)</li>
 <li>Optionally, a <strong>cost model</strong> for cost-aware refinement</li>
 </ol>
-<div id="244f2be9" class="cell" data-execution_count="5">
+<div id="100c1c0f" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    MultiFidelityAdaptiveSparseGridFitter,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1344,7 +1374,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 <section id="auto-mode-refine_to_tolerance" class="level3">
 <h3 class="anchored" data-anchor-id="auto-mode-refine_to_tolerance">Auto Mode: <code>refine_to_tolerance()</code></h3>
 <p>Pass a <code>ModelFactoryProtocol</code> to <code>refine_to_tolerance()</code> and the fitter automatically evaluates the correct model at each step:</p>
-<div id="40386f52" class="cell" data-execution_count="6">
+<div id="76c96229" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> mf_fitter.refine_to_tolerance(factory, tol<span class="op">=</span><span class="fl">1e-6</span>, max_steps<span class="op">=</span><span class="dv">15</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
@@ -1567,36 +1597,36 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_img7804e598ba0941a8a7b3da5357272cbf" class="figure-img">
+  <img id="_anim_img9663ff10b9e84af7b6cd882c84568580" class="figure-img">
   <div class="anim-controls">
-    <input id="_anim_slider7804e598ba0941a8a7b3da5357272cbf" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim7804e598ba0941a8a7b3da5357272cbf.set_frame(parseInt(this.value));">
+    <input id="_anim_slider9663ff10b9e84af7b6cd882c84568580" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim9663ff10b9e84af7b6cd882c84568580.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim7804e598ba0941a8a7b3da5357272cbf.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim9663ff10b9e84af7b6cd882c84568580.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="anim7804e598ba0941a8a7b3da5357272cbf.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="anim7804e598ba0941a8a7b3da5357272cbf.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="anim7804e598ba0941a8a7b3da5357272cbf.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="anim9663ff10b9e84af7b6cd882c84568580.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="anim7804e598ba0941a8a7b3da5357272cbf.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="anim9663ff10b9e84af7b6cd882c84568580.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="anim7804e598ba0941a8a7b3da5357272cbf.play_animation()">
+      <button title="Play" aria-label="Play" onclick="anim9663ff10b9e84af7b6cd882c84568580.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="anim7804e598ba0941a8a7b3da5357272cbf.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="anim7804e598ba0941a8a7b3da5357272cbf.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="anim7804e598ba0941a8a7b3da5357272cbf.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="anim9663ff10b9e84af7b6cd882c84568580.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select7804e598ba0941a8a7b3da5357272cbf" class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_7804e598ba0941a8a7b3da5357272cbf">
-      <label for="_anim_radio1_7804e598ba0941a8a7b3da5357272cbf">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_7804e598ba0941a8a7b3da5357272cbf" checked="">
-      <label for="_anim_radio2_7804e598ba0941a8a7b3da5357272cbf">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_7804e598ba0941a8a7b3da5357272cbf">
-      <label for="_anim_radio3_7804e598ba0941a8a7b3da5357272cbf">Reflect</label>
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select9663ff10b9e84af7b6cd882c84568580" class="anim-state">
+      <input type="radio" name="state" value="once" id="_anim_radio1_9663ff10b9e84af7b6cd882c84568580">
+      <label for="_anim_radio1_9663ff10b9e84af7b6cd882c84568580">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_9663ff10b9e84af7b6cd882c84568580" checked="">
+      <label for="_anim_radio2_9663ff10b9e84af7b6cd882c84568580">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_9663ff10b9e84af7b6cd882c84568580">
+      <label for="_anim_radio3_9663ff10b9e84af7b6cd882c84568580">Reflect</label>
     </form>
   </div>
 </div>
@@ -1606,9 +1636,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_img7804e598ba0941a8a7b3da5357272cbf";
-    var slider_id = "_anim_slider7804e598ba0941a8a7b3da5357272cbf";
-    var loop_select_id = "_anim_loop_select7804e598ba0941a8a7b3da5357272cbf";
+    var img_id = "_anim_img9663ff10b9e84af7b6cd882c84568580";
+    var slider_id = "_anim_slider9663ff10b9e84af7b6cd882c84568580";
+    var loop_select_id = "_anim_loop_select9663ff10b9e84af7b6cd882c84568580";
     var frames = new Array(11);
     
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABUAAAAGwCAYAAABo288xAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -12105,7 +12135,7 @@ Yf0fvpb4za4MMOsAAAAASUVORK5CYII=\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        anim7804e598ba0941a8a7b3da5357272cbf = new Animation(frames, img_id, slider_id, 800.0,
+        anim9663ff10b9e84af7b6cd882c84568580 = new Animation(frames, img_id, slider_id, 800.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -12122,7 +12152,7 @@ Figure&nbsp;4: Animated multi-index refinement. Solid boxes are selected subspac
 <section id="manual-mode-step_samples-step_values" class="level2">
 <h2 class="anchored" data-anchor-id="manual-mode-step_samples-step_values">Manual Mode: <code>step_samples()</code> / <code>step_values()</code></h2>
 <p>For more control, use the manual step pattern. <code>step_samples()</code> returns a dictionary mapping each config index to its required physical samples:</p>
-<div id="377afad9" class="cell" data-execution_count="9">
+<div id="0e49da86" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>tp_factory2 <span class="op">=</span> TensorProductSubspaceFactory(bkd, phys_factories, growth)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>max_1d2 <span class="op">=</span> bkd.asarray([<span class="dv">10</span>, <span class="dv">1</span>], dtype<span class="op">=</span>bkd.int64_dtype())</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>admis2 <span class="op">=</span> CompositeCriteria(</span>
@@ -12187,7 +12217,7 @@ Figure&nbsp;5: Multi-index refinement convergence in manual mode. The error esti
 <section id="cost-aware-refinement" class="level2">
 <h2 class="anchored" data-anchor-id="cost-aware-refinement">Cost-Aware Refinement</h2>
 <p>By default, all models are treated as having equal cost (<code>ConstantCostModel</code>). For realistic multi-fidelity problems, the high-fidelity model is far more expensive. <code>ExponentialConfigCostModel</code> assigns cost <span class="math inline">\(= \text{base}^{\sum \alpha_i}\)</span>, and <code>CostWeightedIndicator</code> divides each subspace’s error indicator by its cost, making the algorithm prefer refining cheap models first.</p>
-<div id="aeeb8d4c" class="cell" data-execution_count="11">
+<div id="1a02c57f" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ExponentialConfigCostModel,</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    CostWeightedIndicator,</span>
@@ -12385,36 +12415,36 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_imge2f9caffb003438699ae76e94034fb80" class="figure-img">
+  <img id="_anim_img4ddc6f86618041149a7d46694b29e99d" class="figure-img">
   <div class="anim-controls">
-    <input id="_anim_slidere2f9caffb003438699ae76e94034fb80" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anime2f9caffb003438699ae76e94034fb80.set_frame(parseInt(this.value));">
+    <input id="_anim_slider4ddc6f86618041149a7d46694b29e99d" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim4ddc6f86618041149a7d46694b29e99d.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="anime2f9caffb003438699ae76e94034fb80.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim4ddc6f86618041149a7d46694b29e99d.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="anime2f9caffb003438699ae76e94034fb80.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="anime2f9caffb003438699ae76e94034fb80.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="anime2f9caffb003438699ae76e94034fb80.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="anim4ddc6f86618041149a7d46694b29e99d.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="anime2f9caffb003438699ae76e94034fb80.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="anim4ddc6f86618041149a7d46694b29e99d.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="anime2f9caffb003438699ae76e94034fb80.play_animation()">
+      <button title="Play" aria-label="Play" onclick="anim4ddc6f86618041149a7d46694b29e99d.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="anime2f9caffb003438699ae76e94034fb80.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="anime2f9caffb003438699ae76e94034fb80.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="anime2f9caffb003438699ae76e94034fb80.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="anim4ddc6f86618041149a7d46694b29e99d.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_selecte2f9caffb003438699ae76e94034fb80" class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_e2f9caffb003438699ae76e94034fb80">
-      <label for="_anim_radio1_e2f9caffb003438699ae76e94034fb80">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_e2f9caffb003438699ae76e94034fb80" checked="">
-      <label for="_anim_radio2_e2f9caffb003438699ae76e94034fb80">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_e2f9caffb003438699ae76e94034fb80">
-      <label for="_anim_radio3_e2f9caffb003438699ae76e94034fb80">Reflect</label>
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select4ddc6f86618041149a7d46694b29e99d" class="anim-state">
+      <input type="radio" name="state" value="once" id="_anim_radio1_4ddc6f86618041149a7d46694b29e99d">
+      <label for="_anim_radio1_4ddc6f86618041149a7d46694b29e99d">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_4ddc6f86618041149a7d46694b29e99d" checked="">
+      <label for="_anim_radio2_4ddc6f86618041149a7d46694b29e99d">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_4ddc6f86618041149a7d46694b29e99d">
+      <label for="_anim_radio3_4ddc6f86618041149a7d46694b29e99d">Reflect</label>
     </form>
   </div>
 </div>
@@ -12424,9 +12454,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_imge2f9caffb003438699ae76e94034fb80";
-    var slider_id = "_anim_slidere2f9caffb003438699ae76e94034fb80";
-    var loop_select_id = "_anim_loop_selecte2f9caffb003438699ae76e94034fb80";
+    var img_id = "_anim_img4ddc6f86618041149a7d46694b29e99d";
+    var slider_id = "_anim_slider4ddc6f86618041149a7d46694b29e99d";
+    var loop_select_id = "_anim_loop_select4ddc6f86618041149a7d46694b29e99d";
     var frames = new Array(15);
     
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABUAAAAGwCAYAAABo288xAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -21973,7 +22003,7 @@ yK3/B5hFX7SWVKEjAAAAAElFTkSuQmCC\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        anime2f9caffb003438699ae76e94034fb80 = new Animation(frames, img_id, slider_id, 800.0,
+        anim4ddc6f86618041149a7d46694b29e99d = new Animation(frames, img_id, slider_id, 800.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -21990,7 +22020,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <section id="measured-costs-with-timedmodelfactory" class="level2">
 <h2 class="anchored" data-anchor-id="measured-costs-with-timedmodelfactory">Measured Costs with <code>TimedModelFactory</code></h2>
 <p>When model costs are unknown a priori, <code>TimedModelFactory</code> wraps any <code>ModelFactoryProtocol</code> and records wall-clock times for every evaluation. <code>MeasuredCostModel</code> reads these timings to provide data-driven cost estimates that update as the algorithm runs.</p>
-<div id="69f225dc" class="cell" data-execution_count="14">
+<div id="07ad07df" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    TimedModelFactory,</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    MeasuredCostModel,</span>
@@ -22006,7 +22036,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>_ <span class="op">=</span> timed_factory.get_model((<span class="dv">1</span>,))(test_samples)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>In a real application where different fidelity levels have genuinely different costs (e.g., coarse vs fine mesh PDE solves), the measured costs would differ significantly, and the cost-weighted indicator would automatically favor the cheaper model.</p>
-<div id="07e7a208" class="cell" data-execution_count="15">
+<div id="1fc878b8" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use measured costs with the adaptive fitter</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>tp_factory_mc <span class="op">=</span> TensorProductSubspaceFactory(bkd, phys_factories, growth)</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>max_1d_mc <span class="op">=</span> bkd.asarray([<span class="dv">10</span>, <span class="dv">1</span>], dtype<span class="op">=</span>bkd.int64_dtype())</span>
@@ -22035,7 +22065,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <p><span class="math display">\[
 f_\alpha(z_1, z_2) = \cos\!\left(\pi z_1 + \epsilon_\alpha\right) \cdot \sin\!\left(\pi z_2 / 2\right), \quad \epsilon_0 = 0.3,\ \epsilon_1 = 0.
 \]</span></p>
-<div id="8b74dfdc" class="cell" data-execution_count="16">
+<div id="8a90efed" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>epsilons_2d <span class="op">=</span> {<span class="dv">0</span>: <span class="fl">0.3</span>, <span class="dv">1</span>: <span class="fl">0.0</span>}</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>

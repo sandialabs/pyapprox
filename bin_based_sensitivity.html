@@ -386,6 +386,24 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1137,7 +1167,7 @@ R_{ij} = \frac{\Var[\E[Y|X_i, X_j]]}{\Var[Y]} = \Sobol{i} + \Sobol{j} + \Sobol{i
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="5c08c683" class="cell" data-execution_count="1">
+<div id="84763ccb" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1164,7 +1194,7 @@ Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
 <section id="first-order-indices" class="level2">
 <h2 class="anchored" data-anchor-id="first-order-indices">First-Order Indices</h2>
 <p>Let’s compute main effects using the bin-based method.</p>
-<div id="68e7ee55" class="cell" data-execution_count="2">
+<div id="e78d4501" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the prior</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">10000</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> prior.rvs(N)</span>
@@ -1177,7 +1207,7 @@ Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
 Values shape: (1, 10000)</code></pre>
 </div>
 </div>
-<div id="60439d0b" class="cell" data-execution_count="3">
+<div id="0f159c65" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create bin-based sensitivity analyzer</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1217,7 +1247,7 @@ Ground truth:
 <section id="visualizing-1d-bin-partitions" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-1d-bin-partitions">Visualizing 1D Bin Partitions</h2>
 <p>Let’s visualize how the conditional means are computed. First, we prepare the data:</p>
-<div id="4218c642" class="cell" data-execution_count="4">
+<div id="770e3077" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to numpy for visualization</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>nbins <span class="op">=</span> <span class="dv">10</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>samples_np <span class="op">=</span> bkd.to_numpy(samples)</span>
@@ -1264,7 +1294,7 @@ Figure&nbsp;1: Conditional means per bin for each input variable. Orange bars sh
 <section id="second-order-indices" class="level2">
 <h2 class="anchored" data-anchor-id="second-order-indices">Second-Order Indices</h2>
 <p>The Ishigami function has a notable interaction between <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_3\)</span> through the term <span class="math inline">\(0.1 X_3^4 \sin(X_1)\)</span>. Let’s compute the second-order index <span class="math inline">\(\Sobol{13}\)</span>.</p>
-<div id="4975efda" class="cell" data-execution_count="6">
+<div id="61524b21" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Set up interaction terms of interest (main effects + second-order)</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Interaction matrix: each column is a binary indicator of active variables</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Column 0: [1,0,0] = S_1, Column 1: [0,1,0] = S_2, etc.</span></span>
@@ -1307,7 +1337,7 @@ Sum of all indices = 0.7877 (should be close to 1)</code></pre>
 <section id="visualizing-2d-bin-partitions" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-2d-bin-partitions">Visualizing 2D Bin Partitions</h2>
 <p>Let’s visualize the 2D binning used to compute <span class="math inline">\(\Sobol{13}\)</span>. First, we compute the 2D grid of conditional means:</p>
-<div id="fc0ac9c3" class="cell" data-execution_count="7">
+<div id="49df63a2" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables for the X1-X3 interaction</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>var_i, var_j <span class="op">=</span> <span class="dv">0</span>, <span class="dv">2</span>  <span class="co"># X_1, X_3</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>nbins_2d <span class="op">=</span> <span class="dv">5</span></span>
@@ -1371,7 +1401,7 @@ Figure&nbsp;2: 2D binning for the <span class="math inline">\(X_1\)</span>–<sp
 <h2 class="anchored" data-anchor-id="comparison-bin-based-vs.-sample-based">Comparison: Bin-Based vs.&nbsp;Sample-Based</h2>
 <p>Let’s compare the bin-based estimates with the Saltelli/Jansen sample-based estimator <strong>at the same computational budget</strong> (same number of function evaluations).</p>
 <p>The sample-based method requires a special sampling design: two independent sample matrices <span class="math inline">\(\mt{A}\)</span> and <span class="math inline">\(\mt{B}\)</span> (each of size <span class="math inline">\(N_\text{base}\)</span>), plus <span class="math inline">\(d\)</span> mixed matrices <span class="math inline">\(\mt{C}_i\)</span>. The total cost is <span class="math inline">\(N_\text{base}(d + 2)\)</span> function evaluations. So for a budget of <span class="math inline">\(N\)</span> evaluations, the sample-based method can afford <span class="math inline">\(N_\text{base} = \lfloor N / (d + 2) \rfloor\)</span> base samples.</p>
-<div id="7a96c8f3" class="cell" data-execution_count="9">
+<div id="0eea6ee8" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> MonteCarloSensitivityAnalysis</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
@@ -1478,7 +1508,7 @@ Figure&nbsp;3: Convergence comparison at equal computational budget. Left: maxim
 <section id="bootstrap-uncertainty-estimates" class="level2">
 <h2 class="anchored" data-anchor-id="bootstrap-uncertainty-estimates">Bootstrap Uncertainty Estimates</h2>
 <p>Bin-based estimation has statistical uncertainty. Let’s quantify it using bootstrap.</p>
-<div id="d05f8fda" class="cell" data-execution_count="11">
+<div id="29bdc672" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bootstrap statistics</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> sa.bootstrap(samples, values, nbootstraps<span class="op">=</span><span class="dv">20</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>

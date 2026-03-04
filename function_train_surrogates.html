@@ -308,7 +308,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">Function Trains</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">An Introduction to Function Trains</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">Function Trains</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">An Introduction to Function Trains</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -382,6 +382,24 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -760,6 +778,18 @@ window.Quarto = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1012,7 +1042,7 @@ window.Quarto = {
    
   <ul>
   <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
-  <li><a href="#why-not-just-use-a-full-grid" id="toc-why-not-just-use-a-full-grid" class="nav-link" data-scroll-target="#why-not-just-use-a-full-grid">Why Not Just Use a Full Grid?</a></li>
+  <li><a href="#why-function-trains" id="toc-why-function-trains" class="nav-link" data-scroll-target="#why-function-trains">Why Function Trains?</a></li>
   <li><a href="#low-rank-functions" id="toc-low-rank-functions" class="nav-link" data-scroll-target="#low-rank-functions">Low-Rank Functions</a>
   <ul class="collapse">
   <li><a href="#rank-1-separable-functions" id="toc-rank-1-separable-functions" class="nav-link" data-scroll-target="#rank-1-separable-functions">Rank-1: Separable Functions</a></li>
@@ -1033,7 +1063,7 @@ window.Quarto = {
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item">Surrogate Modeling</li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">Function Trains</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">An Introduction to Function Trains</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">Function Trains</a></li><li class="breadcrumb-item"><a href="./function_train_surrogates.html">An Introduction to Function Trains</a></li></ol></nav>
 <div class="quarto-title">
 <div class="quarto-title-block"><div><h1 class="title">An Introduction to Function Trains</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
 <p class="subtitle lead">PyApprox Tutorial Library</p>
@@ -1085,10 +1115,9 @@ window.Quarto = {
 <li>Build a simple rank-2 function train using PyApprox and verify its output</li>
 </ul>
 </section>
-<section id="why-not-just-use-a-full-grid" class="level2">
-<h2 class="anchored" data-anchor-id="why-not-just-use-a-full-grid">Why Not Just Use a Full Grid?</h2>
-<p>Suppose you want to approximate a function <span class="math inline">\(f(x_1, x_2, \ldots, x_d)\)</span> by evaluating it on a grid. With <span class="math inline">\(n\)</span> grid points per dimension and <span class="math inline">\(d\)</span> variables, the total number of evaluations scales as <span class="math inline">\(n^d\)</span> — the infamous <strong>curse of dimensionality</strong>. For <span class="math inline">\(d = 20\)</span> and <span class="math inline">\(n = 10\)</span>, that is <span class="math inline">\(10^{20}\)</span> evaluations. No computer will ever finish.</p>
-<p>The way out is to exploit <strong>structure</strong>. Many functions that arise in practice are not completely entangled across all their inputs. Some variables contribute nearly independently; interactions may be local or low-dimensional. The <strong>function train</strong> (FT) decomposition is a way of making this structure explicit and exploiting it for fast approximation, integration, and sampling.</p>
+<section id="why-function-trains" class="level2">
+<h2 class="anchored" data-anchor-id="why-function-trains">Why Function Trains?</h2>
+<p>Approximating a <span class="math inline">\(d\)</span>-dimensional function on a full grid requires <span class="math inline">\(n^d\)</span> evaluations — the curse of dimensionality discussed in <a href="./surrogate_design.html">What Makes a Good Surrogate?</a>. The <strong>function train (FT)</strong> decomposition breaks this barrier by exploiting <strong>low-rank structure</strong>: when variables interact in a limited way, the FT represents the function with parameters scaling linearly in <span class="math inline">\(d\)</span> rather than exponentially.</p>
 <p>This tutorial builds intuition for the FT from the ground up, starting from the simplest possible case: a rank-1 function of two variables.</p>
 </section>
 <section id="low-rank-functions" class="level2">
@@ -1104,7 +1133,7 @@ f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)
 <p><span class="math display">\[
 f(x_1, x_2) = e^{-x_1^2 / 2} \cdot e^{-x_2^2 / 2} = e^{-(x_1^2 + x_2^2)/2}
 \]</span></p>
-<div id="e55812c9" class="cell" data-execution_count="1">
+<div id="8cb2a385" class="cell" data-execution_count="1">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
@@ -1136,7 +1165,7 @@ f(x_1, x_2) = g_1^{(1)}(x_1)\cdot g_2^{(1)}(x_2) \;+\; g_1^{(2)}(x_1)\cdot g_2^{
 \]</span></p>
 <p>Each term is itself separable, but the sum introduces interactions that a single product could not capture. The rank measures how many such product terms are needed.</p>
 <p>Let us build a concrete rank-2 example. We take two very different rank-1 terms and add them:</p>
-<div id="d597b004" class="cell" data-execution_count="2">
+<div id="64ae597a" class="cell" data-execution_count="2">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
@@ -1293,7 +1322,7 @@ f(x_1, \ldots, x_d)
 <li>Creates the correct orthogonal polynomial basis for each variable.</li>
 <li>Assembles the cores into a <code>FunctionTrain</code> with the specified rank.</li>
 </ol>
-<div id="78b01480" class="cell" data-execution_count="5">
+<div id="f6ffcf34" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal, GaussianMarginal</span>
@@ -1313,7 +1342,7 @@ f(x_1, \ldots, x_d)
 </div>
 <p>The shapes confirm the structure: core 0 is <span class="math inline">\(1 \times 2\)</span>, core 1 is <span class="math inline">\(2 \times 2\)</span>, and core 2 is <span class="math inline">\(2 \times 1\)</span>.</p>
 <p>We can evaluate the FT on a batch of samples just like any other surrogate:</p>
-<div id="7e120472" class="cell" data-execution_count="6">
+<div id="8e522b5e" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on 2000 random samples</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">3</span>, nsamples)))</span>
@@ -1336,7 +1365,7 @@ f(x_1, \ldots, x_d)
 <section id="visualising-a-fitted-rank-2-ft" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-a-fitted-rank-2-ft">Visualising a Fitted Rank-2 FT</h2>
 <p>To build intuition for what the FT actually represents, let us manually set the coefficients to reproduce the rank-2 Gaussian example from earlier.</p>
-<div id="0c6a4070" class="cell" data-execution_count="7">
+<div id="cb4cd587" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Recall our target:</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#   f(x1, x2) = g1_a(x1)*g2_a(x2) + g1_b(x1)*g2_b(x2)  (rank-2, 2 variables)</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># We will build a 2-variable version for this illustration.</span></span>
@@ -1407,7 +1436,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <section id="what-does-the-rank-control" class="level2">
 <h2 class="anchored" data-anchor-id="what-does-the-rank-control">What Does the Rank Control?</h2>
 <p>The rank <span class="math inline">\(r\)</span> is the single number that determines how much interaction between variables the FT can represent. A quick experiment illustrates this:</p>
-<div id="6551ed4c" class="cell" data-execution_count="9">
+<div id="ed384188" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1926,492 +1955,483 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 16</span></span>
 <span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - setup_environment</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - function-train</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - low-rank</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - tensor-decomposition</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/function_train_surrogates.ipynb)</span></span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain what it means for a multivariate function to have low rank</span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct rank-1 and rank-2 functions as products and sums of 1D functions</span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe a function train core as a matrix whose entries are univariate functions</span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain how the FT represents a $d$-dimensional function as a product of such matrices</span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Build a simple rank-2 function train using PyApprox and verify its output</span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate_workflow</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate_design</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - function-train</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - low-rank</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - tensor-decomposition</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/function_train_surrogates.ipynb)</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain what it means for a multivariate function to have low rank</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct rank-1 and rank-2 functions as products and sums of 1D functions</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe a function train core as a matrix whose entries are univariate functions</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain how the FT represents a $d$-dimensional function as a product of such matrices</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Build a simple rank-2 function train using PyApprox and verify its output</span>
 <span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Not Just Use a Full Grid?</span></span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>Suppose you want to approximate a function $f(x_1, x_2, \ldots, x_d)$ by evaluating it on a</span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>grid. With $n$ grid points per dimension and $d$ variables, the total number of evaluations</span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>scales as $n^d$ --- the infamous **curse of dimensionality**. For $d = 20$ and $n = 10$, that</span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>is $10^{20}$ evaluations. No computer will ever finish.</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Function Trains?</span></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>Approximating a $d$-dimensional function on a full grid requires $n^d$ evaluations --- the curse of dimensionality discussed in <span class="co">[</span><span class="ot">What Makes a Good Surrogate?</span><span class="co">](surrogate_design.qmd)</span>. The **function train (FT)** decomposition breaks this barrier by exploiting **low-rank structure**: when variables interact in a limited way, the FT represents the function with parameters scaling linearly in $d$ rather than exponentially.</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>This tutorial builds intuition for the FT from the ground up, starting from the simplest possible case: a rank-1 function of two variables.</span>
 <span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>The way out is to exploit **structure**. Many functions that arise in practice are not</span>
-<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>completely entangled across all their inputs. Some variables contribute nearly independently;</span>
-<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>interactions may be local or low-dimensional. The **function train** (FT) decomposition is a</span>
-<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>way of making this structure explicit and exploiting it for fast approximation, integration,</span>
-<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>and sampling.</span>
-<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>This tutorial builds intuition for the FT from the ground up, starting from the simplest</span>
-<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>possible case: a rank-1 function of two variables.</span>
-<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a><span class="fu">## Low-Rank Functions</span></span>
-<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a><span class="fu">### Rank-1: Separable Functions</span></span>
-<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>The simplest structured multivariate function is a **separable** one:</span>
-<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)</span>
-<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a>This is called **rank-1** because the entire function is the product of two univariate</span>
-<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a>pieces. Knowing $g_1$ and $g_2$ completely determines $f$ --- there is no irreducible</span>
-<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>two-variable interaction.</span>
-<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a>A familiar example is the product of two 1D Gaussians:</span>
-<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = e^{-x_1^2 / 2} \cdot e^{-x_2^2 / 2} = e^{-(x_1^2 + x_2^2)/2}</span>
-<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_rank1_contours</span>
-<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>))</span>
-<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>cf <span class="op">=</span> plot_ft_rank1_contours(axes)</span>
-<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a>fig.colorbar(cf, ax<span class="op">=</span>axes[<span class="dv">2</span>])</span>
-<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Rank-1 function: a product of two 1D Gaussians"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
-<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-94"><a href="#cb6-94" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-95"><a href="#cb6-95" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a>The contour plot shows perfectly circular contour lines: the function is symmetric and has no</span>
-<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a>preference between $x_1$ and $x_2$. Every horizontal slice of the surface at fixed $x_1$</span>
-<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a>is just a rescaled version of $g_2$, and vice versa. This is the hallmark of a rank-1</span>
-<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a>function.</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a><span class="fu">## Low-Rank Functions</span></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a><span class="fu">### Rank-1: Separable Functions</span></span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>The simplest structured multivariate function is a **separable** one:</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)</span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>This is called **rank-1** because the entire function is the product of two univariate</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>pieces. Knowing $g_1$ and $g_2$ completely determines $f$ --- there is no irreducible</span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>two-variable interaction.</span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a>A familiar example is the product of two 1D Gaussians:</span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = e^{-x_1^2 / 2} \cdot e^{-x_2^2 / 2} = e^{-(x_1^2 + x_2^2)/2}</span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_rank1_contours</span>
+<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>))</span>
+<span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>cf <span class="op">=</span> plot_ft_rank1_contours(axes)</span>
+<span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a>fig.colorbar(cf, ax<span class="op">=</span>axes[<span class="dv">2</span>])</span>
+<span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Rank-1 function: a product of two 1D Gaussians"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
+<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>The contour plot shows perfectly circular contour lines: the function is symmetric and has no</span>
+<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a>preference between $x_1$ and $x_2$. Every horizontal slice of the surface at fixed $x_1$</span>
+<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>is just a rescaled version of $g_2$, and vice versa. This is the hallmark of a rank-1</span>
+<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a>function.</span>
+<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-94"><a href="#cb6-94" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Analogy to Rank-1 Matrices</span></span>
+<span id="cb6-95"><a href="#cb6-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a>A rank-1 matrix can be written as an outer product: $A_{ij} = u_i v_j$. A rank-1 function</span>
+<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a>$f(x_1, x_2) = g_1(x_1)\, g_2(x_2)$ is the *exact same idea* lifted to continuous functions.</span>
+<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a>Just as a rank-1 matrix is determined by two vectors, a rank-1 function is determined by</span>
+<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a>two univariate functions.</span>
+<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb6-101"><a href="#cb6-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Analogy to Rank-1 Matrices</span></span>
+<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a><span class="fu">### Rank-2: Sums of Products</span></span>
 <span id="cb6-104"><a href="#cb6-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>A rank-1 matrix can be written as an outer product: $A_{ij} = u_i v_j$. A rank-1 function</span>
-<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a>$f(x_1, x_2) = g_1(x_1)\, g_2(x_2)$ is the *exact same idea* lifted to continuous functions.</span>
-<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a>Just as a rank-1 matrix is determined by two vectors, a rank-1 function is determined by</span>
-<span id="cb6-108"><a href="#cb6-108" aria-hidden="true" tabindex="-1"></a>two univariate functions.</span>
-<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>Most interesting functions cannot be written as a single product. A **rank-2** function</span>
+<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a>is a sum of two rank-1 terms:</span>
+<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-108"><a href="#cb6-108" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = g_1^{(1)}(x_1)\cdot g_2^{(1)}(x_2) \;+\; g_1^{(2)}(x_1)\cdot g_2^{(2)}(x_2)</span>
+<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb6-111"><a href="#cb6-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a><span class="fu">### Rank-2: Sums of Products</span></span>
-<span id="cb6-113"><a href="#cb6-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-114"><a href="#cb6-114" aria-hidden="true" tabindex="-1"></a>Most interesting functions cannot be written as a single product. A **rank-2** function</span>
-<span id="cb6-115"><a href="#cb6-115" aria-hidden="true" tabindex="-1"></a>is a sum of two rank-1 terms:</span>
-<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-118"><a href="#cb6-118" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = g_1^{(1)}(x_1)\cdot g_2^{(1)}(x_2) \;+\; g_1^{(2)}(x_1)\cdot g_2^{(2)}(x_2)</span>
-<span id="cb6-119"><a href="#cb6-119" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a>Each term is itself separable, but the sum introduces interactions that a single product</span>
-<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a>could not capture. The rank measures how many such product terms are needed.</span>
+<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a>Each term is itself separable, but the sum introduces interactions that a single product</span>
+<span id="cb6-113"><a href="#cb6-113" aria-hidden="true" tabindex="-1"></a>could not capture. The rank measures how many such product terms are needed.</span>
+<span id="cb6-114"><a href="#cb6-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-115"><a href="#cb6-115" aria-hidden="true" tabindex="-1"></a>Let us build a concrete rank-2 example. We take two very different rank-1 terms and</span>
+<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a>add them:</span>
+<span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_highrank_contours</span>
 <span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>Let us build a concrete rank-2 example. We take two very different rank-1 terms and</span>
-<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a>add them:</span>
-<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-129"><a href="#cb6-129" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_highrank_contours</span>
-<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.0</span>))</span>
-<span id="cb6-134"><a href="#cb6-134" aria-hidden="true" tabindex="-1"></a>plot_ft_highrank_contours(axes, fig<span class="op">=</span>fig)</span>
-<span id="cb6-135"><a href="#cb6-135" aria-hidden="true" tabindex="-1"></a>plt.suptitle(</span>
-<span id="cb6-136"><a href="#cb6-136" aria-hidden="true" tabindex="-1"></a>    <span class="vs">r"Rank-2 function: </span><span class="dv">$</span><span class="vs">f = g_1</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">1</span><span class="kw">)</span><span class="vs">}g_2</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">1</span><span class="kw">)</span><span class="vs">} </span><span class="op">+</span><span class="vs"> g_1</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">2</span><span class="kw">)</span><span class="vs">}g_2</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">2</span><span class="kw">)</span><span class="vs">}</span><span class="dv">$</span><span class="vs">"</span>,</span>
-<span id="cb6-137"><a href="#cb6-137" aria-hidden="true" tabindex="-1"></a>    fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span></span>
-<span id="cb6-138"><a href="#cb6-138" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a>The rank-2 function has two distinct peaks and asymmetric contours --- structure that no</span>
-<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a>single rank-1 term could reproduce. The rank measures the *complexity of interaction*</span>
-<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a>between variables: rank-1 means "completely separable", higher rank means "more</span>
-<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a>entangled".</span>
-<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a>In general, a rank-$r$ function of two variables is:</span>
+<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.0</span>))</span>
+<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a>plot_ft_highrank_contours(axes, fig<span class="op">=</span>fig)</span>
+<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a>plt.suptitle(</span>
+<span id="cb6-127"><a href="#cb6-127" aria-hidden="true" tabindex="-1"></a>    <span class="vs">r"Rank-2 function: </span><span class="dv">$</span><span class="vs">f = g_1</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">1</span><span class="kw">)</span><span class="vs">}g_2</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">1</span><span class="kw">)</span><span class="vs">} </span><span class="op">+</span><span class="vs"> g_1</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">2</span><span class="kw">)</span><span class="vs">}g_2</span><span class="dv">^</span><span class="vs">{</span><span class="kw">(</span><span class="vs">2</span><span class="kw">)</span><span class="vs">}</span><span class="dv">$</span><span class="vs">"</span>,</span>
+<span id="cb6-128"><a href="#cb6-128" aria-hidden="true" tabindex="-1"></a>    fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span></span>
+<span id="cb6-129"><a href="#cb6-129" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-134"><a href="#cb6-134" aria-hidden="true" tabindex="-1"></a>The rank-2 function has two distinct peaks and asymmetric contours --- structure that no</span>
+<span id="cb6-135"><a href="#cb6-135" aria-hidden="true" tabindex="-1"></a>single rank-1 term could reproduce. The rank measures the *complexity of interaction*</span>
+<span id="cb6-136"><a href="#cb6-136" aria-hidden="true" tabindex="-1"></a>between variables: rank-1 means "completely separable", higher rank means "more</span>
+<span id="cb6-137"><a href="#cb6-137" aria-hidden="true" tabindex="-1"></a>entangled".</span>
+<span id="cb6-138"><a href="#cb6-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a>In general, a rank-$r$ function of two variables is:</span>
+<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = \sum_{\alpha=1}^{r} g_1^{(\alpha)}(x_1)\cdot g_2^{(\alpha)}(x_2)</span>
+<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a>The question for approximation is: *how large does $r$ need to be before we get an</span>
+<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a>accurate representation?* For many functions arising in UQ, the answer is surprisingly</span>
+<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a>small even in high dimensions --- and that is what the function train exploits.</span>
+<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-149"><a href="#cb6-149" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-150"><a href="#cb6-150" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = \sum_{\alpha=1}^{r} g_1^{(\alpha)}(x_1)\cdot g_2^{(\alpha)}(x_2)</span>
-<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a>The question for approximation is: *how large does $r$ need to be before we get an</span>
-<span id="cb6-155"><a href="#cb6-155" aria-hidden="true" tabindex="-1"></a>accurate representation?* For many functions arising in UQ, the answer is surprisingly</span>
-<span id="cb6-156"><a href="#cb6-156" aria-hidden="true" tabindex="-1"></a>small even in high dimensions --- and that is what the function train exploits.</span>
-<span id="cb6-157"><a href="#cb6-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a><span class="fu">## From Products to Matrices of Functions</span></span>
+<span id="cb6-150"><a href="#cb6-150" aria-hidden="true" tabindex="-1"></a><span class="fu">## From Products to Matrices of Functions</span></span>
+<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a>The rank-2 formula above can be written more compactly by thinking of the univariate</span>
+<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a>pieces as entries of row and column vectors:</span>
+<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-155"><a href="#cb6-155" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-156"><a href="#cb6-156" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2)</span>
+<span id="cb6-157"><a href="#cb6-157" aria-hidden="true" tabindex="-1"></a>= \underbrace{\begin{bmatrix} g_1^{(1)}(x_1) &amp; g_1^{(2)}(x_1) \end{bmatrix}}_{\mathbf{G}_1(x_1) \in \mathbb{R}^{1 \times 2}}</span>
+<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a>\underbrace{\begin{bmatrix} g_2^{(1)}(x_2) <span class="sc">\\</span> g_2^{(2)}(x_2) \end{bmatrix}}_{\mathbf{G}_2(x_2) \in \mathbb{R}^{2 \times 1}}</span>
+<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb6-160"><a href="#cb6-160" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a>The rank-2 formula above can be written more compactly by thinking of the univariate</span>
-<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a>pieces as entries of row and column vectors:</span>
-<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2)</span>
-<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a>= \underbrace{\begin{bmatrix} g_1^{(1)}(x_1) &amp; g_1^{(2)}(x_1) \end{bmatrix}}_{\mathbf{G}_1(x_1) \in \mathbb{R}^{1 \times 2}}</span>
-<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a>\underbrace{\begin{bmatrix} g_2^{(1)}(x_2) <span class="sc">\\</span> g_2^{(2)}(x_2) \end{bmatrix}}_{\mathbf{G}_2(x_2) \in \mathbb{R}^{2 \times 1}}</span>
-<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a>Read this carefully: $\mathbf{G}_1(x_1)$ is a $1 \times 2$ **row vector whose entries are</span>
-<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a>univariate functions of $x_1$**, and $\mathbf{G}_2(x_2)$ is a $2 \times 1$ **column vector</span>
-<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a>whose entries are univariate functions of $x_2$**. Their "product" is an ordinary</span>
-<span id="cb6-173"><a href="#cb6-173" aria-hidden="true" tabindex="-1"></a>matrix-vector product carried out entry-by-entry, evaluated at the given $(x_1, x_2)$.</span>
-<span id="cb6-174"><a href="#cb6-174" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a>The result is a scalar: exactly our rank-2 function.</span>
-<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a>This observation is the heart of the function train. We have replaced the sum-of-products</span>
-<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a>formula with a **matrix product of function-valued matrices**. The rank $r$ becomes the</span>
-<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a>shared dimension of the two matrices --- identical to how the inner dimension of a matrix</span>
-<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a>product determines the rank of the result in linear algebra.</span>
-<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-186"><a href="#cb6-186" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2."</span></span>
-<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-core-diagram</span></span>
-<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_core_diagram</span>
+<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a>Read this carefully: $\mathbf{G}_1(x_1)$ is a $1 \times 2$ **row vector whose entries are</span>
+<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a>univariate functions of $x_1$**, and $\mathbf{G}_2(x_2)$ is a $2 \times 1$ **column vector</span>
+<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a>whose entries are univariate functions of $x_2$**. Their "product" is an ordinary</span>
+<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a>matrix-vector product carried out entry-by-entry, evaluated at the given $(x_1, x_2)$.</span>
+<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a>The result is a scalar: exactly our rank-2 function.</span>
+<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a>This observation is the heart of the function train. We have replaced the sum-of-products</span>
+<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a>formula with a **matrix product of function-valued matrices**. The rank $r$ becomes the</span>
+<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a>shared dimension of the two matrices --- identical to how the inner dimension of a matrix</span>
+<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a>product determines the rank of the result in linear algebra.</span>
+<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2."</span></span>
+<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-core-diagram</span></span>
+<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_core_diagram</span>
+<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="fl">3.5</span>))</span>
+<span id="cb6-182"><a href="#cb6-182" aria-hidden="true" tabindex="-1"></a>plot_core_diagram(ax)</span>
+<span id="cb6-183"><a href="#cb6-183" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-186"><a href="#cb6-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a><span class="fu">## Extending to Three Variables: The Function Train</span></span>
 <span id="cb6-189"><a href="#cb6-189" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="fl">3.5</span>))</span>
-<span id="cb6-191"><a href="#cb6-191" aria-hidden="true" tabindex="-1"></a>plot_core_diagram(ax)</span>
-<span id="cb6-192"><a href="#cb6-192" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-193"><a href="#cb6-193" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-197"><a href="#cb6-197" aria-hidden="true" tabindex="-1"></a><span class="fu">## Extending to Three Variables: The Function Train</span></span>
-<span id="cb6-198"><a href="#cb6-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a>Now suppose we have three variables: $f(x_1, x_2, x_3)$. We would like to represent it</span>
-<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a>as a chain of matrix multiplications. We introduce a **middle core** $\mathbf{G}_2(x_2)$</span>
-<span id="cb6-201"><a href="#cb6-201" aria-hidden="true" tabindex="-1"></a>that is neither a row vector nor a column vector, but a full $r \times r$ matrix of</span>
-<span id="cb6-202"><a href="#cb6-202" aria-hidden="true" tabindex="-1"></a>univariate functions:</span>
-<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2, x_3)</span>
-<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a>=</span>
-<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_1(x_1)}_{1 \times r}</span>
-<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
-<span id="cb6-209"><a href="#cb6-209" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_2(x_2)}_{r \times r}</span>
-<span id="cb6-210"><a href="#cb6-210" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
-<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_3(x_3)}_{r \times 1}</span>
-<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a>Each core $\mathbf{G}_k(x_k)$ is a matrix of univariate functions of $x_k$ only. For a</span>
-<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a>fixed point $(x_1, x_2, x_3)$, each core becomes a matrix of numbers, and the whole</span>
-<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a>expression is just an ordinary chain of matrix multiplications that produces a scalar.</span>
-<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar."</span></span>
-<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-3var</span></span>
-<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_3var</span>
-<span id="cb6-225"><a href="#cb6-225" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-226"><a href="#cb6-226" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
-<span id="cb6-227"><a href="#cb6-227" aria-hidden="true" tabindex="-1"></a>plot_ft_3var(ax)</span>
-<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a>The key properties to take away from this diagram are:</span>
+<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a>Now suppose we have three variables: $f(x_1, x_2, x_3)$. We would like to represent it</span>
+<span id="cb6-191"><a href="#cb6-191" aria-hidden="true" tabindex="-1"></a>as a chain of matrix multiplications. We introduce a **middle core** $\mathbf{G}_2(x_2)$</span>
+<span id="cb6-192"><a href="#cb6-192" aria-hidden="true" tabindex="-1"></a>that is neither a row vector nor a column vector, but a full $r \times r$ matrix of</span>
+<span id="cb6-193"><a href="#cb6-193" aria-hidden="true" tabindex="-1"></a>univariate functions:</span>
+<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2, x_3)</span>
+<span id="cb6-197"><a href="#cb6-197" aria-hidden="true" tabindex="-1"></a>=</span>
+<span id="cb6-198"><a href="#cb6-198" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_1(x_1)}_{1 \times r}</span>
+<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
+<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_2(x_2)}_{r \times r}</span>
+<span id="cb6-201"><a href="#cb6-201" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
+<span id="cb6-202"><a href="#cb6-202" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_3(x_3)}_{r \times 1}</span>
+<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a>Each core $\mathbf{G}_k(x_k)$ is a matrix of univariate functions of $x_k$ only. For a</span>
+<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a>fixed point $(x_1, x_2, x_3)$, each core becomes a matrix of numbers, and the whole</span>
+<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a>expression is just an ordinary chain of matrix multiplications that produces a scalar.</span>
+<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar."</span></span>
+<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-3var</span></span>
+<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_3var</span>
+<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
+<span id="cb6-218"><a href="#cb6-218" aria-hidden="true" tabindex="-1"></a>plot_ft_3var(ax)</span>
+<span id="cb6-219"><a href="#cb6-219" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a>The key properties to take away from this diagram are:</span>
+<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-225"><a href="#cb6-225" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **first core** is always a $1 \times r$ row vector (one row, $r$ columns).</span>
+<span id="cb6-226"><a href="#cb6-226" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **last core** is always an $r \times 1$ column vector ($r$ rows, one column).</span>
+<span id="cb6-227"><a href="#cb6-227" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Every **interior core** is a full $r \times r$ matrix.</span>
+<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The result of the chain is always a **scalar**, because $1 \times r$ times $r \times r$</span>
+<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a>  times (possibly several more $r \times r$) times $r \times 1$ gives $1 \times 1$.</span>
+<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a><span class="fu">## Ranks Can Vary Between Cores</span></span>
 <span id="cb6-233"><a href="#cb6-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-234"><a href="#cb6-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **first core** is always a $1 \times r$ row vector (one row, $r$ columns).</span>
-<span id="cb6-235"><a href="#cb6-235" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **last core** is always an $r \times 1$ column vector ($r$ rows, one column).</span>
-<span id="cb6-236"><a href="#cb6-236" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Every **interior core** is a full $r \times r$ matrix.</span>
-<span id="cb6-237"><a href="#cb6-237" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The result of the chain is always a **scalar**, because $1 \times r$ times $r \times r$</span>
-<span id="cb6-238"><a href="#cb6-238" aria-hidden="true" tabindex="-1"></a>  times (possibly several more $r \times r$) times $r \times 1$ gives $1 \times 1$.</span>
-<span id="cb6-239"><a href="#cb6-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-240"><a href="#cb6-240" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb6-241"><a href="#cb6-241" aria-hidden="true" tabindex="-1"></a><span class="fu">## Ranks Can Vary Between Cores</span></span>
-<span id="cb6-242"><a href="#cb6-242" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-243"><a href="#cb6-243" aria-hidden="true" tabindex="-1"></a>The example above uses a single rank $r = 2$ for all cores, but in general</span>
-<span id="cb6-244"><a href="#cb6-244" aria-hidden="true" tabindex="-1"></a>**each pair of adjacent cores can have a different rank**. For example, with</span>
-<span id="cb6-245"><a href="#cb6-245" aria-hidden="true" tabindex="-1"></a>$d = 3$ variables and ranks $r_1 = 2$, $r_2 = 3$:</span>
+<span id="cb6-234"><a href="#cb6-234" aria-hidden="true" tabindex="-1"></a>The example above uses a single rank $r = 2$ for all cores, but in general</span>
+<span id="cb6-235"><a href="#cb6-235" aria-hidden="true" tabindex="-1"></a>**each pair of adjacent cores can have a different rank**. For example, with</span>
+<span id="cb6-236"><a href="#cb6-236" aria-hidden="true" tabindex="-1"></a>$d = 3$ variables and ranks $r_1 = 2$, $r_2 = 3$:</span>
+<span id="cb6-237"><a href="#cb6-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-238"><a href="#cb6-238" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-239"><a href="#cb6-239" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2, x_3)</span>
+<span id="cb6-240"><a href="#cb6-240" aria-hidden="true" tabindex="-1"></a>= \underbrace{\mathbf{G}_1(x_1)}_{1 \times 2}</span>
+<span id="cb6-241"><a href="#cb6-241" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
+<span id="cb6-242"><a href="#cb6-242" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_2(x_2)}_{2 \times 3}</span>
+<span id="cb6-243"><a href="#cb6-243" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
+<span id="cb6-244"><a href="#cb6-244" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_3(x_3)}_{3 \times 1}</span>
+<span id="cb6-245"><a href="#cb6-245" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb6-246"><a href="#cb6-246" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-247"><a href="#cb6-247" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-248"><a href="#cb6-248" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2, x_3)</span>
-<span id="cb6-249"><a href="#cb6-249" aria-hidden="true" tabindex="-1"></a>= \underbrace{\mathbf{G}_1(x_1)}_{1 \times 2}</span>
-<span id="cb6-250"><a href="#cb6-250" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
-<span id="cb6-251"><a href="#cb6-251" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_2(x_2)}_{2 \times 3}</span>
-<span id="cb6-252"><a href="#cb6-252" aria-hidden="true" tabindex="-1"></a>\;\cdot\;</span>
-<span id="cb6-253"><a href="#cb6-253" aria-hidden="true" tabindex="-1"></a>\underbrace{\mathbf{G}_3(x_3)}_{3 \times 1}</span>
+<span id="cb6-247"><a href="#cb6-247" aria-hidden="true" tabindex="-1"></a>The shared dimensions still match at every boundary so the matrix chain produces</span>
+<span id="cb6-248"><a href="#cb6-248" aria-hidden="true" tabindex="-1"></a>a scalar. Allowing variable ranks lets the FT allocate more expressiveness to</span>
+<span id="cb6-249"><a href="#cb6-249" aria-hidden="true" tabindex="-1"></a>the dimensions that need it.</span>
+<span id="cb6-250"><a href="#cb6-250" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-251"><a href="#cb6-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-252"><a href="#cb6-252" aria-hidden="true" tabindex="-1"></a>Extending to $d$ variables is simply a matter of adding more cores in the chain:</span>
+<span id="cb6-253"><a href="#cb6-253" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-254"><a href="#cb6-254" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-255"><a href="#cb6-255" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-256"><a href="#cb6-256" aria-hidden="true" tabindex="-1"></a>The shared dimensions still match at every boundary so the matrix chain produces</span>
-<span id="cb6-257"><a href="#cb6-257" aria-hidden="true" tabindex="-1"></a>a scalar. Allowing variable ranks lets the FT allocate more expressiveness to</span>
-<span id="cb6-258"><a href="#cb6-258" aria-hidden="true" tabindex="-1"></a>the dimensions that need it.</span>
-<span id="cb6-259"><a href="#cb6-259" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-260"><a href="#cb6-260" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-261"><a href="#cb6-261" aria-hidden="true" tabindex="-1"></a>Extending to $d$ variables is simply a matter of adding more cores in the chain:</span>
+<span id="cb6-255"><a href="#cb6-255" aria-hidden="true" tabindex="-1"></a>f(x_1, \ldots, x_d)</span>
+<span id="cb6-256"><a href="#cb6-256" aria-hidden="true" tabindex="-1"></a>= \mathbf{G}_1(x_1)</span>
+<span id="cb6-257"><a href="#cb6-257" aria-hidden="true" tabindex="-1"></a>\cdot \mathbf{G}_2(x_2)</span>
+<span id="cb6-258"><a href="#cb6-258" aria-hidden="true" tabindex="-1"></a>\cdots</span>
+<span id="cb6-259"><a href="#cb6-259" aria-hidden="true" tabindex="-1"></a>\mathbf{G}_{d-1}(x_{d-1})</span>
+<span id="cb6-260"><a href="#cb6-260" aria-hidden="true" tabindex="-1"></a>\cdot \mathbf{G}_d(x_d)</span>
+<span id="cb6-261"><a href="#cb6-261" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb6-262"><a href="#cb6-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-263"><a href="#cb6-263" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-264"><a href="#cb6-264" aria-hidden="true" tabindex="-1"></a>f(x_1, \ldots, x_d)</span>
-<span id="cb6-265"><a href="#cb6-265" aria-hidden="true" tabindex="-1"></a>= \mathbf{G}_1(x_1)</span>
-<span id="cb6-266"><a href="#cb6-266" aria-hidden="true" tabindex="-1"></a>\cdot \mathbf{G}_2(x_2)</span>
-<span id="cb6-267"><a href="#cb6-267" aria-hidden="true" tabindex="-1"></a>\cdots</span>
-<span id="cb6-268"><a href="#cb6-268" aria-hidden="true" tabindex="-1"></a>\mathbf{G}_{d-1}(x_{d-1})</span>
-<span id="cb6-269"><a href="#cb6-269" aria-hidden="true" tabindex="-1"></a>\cdot \mathbf{G}_d(x_d)</span>
-<span id="cb6-270"><a href="#cb6-270" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-271"><a href="#cb6-271" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-272"><a href="#cb6-272" aria-hidden="true" tabindex="-1"></a>Each core depends on a single variable. The coupling between variables comes entirely</span>
-<span id="cb6-273"><a href="#cb6-273" aria-hidden="true" tabindex="-1"></a>from the matrix products. This is the function train.</span>
-<span id="cb6-274"><a href="#cb6-274" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-275"><a href="#cb6-275" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb6-276"><a href="#cb6-276" aria-hidden="true" tabindex="-1"></a><span class="fu">## Connection to Tensor Trains</span></span>
-<span id="cb6-277"><a href="#cb6-277" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-278"><a href="#cb6-278" aria-hidden="true" tabindex="-1"></a>The function train is the continuous analogue of the **tensor train (TT) decomposition**</span>
-<span id="cb6-279"><a href="#cb6-279" aria-hidden="true" tabindex="-1"></a>from numerical linear algebra. A TT decomposition represents a high-dimensional array</span>
-<span id="cb6-280"><a href="#cb6-280" aria-hidden="true" tabindex="-1"></a>$A_{i_1 i_2 \cdots i_d}$ as a product of 3D "core" arrays. The FT does the same thing</span>
-<span id="cb6-281"><a href="#cb6-281" aria-hidden="true" tabindex="-1"></a>for continuous functions by replacing discrete indices with continuous variables</span>
-<span id="cb6-282"><a href="#cb6-282" aria-hidden="true" tabindex="-1"></a>and replacing array slices with univariate functions.</span>
-<span id="cb6-283"><a href="#cb6-283" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-284"><a href="#cb6-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-285"><a href="#cb6-285" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-286"><a href="#cb6-286" aria-hidden="true" tabindex="-1"></a><span class="fu">## Each Core Entry is a Polynomial Expansion</span></span>
-<span id="cb6-287"><a href="#cb6-287" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-288"><a href="#cb6-288" aria-hidden="true" tabindex="-1"></a>In practice, each univariate function inside a core is represented as a **polynomial</span>
-<span id="cb6-289"><a href="#cb6-289" aria-hidden="true" tabindex="-1"></a>chaos expansion (PCE)** --- a finite sum of orthogonal polynomials chosen to match the</span>
-<span id="cb6-290"><a href="#cb6-290" aria-hidden="true" tabindex="-1"></a>input distribution of that variable. This connects the function train directly to the</span>
-<span id="cb6-291"><a href="#cb6-291" aria-hidden="true" tabindex="-1"></a>polynomial surrogates you may already be familiar with.</span>
+<span id="cb6-263"><a href="#cb6-263" aria-hidden="true" tabindex="-1"></a>Each core depends on a single variable. The coupling between variables comes entirely</span>
+<span id="cb6-264"><a href="#cb6-264" aria-hidden="true" tabindex="-1"></a>from the matrix products. This is the function train.</span>
+<span id="cb6-265"><a href="#cb6-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-266"><a href="#cb6-266" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-267"><a href="#cb6-267" aria-hidden="true" tabindex="-1"></a><span class="fu">## Connection to Tensor Trains</span></span>
+<span id="cb6-268"><a href="#cb6-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-269"><a href="#cb6-269" aria-hidden="true" tabindex="-1"></a>The function train is the continuous analogue of the **tensor train (TT) decomposition**</span>
+<span id="cb6-270"><a href="#cb6-270" aria-hidden="true" tabindex="-1"></a>from numerical linear algebra. A TT decomposition represents a high-dimensional array</span>
+<span id="cb6-271"><a href="#cb6-271" aria-hidden="true" tabindex="-1"></a>$A_{i_1 i_2 \cdots i_d}$ as a product of 3D "core" arrays. The FT does the same thing</span>
+<span id="cb6-272"><a href="#cb6-272" aria-hidden="true" tabindex="-1"></a>for continuous functions by replacing discrete indices with continuous variables</span>
+<span id="cb6-273"><a href="#cb6-273" aria-hidden="true" tabindex="-1"></a>and replacing array slices with univariate functions.</span>
+<span id="cb6-274"><a href="#cb6-274" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-275"><a href="#cb6-275" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-276"><a href="#cb6-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-277"><a href="#cb6-277" aria-hidden="true" tabindex="-1"></a><span class="fu">## Each Core Entry is a Polynomial Expansion</span></span>
+<span id="cb6-278"><a href="#cb6-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-279"><a href="#cb6-279" aria-hidden="true" tabindex="-1"></a>In practice, each univariate function inside a core is represented as a **polynomial</span>
+<span id="cb6-280"><a href="#cb6-280" aria-hidden="true" tabindex="-1"></a>chaos expansion (PCE)** --- a finite sum of orthogonal polynomials chosen to match the</span>
+<span id="cb6-281"><a href="#cb6-281" aria-hidden="true" tabindex="-1"></a>input distribution of that variable. This connects the function train directly to the</span>
+<span id="cb6-282"><a href="#cb6-282" aria-hidden="true" tabindex="-1"></a>polynomial surrogates you may already be familiar with.</span>
+<span id="cb6-283"><a href="#cb6-283" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-284"><a href="#cb6-284" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
+<span id="cb6-285"><a href="#cb6-285" aria-hidden="true" tabindex="-1"></a><span class="fu">## Recap: PCEs and Orthogonal Polynomials</span></span>
+<span id="cb6-286"><a href="#cb6-286" aria-hidden="true" tabindex="-1"></a>For a Gaussian variable $x \sim \mathcal{N}(0,1)$, the natural polynomial basis is</span>
+<span id="cb6-287"><a href="#cb6-287" aria-hidden="true" tabindex="-1"></a>the Hermite polynomials $<span class="sc">\{</span>He_0, He_1, He_2, \ldots<span class="sc">\}</span>$. For a uniform variable</span>
+<span id="cb6-288"><a href="#cb6-288" aria-hidden="true" tabindex="-1"></a>$x \sim \mathcal{U}(-1,1)$, the basis is the Legendre polynomials. PyApprox selects</span>
+<span id="cb6-289"><a href="#cb6-289" aria-hidden="true" tabindex="-1"></a>the correct family automatically from the marginal distribution. See</span>
+<span id="cb6-290"><a href="#cb6-290" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> for details.</span>
+<span id="cb6-291"><a href="#cb6-291" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb6-292"><a href="#cb6-292" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-293"><a href="#cb6-293" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
-<span id="cb6-294"><a href="#cb6-294" aria-hidden="true" tabindex="-1"></a><span class="fu">## Recap: PCEs and Orthogonal Polynomials</span></span>
-<span id="cb6-295"><a href="#cb6-295" aria-hidden="true" tabindex="-1"></a>For a Gaussian variable $x \sim \mathcal{N}(0,1)$, the natural polynomial basis is</span>
-<span id="cb6-296"><a href="#cb6-296" aria-hidden="true" tabindex="-1"></a>the Hermite polynomials $<span class="sc">\{</span>He_0, He_1, He_2, \ldots<span class="sc">\}</span>$. For a uniform variable</span>
-<span id="cb6-297"><a href="#cb6-297" aria-hidden="true" tabindex="-1"></a>$x \sim \mathcal{U}(-1,1)$, the basis is the Legendre polynomials. PyApprox selects</span>
-<span id="cb6-298"><a href="#cb6-298" aria-hidden="true" tabindex="-1"></a>the correct family automatically from the marginal distribution. See</span>
-<span id="cb6-299"><a href="#cb6-299" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> for details.</span>
-<span id="cb6-300"><a href="#cb6-300" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-301"><a href="#cb6-301" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-302"><a href="#cb6-302" aria-hidden="true" tabindex="-1"></a>With PCE entries, the $(i,j)$ entry of core $k$ is:</span>
-<span id="cb6-303"><a href="#cb6-303" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-304"><a href="#cb6-304" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-305"><a href="#cb6-305" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\mathbf{G}_k(x_k)</span><span class="co">]</span>_{ij} = \sum_{n=0}^{p} c_{ij,n}^{(k)} \, \psi_n(x_k)</span>
-<span id="cb6-306"><a href="#cb6-306" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-307"><a href="#cb6-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-308"><a href="#cb6-308" aria-hidden="true" tabindex="-1"></a>where $\psi_n$ are the orthonormal polynomials for variable $k$ and $c_{ij,n}^{(k)}$ are</span>
-<span id="cb6-309"><a href="#cb6-309" aria-hidden="true" tabindex="-1"></a>the trainable coefficients. The total number of parameters across the whole function</span>
-<span id="cb6-310"><a href="#cb6-310" aria-hidden="true" tabindex="-1"></a>train is:</span>
+<span id="cb6-293"><a href="#cb6-293" aria-hidden="true" tabindex="-1"></a>With PCE entries, the $(i,j)$ entry of core $k$ is:</span>
+<span id="cb6-294"><a href="#cb6-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-295"><a href="#cb6-295" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-296"><a href="#cb6-296" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\mathbf{G}_k(x_k)</span><span class="co">]</span>_{ij} = \sum_{n=0}^{p} c_{ij,n}^{(k)} \, \psi_n(x_k)</span>
+<span id="cb6-297"><a href="#cb6-297" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-298"><a href="#cb6-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-299"><a href="#cb6-299" aria-hidden="true" tabindex="-1"></a>where $\psi_n$ are the orthonormal polynomials for variable $k$ and $c_{ij,n}^{(k)}$ are</span>
+<span id="cb6-300"><a href="#cb6-300" aria-hidden="true" tabindex="-1"></a>the trainable coefficients. The total number of parameters across the whole function</span>
+<span id="cb6-301"><a href="#cb6-301" aria-hidden="true" tabindex="-1"></a>train is:</span>
+<span id="cb6-302"><a href="#cb6-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-303"><a href="#cb6-303" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-304"><a href="#cb6-304" aria-hidden="true" tabindex="-1"></a>\text{nparams} = r \cdot p_1 + (d-2) \cdot r^2 \cdot p + r \cdot p_d</span>
+<span id="cb6-305"><a href="#cb6-305" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-306"><a href="#cb6-306" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-307"><a href="#cb6-307" aria-hidden="true" tabindex="-1"></a>where $p$ is the polynomial degree. This grows linearly in $d$ for fixed $r$, in contrast to</span>
+<span id="cb6-308"><a href="#cb6-308" aria-hidden="true" tabindex="-1"></a>the $p^d$ terms in a full multivariate PCE. This is the core computational advantage of the</span>
+<span id="cb6-309"><a href="#cb6-309" aria-hidden="true" tabindex="-1"></a>function train representation.</span>
+<span id="cb6-310"><a href="#cb6-310" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-311"><a href="#cb6-311" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-312"><a href="#cb6-312" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-313"><a href="#cb6-313" aria-hidden="true" tabindex="-1"></a>\text{nparams} = r \cdot p_1 + (d-2) \cdot r^2 \cdot p + r \cdot p_d</span>
-<span id="cb6-314"><a href="#cb6-314" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb6-315"><a href="#cb6-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-316"><a href="#cb6-316" aria-hidden="true" tabindex="-1"></a>where $p$ is the polynomial degree. This grows linearly in $d$ for fixed $r$, in contrast to</span>
-<span id="cb6-317"><a href="#cb6-317" aria-hidden="true" tabindex="-1"></a>the $p^d$ terms in a full multivariate PCE. This is the core computational advantage of the</span>
-<span id="cb6-318"><a href="#cb6-318" aria-hidden="true" tabindex="-1"></a>function train representation.</span>
-<span id="cb6-319"><a href="#cb6-319" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-312"><a href="#cb6-312" aria-hidden="true" tabindex="-1"></a><span class="fu">## Building a Rank-2 Function Train in PyApprox</span></span>
+<span id="cb6-313"><a href="#cb6-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-314"><a href="#cb6-314" aria-hidden="true" tabindex="-1"></a>We now build the rank-2, 3-variable function train shown in the diagram above using</span>
+<span id="cb6-315"><a href="#cb6-315" aria-hidden="true" tabindex="-1"></a><span class="in">`create_pce_functiontrain`</span>. This factory:</span>
+<span id="cb6-316"><a href="#cb6-316" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-317"><a href="#cb6-317" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Takes one marginal distribution per variable.</span>
+<span id="cb6-318"><a href="#cb6-318" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Creates the correct orthogonal polynomial basis for each variable.</span>
+<span id="cb6-319"><a href="#cb6-319" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Assembles the cores into a <span class="in">`FunctionTrain`</span> with the specified rank.</span>
 <span id="cb6-320"><a href="#cb6-320" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-321"><a href="#cb6-321" aria-hidden="true" tabindex="-1"></a><span class="fu">## Building a Rank-2 Function Train in PyApprox</span></span>
-<span id="cb6-322"><a href="#cb6-322" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-323"><a href="#cb6-323" aria-hidden="true" tabindex="-1"></a>We now build the rank-2, 3-variable function train shown in the diagram above using</span>
-<span id="cb6-324"><a href="#cb6-324" aria-hidden="true" tabindex="-1"></a><span class="in">`create_pce_functiontrain`</span>. This factory:</span>
-<span id="cb6-325"><a href="#cb6-325" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-326"><a href="#cb6-326" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Takes one marginal distribution per variable.</span>
-<span id="cb6-327"><a href="#cb6-327" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Creates the correct orthogonal polynomial basis for each variable.</span>
-<span id="cb6-328"><a href="#cb6-328" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Assembles the cores into a <span class="in">`FunctionTrain`</span> with the specified rank.</span>
-<span id="cb6-329"><a href="#cb6-329" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-332"><a href="#cb6-332" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-333"><a href="#cb6-333" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb6-334"><a href="#cb6-334" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb6-335"><a href="#cb6-335" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal, GaussianMarginal</span>
-<span id="cb6-336"><a href="#cb6-336" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> (</span>
-<span id="cb6-337"><a href="#cb6-337" aria-hidden="true" tabindex="-1"></a>    FunctionTrain,</span>
-<span id="cb6-338"><a href="#cb6-338" aria-hidden="true" tabindex="-1"></a>    create_pce_functiontrain,</span>
-<span id="cb6-339"><a href="#cb6-339" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-340"><a href="#cb6-340" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-341"><a href="#cb6-341" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb6-342"><a href="#cb6-342" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb6-343"><a href="#cb6-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-344"><a href="#cb6-344" aria-hidden="true" tabindex="-1"></a><span class="co"># Three variables, all Uniform[-1, 1] → Legendre polynomials</span></span>
-<span id="cb6-345"><a href="#cb6-345" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>)]</span>
+<span id="cb6-323"><a href="#cb6-323" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-324"><a href="#cb6-324" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-325"><a href="#cb6-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb6-326"><a href="#cb6-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal, GaussianMarginal</span>
+<span id="cb6-327"><a href="#cb6-327" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> (</span>
+<span id="cb6-328"><a href="#cb6-328" aria-hidden="true" tabindex="-1"></a>    FunctionTrain,</span>
+<span id="cb6-329"><a href="#cb6-329" aria-hidden="true" tabindex="-1"></a>    create_pce_functiontrain,</span>
+<span id="cb6-330"><a href="#cb6-330" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-331"><a href="#cb6-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-332"><a href="#cb6-332" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb6-333"><a href="#cb6-333" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb6-334"><a href="#cb6-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-335"><a href="#cb6-335" aria-hidden="true" tabindex="-1"></a><span class="co"># Three variables, all Uniform[-1, 1] → Legendre polynomials</span></span>
+<span id="cb6-336"><a href="#cb6-336" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>)]</span>
+<span id="cb6-337"><a href="#cb6-337" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-338"><a href="#cb6-338" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank-2 FT, polynomial degree 4</span></span>
+<span id="cb6-339"><a href="#cb6-339" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> create_pce_functiontrain(marginals, max_level<span class="op">=</span><span class="dv">4</span>, ranks<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">2</span>], bkd<span class="op">=</span>bkd)</span>
+<span id="cb6-340"><a href="#cb6-340" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-341"><a href="#cb6-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-342"><a href="#cb6-342" aria-hidden="true" tabindex="-1"></a>The shapes confirm the structure: core 0 is $1 \times 2$, core 1 is $2 \times 2$, and</span>
+<span id="cb6-343"><a href="#cb6-343" aria-hidden="true" tabindex="-1"></a>core 2 is $2 \times 1$.</span>
+<span id="cb6-344"><a href="#cb6-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-345"><a href="#cb6-345" aria-hidden="true" tabindex="-1"></a>We can evaluate the FT on a batch of samples just like any other surrogate:</span>
 <span id="cb6-346"><a href="#cb6-346" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-347"><a href="#cb6-347" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank-2 FT, polynomial degree 4</span></span>
-<span id="cb6-348"><a href="#cb6-348" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> create_pce_functiontrain(marginals, max_level<span class="op">=</span><span class="dv">4</span>, ranks<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">2</span>], bkd<span class="op">=</span>bkd)</span>
-<span id="cb6-349"><a href="#cb6-349" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-350"><a href="#cb6-350" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-351"><a href="#cb6-351" aria-hidden="true" tabindex="-1"></a>The shapes confirm the structure: core 0 is $1 \times 2$, core 1 is $2 \times 2$, and</span>
-<span id="cb6-352"><a href="#cb6-352" aria-hidden="true" tabindex="-1"></a>core 2 is $2 \times 1$.</span>
-<span id="cb6-353"><a href="#cb6-353" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-354"><a href="#cb6-354" aria-hidden="true" tabindex="-1"></a>We can evaluate the FT on a batch of samples just like any other surrogate:</span>
+<span id="cb6-349"><a href="#cb6-349" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-350"><a href="#cb6-350" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on 2000 random samples</span></span>
+<span id="cb6-351"><a href="#cb6-351" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">2000</span></span>
+<span id="cb6-352"><a href="#cb6-352" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">3</span>, nsamples)))</span>
+<span id="cb6-353"><a href="#cb6-353" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> ft(samples)</span>
+<span id="cb6-354"><a href="#cb6-354" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb6-355"><a href="#cb6-355" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-358"><a href="#cb6-358" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-359"><a href="#cb6-359" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on 2000 random samples</span></span>
-<span id="cb6-360"><a href="#cb6-360" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">2000</span></span>
-<span id="cb6-361"><a href="#cb6-361" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">3</span>, nsamples)))</span>
-<span id="cb6-362"><a href="#cb6-362" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> ft(samples)</span>
-<span id="cb6-363"><a href="#cb6-363" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-356"><a href="#cb6-356" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-357"><a href="#cb6-357" aria-hidden="true" tabindex="-1"></a><span class="fu">## What Do the Outputs Mean at This Stage?</span></span>
+<span id="cb6-358"><a href="#cb6-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-359"><a href="#cb6-359" aria-hidden="true" tabindex="-1"></a>The FT above was initialised with small random coefficients, so its output is</span>
+<span id="cb6-360"><a href="#cb6-360" aria-hidden="true" tabindex="-1"></a>essentially random noise. In a real workflow we would **fit** the FT to training data</span>
+<span id="cb6-361"><a href="#cb6-361" aria-hidden="true" tabindex="-1"></a>from an expensive model using Alternating Least Squares (ALS).</span>
+<span id="cb6-362"><a href="#cb6-362" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-363"><a href="#cb6-363" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-364"><a href="#cb6-364" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-365"><a href="#cb6-365" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb6-366"><a href="#cb6-366" aria-hidden="true" tabindex="-1"></a><span class="fu">## What Do the Outputs Mean at This Stage?</span></span>
-<span id="cb6-367"><a href="#cb6-367" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-368"><a href="#cb6-368" aria-hidden="true" tabindex="-1"></a>The FT above was initialised with small random coefficients, so its output is</span>
-<span id="cb6-369"><a href="#cb6-369" aria-hidden="true" tabindex="-1"></a>essentially random noise. In a real workflow we would **fit** the FT to training data</span>
-<span id="cb6-370"><a href="#cb6-370" aria-hidden="true" tabindex="-1"></a>from an expensive model using Alternating Least Squares (ALS).</span>
-<span id="cb6-371"><a href="#cb6-371" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb6-372"><a href="#cb6-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-373"><a href="#cb6-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-374"><a href="#cb6-374" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualising a Fitted Rank-2 FT</span></span>
-<span id="cb6-375"><a href="#cb6-375" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-376"><a href="#cb6-376" aria-hidden="true" tabindex="-1"></a>To build intuition for what the FT actually represents, let us manually set the</span>
-<span id="cb6-377"><a href="#cb6-377" aria-hidden="true" tabindex="-1"></a>coefficients to reproduce the rank-2 Gaussian example from earlier.</span>
-<span id="cb6-378"><a href="#cb6-378" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-381"><a href="#cb6-381" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-382"><a href="#cb6-382" aria-hidden="true" tabindex="-1"></a><span class="co"># Recall our target:</span></span>
-<span id="cb6-383"><a href="#cb6-383" aria-hidden="true" tabindex="-1"></a><span class="co">#   f(x1, x2) = g1_a(x1)*g2_a(x2) + g1_b(x1)*g2_b(x2)  (rank-2, 2 variables)</span></span>
-<span id="cb6-384"><a href="#cb6-384" aria-hidden="true" tabindex="-1"></a><span class="co"># We will build a 2-variable version for this illustration.</span></span>
-<span id="cb6-385"><a href="#cb6-385" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-386"><a href="#cb6-386" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> ALSFitter</span>
-<span id="cb6-387"><a href="#cb6-387" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.fitters <span class="im">import</span> MSEFitter</span>
-<span id="cb6-388"><a href="#cb6-388" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
-<span id="cb6-389"><a href="#cb6-389" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
-<span id="cb6-390"><a href="#cb6-390" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-391"><a href="#cb6-391" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
-<span id="cb6-392"><a href="#cb6-392" aria-hidden="true" tabindex="-1"></a>    Plotter2DRectangularDomain,</span>
-<span id="cb6-393"><a href="#cb6-393" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
-<span id="cb6-394"><a href="#cb6-394" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-395"><a href="#cb6-395" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-396"><a href="#cb6-396" aria-hidden="true" tabindex="-1"></a>marginals_2d <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
-<span id="cb6-397"><a href="#cb6-397" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> [<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>]</span>
+<span id="cb6-365"><a href="#cb6-365" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualising a Fitted Rank-2 FT</span></span>
+<span id="cb6-366"><a href="#cb6-366" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-367"><a href="#cb6-367" aria-hidden="true" tabindex="-1"></a>To build intuition for what the FT actually represents, let us manually set the</span>
+<span id="cb6-368"><a href="#cb6-368" aria-hidden="true" tabindex="-1"></a>coefficients to reproduce the rank-2 Gaussian example from earlier.</span>
+<span id="cb6-369"><a href="#cb6-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-372"><a href="#cb6-372" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-373"><a href="#cb6-373" aria-hidden="true" tabindex="-1"></a><span class="co"># Recall our target:</span></span>
+<span id="cb6-374"><a href="#cb6-374" aria-hidden="true" tabindex="-1"></a><span class="co">#   f(x1, x2) = g1_a(x1)*g2_a(x2) + g1_b(x1)*g2_b(x2)  (rank-2, 2 variables)</span></span>
+<span id="cb6-375"><a href="#cb6-375" aria-hidden="true" tabindex="-1"></a><span class="co"># We will build a 2-variable version for this illustration.</span></span>
+<span id="cb6-376"><a href="#cb6-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-377"><a href="#cb6-377" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> ALSFitter</span>
+<span id="cb6-378"><a href="#cb6-378" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.fitters <span class="im">import</span> MSEFitter</span>
+<span id="cb6-379"><a href="#cb6-379" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
+<span id="cb6-380"><a href="#cb6-380" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
+<span id="cb6-381"><a href="#cb6-381" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-382"><a href="#cb6-382" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
+<span id="cb6-383"><a href="#cb6-383" aria-hidden="true" tabindex="-1"></a>    Plotter2DRectangularDomain,</span>
+<span id="cb6-384"><a href="#cb6-384" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
+<span id="cb6-385"><a href="#cb6-385" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-386"><a href="#cb6-386" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-387"><a href="#cb6-387" aria-hidden="true" tabindex="-1"></a>marginals_2d <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
+<span id="cb6-388"><a href="#cb6-388" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> [<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>]</span>
+<span id="cb6-389"><a href="#cb6-389" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-390"><a href="#cb6-390" aria-hidden="true" tabindex="-1"></a><span class="co"># Define the target as a FunctionProtocol for plotting</span></span>
+<span id="cb6-391"><a href="#cb6-391" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _target(samples):</span>
+<span id="cb6-392"><a href="#cb6-392" aria-hidden="true" tabindex="-1"></a>    x1, x2 <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
+<span id="cb6-393"><a href="#cb6-393" aria-hidden="true" tabindex="-1"></a>    g1a <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">8</span> <span class="op">*</span> (x1 <span class="op">+</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb6-394"><a href="#cb6-394" aria-hidden="true" tabindex="-1"></a>    g2a <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">8</span> <span class="op">*</span> (x2 <span class="op">+</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb6-395"><a href="#cb6-395" aria-hidden="true" tabindex="-1"></a>    g1b <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">2</span> <span class="op">*</span> (x1 <span class="op">-</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb6-396"><a href="#cb6-396" aria-hidden="true" tabindex="-1"></a>    g2b <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">2</span> <span class="op">*</span> (x2 <span class="op">-</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb6-397"><a href="#cb6-397" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.reshape(g1a <span class="op">*</span> g2a <span class="op">+</span> g1b <span class="op">*</span> g2b, (<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
 <span id="cb6-398"><a href="#cb6-398" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-399"><a href="#cb6-399" aria-hidden="true" tabindex="-1"></a><span class="co"># Define the target as a FunctionProtocol for plotting</span></span>
-<span id="cb6-400"><a href="#cb6-400" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _target(samples):</span>
-<span id="cb6-401"><a href="#cb6-401" aria-hidden="true" tabindex="-1"></a>    x1, x2 <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
-<span id="cb6-402"><a href="#cb6-402" aria-hidden="true" tabindex="-1"></a>    g1a <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">8</span> <span class="op">*</span> (x1 <span class="op">+</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb6-403"><a href="#cb6-403" aria-hidden="true" tabindex="-1"></a>    g2a <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">8</span> <span class="op">*</span> (x2 <span class="op">+</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb6-404"><a href="#cb6-404" aria-hidden="true" tabindex="-1"></a>    g1b <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">2</span> <span class="op">*</span> (x1 <span class="op">-</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb6-405"><a href="#cb6-405" aria-hidden="true" tabindex="-1"></a>    g2b <span class="op">=</span> bkd.exp(<span class="op">-</span><span class="dv">2</span> <span class="op">*</span> (x2 <span class="op">-</span> <span class="fl">0.6</span>)<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb6-406"><a href="#cb6-406" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.reshape(g1a <span class="op">*</span> g2a <span class="op">+</span> g1b <span class="op">*</span> g2b, (<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
-<span id="cb6-407"><a href="#cb6-407" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-408"><a href="#cb6-408" aria-hidden="true" tabindex="-1"></a>true_func <span class="op">=</span> FunctionFromCallable(nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>, fun<span class="op">=</span>_target, bkd<span class="op">=</span>bkd)</span>
-<span id="cb6-409"><a href="#cb6-409" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-410"><a href="#cb6-410" aria-hidden="true" tabindex="-1"></a><span class="co"># Use higher degree so we can represent the Gaussians well</span></span>
-<span id="cb6-411"><a href="#cb6-411" aria-hidden="true" tabindex="-1"></a>ft_2d <span class="op">=</span> create_pce_functiontrain(</span>
-<span id="cb6-412"><a href="#cb6-412" aria-hidden="true" tabindex="-1"></a>    marginals_2d, max_level<span class="op">=</span><span class="dv">12</span>, ranks<span class="op">=</span>[<span class="dv">2</span>], bkd<span class="op">=</span>bkd, init_scale<span class="op">=</span><span class="fl">0.1</span></span>
-<span id="cb6-413"><a href="#cb6-413" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-414"><a href="#cb6-414" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-415"><a href="#cb6-415" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Training data ────────────────────────────────────────────────────────────</span></span>
-<span id="cb6-416"><a href="#cb6-416" aria-hidden="true" tabindex="-1"></a>n_fit <span class="op">=</span> <span class="dv">3000</span></span>
-<span id="cb6-417"><a href="#cb6-417" aria-hidden="true" tabindex="-1"></a>s_fit <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">2</span>, n_fit)))</span>
-<span id="cb6-418"><a href="#cb6-418" aria-hidden="true" tabindex="-1"></a>y_fit <span class="op">=</span> true_func(s_fit)</span>
-<span id="cb6-419"><a href="#cb6-419" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-420"><a href="#cb6-420" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Step 1: ALS for a good initial guess ─────────────────────────────────────</span></span>
-<span id="cb6-421"><a href="#cb6-421" aria-hidden="true" tabindex="-1"></a>als_result <span class="op">=</span> ALSFitter(bkd, max_sweeps<span class="op">=</span><span class="dv">50</span>, tol<span class="op">=</span><span class="fl">1e-14</span>).fit(ft_2d, s_fit, y_fit)</span>
-<span id="cb6-422"><a href="#cb6-422" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-423"><a href="#cb6-423" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Step 2: MSE polish with gradient-based optimiser ─────────────────────────</span></span>
-<span id="cb6-424"><a href="#cb6-424" aria-hidden="true" tabindex="-1"></a>mse_result <span class="op">=</span> MSEFitter(bkd).fit(als_result.surrogate(), s_fit, y_fit)</span>
-<span id="cb6-425"><a href="#cb6-425" aria-hidden="true" tabindex="-1"></a>ft_fitted <span class="op">=</span> mse_result.surrogate()</span>
-<span id="cb6-426"><a href="#cb6-426" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-427"><a href="#cb6-427" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-430"><a href="#cb6-430" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-431"><a href="#cb6-431" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable."</span></span>
-<span id="cb6-432"><a href="#cb6-432" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-fitted</span></span>
-<span id="cb6-433"><a href="#cb6-433" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_fitted</span>
-<span id="cb6-434"><a href="#cb6-434" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-435"><a href="#cb6-435" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
-<span id="cb6-436"><a href="#cb6-436" aria-hidden="true" tabindex="-1"></a>plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig<span class="op">=</span>fig)</span>
-<span id="cb6-437"><a href="#cb6-437" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-438"><a href="#cb6-438" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-439"><a href="#cb6-439" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-440"><a href="#cb6-440" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-441"><a href="#cb6-441" aria-hidden="true" tabindex="-1"></a>The function train reconstructs both the narrow peak at $(-0.6, -0.6)$ and the</span>
-<span id="cb6-442"><a href="#cb6-442" aria-hidden="true" tabindex="-1"></a>broad peak at $(+0.6, +0.6)$ with very small error. Importantly, it does so using</span>
-<span id="cb6-443"><a href="#cb6-443" aria-hidden="true" tabindex="-1"></a>only univariate polynomial expansions connected through a $2 \times 2$ matrix core.</span>
-<span id="cb6-444"><a href="#cb6-444" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-445"><a href="#cb6-445" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-446"><a href="#cb6-446" aria-hidden="true" tabindex="-1"></a><span class="fu">## What Does the Rank Control?</span></span>
+<span id="cb6-399"><a href="#cb6-399" aria-hidden="true" tabindex="-1"></a>true_func <span class="op">=</span> FunctionFromCallable(nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>, fun<span class="op">=</span>_target, bkd<span class="op">=</span>bkd)</span>
+<span id="cb6-400"><a href="#cb6-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-401"><a href="#cb6-401" aria-hidden="true" tabindex="-1"></a><span class="co"># Use higher degree so we can represent the Gaussians well</span></span>
+<span id="cb6-402"><a href="#cb6-402" aria-hidden="true" tabindex="-1"></a>ft_2d <span class="op">=</span> create_pce_functiontrain(</span>
+<span id="cb6-403"><a href="#cb6-403" aria-hidden="true" tabindex="-1"></a>    marginals_2d, max_level<span class="op">=</span><span class="dv">12</span>, ranks<span class="op">=</span>[<span class="dv">2</span>], bkd<span class="op">=</span>bkd, init_scale<span class="op">=</span><span class="fl">0.1</span></span>
+<span id="cb6-404"><a href="#cb6-404" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-405"><a href="#cb6-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-406"><a href="#cb6-406" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Training data ────────────────────────────────────────────────────────────</span></span>
+<span id="cb6-407"><a href="#cb6-407" aria-hidden="true" tabindex="-1"></a>n_fit <span class="op">=</span> <span class="dv">3000</span></span>
+<span id="cb6-408"><a href="#cb6-408" aria-hidden="true" tabindex="-1"></a>s_fit <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">2</span>, n_fit)))</span>
+<span id="cb6-409"><a href="#cb6-409" aria-hidden="true" tabindex="-1"></a>y_fit <span class="op">=</span> true_func(s_fit)</span>
+<span id="cb6-410"><a href="#cb6-410" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-411"><a href="#cb6-411" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Step 1: ALS for a good initial guess ─────────────────────────────────────</span></span>
+<span id="cb6-412"><a href="#cb6-412" aria-hidden="true" tabindex="-1"></a>als_result <span class="op">=</span> ALSFitter(bkd, max_sweeps<span class="op">=</span><span class="dv">50</span>, tol<span class="op">=</span><span class="fl">1e-14</span>).fit(ft_2d, s_fit, y_fit)</span>
+<span id="cb6-413"><a href="#cb6-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-414"><a href="#cb6-414" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Step 2: MSE polish with gradient-based optimiser ─────────────────────────</span></span>
+<span id="cb6-415"><a href="#cb6-415" aria-hidden="true" tabindex="-1"></a>mse_result <span class="op">=</span> MSEFitter(bkd).fit(als_result.surrogate(), s_fit, y_fit)</span>
+<span id="cb6-416"><a href="#cb6-416" aria-hidden="true" tabindex="-1"></a>ft_fitted <span class="op">=</span> mse_result.surrogate()</span>
+<span id="cb6-417"><a href="#cb6-417" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-418"><a href="#cb6-418" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-421"><a href="#cb6-421" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-422"><a href="#cb6-422" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable."</span></span>
+<span id="cb6-423"><a href="#cb6-423" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-fitted</span></span>
+<span id="cb6-424"><a href="#cb6-424" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_fitted</span>
+<span id="cb6-425"><a href="#cb6-425" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-426"><a href="#cb6-426" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
+<span id="cb6-427"><a href="#cb6-427" aria-hidden="true" tabindex="-1"></a>plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig<span class="op">=</span>fig)</span>
+<span id="cb6-428"><a href="#cb6-428" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-429"><a href="#cb6-429" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-430"><a href="#cb6-430" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-431"><a href="#cb6-431" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-432"><a href="#cb6-432" aria-hidden="true" tabindex="-1"></a>The function train reconstructs both the narrow peak at $(-0.6, -0.6)$ and the</span>
+<span id="cb6-433"><a href="#cb6-433" aria-hidden="true" tabindex="-1"></a>broad peak at $(+0.6, +0.6)$ with very small error. Importantly, it does so using</span>
+<span id="cb6-434"><a href="#cb6-434" aria-hidden="true" tabindex="-1"></a>only univariate polynomial expansions connected through a $2 \times 2$ matrix core.</span>
+<span id="cb6-435"><a href="#cb6-435" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-436"><a href="#cb6-436" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-437"><a href="#cb6-437" aria-hidden="true" tabindex="-1"></a><span class="fu">## What Does the Rank Control?</span></span>
+<span id="cb6-438"><a href="#cb6-438" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-439"><a href="#cb6-439" aria-hidden="true" tabindex="-1"></a>The rank $r$ is the single number that determines how much interaction between</span>
+<span id="cb6-440"><a href="#cb6-440" aria-hidden="true" tabindex="-1"></a>variables the FT can represent. A quick experiment illustrates this:</span>
+<span id="cb6-441"><a href="#cb6-441" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-444"><a href="#cb6-444" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-445"><a href="#cb6-445" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
+<span id="cb6-446"><a href="#cb6-446" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
 <span id="cb6-447"><a href="#cb6-447" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-448"><a href="#cb6-448" aria-hidden="true" tabindex="-1"></a>The rank $r$ is the single number that determines how much interaction between</span>
-<span id="cb6-449"><a href="#cb6-449" aria-hidden="true" tabindex="-1"></a>variables the FT can represent. A quick experiment illustrates this:</span>
-<span id="cb6-450"><a href="#cb6-450" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-453"><a href="#cb6-453" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-454"><a href="#cb6-454" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
-<span id="cb6-455"><a href="#cb6-455" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
-<span id="cb6-456"><a href="#cb6-456" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-457"><a href="#cb6-457" aria-hidden="true" tabindex="-1"></a>npts <span class="op">=</span> <span class="dv">100</span></span>
-<span id="cb6-458"><a href="#cb6-458" aria-hidden="true" tabindex="-1"></a>X, Y, eval_pts <span class="op">=</span> meshgrid_samples(npts, plot_limits, bkd)</span>
-<span id="cb6-459"><a href="#cb6-459" aria-hidden="true" tabindex="-1"></a>f_true_vals <span class="op">=</span> bkd.to_numpy(true_func(eval_pts)[<span class="dv">0</span>]).reshape(X.shape)</span>
-<span id="cb6-460"><a href="#cb6-460" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-461"><a href="#cb6-461" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.0</span>))</span>
-<span id="cb6-462"><a href="#cb6-462" aria-hidden="true" tabindex="-1"></a>plot_ft_rank_comparison(</span>
-<span id="cb6-463"><a href="#cb6-463" aria-hidden="true" tabindex="-1"></a>    true_func, marginals_2d, s_fit, y_fit, eval_pts, X, f_true_vals,</span>
-<span id="cb6-464"><a href="#cb6-464" aria-hidden="true" tabindex="-1"></a>    plot_limits, bkd, axes,</span>
-<span id="cb6-465"><a href="#cb6-465" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-466"><a href="#cb6-466" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"FT approximation quality vs rank  (target is rank-2)"</span>, fontsize<span class="op">=</span><span class="dv">12</span>,</span>
-<span id="cb6-467"><a href="#cb6-467" aria-hidden="true" tabindex="-1"></a>             y<span class="op">=</span><span class="fl">1.02</span>)</span>
-<span id="cb6-468"><a href="#cb6-468" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-469"><a href="#cb6-469" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-470"><a href="#cb6-470" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-448"><a href="#cb6-448" aria-hidden="true" tabindex="-1"></a>npts <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb6-449"><a href="#cb6-449" aria-hidden="true" tabindex="-1"></a>X, Y, eval_pts <span class="op">=</span> meshgrid_samples(npts, plot_limits, bkd)</span>
+<span id="cb6-450"><a href="#cb6-450" aria-hidden="true" tabindex="-1"></a>f_true_vals <span class="op">=</span> bkd.to_numpy(true_func(eval_pts)[<span class="dv">0</span>]).reshape(X.shape)</span>
+<span id="cb6-451"><a href="#cb6-451" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-452"><a href="#cb6-452" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.0</span>))</span>
+<span id="cb6-453"><a href="#cb6-453" aria-hidden="true" tabindex="-1"></a>plot_ft_rank_comparison(</span>
+<span id="cb6-454"><a href="#cb6-454" aria-hidden="true" tabindex="-1"></a>    true_func, marginals_2d, s_fit, y_fit, eval_pts, X, f_true_vals,</span>
+<span id="cb6-455"><a href="#cb6-455" aria-hidden="true" tabindex="-1"></a>    plot_limits, bkd, axes,</span>
+<span id="cb6-456"><a href="#cb6-456" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-457"><a href="#cb6-457" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"FT approximation quality vs rank  (target is rank-2)"</span>, fontsize<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb6-458"><a href="#cb6-458" aria-hidden="true" tabindex="-1"></a>             y<span class="op">=</span><span class="fl">1.02</span>)</span>
+<span id="cb6-459"><a href="#cb6-459" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-460"><a href="#cb6-460" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-461"><a href="#cb6-461" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-462"><a href="#cb6-462" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-463"><a href="#cb6-463" aria-hidden="true" tabindex="-1"></a>A rank-1 FT cannot simultaneously represent two spatially separated peaks; it is forced</span>
+<span id="cb6-464"><a href="#cb6-464" aria-hidden="true" tabindex="-1"></a>to average them into a single symmetric feature. Rank-2 matches the target exactly</span>
+<span id="cb6-465"><a href="#cb6-465" aria-hidden="true" tabindex="-1"></a>(up to polynomial truncation error), and rank-4 gives no further benefit for this</span>
+<span id="cb6-466"><a href="#cb6-466" aria-hidden="true" tabindex="-1"></a>particular function. This illustrates a key principle: **the rank you need is determined</span>
+<span id="cb6-467"><a href="#cb6-467" aria-hidden="true" tabindex="-1"></a>by the function, not by the dimension**.</span>
+<span id="cb6-468"><a href="#cb6-468" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-469"><a href="#cb6-469" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-470"><a href="#cb6-470" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
 <span id="cb6-471"><a href="#cb6-471" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-472"><a href="#cb6-472" aria-hidden="true" tabindex="-1"></a>A rank-1 FT cannot simultaneously represent two spatially separated peaks; it is forced</span>
-<span id="cb6-473"><a href="#cb6-473" aria-hidden="true" tabindex="-1"></a>to average them into a single symmetric feature. Rank-2 matches the target exactly</span>
-<span id="cb6-474"><a href="#cb6-474" aria-hidden="true" tabindex="-1"></a>(up to polynomial truncation error), and rank-4 gives no further benefit for this</span>
-<span id="cb6-475"><a href="#cb6-475" aria-hidden="true" tabindex="-1"></a>particular function. This illustrates a key principle: **the rank you need is determined</span>
-<span id="cb6-476"><a href="#cb6-476" aria-hidden="true" tabindex="-1"></a>by the function, not by the dimension**.</span>
-<span id="cb6-477"><a href="#cb6-477" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-478"><a href="#cb6-478" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-479"><a href="#cb6-479" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb6-480"><a href="#cb6-480" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-481"><a href="#cb6-481" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **rank-1 function** is a product of univariate functions. No interaction between</span>
-<span id="cb6-482"><a href="#cb6-482" aria-hidden="true" tabindex="-1"></a>  variables is possible with a single rank-1 term.</span>
-<span id="cb6-483"><a href="#cb6-483" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **rank-$r$ function** is a sum of $r$ rank-1 terms, allowing progressively richer</span>
-<span id="cb6-484"><a href="#cb6-484" aria-hidden="true" tabindex="-1"></a>  interactions as $r$ grows.</span>
-<span id="cb6-485"><a href="#cb6-485" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **function train** repackages this sum-of-products formula as a chain of</span>
-<span id="cb6-486"><a href="#cb6-486" aria-hidden="true" tabindex="-1"></a>  **matrix-valued functions**: each core $\mathbf{G}_k(x_k)$ is a matrix whose entries</span>
-<span id="cb6-487"><a href="#cb6-487" aria-hidden="true" tabindex="-1"></a>  are univariate polynomial expansions of $x_k$.</span>
-<span id="cb6-488"><a href="#cb6-488" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Evaluating the FT at a point is a sequence of ordinary matrix multiplications that</span>
-<span id="cb6-489"><a href="#cb6-489" aria-hidden="true" tabindex="-1"></a>  produces a scalar.</span>
-<span id="cb6-490"><a href="#cb6-490" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **rank** controls complexity; for many practical problems a small rank captures</span>
-<span id="cb6-491"><a href="#cb6-491" aria-hidden="true" tabindex="-1"></a>  most of the function's behaviour, giving storage and evaluation costs that grow</span>
-<span id="cb6-492"><a href="#cb6-492" aria-hidden="true" tabindex="-1"></a>  linearly in the number of variables rather than exponentially.</span>
-<span id="cb6-493"><a href="#cb6-493" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-472"><a href="#cb6-472" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **rank-1 function** is a product of univariate functions. No interaction between</span>
+<span id="cb6-473"><a href="#cb6-473" aria-hidden="true" tabindex="-1"></a>  variables is possible with a single rank-1 term.</span>
+<span id="cb6-474"><a href="#cb6-474" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **rank-$r$ function** is a sum of $r$ rank-1 terms, allowing progressively richer</span>
+<span id="cb6-475"><a href="#cb6-475" aria-hidden="true" tabindex="-1"></a>  interactions as $r$ grows.</span>
+<span id="cb6-476"><a href="#cb6-476" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A **function train** repackages this sum-of-products formula as a chain of</span>
+<span id="cb6-477"><a href="#cb6-477" aria-hidden="true" tabindex="-1"></a>  **matrix-valued functions**: each core $\mathbf{G}_k(x_k)$ is a matrix whose entries</span>
+<span id="cb6-478"><a href="#cb6-478" aria-hidden="true" tabindex="-1"></a>  are univariate polynomial expansions of $x_k$.</span>
+<span id="cb6-479"><a href="#cb6-479" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Evaluating the FT at a point is a sequence of ordinary matrix multiplications that</span>
+<span id="cb6-480"><a href="#cb6-480" aria-hidden="true" tabindex="-1"></a>  produces a scalar.</span>
+<span id="cb6-481"><a href="#cb6-481" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **rank** controls complexity; for many practical problems a small rank captures</span>
+<span id="cb6-482"><a href="#cb6-482" aria-hidden="true" tabindex="-1"></a>  most of the function's behaviour, giving storage and evaluation costs that grow</span>
+<span id="cb6-483"><a href="#cb6-483" aria-hidden="true" tabindex="-1"></a>  linearly in the number of variables rather than exponentially.</span>
+<span id="cb6-484"><a href="#cb6-484" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-485"><a href="#cb6-485" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-486"><a href="#cb6-486" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb6-487"><a href="#cb6-487" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-488"><a href="#cb6-488" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>In the rank experiment, change the target to a rank-3 function (add a third</span>
+<span id="cb6-489"><a href="#cb6-489" aria-hidden="true" tabindex="-1"></a>   rank-1 term at a new location). What is the minimum rank needed to fit it well?</span>
+<span id="cb6-490"><a href="#cb6-490" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-491"><a href="#cb6-491" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Increase <span class="in">`max_level`</span> from 4 to 10 for the rank-2 FT on the beam benchmark in</span>
+<span id="cb6-492"><a href="#cb6-492" aria-hidden="true" tabindex="-1"></a>   <span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span>.</span>
+<span id="cb6-493"><a href="#cb6-493" aria-hidden="true" tabindex="-1"></a>   How does the parameter count compare to a full PCE at the same degree?</span>
 <span id="cb6-494"><a href="#cb6-494" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-495"><a href="#cb6-495" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb6-496"><a href="#cb6-496" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-497"><a href="#cb6-497" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>In the rank experiment, change the target to a rank-3 function (add a third</span>
-<span id="cb6-498"><a href="#cb6-498" aria-hidden="true" tabindex="-1"></a>   rank-1 term at a new location). What is the minimum rank needed to fit it well?</span>
+<span id="cb6-495"><a href="#cb6-495" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Modify the 3-variable FT construction to use **per-core degrees**</span>
+<span id="cb6-496"><a href="#cb6-496" aria-hidden="true" tabindex="-1"></a>   (<span class="in">`max_level=[4, 8, 4]`</span>). Inspect the <span class="in">`nterms`</span> of each core and verify the total</span>
+<span id="cb6-497"><a href="#cb6-497" aria-hidden="true" tabindex="-1"></a>   parameter count changes accordingly.</span>
+<span id="cb6-498"><a href="#cb6-498" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-499"><a href="#cb6-499" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-500"><a href="#cb6-500" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Increase <span class="in">`max_level`</span> from 4 to 10 for the rank-2 FT on the beam benchmark in</span>
-<span id="cb6-501"><a href="#cb6-501" aria-hidden="true" tabindex="-1"></a>   <span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span>.</span>
-<span id="cb6-502"><a href="#cb6-502" aria-hidden="true" tabindex="-1"></a>   How does the parameter count compare to a full PCE at the same degree?</span>
-<span id="cb6-503"><a href="#cb6-503" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-504"><a href="#cb6-504" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Modify the 3-variable FT construction to use **per-core degrees**</span>
-<span id="cb6-505"><a href="#cb6-505" aria-hidden="true" tabindex="-1"></a>   (<span class="in">`max_level=[4, 8, 4]`</span>). Inspect the <span class="in">`nterms`</span> of each core and verify the total</span>
-<span id="cb6-506"><a href="#cb6-506" aria-hidden="true" tabindex="-1"></a>   parameter count changes accordingly.</span>
-<span id="cb6-507"><a href="#cb6-507" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-508"><a href="#cb6-508" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-509"><a href="#cb6-509" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb6-510"><a href="#cb6-510" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-511"><a href="#cb6-511" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Function Trains</span><span class="co">](uq_with_functiontrain.qmd)</span> --- Exploit the PCE structure</span>
-<span id="cb6-512"><a href="#cb6-512" aria-hidden="true" tabindex="-1"></a>  inside each core to compute means, variances, and Sobol indices analytically.</span>
-<span id="cb6-513"><a href="#cb6-513" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> --- Review</span>
-<span id="cb6-514"><a href="#cb6-514" aria-hidden="true" tabindex="-1"></a>  the univariate PCE building blocks that live inside each FT core entry.</span>
+<span id="cb6-500"><a href="#cb6-500" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb6-501"><a href="#cb6-501" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-502"><a href="#cb6-502" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Function Trains</span><span class="co">](uq_with_functiontrain.qmd)</span> --- Exploit the PCE structure</span>
+<span id="cb6-503"><a href="#cb6-503" aria-hidden="true" tabindex="-1"></a>  inside each core to compute means, variances, and Sobol indices analytically.</span>
+<span id="cb6-504"><a href="#cb6-504" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> --- Review</span>
+<span id="cb6-505"><a href="#cb6-505" aria-hidden="true" tabindex="-1"></a>  the univariate PCE building blocks that live inside each FT core entry.</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

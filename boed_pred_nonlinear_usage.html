@@ -357,6 +357,24 @@ MathJax = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Monte Carlo Budget Estimation</span></a>
   </div>
@@ -731,6 +749,18 @@ MathJax = {
           </a> 
       </div>
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
@@ -1057,7 +1087,7 @@ MathJax = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="ff902790" class="cell" data-execution_count="1">
+<div id="4cbe0167" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1077,7 +1107,7 @@ MathJax = {
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">2</span>)</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="5309e089" class="cell" data-execution_count="2">
+<div id="9ec315f0" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>benchmark  <span class="op">=</span> LotkaVolterraOEDBenchmark(bkd)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>obs_model  <span class="op">=</span> benchmark.observation_model()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>pred_model <span class="op">=</span> benchmark.prediction_model()   <span class="co"># maps theta -&gt; future state values</span></span>
@@ -1091,7 +1121,7 @@ MathJax = {
 <section id="the-prediction-target" class="level2">
 <h2 class="anchored" data-anchor-id="the-prediction-target">The Prediction Target</h2>
 <p>The prediction model evaluates the ODE at future times not used for observation. This represents a common scenario: we observe the system now to forecast its future state.</p>
-<div id="d6dabd01" class="cell" data-execution_count="3">
+<div id="095a67ce" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> prior.rvs(<span class="dv">1</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Observations vs. predictions on the same trajectory</span></span>
@@ -1116,7 +1146,7 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <section id="generating-shared-quadrature-data" class="level2">
 <h2 class="anchored" data-anchor-id="generating-shared-quadrature-data">Generating Shared Quadrature Data</h2>
 <p>We generate the data once and reuse it for both OED variants. This avoids re-running the (expensive) model forward pass when comparing utility functions.</p>
-<div id="49a6b618" class="cell" data-execution_count="5">
+<div id="e5fccfe7" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>data_gen <span class="op">=</span> OEDDataGenerator(bkd)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>nouterloop <span class="op">=</span> <span class="dv">5_000</span></span>
@@ -1153,7 +1183,7 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <section id="design-1-standard-deviation-utility" class="level2">
 <h2 class="anchored" data-anchor-id="design-1-standard-deviation-utility">Design 1: Standard Deviation Utility</h2>
 <p>The <strong>standard deviation deviation</strong> treats all prediction errors symmetrically — it minimises the expected posterior standard deviation of each QoI component with equal weight.</p>
-<div id="e11f3d16" class="cell" data-execution_count="6">
+<div id="d39242c9" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>weights_std, utility_std <span class="op">=</span> solve_prediction_oed(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    noise_variances<span class="op">=</span>noise_variances,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    outer_shapes<span class="op">=</span>outer_shapes,</span>
@@ -1170,7 +1200,7 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <section id="design-2-entropic-deviation-utility" class="level2">
 <h2 class="anchored" data-anchor-id="design-2-entropic-deviation-utility">Design 2: Entropic Deviation Utility</h2>
 <p>The <strong>entropic risk deviation</strong> up-weights scenarios where predictions are far from their mean — it is risk-averse towards large prediction errors.</p>
-<div id="4390b977" class="cell" data-execution_count="7">
+<div id="b1dee49e" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>weights_ent, utility_ent <span class="op">=</span> solve_prediction_oed(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    noise_variances<span class="op">=</span>noise_variances,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    outer_shapes<span class="op">=</span>outer_shapes,</span>
@@ -1224,7 +1254,7 @@ Figure&nbsp;2: Optimal design weights for standard-deviation (blue) and entropic
 <section id="cross-evaluating-designs" class="level2">
 <h2 class="anchored" data-anchor-id="cross-evaluating-designs">Cross-Evaluating Designs</h2>
 <p>A rigorous comparison evaluates each design under <em>both</em> utility functions. If design A beats design B on utility A but loses on utility B, neither dominates — the choice must be made based on risk preferences alone.</p>
-<div id="c5c78231" class="cell" data-execution_count="9">
+<div id="636b61d6" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create both objectives for cross-evaluation</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>obj_std <span class="op">=</span> create_prediction_oed_objective(</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    noise_variances, outer_shapes, inner_shapes, latent_samples,</span>
