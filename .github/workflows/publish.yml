@@ -1,15 +1,16 @@
-name: Publish
+name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_to_pypi:
+        description: "Also publish to production PyPI (requires approval)"
+        type: boolean
+        default: false
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,4 +21,55 @@ jobs:
       - run: |
           pip install hatch hatch-vcs
           hatch build
+      - name: Show built version
+        run: ls -la dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  test-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: test-pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  verify-test-pypi:
+    needs: test-pypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Wait for TestPyPI index to update
+        run: sleep 30
+      - name: Install from TestPyPI and verify
+        run: |
+          pip install \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            pyapprox
+          python -c "import pyapprox; print(f'Installed pyapprox {pyapprox.__version__}')"
+
+  pypi:
+    needs: verify-test-pypi
+    if: inputs.publish_to_pypi
+    runs-on: ubuntu-latest
+    environment: pypi-production
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1

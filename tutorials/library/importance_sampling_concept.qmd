@@ -50,45 +50,290 @@ Complete [Monte Carlo Sampling](monte_carlo_sampling.qmd) and [Estimator Accurac
 
 ## Why Rare Events Break Monte Carlo
 
-The [QMC tutorial](quasi_monte_carlo_sampling.qmd) showed how structured point sets can accelerate convergence for smooth integrands. But it also noted a limitation: for **discontinuous** integrands --- such as the indicator function $\mathbb{1}[f > c]$ used to estimate failure probabilities --- QMC loses most of its advantage because the integrand's variation $V_{\mathrm{HK}}$ is large.
+Estimating the probability of a rare but critical event --- a bridge deflecting past its safety limit, a circuit failing under thermal stress --- is one of the hardest problems in uncertainty quantification. The difficulty is simple to state: if failures happen one time in ten thousand, then a Monte Carlo experiment with a few hundred samples will almost certainly see **zero failures**. The estimate $\hat{p} = 0$ is technically unbiased (averaged over infinitely many experiments), but any single experiment is useless.
 
-Failure probability estimation is arguably the most important discontinuous-integrand problem in engineering UQ. We want to compute:
+The [QMC tutorial](quasi_monte_carlo_sampling.qmd) showed that structured point sets accelerate convergence for smooth integrands. But failure probabilities involve the indicator function $\mathbb{1}[f > c]$, which is discontinuous --- exactly the case where QMC's advantage disappears.
 
-$$
-p = P\bigl(f(\boldsymbol{\theta}) > c\bigr) = \int \mathbb{1}\bigl[f(\boldsymbol{\theta}) > c\bigr]\, \pi(\boldsymbol{\theta})\, d\boldsymbol{\theta}
-$$
+We need a fundamentally different idea. Before deriving anything, let's see the problem.
 
-where $\pi$ is the prior (or input distribution) and $c$ is a critical threshold. The Monte Carlo estimator is simply the fraction of samples that exceed the threshold:
 
-$$
-\hat{p}_M = \frac{1}{M} \sum_{i=1}^{M} \mathbb{1}\bigl[f(\boldsymbol{\theta}^{(i)}) > c\bigr], \qquad \boldsymbol{\theta}^{(i)} \sim \pi
-$$
+## Seeing the Problem: Where Do the Samples Land?
 
-This is a sample mean of Bernoulli($p$) random variables. Its variance is:
+Consider estimating $p = P(x > 2)$ where $x \sim \mathcal{N}(0,1)$. The true probability is about 2.3%. @fig-mc-samples-1d shows 120 samples drawn from the standard normal, with the failure region $x > 2$ shaded.
 
-$$
-\text{Var}[\hat{p}_M] = \frac{p(1 - p)}{M} \approx \frac{p}{M} \quad \text{when } p \ll 1
-$$
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+from scipy.stats import norm as sp_norm
 
-The **relative** standard error is therefore:
+threshold_1d = 2.0
+true_p_1d = sp_norm.sf(threshold_1d)
+
+np.random.seed(42)
+n_vis = 120
+mc_vis = np.random.normal(0, 1, n_vis)
+mc_fail_vis = mc_vis > threshold_1d
+
+x_plot = np.linspace(-4, 6, 1000)
+p_pdf = sp_norm.pdf(x_plot, 0, 1)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "120 samples from the standard normal $\\pi$. The failure region $x > 2$ (shaded red) sits in the far tail where $\\pi$ has almost no mass. Only 1 sample (red tick mark) lands past the threshold --- the other 119 contribute nothing to the failure probability estimate."
+#| label: fig-mc-samples-1d
+
+fig, ax = plt.subplots(figsize=(8, 4))
+
+ax.fill_between(x_plot, p_pdf, where=(x_plot >= threshold_1d), alpha=0.18,
+                color="#e74c3c", zorder=1)
+ax.plot(x_plot, p_pdf, color="#c0392b", lw=2.5, zorder=3,
+        label=r"Target $\pi(x)$  (std. normal)")
+ax.axvline(threshold_1d, color="#e74c3c", lw=1.8, ls="--", alpha=0.7, zorder=2)
+
+y_tick = -0.015
+ax.scatter(mc_vis[~mc_fail_vis], np.full((~mc_fail_vis).sum(), y_tick),
+           marker="|", s=50, color="#95a5a6", alpha=0.5, linewidths=1, zorder=4)
+ax.scatter(mc_vis[mc_fail_vis], np.full(mc_fail_vis.sum(), y_tick),
+           marker="|", s=90, color="#e74c3c", linewidths=2, zorder=5)
+
+n_hits = mc_fail_vis.sum()
+ax.text(0.96, 0.92,
+        f"$p = P(x > {threshold_1d}) = {true_p_1d:.3f}$\n"
+        f"Failures: {n_hits} / {n_vis}",
+        transform=ax.transAxes, ha="right", va="top", fontsize=10,
+        bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#bdc3c7"))
+
+ax.annotate(
+    "Rare event region\n(most samples miss it)",
+    xy=(2.8, 0.008), xytext=(3.8, 0.15),
+    fontsize=9, color="#e74c3c",
+    arrowprops=dict(arrowstyle="-|>", color="#e74c3c", lw=1.5),
+    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#e74c3c", alpha=0.9),
+)
+
+ax.set_xlabel("$x$", fontsize=11)
+ax.set_ylabel("Density", fontsize=11)
+ax.set_xlim(-4, 6)
+ax.set_ylim(-0.035, 0.52)
+ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
+ax.grid(True, alpha=0.12)
+plt.tight_layout()
+plt.show()
+```
+
+The picture tells the whole story: the target density $\pi$ concentrates almost all its mass between $-2$ and $2$. The failure region $x > 2$ sits in the far tail where $\pi$ is negligible --- samples simply don't land there. Of 120 draws, only 1 exceeds the threshold. The other 119 contribute nothing: each returns $\mathbb{1}[x_i > 2] = 0$.
+
+
+## MC Estimation: The Consequence
+
+We just saw that a single MC experiment with 120 samples produced only 1 failure. What happens if we repeat this experiment hundreds of times? @fig-mc-failure-histogram runs 500 independent experiments at two sample sizes.
+
+```{python}
+#| echo: false
+
+n_reps = 500
+
+def mc_failure_estimates_1d(threshold, M, n_reps):
+    """Run n_reps MC experiments for P(x > threshold), x ~ N(0,1)."""
+    estimates = np.empty(n_reps)
+    for i in range(n_reps):
+        np.random.seed(i)
+        samples = np.random.normal(0, 1, M)
+        estimates[i] = np.mean(samples > threshold)
+    return estimates
+
+estimates_500_1d = mc_failure_estimates_1d(threshold_1d, 500, n_reps)
+estimates_5000_1d = mc_failure_estimates_1d(threshold_1d, 5000, n_reps)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "MC estimates of $P(x > 2)$ from 500 independent experiments. Left: $M = 500$ --- many experiments see zero failures, producing $\\hat{p} = 0$ (the tall spike at the origin). Right: $M = 5{,}000$ --- fewer zeros, but estimates still scatter widely around the true value (red dashed line)."
+#| label: fig-mc-failure-histogram
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5), sharey=False)
+
+for ax, ests, M_lab in [(ax1, estimates_500_1d, 500), (ax2, estimates_5000_1d, 5000)]:
+    ax.hist(ests, bins=40, density=True, alpha=0.7, color="steelblue",
+            edgecolor="white", linewidth=0.5)
+    ax.axvline(true_p_1d, color="firebrick", linestyle="--", linewidth=2,
+               label=f"True $p = {true_p_1d:.4f}$")
+    n_zeros = np.sum(ests == 0)
+    ax.set_title(f"MC,  $M = {M_lab:,}$", fontsize=12)
+    ax.set_xlabel(r"$\hat{p}_M$")
+    ax.legend(fontsize=9)
+    ax.text(0.97, 0.80,
+            f"$\\hat{{p}} = 0$ in {n_zeros}/{n_reps}\n"
+            f"({100 * n_zeros / n_reps:.0f}%) of experiments",
+            transform=ax.transAxes, ha="right", fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.85))
+
+ax1.set_ylabel("Density")
+plt.tight_layout()
+plt.show()
+```
+
+The spike at zero in the left panel is exactly what @fig-mc-samples-1d predicted: experiments that drew hundreds of samples without a single one reaching the tail. The estimator is unbiased --- averaged over all 500 experiments the mean is close to the true $p$ --- but any individual estimate is nearly useless.
+
+We can now quantify the pain. The MC estimator $\hat{p}_M = \frac{1}{M}\sum \mathbb{1}[x_i > c]$ is a sample mean of Bernoulli($p$) random variables. Its variance is $p(1-p)/M \approx p/M$ when $p$ is small, so the relative standard error is:
 
 $$
 \frac{\text{SE}[\hat{p}_M]}{p} = \frac{1}{\sqrt{Mp}}
 $$
 
-To achieve a 10% relative error we need $M \approx 100/p$. For $p = 10^{-3}$ that is $100{,}000$ samples; for $p = 10^{-6}$ it is $100{,}000{,}000$. The convergence *rate* is still $1/\sqrt{M}$, the same as always --- but the constant $p(1-p)$ makes the prefactor terrible when the event is rare. Neither QMC nor multi-fidelity methods directly address this: QMC struggles with the discontinuity, and multi-fidelity methods reduce the constant for smooth statistics but not for indicator functions.
+To achieve 10% relative error we need $M \approx 100/p$. For $p = 10^{-3}$ that is $100{,}000$ samples; for $p = 10^{-6}$ it is $100$ million. This is the formula behind the spike at zero: with $M = 500$ and $p \approx 0.023$, we need roughly $M \approx 4{,}000$ samples for 10% accuracy, so most 500-sample experiments miss the tail entirely.
 
-This tutorial introduces a fundamentally different strategy: **importance sampling** changes *where* we sample so that failures are no longer rare in the sample.
+What if we could sample from a *different* distribution --- one that puts its mass right where failures occur?
+
+
+## The Key Idea: Sample Where Failures Happen
+
+The fix is to **sample from a different distribution $q$ that places mass where failures occur**, then correct for the fact that we sampled from the wrong distribution. @fig-is-fix shows both steps.
+
+```{python}
+#| echo: false
+#| fig-cap: "The importance sampling fix, continuing the 1D example from @fig-mc-samples-1d. **(Left)** A shifted proposal $q$ (blue, centered at 2.5) places most of its mass past the threshold. Of 120 samples, the majority now land in the failure region --- compare to the single hit in @fig-mc-samples-1d. **(Right)** But we can't just count them: they were drawn from $q$, not $\\pi$. Each sample is placed on the target density $\\pi$ and sized by its importance weight $w_i = \\pi(x_i) / q(x_i)$. Samples near the threshold carry the largest weights (dark red, large markers) because they are relatively most probable under $\\pi$. Samples deep in the tail, where $\\pi$ is negligible, are downweighted (yellow, small markers)."
+#| label: fig-is-fix
+
+np.random.seed(42)
+n_vis = 120
+
+q_mean = 2.5
+q_std = 0.8
+
+q_pdf = sp_norm.pdf(x_plot, q_mean, q_std)
+
+is_vis = np.random.normal(q_mean, q_std, n_vis)
+is_fail_vis = is_vis > threshold_1d
+
+weights_vis = sp_norm.pdf(is_vis, 0, 1) / sp_norm.pdf(is_vis, q_mean, q_std)
+
+fig, (ax_b, ax_c) = plt.subplots(1, 2, figsize=(13, 4.5))
+
+# --- Left panel: proposal q with samples ---
+ax_b.fill_between(x_plot, q_pdf, where=(x_plot >= threshold_1d), alpha=0.12,
+                   color="#2471a3", zorder=1)
+ax_b.plot(x_plot, p_pdf, color="#c0392b", lw=1.5, alpha=0.35, zorder=2,
+          label=r"Target $\pi(x)$")
+ax_b.plot(x_plot, q_pdf, color="#2471a3", lw=2.5, zorder=3,
+          label=r"Proposal $q(x)$")
+ax_b.axvline(threshold_1d, color="#e74c3c", lw=1.8, ls="--", alpha=0.7, zorder=2)
+
+y_tick = -0.015
+ax_b.scatter(is_vis[~is_fail_vis], np.full((~is_fail_vis).sum(), y_tick),
+             marker="|", s=50, color="#2471a3", alpha=0.4, linewidths=1, zorder=4)
+ax_b.scatter(is_vis[is_fail_vis], np.full(is_fail_vis.sum(), y_tick),
+             marker="|", s=90, color="#e74c3c", linewidths=2, zorder=5)
+
+n_is_hits = is_fail_vis.sum()
+ax_b.text(0.96, 0.92,
+          f"Failures: {n_is_hits} / {n_vis}",
+          transform=ax_b.transAxes, ha="right", va="top", fontsize=10,
+          bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#bdc3c7"))
+
+ax_b.annotate(
+    "$q$ concentrates mass\nwhere failures occur",
+    xy=(2.5, 0.42), xytext=(0.0, 0.42),
+    fontsize=9, color="#2471a3",
+    arrowprops=dict(arrowstyle="-|>", color="#2471a3", lw=1.5),
+    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#2471a3", alpha=0.9),
+)
+
+ax_b.set_title("Shifted proposal $q$ — many more hits",
+               fontsize=12, fontweight="bold")
+ax_b.set_xlabel("$x$", fontsize=11)
+ax_b.set_ylabel("Density", fontsize=11)
+ax_b.set_xlim(-4, 6)
+ax_b.set_ylim(-0.035, 0.52)
+ax_b.legend(fontsize=9, loc="upper left", framealpha=0.9)
+ax_b.grid(True, alpha=0.12)
+
+# --- Right panel: weighted samples on pi ---
+ax_c.fill_between(x_plot, p_pdf, where=(x_plot >= threshold_1d), alpha=0.12,
+                   color="#e74c3c", zorder=1)
+ax_c.plot(x_plot, p_pdf, color="#c0392b", lw=2, alpha=0.5, zorder=2)
+ax_c.axvline(threshold_1d, color="#e74c3c", lw=1.5, ls="--", alpha=0.5, zorder=2)
+
+# Safe IS samples: small gray
+ax_c.scatter(is_vis[~is_fail_vis],
+             sp_norm.pdf(is_vis[~is_fail_vis], 0, 1),
+             s=12, alpha=0.25, color="#95a5a6", edgecolors="none", zorder=4)
+
+# Failure IS samples: sized by weight
+w_fail = weights_vis[is_fail_vis]
+w_sizes = 20 + 250 * (w_fail / w_fail.max())
+sc = ax_c.scatter(is_vis[is_fail_vis],
+                  sp_norm.pdf(is_vis[is_fail_vis], 0, 1),
+                  s=w_sizes, alpha=0.7, c=w_fail, cmap="YlOrRd",
+                  edgecolors="white", linewidth=0.5, zorder=5)
+cbar = fig.colorbar(sc, ax=ax_c, shrink=0.65, pad=0.03, aspect=15)
+cbar.set_label(r"Weight $w_i = \pi / q$", fontsize=10)
+
+ax_c.annotate(
+    "Samples near threshold\nhave largest weights\n(most likely under $\\pi$)",
+    xy=(2.1, sp_norm.pdf(2.1, 0, 1)), xytext=(-3.0, 0.18),
+    fontsize=8.5, color="#7d3c1f",
+    arrowprops=dict(arrowstyle="-|>", color="#7d3c1f", lw=1.3,
+                    connectionstyle="arc3,rad=0.2"),
+    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#7d3c1f", alpha=0.9),
+)
+
+ax_c.set_title("Weights correct for the shift",
+               fontsize=12, fontweight="bold")
+ax_c.set_xlabel("$x$", fontsize=11)
+ax_c.set_ylabel(r"$\pi(x)$", fontsize=11)
+ax_c.set_xlim(-4, 5.5)
+ax_c.set_ylim(-0.01, 0.44)
+ax_c.grid(True, alpha=0.12)
+
+plt.tight_layout()
+plt.show()
+```
+
+The left panel is the "aha": by shifting the sampling distribution to $q$, the majority of samples now exceed the threshold. But these samples were drawn from $q$, not $\pi$ --- we can't simply count them. The right panel shows the correction: each sample is placed on the target density $\pi$ and scaled by its importance weight $w_i = \pi(x_i)/q(x_i)$. Samples near the threshold are the most valuable --- they are relatively probable under $\pi$ and carry the largest weights. Samples deep in the tail, where $q \gg \pi$, contribute almost nothing after reweighting.
+
+This is the entire importance sampling mechanism: **sample where it matters, then correct for the bias**.
+
+
+## Formalizing the Idea
+
+### The importance sampling estimator
+
+The figure above showed the mechanism; now we write it down. The failure probability is an integral:
+
+$$
+p = P\bigl(f(\boldsymbol{\theta}) > c\bigr) = \int \mathbb{1}\bigl[f(\boldsymbol{\theta}) > c\bigr]\, \pi(\boldsymbol{\theta})\, d\boldsymbol{\theta}
+$$
+
+Multiply and divide by the proposal density $q$:
+
+$$
+p = \int \mathbb{1}[f(\boldsymbol{\theta}) > c]\, \frac{\pi(\boldsymbol{\theta})}{q(\boldsymbol{\theta})}\, q(\boldsymbol{\theta})\, d\boldsymbol{\theta}
+$$
+
+Now sample from $q$ instead of $\pi$:
+
+$$
+\hat{p}_M^{\text{IS}} = \frac{1}{M} \sum_{i=1}^{M} \mathbb{1}[f(\boldsymbol{\theta}^{(i)}) > c]\, \frac{\pi(\boldsymbol{\theta}^{(i)})}{q(\boldsymbol{\theta}^{(i)})}, \qquad \boldsymbol{\theta}^{(i)} \sim q
+$$
+
+The ratio $w(\boldsymbol{\theta}) = \pi(\boldsymbol{\theta}) / q(\boldsymbol{\theta})$ is the **likelihood ratio** or **importance weight**. Each term maps directly to something in @fig-is-fix:
+
+- $\boldsymbol{\theta}^{(i)} \sim q$ --- left panel: samples drawn from the shifted proposal
+- $\mathbb{1}[f(\boldsymbol{\theta}^{(i)}) > c]$ --- the red tick marks: which samples exceed the threshold
+- $w_i = \pi / q$ --- right panel: the marker sizes that correct for the distributional shift
+
+The estimator is **unbiased** for any valid $q$ (any distribution positive wherever $\pi \cdot \mathbb{1}[f > c] > 0$). The choice of $q$ affects only the **variance** --- and a good choice can reduce it by orders of magnitude.
 
 
 ## Setup: The Beam Model with a Failure Threshold
 
-We use the analytical cantilever beam with $\mathrm{Beta}(2, 5)$ priors on the two Young's moduli, the same model as the [QMC tutorial](quasi_monte_carlo_sampling.qmd).
+We now apply importance sampling to a realistic engineering model. We use the analytical cantilever beam with $\mathrm{Beta}(2, 5)$ priors on the two Young's moduli, the same model as the [QMC tutorial](quasi_monte_carlo_sampling.qmd).
 
 ```{python}
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import stats
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.benchmarks.instances.analytic.cantilever_beam import (
     cantilever_beam_1d_analytical,
@@ -210,78 +455,6 @@ cbar = fig.colorbar(cf, ax=ax, label=r"$\delta_{\mathrm{tip}}$")
 plt.tight_layout()
 plt.show()
 ```
-
-
-## MC Estimation: Watching It Struggle
-
-To see the problem quantitatively, we run 500 independent MC experiments at two different sample sizes and collect the resulting $\hat{p}$ estimates.
-
-```{python}
-#| echo: false
-n_reps = 500
-
-def mc_failure_estimates(variable, model, threshold, M, n_reps, bkd):
-    """Run n_reps MC experiments, each with M samples."""
-    estimates = np.empty(n_reps)
-    for i in range(n_reps):
-        np.random.seed(i)
-        s = variable.rvs(M)
-        q = bkd.to_numpy(model(s)[0])
-        estimates[i] = np.mean(q > threshold)
-    return estimates
-
-estimates_500 = mc_failure_estimates(variable, model, threshold, 500, n_reps, bkd)
-estimates_5000 = mc_failure_estimates(variable, model, threshold, 5000, n_reps, bkd)
-```
-
-```{python}
-#| echo: false
-#| fig-cap: "MC estimates of the failure probability from 500 independent experiments. Left: $M = 500$ --- many experiments see zero failures, producing $\\hat{p} = 0$ (the tall spike at the origin). Right: $M = 5{,}000$ --- fewer zeros, but estimates still scatter widely around the true value (red dashed line)."
-#| label: fig-mc-failure-histogram
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5), sharey=False)
-
-for ax, ests, M_lab in [(ax1, estimates_500, 500), (ax2, estimates_5000, 5000)]:
-    ax.hist(ests, bins=40, density=True, alpha=0.7, color="steelblue",
-            edgecolor="white", linewidth=0.5)
-    ax.axvline(true_p, color="firebrick", linestyle="--", linewidth=2,
-               label=f"True $p = {true_p:.4f}$")
-    n_zeros = np.sum(ests == 0)
-    ax.set_title(f"MC,  $M = {M_lab:,}$", fontsize=12)
-    ax.set_xlabel(r"$\hat{p}_M$")
-    ax.legend(fontsize=9)
-    ax.text(0.97, 0.80,
-            f"$\\hat{{p}} = 0$ in {n_zeros}/{n_reps}\n"
-            f"({100 * n_zeros / n_reps:.0f}%) of experiments",
-            transform=ax.transAxes, ha="right", fontsize=9,
-            bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.85))
-
-ax1.set_ylabel("Density")
-plt.tight_layout()
-plt.show()
-```
-
-The spike at zero in the left panel is the hallmark of the rare-event problem: those experiments drew $M = 500$ samples and *not a single one* exceeded the threshold. The estimator is unbiased --- the average across all 500 experiments is close to the true $p$ --- but any individual estimate is nearly useless.
-
-
-## The Importance Sampling Idea
-
-Instead of sampling from the prior $\pi$ and hoping to land in the failure region, we **deliberately sample from a distribution $q$ that places more mass near failures**. The key identity is:
-
-$$
-p = \int \mathbb{1}[f(\boldsymbol{\theta}) > c]\, \pi(\boldsymbol{\theta})\, d\boldsymbol{\theta}
-  = \int \mathbb{1}[f(\boldsymbol{\theta}) > c]\, \frac{\pi(\boldsymbol{\theta})}{q(\boldsymbol{\theta})}\, q(\boldsymbol{\theta})\, d\boldsymbol{\theta}
-$$
-
-We have simply multiplied and divided by $q(\boldsymbol{\theta})$. This is valid for any $q$ that is positive wherever the integrand is nonzero. The **importance sampling (IS) estimator** samples from $q$:
-
-$$
-\hat{p}_M^{\text{IS}} = \frac{1}{M} \sum_{i=1}^{M} \mathbb{1}[f(\boldsymbol{\theta}^{(i)}) > c]\, \frac{\pi(\boldsymbol{\theta}^{(i)})}{q(\boldsymbol{\theta}^{(i)})}, \qquad \boldsymbol{\theta}^{(i)} \sim q
-$$
-
-The ratio $w(\boldsymbol{\theta}) = \pi(\boldsymbol{\theta}) / q(\boldsymbol{\theta})$ is called the **likelihood ratio** or **importance weight**. It corrects each sample for the fact that it was drawn from $q$ instead of $\pi$. Samples drawn from a region where $q$ overweights relative to $\pi$ get downweighted, and vice versa.
-
-The estimator is **unbiased** for any valid $q$. The choice of $q$ affects only the **variance** --- and a good choice can reduce it by orders of magnitude.
 
 
 ## Choosing a Biasing Distribution
@@ -423,6 +596,22 @@ plt.show()
 ## IS in Action: Variance Reduction
 
 We now run the same 500-replicate experiment as before, but using importance sampling with $M = 500$ samples per replicate.
+
+```{python}
+#| echo: false
+def mc_failure_estimates(variable, model, threshold, M, n_reps, bkd):
+    """Run n_reps MC experiments, each with M samples."""
+    estimates = np.empty(n_reps)
+    for i in range(n_reps):
+        np.random.seed(i)
+        s = variable.rvs(M)
+        q = bkd.to_numpy(model(s)[0])
+        estimates[i] = np.mean(q > threshold)
+    return estimates
+
+estimates_500 = mc_failure_estimates(variable, model, threshold, 500, n_reps, bkd)
+estimates_5000 = mc_failure_estimates(variable, model, threshold, 5000, n_reps, bkd)
+```
 
 ```{python}
 def is_failure_estimates(model, variable, threshold, M, n_reps,

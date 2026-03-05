@@ -905,3 +905,165 @@ def plot_diagonal_variances(empirical_est_cov, theoretical_est_cov,
     )
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.2, axis="y")
+
+
+# ---------------------------------------------------------------------------
+# importance_sampling_concept.qmd — echo:false → Convention A
+# ---------------------------------------------------------------------------
+
+def plot_mc_samples_1d(ax, threshold, true_p, mc_samples, mc_fail):
+    """importance_sampling_concept.qmd → fig-mc-samples-1d
+
+    Standalone panel showing MC samples from π missing the rare-event tail.
+    """
+    from scipy.stats import norm
+
+    x = np.linspace(-4, 6, 1000)
+    p_pdf = norm.pdf(x, 0, 1)
+
+    C_TARGET = "#c0392b"
+    C_FAIL = "#e74c3c"
+    C_SAFE = "#95a5a6"
+
+    ax.fill_between(x, p_pdf, where=(x >= threshold), alpha=0.18,
+                    color=C_FAIL, zorder=1)
+    ax.plot(x, p_pdf, color=C_TARGET, lw=2.5, zorder=3,
+            label=r"Target $\pi(x)$  (std. normal)")
+    ax.axvline(threshold, color=C_FAIL, lw=1.8, ls="--", alpha=0.7,
+               zorder=2)
+
+    y_tick = -0.015
+    n_samples = len(mc_samples)
+    ax.scatter(mc_samples[~mc_fail], np.full((~mc_fail).sum(), y_tick),
+               marker="|", s=50, color=C_SAFE, alpha=0.5, linewidths=1,
+               zorder=4)
+    ax.scatter(mc_samples[mc_fail], np.full(mc_fail.sum(), y_tick),
+               marker="|", s=90, color=C_FAIL, linewidths=2, zorder=5)
+
+    n_mc_hits = mc_fail.sum()
+    ax.text(0.96, 0.92,
+            f"$p = P(x > {threshold}) = {true_p:.3f}$\n"
+            f"Failures: {n_mc_hits} / {n_samples}",
+            transform=ax.transAxes, ha="right", va="top", fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#bdc3c7"))
+
+    ax.annotate(
+        "Rare event region\n(most samples miss it)",
+        xy=(2.8, 0.008), xytext=(3.8, 0.15),
+        fontsize=9, color=C_FAIL,
+        arrowprops=dict(arrowstyle="-|>", color=C_FAIL, lw=1.5),
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=C_FAIL,
+                  alpha=0.9),
+    )
+
+    ax.set_xlabel("$x$", fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.set_xlim(-4, 6)
+    ax.set_ylim(-0.035, 0.52)
+    ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
+    ax.grid(True, alpha=0.12)
+
+
+def plot_is_fix(fig, ax_b, ax_c, threshold, is_samples, is_fail, weights):
+    """importance_sampling_concept.qmd → fig-is-fix
+
+    Two-panel figure showing the IS fix:
+    left: proposal q with samples,
+    right: weighted IS samples on π with marker size ∝ importance weight.
+    """
+    from scipy.stats import norm
+
+    x = np.linspace(-4, 6, 1000)
+    p_pdf = norm.pdf(x, 0, 1)
+
+    q_mean = 2.5
+    q_std = 0.8
+    q_pdf = norm.pdf(x, q_mean, q_std)
+
+    C_TARGET = "#c0392b"
+    C_PROPOSAL = "#2471a3"
+    C_FAIL = "#e74c3c"
+    C_SAFE = "#95a5a6"
+
+    n_samples = len(is_samples)
+    y_tick = -0.015
+
+    # Left panel: proposal q with samples
+    ax_b.fill_between(x, q_pdf, where=(x >= threshold), alpha=0.12,
+                      color=C_PROPOSAL, zorder=1)
+    ax_b.plot(x, p_pdf, color=C_TARGET, lw=1.5, alpha=0.35, zorder=2,
+              label=r"Target $\pi(x)$")
+    ax_b.plot(x, q_pdf, color=C_PROPOSAL, lw=2.5, zorder=3,
+              label=r"Proposal $q(x)$")
+    ax_b.axvline(threshold, color=C_FAIL, lw=1.8, ls="--", alpha=0.7,
+                 zorder=2)
+
+    ax_b.scatter(is_samples[~is_fail], np.full((~is_fail).sum(), y_tick),
+                 marker="|", s=50, color=C_PROPOSAL, alpha=0.4,
+                 linewidths=1, zorder=4)
+    ax_b.scatter(is_samples[is_fail], np.full(is_fail.sum(), y_tick),
+                 marker="|", s=90, color=C_FAIL, linewidths=2, zorder=5)
+
+    n_is_hits = is_fail.sum()
+    ax_b.text(0.96, 0.92,
+              f"Failures: {n_is_hits} / {n_samples}",
+              transform=ax_b.transAxes, ha="right", va="top", fontsize=10,
+              bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#bdc3c7"))
+
+    ax_b.annotate(
+        "$q$ concentrates mass\nwhere failures occur",
+        xy=(2.5, 0.42), xytext=(0.0, 0.42),
+        fontsize=9, color=C_PROPOSAL,
+        arrowprops=dict(arrowstyle="-|>", color=C_PROPOSAL, lw=1.5),
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=C_PROPOSAL,
+                  alpha=0.9),
+    )
+
+    ax_b.set_title(r"Shifted proposal $q$ — many more hits",
+                   fontsize=12, fontweight="bold")
+    ax_b.set_xlabel("$x$", fontsize=11)
+    ax_b.set_ylabel("Density", fontsize=11)
+    ax_b.set_xlim(-4, 6)
+    ax_b.set_ylim(-0.035, 0.52)
+    ax_b.legend(fontsize=9, loc="upper left", framealpha=0.9)
+    ax_b.grid(True, alpha=0.12)
+
+    # Right panel: weighted IS samples on π
+    ax_c.fill_between(x, p_pdf, where=(x >= threshold), alpha=0.12,
+                      color=C_FAIL, zorder=1)
+    ax_c.plot(x, p_pdf, color=C_TARGET, lw=2, alpha=0.5, zorder=2)
+    ax_c.axvline(threshold, color=C_FAIL, lw=1.5, ls="--", alpha=0.5,
+                 zorder=2)
+
+    ax_c.scatter(is_samples[~is_fail],
+                 norm.pdf(is_samples[~is_fail], 0, 1),
+                 s=12, alpha=0.25, color=C_SAFE, edgecolors="none",
+                 zorder=4)
+
+    w_fail = weights[is_fail]
+    w_sizes = 20 + 250 * (w_fail / w_fail.max())
+    sc = ax_c.scatter(is_samples[is_fail],
+                      norm.pdf(is_samples[is_fail], 0, 1),
+                      s=w_sizes, alpha=0.7, c=w_fail, cmap="YlOrRd",
+                      edgecolors="white", linewidth=0.5, zorder=5)
+    cbar = fig.colorbar(sc, ax=ax_c, shrink=0.65, pad=0.03, aspect=15)
+    cbar.set_label(r"Weight $w_i = \pi / q$", fontsize=10)
+
+    ax_c.annotate(
+        "Samples near threshold\nhave largest weights\n"
+        r"(most likely under $\pi$)",
+        xy=(2.1, norm.pdf(2.1, 0, 1)), xytext=(-3.0, 0.18),
+        fontsize=8.5, color="#7d3c1f",
+        arrowprops=dict(arrowstyle="-|>", color="#7d3c1f", lw=1.3,
+                        connectionstyle="arc3,rad=0.2"),
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#7d3c1f",
+                  alpha=0.9),
+    )
+
+    ax_c.set_title(r"Weights correct for the shift",
+                   fontsize=12, fontweight="bold")
+    ax_c.set_xlabel("$x$", fontsize=11)
+    ax_c.set_ylabel(r"$\pi(x)$", fontsize=11)
+    ax_c.set_xlim(-4, 5.5)
+    ax_c.set_ylim(-0.01, 0.44)
+    ax_c.grid(True, alpha=0.12)
