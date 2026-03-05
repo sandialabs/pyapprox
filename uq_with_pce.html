@@ -223,7 +223,7 @@ window.Quarto = {
 <meta property="og:image" content="https://sandialabs.github.io/pyapprox/uq_with_pce_files/figure-html/fig-marginal-densities-output-1.png">
 <meta property="og:site_name" content="PyApprox">
 <meta property="og:image:height" content="741">
-<meta property="og:image:width" content="2663">
+<meta property="og:image:width" content="2666">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1116,7 +1116,7 @@ window.Quarto = {
 <section id="setup-fit-a-pce" class="level2">
 <h2 class="anchored" data-anchor-id="setup-fit-a-pce">Setup: Fit a PCE</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> parameterized by a 3-term Karhunen–Lo`eve expansion. The three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0,1)\)</span> are the uncertain inputs. The model returns three QoIs: tip deflection, integrated bending stress, and maximum curvature.</p>
-<div id="9d4133e6" class="cell" data-execution_count="1">
+<div id="2c60f8cb" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1171,7 +1171,7 @@ window.Quarto = {
 \text{Cov}[f_j, f_k] = \sum_{i=1}^{P-1} c_{i,j}\, c_{i,k}
 \]</span></p>
 <p>The mean is the zeroth coefficient (constant term), and the variance is the sum of squares of all other coefficients. Once the PCE is fitted, moment computation is instantaneous.</p>
-<div id="b677b1bc" class="cell" data-execution_count="2">
+<div id="39bdade2" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>pce_mean <span class="op">=</span> bkd.to_numpy(pce.mean())           <span class="co"># (nqoi,)</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>pce_var <span class="op">=</span> bkd.to_numpy(pce.variance())         <span class="co"># (nqoi,)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>pce_cov <span class="op">=</span> bkd.to_numpy(pce.covariance())       <span class="co"># (nqoi, nqoi)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1200,7 +1200,7 @@ M = \frac{(500 - N_{\text{train}}) \times t_{\text{beam}}}{t_{\text{PCE}}}
 \]</span></p>
 <div id="cell-fig-marginal-densities" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.timing <span class="im">import</span> timed</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_pce_marginal_densities</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_pce_marginal_densities</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Measure per-evaluation cost of beam model and PCE</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>timed_model <span class="op">=</span> timed(model)</span>
@@ -1236,7 +1236,7 @@ M = \frac{(500 - N_{\text{train}}) \times t_{\text{beam}}}{t_{\text{PCE}}}
 <div id="fig-marginal-densities" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_pce_files/figure-html/fig-marginal-densities-output-1.png" width="1332" height="371" class="figure-img">
+<img src="uq_with_pce_files/figure-html/fig-marginal-densities-output-1.png" width="1333" height="371" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;1: Marginal density estimates at equal wall-clock cost. MC (blue) uses 500 beam evaluations. PCE (orange) uses N_train=100 beam evaluations for training plus M equivalent-cost surrogate evaluations. The PCE produces much smoother densities because the cheap surrogate allows orders of magnitude more samples in the same time budget.
@@ -1945,7 +1945,7 @@ Figure&nbsp;3: PCE vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (
 <span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-marginal-densities</span></span>
 <span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.timing <span class="im">import</span> timed</span>
-<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_pce_marginal_densities</span>
+<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_pce_marginal_densities</span>
 <span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a><span class="co"># Measure per-evaluation cost of beam model and PCE</span></span>
 <span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a>timed_model <span class="op">=</span> timed(model)</span>
@@ -2040,7 +2040,7 @@ Figure&nbsp;3: PCE vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (
 <span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For PCE, the degree increases with the budget (oversampling ratio = 2). Lines show median over 20 repetitions; bands show 10th--90th percentiles."</span></span>
 <span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pce-vs-mc</span></span>
 <span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_pce_vs_mc</span>
+<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_pce_vs_mc</span>
 <span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a>plot_pce_vs_mc(model, prior, marginals, ls_fitter, bkd,</span>

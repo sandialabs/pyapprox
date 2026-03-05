@@ -1125,7 +1125,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.</p>
-<div id="b666201b" class="cell" data-execution_count="1">
+<div id="56c4b4f8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1160,7 +1160,7 @@ window.Quarto = {
 </section>
 <section id="helper-solve-oed-for-a-given-budget-and-seed" class="level2">
 <h2 class="anchored" data-anchor-id="helper-solve-oed-for-a-given-budget-and-seed">Helper: Solve OED for a Given Budget and Seed</h2>
-<div id="c5102764" class="cell" data-execution_count="2">
+<div id="584bf781" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solve_oed(M, seed):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Solve the relaxed KL-OED problem for a given outer budget and seed.</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1190,7 +1190,7 @@ window.Quarto = {
 <section id="design-variability-at-fixed-budget" class="level2">
 <h2 class="anchored" data-anchor-id="design-variability-at-fixed-budget">Design Variability at Fixed Budget</h2>
 <p>We solve the OED problem three times at <span class="math inline">\(M = 1{,}000\)</span> with different random seeds. At this moderate budget the EIG estimate is noisy, so the optimal designs should differ visibly between runs.</p>
-<div id="f2910468" class="cell" data-execution_count="3">
+<div id="f8636d97" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_fixed <span class="op">=</span> <span class="dv">1000</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1233,7 +1233,7 @@ Figure&nbsp;1: Optimal design weights from 3 independent MC realizations at M=1,
 <p>Each budget level requires <code>n_seeds</code> independent forward-model evaluations and optimizations. For expensive models, this convergence study is itself a significant investment — but it is the only reliable way to verify that your design is trustworthy.</p>
 </div>
 </div>
-<div id="c195dfc9" class="cell" data-execution_count="5">
+<div id="b1dc5edb" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">4000</span>]</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1912,7 +1912,7 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."</span></span>
 <span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variability</span></span>
-<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_design_variability</span>
+<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_design_variability</span>
 <span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>plot_design_variability(axes, obs_times, designs_fixed, M_fixed)</span>
@@ -1961,7 +1961,7 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized."</span></span>
 <span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-design-convergence</span></span>
-<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_design_convergence</span>
+<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_design_convergence</span>
 <span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="bu">len</span>(budgets), <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">3.0</span> <span class="op">*</span> <span class="bu">len</span>(budgets)),</span>
 <span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a>                         sharex<span class="op">=</span><span class="va">True</span>, sharey<span class="op">=</span><span class="va">True</span>)</span>

@@ -1236,7 +1236,7 @@ window.Quarto = {
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We manually construct <span class="math inline">\(\boldsymbol{\Psi}\)</span> for the three-subset example from the concept tutorial and verify <a href="#eq-variance" class="quarto-xref">Equation&nbsp;6</a> against empirical variance from repeated trials.</p>
-<div id="5e31aa74" class="cell" data-execution_count="1">
+<div id="9cd172b5" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1275,7 +1275,7 @@ window.Quarto = {
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>beta <span class="op">=</span> np.zeros(M <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span> beta[<span class="dv">0</span>] <span class="op">=</span> <span class="fl">1.0</span>   <span class="co"># extract HF mean</span></span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>var_theo <span class="op">=</span> <span class="bu">float</span>(beta <span class="op">@</span> Psi_inv <span class="op">@</span> beta)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="48fd93d4" class="cell" data-execution_count="2">
+<div id="c8174200" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-subset information contributions — shows which subsets inform which means</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (sidx, mk) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(subsets_idx, m_counts)):</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Rk <span class="op">=</span> restriction(sidx, M)</span>
@@ -1307,7 +1307,7 @@ window.Quarto = {
 <span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>estimates <span class="op">=</span> np.array(estimates)</span>
 <span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
 <span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_verify</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_verify</span>
 <span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax)</span>
@@ -1350,7 +1350,7 @@ Figure&nbsp;1: Empirical distribution of MLBLUE estimates for <span class="math 
 <span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>mc_var_N1 <span class="op">=</span> cov[<span class="dv">0</span>, <span class="dv">0</span>]    <span class="co"># MC variance with N=1 HF sample</span></span>
 <span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_m_sweep</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_m_sweep</span>
 <span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax)</span>
@@ -2177,7 +2177,7 @@ Figure&nbsp;2: MLBLUE variance <span class="math inline">\(\boldsymbol{\beta}^\t
 <span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a>estimates <span class="op">=</span> np.array(estimates)</span>
 <span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
 <span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_verify</span>
+<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_verify</span>
 <span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a>plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax)</span>
@@ -2216,7 +2216,7 @@ Figure&nbsp;2: MLBLUE variance <span class="math inline">\(\boldsymbol{\beta}^\t
 <span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a>mc_var_N1 <span class="op">=</span> cov[<span class="dv">0</span>, <span class="dv">0</span>]    <span class="co"># MC variance with N=1 HF sample</span></span>
 <span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_m_sweep</span>
+<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mlblue_m_sweep</span>
 <span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a>plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax)</span>

@@ -1125,7 +1125,7 @@ window.Quarto = {
 <section id="setup-the-beam-model" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-model">Setup: The Beam Model</h2>
 <p>We use the analytical composite cantilever beam model. The two uncertain parameters <span class="math inline">\(E_1, E_2\)</span> — skin and core Young’s moduli with <span class="math inline">\(\mathrm{Beta}(2,5)\)</span> priors on bounded intervals — control the effective bending stiffness, and the model returns three QoIs: tip deflection, integrated stress, and maximum curvature.</p>
-<div id="d6fb417c" class="cell" data-execution_count="1">
+<div id="be2397f8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1161,7 +1161,7 @@ Number of QoIs: 3</code></pre>
 <li><code>SobolSampler</code>: uses direction numbers and bitwise operations to construct a <span class="math inline">\((t, s)\)</span>-sequence with strong equidistribution properties. Generally preferred for most applications.</li>
 </ul>
 <p>Both produce points in <span class="math inline">\([0, 1]^d\)</span> that fill the space progressively — each new point lands in a region that is currently undersampled.</p>
-<div id="9fa18551" class="cell" data-execution_count="3">
+<div id="5efe6447" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.halton <span class="im">import</span> HaltonSampler</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.sobol <span class="im">import</span> SobolSampler</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1226,7 +1226,7 @@ Figure&nbsp;2: Marginal histograms of the <span class="math inline">\(x_1\)</spa
 <section id="transforming-qmc-samples-to-the-prior" class="level2">
 <h2 class="anchored" data-anchor-id="transforming-qmc-samples-to-the-prior">Transforming QMC Samples to the Prior</h2>
 <p>So far the points live in <span class="math inline">\([0,1]^d\)</span>. To use them with the beam model, we need samples from the prior <span class="math inline">\(\pi(\boldsymbol{\theta})\)</span>. Both samplers accept a <code>distribution</code> argument that applies the prior’s inverse CDF to each uniform coordinate, producing QMC samples in the model’s input space.</p>
-<div id="227e04d7" class="cell" data-execution_count="6">
+<div id="2a4289ad" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>halton_beam <span class="op">=</span> HaltonSampler(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    model.nvars(), bkd, distribution<span class="op">=</span>variable, scramble<span class="op">=</span><span class="va">False</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1263,7 +1263,7 @@ Figure&nbsp;3: <span class="math inline">\(N = 256\)</span> samples in the beam 
 <h2 class="anchored" data-anchor-id="convergence-mc-vs.-qmc">Convergence: MC vs.&nbsp;QMC</h2>
 <p>We now arrive at the central question: <strong>does better space-filling translate into faster convergence of the integral estimate?</strong></p>
 <p>We estimate the mean tip deflection <span class="math inline">\(\mathbb{E}[\delta_{\text{tip}}]\)</span> using MC, Halton, and Sobol at increasing sample sizes <span class="math inline">\(N\)</span> and measure the absolute error against the quadrature reference.</p>
-<div id="ecc0edc2" class="cell" data-execution_count="8">
+<div id="056ed388" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">2</span><span class="op">**</span>k <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">4</span>, <span class="dv">13</span>)]</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>errors_mc <span class="op">=</span> []</span>

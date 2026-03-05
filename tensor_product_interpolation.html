@@ -1116,7 +1116,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="67750722" class="cell" data-execution_count="1">
+<div id="16ce1ad2" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1152,7 +1152,7 @@ f_\beta(\mathbf{z}) = \sum_{j_1=1}^{M_1} \sum_{j_2=1}^{M_2} f\!\left(z_1^{(j_1)}
 <section id="constructing-a-tensorproductinterpolant" class="level2">
 <h2 class="anchored" data-anchor-id="constructing-a-tensorproductinterpolant">Constructing a <code>TensorProductInterpolant</code></h2>
 <p><code>TensorProductInterpolant</code> takes a backend, a list of 1D basis objects, and the number of terms per dimension. We demonstrate with <span class="math inline">\(f(z_1, z_2) = \cos(\pi z_1)\cos(\pi z_2 / 2)\)</span> on <span class="math inline">\([-1,1]^2\)</span>.</p>
-<div id="f55fbacd" class="cell" data-execution_count="2">
+<div id="5c004e49" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_2d(zz):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Test function: shape (2, N) → (1, N)"""</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.cos(np.pi <span class="op">*</span> zz[<span class="dv">0</span>:<span class="dv">1</span>]) <span class="op">*</span> np.cos(np.pi <span class="op">*</span> zz[<span class="dv">1</span>:<span class="dv">2</span>] <span class="op">/</span> <span class="fl">2.0</span>)</span>
@@ -1185,7 +1185,7 @@ f_\beta(\mathbf{z}) = \sum_{j_1=1}^{M_1} \sum_{j_2=1}^{M_2} f\!\left(z_1^{(j_1)}
 <span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>true_vals <span class="op">=</span> fun_2d(np.vstack([z1g.ravel(), z2g.ravel()]))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="cell-fig-tp-2d" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_tp_2d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_tp_2d</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>grid_np <span class="op">=</span> bkd.to_numpy(grid)</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>Z_true  <span class="op">=</span> true_vals.reshape(nfine, nfine)</span>
@@ -1213,7 +1213,7 @@ Figure&nbsp;1: True function, tensor product interpolant, and pointwise error fo
 <h2 class="anchored" data-anchor-id="the-curse-of-dimensionality">The Curse of Dimensionality</h2>
 <p>The fundamental problem with tensor products is captured in the point-count table below. For <span class="math inline">\(M\)</span> nodes per dimension and <span class="math inline">\(D\)</span> dimensions, the grid has <span class="math inline">\(M^D\)</span> points. Even at <span class="math inline">\(M = 3\)</span> nodes per dimension, the count explodes past <span class="math inline">\(10^4\)</span> for <span class="math inline">\(D = 9\)</span>.</p>
 <div id="cell-fig-curse" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_curse_of_dimensionality</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_curse_of_dimensionality</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>dims  <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">10</span>]</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> np.arange(<span class="dv">0</span>, <span class="dv">6</span>)</span>
@@ -1243,7 +1243,7 @@ Figure&nbsp;2: Number of tensor product grid points vs.&nbsp;refinement level fo
 \mathbb{E}[f(\mathbf{z})] \approx \sum_{j_1=1}^{M} \cdots \sum_{j_D=1}^{M} f\!\left(z_1^{(j_1)}, \ldots, z_D^{(j_D)}\right) \prod_{i=1}^{D} w_i^{(j_i)}.
 \]</span></p>
 <p>This is equivalent to applying the 1D quadrature rule in each dimension independently.</p>
-<div id="3bc45005" class="cell" data-execution_count="5">
+<div id="bb287e36" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build TP interpolant on CC nodes and compute E[f] via quadrature</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>M_q <span class="op">=</span> <span class="dv">9</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>bases_q <span class="op">=</span> [LagrangeBasis1D(bkd, cc_rule) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
@@ -1271,7 +1271,7 @@ Figure&nbsp;2: Number of tensor product grid points vs.&nbsp;refinement level fo
 <p>We compare the convergence of tensor product interpolants based on Clenshaw-Curtis (Lagrange) and piecewise-linear bases for a smooth and a non-smooth 2D function.</p>
 <div id="cell-fig-2d-convergence" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> PiecewiseLinear</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_2d_convergence</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_2d_convergence</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_smooth_2d(zz):</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(<span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (zz[<span class="dv">0</span>:<span class="dv">1</span>]<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> zz[<span class="dv">1</span>:<span class="dv">2</span>]<span class="op">**</span><span class="dv">2</span>))</span>
@@ -1984,7 +1984,7 @@ Figure&nbsp;3: 2D interpolation convergence: CC/Lagrange achieves exponential co
 <span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "True function, tensor product interpolant, and pointwise error for f(z1,z2) = cos(pi*z1)*cos(pi*z2/2). Interpolant is indistinguishable from truth at M=5 per dimension."</span></span>
 <span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-tp-2d</span></span>
 <span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_tp_2d</span>
+<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_tp_2d</span>
 <span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>grid_np <span class="op">=</span> bkd.to_numpy(grid)</span>
 <span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>Z_true  <span class="op">=</span> true_vals.reshape(nfine, nfine)</span>
@@ -2005,7 +2005,7 @@ Figure&nbsp;3: 2D interpolation convergence: CC/Lagrange achieves exponential co
 <span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Number of tensor product grid points vs. refinement level for several dimensions. Log scale reveals exponential growth."</span></span>
 <span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-curse</span></span>
 <span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_curse_of_dimensionality</span>
+<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_curse_of_dimensionality</span>
 <span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>dims  <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">10</span>]</span>
 <span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> np.arange(<span class="dv">0</span>, <span class="dv">6</span>)</span>
@@ -2060,7 +2060,7 @@ Figure&nbsp;3: 2D interpolation convergence: CC/Lagrange achieves exponential co
 <span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-convergence</span></span>
 <span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> PiecewiseLinear</span>
-<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_2d_convergence</span>
+<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_2d_convergence</span>
 <span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_smooth_2d(zz):</span>
 <span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(<span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (zz[<span class="dv">0</span>:<span class="dv">1</span>]<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> zz[<span class="dv">1</span>:<span class="dv">2</span>]<span class="op">**</span><span class="dv">2</span>))</span>

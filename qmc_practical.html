@@ -1119,7 +1119,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We continue with the beam model and QMC samplers from the <a href="./quasi_monte_carlo_sampling.html">previous tutorial</a>.</p>
-<div id="4b9fd6e6" class="cell" data-execution_count="1">
+<div id="f79c5863" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1151,7 +1151,7 @@ window.Quarto = {
 <li>Compute the integral estimate from each replicate.</li>
 <li>Average the estimates and use their sample standard deviation to form a standard error.</li>
 </ol>
-<div id="c285e135" class="cell" data-execution_count="3">
+<div id="c7a4d361" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>R <span class="op">=</span> <span class="dv">30</span>     <span class="co"># number of scrambled replicates</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">256</span>    <span class="co"># samples per replicate</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1260,7 +1260,7 @@ Figure&nbsp;2: Star discrepancy illustrated for <span class="math inline">\(N = 
 f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in [0,1]^d
 \]</span></p>
 <p>Each factor integrates to 1, so <span class="math inline">\(\int f\,d\mathbf{x} = 1\)</span> for all <span class="math inline">\(d\)</span>.</p>
-<div id="8e114523" class="cell" data-execution_count="6">
+<div id="a7d94901" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> product_integrand(x):</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Separable product integrand with known integral = 1.</span></span>

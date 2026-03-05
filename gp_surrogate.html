@@ -1130,7 +1130,7 @@ window.Quarto = {
 <section id="setup-the-beam-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-benchmark">Setup: The Beam Benchmark</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with a spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> modelled as a log-normal random field parameterised by three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0, 1)\)</span>. The model returns the tip deflection as the QoI.</p>
-<div id="cfcf769e" class="cell" data-execution_count="1">
+<div id="5293dc41" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1168,7 +1168,7 @@ K_{ij} = k(\boldsymbol{\xi}^{(i)}, \boldsymbol{\xi}^{(j)})
 <div id="cell-fig-prior-posterior-samples" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>bkd_preview <span class="op">=</span> NumpyBkd()</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>_k <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>], (<span class="fl">0.1</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd_preview)</span>
@@ -1271,7 +1271,7 @@ Figure&nbsp;1: Left: five sample paths drawn from the GP prior along a 1D slice 
 </tbody>
 </table>
 <div id="cell-fig-kernel-comparison" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_kernel_comparison</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_kernel_comparison</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>plot_kernel_comparison(axes, bkd_preview)</span>
@@ -1294,7 +1294,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 </div>
 <p>For a <span class="math inline">\(d\)</span>-dimensional input, we need <span class="math inline">\(d\)</span> length scale hyperparameters (one per dimension) so the kernel can adapt to different rates of variation along each axis.</p>
 <p>Our beam model has Gaussian inputs, but the kernel acts on the parameter space <span class="math inline">\(\mathbb{R}^d\)</span> directly — the choice of kernel is about the <em>smoothness</em> of the model output, not the input distribution. We use a Matérn 5/2 kernel, which is a good default for twice-differentiable engineering responses.</p>
-<div id="9e4924bf" class="cell" data-execution_count="4">
+<div id="8efe3572" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1322,7 +1322,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 </section>
 <section id="collecting-training-data" class="level2">
 <h2 class="anchored" data-anchor-id="collecting-training-data">Collecting Training Data</h2>
-<div id="7b4e1560" class="cell" data-execution_count="5">
+<div id="44995499" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">80</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)      <span class="co"># (nvars, N_train)</span></span>
@@ -1344,7 +1344,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 <p>Random sampling from the prior is the simplest approach. For GPs, <strong>Cholesky-greedy</strong> and <strong>IVAR</strong> adaptive strategies can achieve better surrogate accuracy for the same number of model evaluations by choosing sample locations that maximally reduce posterior uncertainty. These are covered in <a href="./adaptive_gp_sampling.html">Adaptive Sampling for Gaussian Processes</a>.</p>
 </div>
 </div>
-<div id="5146ea25" class="cell" data-execution_count="6">
+<div id="7fb0e06a" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1368,7 +1368,7 @@ Figure&nbsp;2: Five prior sample paths for three common kernels (same random see
 <h3 class="anchored" data-anchor-id="the-marginal-likelihood-landscape">The Marginal Likelihood Landscape</h3>
 <p>Before running the optimiser, it is instructive to visualise what it is maximising. The plot below sweeps over a 2D grid of length scales <span class="math inline">\((ℓ_1, ℓ_2)\)</span> (with <span class="math inline">\(ℓ_3\)</span> fixed) and evaluates the NLML at each point. The optimum — where the landscape is lowest — is where the fitted GP will land.</p>
 <div id="cell-fig-nlml-landscape" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_nlml_landscape</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_nlml_landscape</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.5</span>, <span class="fl">4.5</span>))</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip)</span>
@@ -1387,7 +1387,7 @@ Figure&nbsp;3: Negative log marginal likelihood as a function of the first two l
 </div>
 </div>
 </div>
-<div id="ca6253cf" class="cell" data-execution_count="8">
+<div id="e00d7101" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1421,7 +1421,7 @@ Figure&nbsp;4: Fitted length scales per input dimension (blue bars) vs the initi
 \left[\sigma^*(\boldsymbol{\xi}^*)\right]^2 = k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^*) - \mathbf{k}^{*\top} \mathbf{K}^{-1} \mathbf{k}^*
 \]</span></p>
 <p>where <span class="math inline">\(\mathbf{k}^* = [k(\boldsymbol{\xi}^*, \boldsymbol{\xi}^{(i)})]_i\)</span> is the vector of covariances between the test point and all training points. The posterior variance is the prior variance minus the information gained from the data.</p>
-<div id="1099bde8" class="cell" data-execution_count="10">
+<div id="0e3037ab" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior mean: shape (nqoi, N_test)</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>mean_test <span class="op">=</span> gp.predict(samples_test)</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1437,7 +1437,7 @@ Figure&nbsp;4: Fitted length scales per input dimension (blue bars) vs the initi
 \epsilon = \frac{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) - \hat{f}(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}{\| f(\boldsymbol{\Xi}_{\mathrm{test}}) \|_2}
 \]</span></p>
 <p>The <strong>coverage</strong> checks calibration: 95% of test points should lie within the GP’s <span class="math inline">\(\pm 2\sigma^*\)</span> interval if the uncertainty estimates are reliable.</p>
-<div id="c8a44d0c" class="cell" data-execution_count="11">
+<div id="cf501f96" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>vals_np  <span class="op">=</span> bkd.to_numpy(values_test)[<span class="dv">0</span>, :]</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>mean_np  <span class="op">=</span> bkd.to_numpy(mean_test)[<span class="dv">0</span>, :]</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>std_np   <span class="op">=</span> bkd.to_numpy(std_test)[<span class="dv">0</span>, :]</span>
@@ -1474,7 +1474,7 @@ Figure&nbsp;5: GP predictions vs.&nbsp;true model values on the independent test
 <h3 class="anchored" data-anchor-id="calibration-diagram">Calibration Diagram</h3>
 <p>The standardised residual histogram checks the <em>shape</em> of the uncertainty distribution but not the <em>level</em> at every confidence threshold. A <strong>reliability diagram</strong> (or calibration curve) tests both simultaneously: for each nominal coverage probability <span class="math inline">\(p\)</span>, it asks “what fraction of test points actually fell inside the <span class="math inline">\(p\)</span>-credible interval?”</p>
 <div id="cell-fig-calibration" class="cell" data-execution_count="13">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_calibration</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_calibration</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">5</span>))</span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>plot_calibration(ax, vals_np, mean_np, std_np)</span>
@@ -1499,7 +1499,7 @@ Figure&nbsp;6: Calibration (reliability) diagram. A perfectly calibrated GP lies
 <h3 class="anchored" data-anchor-id="how-many-training-points-do-you-need">How Many Training Points Do You Need?</h3>
 <p>A single accuracy figure for <span class="math inline">\(N = 80\)</span> does not reveal whether the surrogate has converged or whether more data would help substantially.</p>
 <div id="cell-fig-convergence-n" class="cell" data-execution_count="14">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>plot_gp_convergence_n(ax, bkd, nvars, prior, model, samples_test, vals_np)</span>
@@ -1561,7 +1561,7 @@ Figure&nbsp;8: GP cross sections for tip deflection. Diagonal: 1D slices through
 <h3 class="anchored" data-anchor-id="d-posterior-uncertainty-map">2D Posterior Uncertainty Map</h3>
 <p>The 1D cross-sections above show uncertainty along individual axes, but they do not reveal which <em>regions</em> of the joint input space are well-covered. The map below projects the uncertainty <span class="math inline">\(\sigma^*(\xi_1, \xi_2)\)</span> onto the first two KLE dimensions (with <span class="math inline">\(\xi_3 = 0\)</span>) and overlays the training point locations.</p>
 <div id="cell-fig-uncertainty-map" class="cell" data-execution_count="16">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_uncertainty_map</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_uncertainty_map</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>plot_uncertainty_map(ax, gp, bkd, samples_train, N_train)</span>
@@ -2178,7 +2178,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-113"><a href="#cb16-113" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-114"><a href="#cb16-114" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb16-115"><a href="#cb16-115" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
-<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
+<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_prior_posterior_samples</span>
 <span id="cb16-117"><a href="#cb16-117" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-118"><a href="#cb16-118" aria-hidden="true" tabindex="-1"></a>bkd_preview <span class="op">=</span> NumpyBkd()</span>
 <span id="cb16-119"><a href="#cb16-119" aria-hidden="true" tabindex="-1"></a>_k <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>], (<span class="fl">0.1</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd_preview)</span>
@@ -2252,7 +2252,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-189"><a href="#cb16-189" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five prior sample paths for three common kernels (same random seed, same length scale ℓ=0.8). The Squared Exponential produces glass-smooth paths; Matérn 5/2 paths have visible small-scale curvature but remain smooth; Matérn 3/2 paths have occasional kinks. For most engineering models, Matérn 5/2 is the right trade-off."</span></span>
 <span id="cb16-190"><a href="#cb16-190" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-kernel-comparison</span></span>
 <span id="cb16-191"><a href="#cb16-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-192"><a href="#cb16-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_kernel_comparison</span>
+<span id="cb16-192"><a href="#cb16-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_kernel_comparison</span>
 <span id="cb16-193"><a href="#cb16-193" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-194"><a href="#cb16-194" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb16-195"><a href="#cb16-195" aria-hidden="true" tabindex="-1"></a>plot_kernel_comparison(axes, bkd_preview)</span>
@@ -2351,7 +2351,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-296"><a href="#cb16-296" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Negative log marginal likelihood as a function of the first two length scales (ℓ₁, ℓ₂), with ℓ₃ fixed at 1.0 and the output variance fixed. The ★ marks the grid minimum. A well-defined single minimum means the optimiser will reliably find the best hyperparameters. Note that the full optimiser also tunes ℓ₃ and the output variance jointly, so its solution may differ slightly from this 2D slice."</span></span>
 <span id="cb16-297"><a href="#cb16-297" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-nlml-landscape</span></span>
 <span id="cb16-298"><a href="#cb16-298" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-299"><a href="#cb16-299" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_nlml_landscape</span>
+<span id="cb16-299"><a href="#cb16-299" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_nlml_landscape</span>
 <span id="cb16-300"><a href="#cb16-300" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-301"><a href="#cb16-301" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">5.5</span>, <span class="fl">4.5</span>))</span>
 <span id="cb16-302"><a href="#cb16-302" aria-hidden="true" tabindex="-1"></a>plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip)</span>
@@ -2374,7 +2374,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-323"><a href="#cb16-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Fitted length scales per input dimension (blue bars) vs the initial value of 1.0 (dashed line). A short bar indicates the model output varies rapidly along that input axis — the GP needed a short length scale to track those rapid changes. A long bar indicates a slowly varying, less influential input."</span></span>
 <span id="cb16-324"><a href="#cb16-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-length-scales</span></span>
 <span id="cb16-325"><a href="#cb16-325" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-326"><a href="#cb16-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_length_scales</span>
+<span id="cb16-326"><a href="#cb16-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_length_scales</span>
 <span id="cb16-327"><a href="#cb16-327" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-328"><a href="#cb16-328" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="fl">2.8</span>))</span>
 <span id="cb16-329"><a href="#cb16-329" aria-hidden="true" tabindex="-1"></a>plot_length_scales(ax, gp, bkd)</span>
@@ -2448,7 +2448,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-403"><a href="#cb16-403" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GP predictions vs. true model values on the independent test set (tip deflection). Points near the diagonal indicate good surrogate accuracy. Colour encodes posterior standard deviation: darker points have higher uncertainty."</span></span>
 <span id="cb16-404"><a href="#cb16-404" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gp-predictions</span></span>
 <span id="cb16-405"><a href="#cb16-405" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-406"><a href="#cb16-406" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_predictions</span>
+<span id="cb16-406"><a href="#cb16-406" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_predictions</span>
 <span id="cb16-407"><a href="#cb16-407" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-408"><a href="#cb16-408" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
 <span id="cb16-409"><a href="#cb16-409" aria-hidden="true" tabindex="-1"></a>plot_gp_predictions(axes, vals_np, mean_np, std_np, l2_err)</span>
@@ -2472,7 +2472,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-429"><a href="#cb16-429" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Calibration (reliability) diagram. A perfectly calibrated GP lies on the dashed diagonal. Points above the diagonal mean the GP is over-confident (intervals too narrow); points below mean it is under-confident (intervals too wide). Each dot corresponds to a distinct nominal coverage level from 5% to 99%."</span></span>
 <span id="cb16-430"><a href="#cb16-430" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-calibration</span></span>
 <span id="cb16-431"><a href="#cb16-431" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-432"><a href="#cb16-432" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_calibration</span>
+<span id="cb16-432"><a href="#cb16-432" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_calibration</span>
 <span id="cb16-433"><a href="#cb16-433" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-434"><a href="#cb16-434" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">5</span>))</span>
 <span id="cb16-435"><a href="#cb16-435" aria-hidden="true" tabindex="-1"></a>plot_calibration(ax, vals_np, mean_np, std_np)</span>
@@ -2495,7 +2495,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-454"><a href="#cb16-454" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Relative L₂ error vs training set size on a log-log scale for both Matérn 5/2 and Squared Exponential kernels. The SE kernel converges faster because the beam response is infinitely smooth (it solves a linear ODE), matching the SE kernel's smoothness assumption. The dashed line shows an N⁻¹ reference slope."</span></span>
 <span id="cb16-455"><a href="#cb16-455" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence-n</span></span>
 <span id="cb16-456"><a href="#cb16-456" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-457"><a href="#cb16-457" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
+<span id="cb16-457"><a href="#cb16-457" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_convergence_n</span>
 <span id="cb16-458"><a href="#cb16-458" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-459"><a href="#cb16-459" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
 <span id="cb16-460"><a href="#cb16-460" aria-hidden="true" tabindex="-1"></a>plot_gp_convergence_n(ax, bkd, nvars, prior, model, samples_test, vals_np)</span>
@@ -2550,7 +2550,7 @@ Figure&nbsp;9: Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Da
 <span id="cb16-513"><a href="#cb16-513" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Dark blue regions are well-constrained by nearby training data (black crosses). Yellow regions have high uncertainty because they lie far from any training point. This map directly shows where additional evaluations would most reduce surrogate error."</span></span>
 <span id="cb16-514"><a href="#cb16-514" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-uncertainty-map</span></span>
 <span id="cb16-515"><a href="#cb16-515" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-516"><a href="#cb16-516" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._gp <span class="im">import</span> plot_uncertainty_map</span>
+<span id="cb16-516"><a href="#cb16-516" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_uncertainty_map</span>
 <span id="cb16-517"><a href="#cb16-517" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-518"><a href="#cb16-518" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
 <span id="cb16-519"><a href="#cb16-519" aria-hidden="true" tabindex="-1"></a>plot_uncertainty_map(ax, gp, bkd, samples_train, N_train)</span>

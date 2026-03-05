@@ -1800,7 +1800,7 @@ Figure&nbsp;3: The two terms of the ELBO, evaluated as functions of <span class=
 <span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
-<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> _beam_exact_posterior, plot_overlap_intuition</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> _beam_exact_posterior, plot_overlap_intuition</span>
 <span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a></span>
@@ -1862,7 +1862,7 @@ Figure&nbsp;3: The two terms of the ELBO, evaluated as functions of <span class=
 <span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The KL divergence between $q = \\mathcal{N}(\\mu, \\sigma^2)$ and the exact beam posterior, evaluated over a grid of $(\\mu, \\sigma)$. Dark red means high mismatch; dark blue means low. The white star marks the minimum — the best Gaussian approximation. Labeled circles show candidates: poorly-fit candidates sit high on the surface; the best sits at the bottom."</span></span>
 <span id="cb1-143"><a href="#cb1-143" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-kl-landscape</span></span>
-<span id="cb1-144"><a href="#cb1-144" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_kl_landscape</span>
+<span id="cb1-144"><a href="#cb1-144" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_kl_landscape</span>
 <span id="cb1-145"><a href="#cb1-145" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-146"><a href="#cb1-146" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">6</span>))</span>
 <span id="cb1-147"><a href="#cb1-147" aria-hidden="true" tabindex="-1"></a>plot_kl_landscape(E_grid, post_exact, ax, fig)</span>
@@ -1917,7 +1917,7 @@ Figure&nbsp;3: The two terms of the ELBO, evaluated as functions of <span class=
 <span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-199"><a href="#cb1-199" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The two terms of the ELBO, evaluated as functions of $\\mu$ (with $\\sigma$ fixed at the optimal value). Left: the expected log-likelihood peaks near the data-consistent region. Center: the KL penalty from the prior is a bowl centered at the prior mean ($\\mu = 12{,}000$). Right: the negative ELBO (their combination) has a single minimum between the prior mean and the MLE — exactly where the posterior sits."</span></span>
 <span id="cb1-200"><a href="#cb1-200" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-elbo-two-terms</span></span>
-<span id="cb1-201"><a href="#cb1-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_elbo_two_terms</span>
+<span id="cb1-201"><a href="#cb1-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_elbo_two_terms</span>
 <span id="cb1-202"><a href="#cb1-202" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2, ax3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="dv">4</span>))</span>
 <span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a>plot_elbo_two_terms(</span>

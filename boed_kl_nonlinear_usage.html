@@ -1127,7 +1127,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="4c4e9d10" class="cell" data-execution_count="1">
+<div id="70e5a53c" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1143,7 +1143,7 @@ window.Quarto = {
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="45168179" class="cell" data-execution_count="2">
+<div id="1438efba" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> LotkaVolterraOEDBenchmark(bkd, final_time<span class="op">=</span><span class="fl">50.0</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>obs_model <span class="op">=</span> benchmark.observation_model()   <span class="co"># maps theta -&gt; (nobs_times * 2,)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()               <span class="co"># IndependentJoint over theta</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1151,7 +1151,7 @@ window.Quarto = {
 </section>
 <section id="the-model-and-observation-structure" class="level2">
 <h2 class="anchored" data-anchor-id="the-model-and-observation-structure">The Model and Observation Structure</h2>
-<div id="032d1192" class="cell" data-execution_count="3">
+<div id="691eaa2c" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Draw a single prior sample and run the ODE</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> prior.rvs(<span class="dv">1</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>full_solution <span class="op">=</span> obs_model.solve_trajectory(sample)[<span class="dv">0</span>]   <span class="co"># full ODE trajectory</span></span>
@@ -1176,7 +1176,7 @@ Figure&nbsp;1: Lotka-Volterra ODE trajectories for 30 prior samples (grey) overl
 </section>
 <section id="define-the-likelihood" class="level2">
 <h2 class="anchored" data-anchor-id="define-the-likelihood">Define the Likelihood</h2>
-<div id="f640bf16" class="cell" data-execution_count="5">
+<div id="3b36c2a0" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.1</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>nobs <span class="op">=</span> obs_model.nqoi()</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Each candidate observation has independent additive Gaussian noise</span></span>
@@ -1200,7 +1200,7 @@ Figure&nbsp;1: Lotka-Volterra ODE trajectories for 30 prior samples (grey) overl
 <section id="generate-quadrature-data" class="level2">
 <h2 class="anchored" data-anchor-id="generate-quadrature-data">Generate Quadrature Data</h2>
 <p>The double-loop estimator needs two independent sets of samples from the prior (and the joint prior-noise distribution for the outer loop). The <code>OEDDataGenerator</code> handles this bookkeeping.</p>
-<div id="5b32539a" class="cell" data-execution_count="6">
+<div id="847ee453" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>data_gen <span class="op">=</span> OEDDataGenerator(bkd)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Outer loop: joint samples from (theta, epsilon) — used to generate</span></span>
@@ -1240,7 +1240,7 @@ Figure&nbsp;1: Lotka-Volterra ODE trajectories for 30 prior samples (grey) overl
 </section>
 <section id="evaluate-the-forward-model" class="level2">
 <h2 class="anchored" data-anchor-id="evaluate-the-forward-model">Evaluate the Forward Model</h2>
-<div id="dd752824" class="cell" data-execution_count="7">
+<div id="d94b0a60" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nparams <span class="op">=</span> prior.nvars()</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract prior parameter samples from outer loop</span></span>
@@ -1256,7 +1256,7 @@ Figure&nbsp;1: Lotka-Volterra ODE trajectories for 30 prior samples (grey) overl
 </section>
 <section id="create-the-objective-and-solve" class="level2">
 <h2 class="anchored" data-anchor-id="create-the-objective-and-solve">Create the Objective and Solve</h2>
-<div id="7adccfbc" class="cell" data-execution_count="8">
+<div id="94e56f73" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>objective <span class="op">=</span> create_kl_oed_objective_from_data(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    noise_variances<span class="op">=</span>noise_variances,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    outer_shapes<span class="op">=</span>outer_shapes,</span>
@@ -1276,7 +1276,7 @@ Figure&nbsp;1: Lotka-Volterra ODE trajectories for 30 prior samples (grey) overl
 <h2 class="anchored" data-anchor-id="interpreting-the-design">Interpreting the Design</h2>
 <p>The output is a probability vector over candidate observation times. Large weight on time <span class="math inline">\(t_k\)</span> means: <em>observing at <span class="math inline">\(t_k\)</span> contributes most to learning about the parameters, on average.</em></p>
 <div id="cell-fig-lv-design" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_lv_design</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_lv_design</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>plot_lv_design(axes, benchmark, design_weights, bkd)</span>
@@ -1891,7 +1891,7 @@ Figure&nbsp;2: Optimal design weights for the Lotka-Volterra EIG problem. Each b
 <span id="cb9-117"><a href="#cb9-117" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb9-118"><a href="#cb9-118" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Lotka-Volterra ODE trajectories for 30 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."</span></span>
 <span id="cb9-119"><a href="#cb9-119" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-lv-trajectories</span></span>
-<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_lv_trajectories</span>
+<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_lv_trajectories</span>
 <span id="cb9-121"><a href="#cb9-121" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-122"><a href="#cb9-122" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="fl">4.5</span>), sharey<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb9-123"><a href="#cb9-123" aria-hidden="true" tabindex="-1"></a>plot_lv_trajectories(axes, benchmark, obs_model, prior, sample, observations)</span>
@@ -2000,7 +2000,7 @@ Figure&nbsp;2: Optimal design weights for the Lotka-Volterra EIG problem. Each b
 <span id="cb9-236"><a href="#cb9-236" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb9-237"><a href="#cb9-237" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Optimal design weights for the Lotka-Volterra EIG problem. Each bar is one candidate observation time for one of the two measured states. The OED concentrates observations near the population peak — where sensitivity to the interaction parameters is highest."</span></span>
 <span id="cb9-238"><a href="#cb9-238" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-lv-design</span></span>
-<span id="cb9-239"><a href="#cb9-239" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_lv_design</span>
+<span id="cb9-239"><a href="#cb9-239" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_lv_design</span>
 <span id="cb9-240"><a href="#cb9-240" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-241"><a href="#cb9-241" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb9-242"><a href="#cb9-242" aria-hidden="true" tabindex="-1"></a>plot_lv_design(axes, benchmark, design_weights, bkd)</span>

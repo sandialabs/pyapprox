@@ -1122,7 +1122,7 @@ window.Quarto = {
 <section id="setup-fit-a-function-train" class="level2">
 <h2 class="anchored" data-anchor-id="setup-fit-a-function-train">Setup: Fit a Function Train</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> parameterized by a 3-term Karhunen–Lo`eve expansion. The three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0,1)\)</span> are the uncertain inputs. We work with a single QoI — tip deflection <span class="math inline">\(\delta_{\mathrm{tip}}\)</span> — since the function train currently supports <span class="math inline">\(\mathrm{nqoi} = 1\)</span>.</p>
-<div id="7b823335" class="cell" data-execution_count="1">
+<div id="faaa5a8c" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1191,7 +1191,7 @@ f(\boldsymbol{\xi}) = \mathbf{G}_1(\xi_1)\cdot\mathbf{G}_2(\xi_2)\cdots\mathbf{G
 </section>
 <section id="mean-and-variance" class="level3">
 <h3 class="anchored" data-anchor-id="mean-and-variance">Mean and Variance</h3>
-<div id="c25be622" class="cell" data-execution_count="2">
+<div id="cf88f7ce" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>ft_mean <span class="op">=</span> bkd.to_numpy(moments.mean())       <span class="co"># scalar (nqoi=1)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ft_var  <span class="op">=</span> bkd.to_numpy(moments.variance())   <span class="co"># scalar</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -2084,7 +2084,7 @@ Figure&nbsp;2: FT vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (l
 <span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "FT vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of beam evaluations. For the FT, polynomial degree increases with budget at oversampling ratio 3. Lines show medians over 10 repetitions; bands show 10th--90th percentiles."</span></span>
 <span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-vs-mc</span></span>
-<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._function_train <span class="im">import</span> plot_ft_vs_mc</span>
+<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_vs_mc</span>
 <span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-284"><a href="#cb4-284" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb4-285"><a href="#cb4-285" aria-hidden="true" tabindex="-1"></a>plot_ft_vs_mc(model, prior, marginals, bkd, axes)</span>

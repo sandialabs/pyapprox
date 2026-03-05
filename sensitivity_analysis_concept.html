@@ -1842,7 +1842,7 @@ Figure&nbsp;3: Scatter plots confirming sensitivity rankings. Left: QoI vs.&nbsp
 <span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variance decomposition for beam tip deflection. Each slice shows the fraction of total variance attributable to each KLE input. The first KLE term dominates because it represents the lowest-frequency spatial mode of the stiffness field."</span></span>
 <span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variance-decomposition</span></span>
 <span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sensitivity <span class="im">import</span> plot_variance_decomposition</span>
+<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_variance_decomposition</span>
 <span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-135"><a href="#cb1-135" aria-hidden="true" tabindex="-1"></a>qoi_plot <span class="op">=</span> <span class="dv">0</span>  <span class="co"># tip deflection</span></span>
 <span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
@@ -1893,7 +1893,7 @@ Figure&nbsp;3: Scatter plots confirming sensitivity rankings. Left: QoI vs.&nbsp
 <span id="cb1-183"><a href="#cb1-183" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "First-order and total-order Sobol indices for tip deflection and maximum curvature. When the bars are similar in height, interactions are weak. When the total-order bar is much taller, the input participates in interactions with other inputs."</span></span>
 <span id="cb1-184"><a href="#cb1-184" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sobol-bar-chart</span></span>
 <span id="cb1-185"><a href="#cb1-185" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-186"><a href="#cb1-186" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sensitivity <span class="im">import</span> plot_sobol_bar_chart</span>
+<span id="cb1-186"><a href="#cb1-186" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_sobol_bar_chart</span>
 <span id="cb1-187"><a href="#cb1-187" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-188"><a href="#cb1-188" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot only QoIs with nonzero variance (skip sigma_int, index 1)</span></span>
 <span id="cb1-189"><a href="#cb1-189" aria-hidden="true" tabindex="-1"></a>plot_qois <span class="op">=</span> [<span class="dv">0</span>, <span class="dv">2</span>]</span>
@@ -1920,7 +1920,7 @@ Figure&nbsp;3: Scatter plots confirming sensitivity rankings. Left: QoI vs.&nbsp
 <span id="cb1-212"><a href="#cb1-212" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Scatter plots confirming sensitivity rankings. Left: QoI vs. dominant KLE input (clear trend explains high S_i). Right: QoI vs. least influential input (no trend, low S_i)."</span></span>
 <span id="cb1-213"><a href="#cb1-213" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-scatter-dominant</span></span>
 <span id="cb1-214"><a href="#cb1-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-215"><a href="#cb1-215" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sensitivity <span class="im">import</span> plot_scatter_dominant</span>
+<span id="cb1-215"><a href="#cb1-215" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_scatter_dominant</span>
 <span id="cb1-216"><a href="#cb1-216" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a>qoi_plot <span class="op">=</span> <span class="dv">0</span></span>
 <span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">99</span>)</span>

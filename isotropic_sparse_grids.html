@@ -1127,7 +1127,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="3561f337" class="cell" data-execution_count="1">
+<div id="4f236426" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1159,7 +1159,7 @@ window.Quarto = {
 <span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> (</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> (</span>
 <span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    plot_smolyak_combo,</span>
 <span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    plot_sg_points,</span>
 <span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    plot_point_counts,</span>
@@ -1196,7 +1196,7 @@ f_{\mathcal{I}}(\mathbf{z}) = \sum_{\beta \in \mathcal{I}} c_\beta\, f_\beta(\ma
 \gamma \leq \beta \text{ (entry-wise) and } \beta \in \mathcal{I} \implies \gamma \in \mathcal{I}.
 \]</span></p>
 <p>Intuitively, you cannot include a high-resolution sub-grid in dimension <span class="math inline">\(i\)</span> without also including all coarser sub-grids.</p>
-<div id="db35331e" class="cell" data-execution_count="2">
+<div id="6164bed1" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: 2D isotropic index set at level l=2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># I(2) = {β : ||β||_1 ≤ 2}</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>indices_valid <span class="op">=</span> bkd.asarray(</span>
@@ -1221,7 +1221,7 @@ f_{\mathcal{I}}(\mathbf{z}) = \sum_{\beta \in \mathcal{I}} c_\beta\, f_\beta(\ma
 c_\beta = \sum_{\substack{i \in \{0,1\}^D \\ \beta + i \in \mathcal{I}}} (-1)^{\lVert i \rVert_1}.
 \]</span></p>
 <p>For the <strong>isotropic</strong> index set <span class="math inline">\(\mathcal{I}(l) = \{\beta : \lVert \beta \rVert_1 \leq l\}\)</span> with level <span class="math inline">\(l\)</span> and <span class="math inline">\(D\)</span> dimensions, the coefficients alternate in sign and their magnitudes are given by binomial coefficients. A key property is that the coefficients always <strong>sum to 1</strong>.</p>
-<div id="6e489e66" class="cell" data-execution_count="3">
+<div id="4f29bc6b" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>coefs <span class="op">=</span> compute_smolyak_coefficients(indices_valid, bkd)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
@@ -1304,7 +1304,7 @@ Figure&nbsp;1: Tensor product sub-grids contributing to the 2D isotropic sparse 
 <li>Evaluate your function at those locations</li>
 <li>Call <code>fit(values)</code> to get the result containing the surrogate</li>
 </ol>
-<div id="a866838c" class="cell" data-execution_count="5">
+<div id="579793c4" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>factories <span class="op">=</span> [leja_factory] <span class="op">*</span> nvars</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>growth <span class="op">=</span> ClenshawCurtisGrowthRule()</span>
@@ -1604,7 +1604,7 @@ Figure&nbsp;6: Two standard univariate growth rules. Clenshaw-Curtis growth is n
 <section id="computing-statistics-with-surrogate.mean" class="level2">
 <h2 class="anchored" data-anchor-id="computing-statistics-with-surrogate.mean">Computing Statistics with <code>surrogate.mean()</code></h2>
 <p>Sparse grids double as <strong>quadrature rules</strong>: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly. The <code>surrogate.mean()</code> method returns <span class="math inline">\(\mathbb{E}[f(\mathbf{Z})]\)</span> for the measure determined by the 1D bases.</p>
-<div id="b76a4faf" class="cell" data-execution_count="12">
+<div id="dff03144" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute E[cos(πZ₁)cos(πZ₂/2)] over U(-1,1)²</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact: (1/4)∫cos(πz₁)dz₁ · ∫cos(πz₂/2)dz₂ = (1/4)·0·(4/π) = 0</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># because ∫_{-1}^{1} cos(πz₁) dz₁ = [sin(πz₁)/π]_{-1}^{1} = 0</span></span>
@@ -2199,7 +2199,7 @@ Figure&nbsp;6: Two standard univariate growth rules. Clenshaw-Curtis growth is n
 <span id="cb13-83"><a href="#cb13-83" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb13-84"><a href="#cb13-84" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb13-85"><a href="#cb13-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
-<span id="cb13-86"><a href="#cb13-86" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> (</span>
+<span id="cb13-86"><a href="#cb13-86" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> (</span>
 <span id="cb13-87"><a href="#cb13-87" aria-hidden="true" tabindex="-1"></a>    plot_smolyak_combo,</span>
 <span id="cb13-88"><a href="#cb13-88" aria-hidden="true" tabindex="-1"></a>    plot_sg_points,</span>
 <span id="cb13-89"><a href="#cb13-89" aria-hidden="true" tabindex="-1"></a>    plot_point_counts,</span>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyApprox Tutorial Notebooks</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #333;
+      line-height: 1.6;
+    }
+    h1 { color: #2c3e50; margin-bottom: 0.3rem; }
+    .subtitle { color: #7f8c8d; margin-bottom: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 2px solid #2c3e50;
+      color: #2c3e50;
+    }
+    td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #ecf0f1;
+    }
+    tr:hover { background-color: #f8f9fa; }
+    a { color: #2471a3; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .download-btn {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: #2471a3;
+      color: white !important;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      text-decoration: none !important;
+    }
+    .download-btn:hover {
+      background: #1a5276;
+    }
+    .info {
+      background: #eaf2f8;
+      border-left: 4px solid #2471a3;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 0 4px 4px 0;
+    }
+    .back { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <p class="back"><a href="../">&larr; Back to tutorials</a></p>
+  <h1>Tutorial Notebooks</h1>
+  <p class="subtitle">86 notebooks available for download</p>
+
+  <div class="info">
+    Each notebook includes an auto-install cell so you can run it
+    directly in <a href="https://colab.research.google.com">Google Colab</a>
+    or any Jupyter environment.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tutorial</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Acv Concept</td>
+        <td><a href="acv_concept.ipynb" download="acv_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Acv Many Models Analysis</td>
+        <td><a href="acv_many_models_analysis.ipynb" download="acv_many_models_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Acv Many Models Concept</td>
+        <td><a href="acv_many_models_concept.ipynb" download="acv_many_models_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Adaptive Gp Sampling</td>
+        <td><a href="adaptive_gp_sampling.ipynb" download="adaptive_gp_sampling.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Adaptive Sparse Grids</td>
+        <td><a href="adaptive_sparse_grids.ipynb" download="adaptive_sparse_grids.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Bayesian Inference Intro</td>
+        <td><a href="bayesian_inference_intro.ipynb" download="bayesian_inference_intro.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Bin Based Sensitivity</td>
+        <td><a href="bin_based_sensitivity.ipynb" download="bin_based_sensitivity.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Data Workflow Usage</td>
+        <td><a href="boed_data_workflow_usage.ipynb" download="boed_data_workflow_usage.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Concept</td>
+        <td><a href="boed_kl_concept.ipynb" download="boed_kl_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Design Stability</td>
+        <td><a href="boed_kl_design_stability.ipynb" download="boed_kl_design_stability.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Estimator</td>
+        <td><a href="boed_kl_estimator.ipynb" download="boed_kl_estimator.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Gradients</td>
+        <td><a href="boed_kl_gradients.ipynb" download="boed_kl_gradients.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Nonlinear Usage</td>
+        <td><a href="boed_kl_nonlinear_usage.ipynb" download="boed_kl_nonlinear_usage.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Qmc</td>
+        <td><a href="boed_kl_qmc.ipynb" download="boed_kl_qmc.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Kl Usage</td>
+        <td><a href="boed_kl_usage.ipynb" download="boed_kl_usage.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Pred Concept</td>
+        <td><a href="boed_pred_concept.ipynb" download="boed_pred_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Pred Gaussian Analysis</td>
+        <td><a href="boed_pred_gaussian_analysis.ipynb" download="boed_pred_gaussian_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Pred Lognormal Analysis</td>
+        <td><a href="boed_pred_lognormal_analysis.ipynb" download="boed_pred_lognormal_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Pred Nonlinear Usage</td>
+        <td><a href="boed_pred_nonlinear_usage.ipynb" download="boed_pred_nonlinear_usage.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Boed Pred Usage</td>
+        <td><a href="boed_pred_usage.ipynb" download="boed_pred_usage.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Control Variate Analysis</td>
+        <td><a href="control_variate_analysis.ipynb" download="control_variate_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Control Variate Concept</td>
+        <td><a href="control_variate_concept.ipynb" download="control_variate_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Design Under Uncertainty</td>
+        <td><a href="design_under_uncertainty.ipynb" download="design_under_uncertainty.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Dram Mcmc</td>
+        <td><a href="dram_mcmc.ipynb" download="dram_mcmc.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Ensemble Selection Concept</td>
+        <td><a href="ensemble_selection_concept.ipynb" download="ensemble_selection_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Estimator Accuracy Mse</td>
+        <td><a href="estimator_accuracy_mse.ipynb" download="estimator_accuracy_mse.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Experimental Design Intro</td>
+        <td><a href="experimental_design_intro.ipynb" download="experimental_design_intro.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Forward Uq</td>
+        <td><a href="forward_uq.ipynb" download="forward_uq.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Function Train Surrogates</td>
+        <td><a href="function_train_surrogates.ipynb" download="function_train_surrogates.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Functiontrain Sensitivity</td>
+        <td><a href="functiontrain_sensitivity.ipynb" download="functiontrain_sensitivity.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Functiontrain Sensitivity Math</td>
+        <td><a href="functiontrain_sensitivity_math.ipynb" download="functiontrain_sensitivity_math.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Gauss Quadrature</td>
+        <td><a href="gauss_quadrature.ipynb" download="gauss_quadrature.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Gp Sensitivity</td>
+        <td><a href="gp_sensitivity.ipynb" download="gp_sensitivity.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Gp Surrogate</td>
+        <td><a href="gp_surrogate.ipynb" download="gp_surrogate.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Importance Sampling Concept</td>
+        <td><a href="importance_sampling_concept.ipynb" download="importance_sampling_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Isotropic Sparse Grids</td>
+        <td><a href="isotropic_sparse_grids.ipynb" download="isotropic_sparse_grids.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Kle Introduction</td>
+        <td><a href="kle_introduction.ipynb" download="kle_introduction.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Kle Mesh And Data Driven</td>
+        <td><a href="kle_mesh_and_data_driven.ipynb" download="kle_mesh_and_data_driven.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Kle Spde</td>
+        <td><a href="kle_spde.ipynb" download="kle_spde.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Lagrange Interpolation</td>
+        <td><a href="lagrange_interpolation.ipynb" download="lagrange_interpolation.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Leja Sequences</td>
+        <td><a href="leja_sequences.ipynb" download="leja_sequences.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mc Budget Estimation</td>
+        <td><a href="mc_budget_estimation.ipynb" download="mc_budget_estimation.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mcmc Sampling</td>
+        <td><a href="mcmc_sampling.ipynb" download="mcmc_sampling.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mfmc Analysis</td>
+        <td><a href="mfmc_analysis.ipynb" download="mfmc_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mfmc Concept</td>
+        <td><a href="mfmc_concept.ipynb" download="mfmc_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mlblue Analysis</td>
+        <td><a href="mlblue_analysis.ipynb" download="mlblue_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mlblue Concept</td>
+        <td><a href="mlblue_concept.ipynb" download="mlblue_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mlmc Analysis</td>
+        <td><a href="mlmc_analysis.ipynb" download="mlmc_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Mlmc Concept</td>
+        <td><a href="mlmc_concept.ipynb" download="mlmc_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Models Decisions Uncertainty</td>
+        <td><a href="models_decisions_uncertainty.ipynb" download="models_decisions_uncertainty.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Monte Carlo Sampling</td>
+        <td><a href="monte_carlo_sampling.ipynb" download="monte_carlo_sampling.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Morris Screening</td>
+        <td><a href="morris_screening.ipynb" download="morris_screening.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Multifidelity Estimation Cookbook</td>
+        <td><a href="multifidelity_estimation_cookbook.ipynb" download="multifidelity_estimation_cookbook.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Multifidelity Sparse Grids</td>
+        <td><a href="multifidelity_sparse_grids.ipynb" download="multifidelity_sparse_grids.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Multioutput Acv Analysis</td>
+        <td><a href="multioutput_acv_analysis.ipynb" download="multioutput_acv_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Multioutput Acv Concept</td>
+        <td><a href="multioutput_acv_concept.ipynb" download="multioutput_acv_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Multioutput Gp</td>
+        <td><a href="multioutput_gp.ipynb" download="multioutput_gp.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Pacv Analysis</td>
+        <td><a href="pacv_analysis.ipynb" download="pacv_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Pacv Concept</td>
+        <td><a href="pacv_concept.ipynb" download="pacv_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Pce Sensitivity</td>
+        <td><a href="pce_sensitivity.ipynb" download="pce_sensitivity.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Piecewise Interpolation</td>
+        <td><a href="piecewise_interpolation.ipynb" download="piecewise_interpolation.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Piecewise Quadrature</td>
+        <td><a href="piecewise_quadrature.ipynb" download="piecewise_quadrature.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Pilot Studies Analysis</td>
+        <td><a href="pilot_studies_analysis.ipynb" download="pilot_studies_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Pilot Studies Concept</td>
+        <td><a href="pilot_studies_concept.ipynb" download="pilot_studies_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Polynomial Chaos Surrogates</td>
+        <td><a href="polynomial_chaos_surrogates.ipynb" download="polynomial_chaos_surrogates.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Practical Pce Fitting</td>
+        <td><a href="practical_pce_fitting.ipynb" download="practical_pce_fitting.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Qmc Practical</td>
+        <td><a href="qmc_practical.ipynb" download="qmc_practical.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Quasi Monte Carlo Sampling</td>
+        <td><a href="quasi_monte_carlo_sampling.ipynb" download="quasi_monte_carlo_sampling.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Random Variables Distributions</td>
+        <td><a href="random_variables_distributions.ipynb" download="random_variables_distributions.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Sensitivity Analysis Concept</td>
+        <td><a href="sensitivity_analysis_concept.ipynb" download="sensitivity_analysis_concept.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Setup Environment</td>
+        <td><a href="setup_environment.ipynb" download="setup_environment.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Sobol Sensitivity Analysis</td>
+        <td><a href="sobol_sensitivity_analysis.ipynb" download="sobol_sensitivity_analysis.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Sparse Grid To Pce Conversion</td>
+        <td><a href="sparse_grid_to_pce_conversion.ipynb" download="sparse_grid_to_pce_conversion.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Sparse Pce Fitting</td>
+        <td><a href="sparse_pce_fitting.ipynb" download="sparse_pce_fitting.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Surrogate Design</td>
+        <td><a href="surrogate_design.ipynb" download="surrogate_design.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Surrogate Workflow</td>
+        <td><a href="surrogate_workflow.ipynb" download="surrogate_workflow.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Tensor Product Interpolation</td>
+        <td><a href="tensor_product_interpolation.ipynb" download="tensor_product_interpolation.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Uq With Functiontrain</td>
+        <td><a href="uq_with_functiontrain.ipynb" download="uq_with_functiontrain.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Uq With Gp</td>
+        <td><a href="uq_with_gp.ipynb" download="uq_with_gp.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Uq With Pce</td>
+        <td><a href="uq_with_pce.ipynb" download="uq_with_pce.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Uq With Sparse Grids</td>
+        <td><a href="uq_with_sparse_grids.ipynb" download="uq_with_sparse_grids.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Vi Amortized</td>
+        <td><a href="vi_amortized.ipynb" download="vi_amortized.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Vi Families</td>
+        <td><a href="vi_families.ipynb" download="vi_families.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Vi Intro</td>
+        <td><a href="vi_intro.ipynb" download="vi_intro.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Vi Objective</td>
+        <td><a href="vi_objective.ipynb" download="vi_objective.ipynb" class="download-btn">Download</a></td>
+      </tr>
+      <tr>
+        <td>Vi Optimization</td>
+        <td><a href="vi_optimization.ipynb" download="vi_optimization.ipynb" class="download-btn">Download</a></td>
+      </tr>
+    </tbody>
+  </table>
+
+</body>
+</html>

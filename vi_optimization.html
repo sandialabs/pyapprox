@@ -1182,7 +1182,7 @@ Figure&nbsp;2: The reparameterization trick visualized. Top: 15 base samples <sp
 <section id="watching-the-elbo-converge" class="level2">
 <h2 class="anchored" data-anchor-id="watching-the-elbo-converge">Watching the ELBO Converge</h2>
 <p>With the reparameterization trick in hand, the optimizer can compute gradients and descend the ELBO surface. <a href="#fig-elbo-convergence" class="quarto-xref">Figure&nbsp;3</a> tracks the negative ELBO and the variational parameters across iterations. Most of the progress happens in the first 50 steps.</p>
-<div id="82602c81" class="cell" data-execution_count="4">
+<div id="6cdf9a82" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Track convergence by running with increasing iteration budgets</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>maxiters <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">15</span>, <span class="dv">50</span>]</span>
@@ -1272,7 +1272,7 @@ E_{\text{eff}} = \frac{A_{\text{skin}}\, E_1 + A_{\text{core}}\, E_2}{A_{\text{s
 \]</span></p>
 <p>Because only the combination <span class="math inline">\(E_{\text{eff}}\)</span> determines the tip deflection, observing the deflection creates a <strong>correlation</strong> between <span class="math inline">\(E_1\)</span> and <span class="math inline">\(E_2\)</span> in the posterior: if <span class="math inline">\(E_1\)</span> is large, <span class="math inline">\(E_2\)</span> must be smaller to explain the same observation, and vice versa.</p>
 <p>With a <strong>diagonal (mean-field) Gaussian</strong> variational family, VI optimizes four parameters: <span class="math inline">\((\mu_1, \log\sigma_1, \mu_2, \log\sigma_2)\)</span>. The reparameterization trick applies independently to each dimension: <span class="math inline">\(z_i = \mu_{z,i} + \sigma_{z,i} \varepsilon_i\)</span>.</p>
-<div id="01164776" class="cell" data-execution_count="7">
+<div id="2230b5ce" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    CantileverBeam1DAnalytical,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1327,7 +1327,7 @@ E_{\text{eff}} = \frac{A_{\text{skin}}\, E_1 + A_{\text{core}}\, E_2}{A_{\text{s
 Observed tip deflection: 5.377065</code></pre>
 </div>
 </div>
-<div id="9ea8d72c" class="cell" data-execution_count="8">
+<div id="49a2858f" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build 2D diagonal Gaussian VI (in standardized space)</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>conds_2d <span class="op">=</span> []</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>):</span>
@@ -1389,7 +1389,7 @@ Negative ELBO: 2.9044</code></pre>
 </div>
 </div>
 <p>We can also fit a <strong>full-covariance Gaussian</strong> that captures correlations. Instead of independent per-dimension parameters, we parameterize the covariance via its Cholesky factor <span class="math inline">\(L\)</span> so that <span class="math inline">\(\Sigma = LL^\top\)</span> is guaranteed positive-definite. The reparameterization becomes <span class="math inline">\(\theta = \mu + L\varepsilon\)</span>, and the optimizer learns both <span class="math inline">\(\mu\)</span> and the entries of <span class="math inline">\(L\)</span>.</p>
-<div id="ffb255ce" class="cell" data-execution_count="9">
+<div id="7a2677e0" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.multivariate_gaussian <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    ConditionalDenseCholGaussian,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2019,7 +2019,7 @@ Figure&nbsp;5: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 <span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: sampling $\\theta \\sim q(\\cdot;\\, \\mu, \\sigma)$ blocks gradient flow — we cannot differentiate through a random number generator (red). Right: writing $\\theta = \\mu + \\sigma \\varepsilon$ with fixed $\\varepsilon \\sim \\mathcal{N}(0,1)$ makes $\\theta$ a differentiable function of the parameters (green). The gradient flows through the deterministic transformation."</span></span>
 <span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-reparam-diagram</span></span>
 <span id="cb8-67"><a href="#cb8-67" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_reparam_diagram</span>
+<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_reparam_diagram</span>
 <span id="cb8-69"><a href="#cb8-69" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-70"><a href="#cb8-70" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb8-71"><a href="#cb8-71" aria-hidden="true" tabindex="-1"></a>plot_reparam_diagram(ax1, ax2)</span>
@@ -2063,7 +2063,7 @@ Figure&nbsp;5: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 <span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb8-112"><a href="#cb8-112" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb8-113"><a href="#cb8-113" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
-<span id="cb8-114"><a href="#cb8-114" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> _beam_exact_posterior, plot_reparam_visual</span>
+<span id="cb8-114"><a href="#cb8-114" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> _beam_exact_posterior, plot_reparam_visual</span>
 <span id="cb8-115"><a href="#cb8-115" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-116"><a href="#cb8-116" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb8-117"><a href="#cb8-117" aria-hidden="true" tabindex="-1"></a></span>
@@ -2207,7 +2207,7 @@ Figure&nbsp;5: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 <span id="cb8-261"><a href="#cb8-261" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb8-262"><a href="#cb8-262" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "ELBO convergence and parameter trajectories. Left: the negative ELBO decreases sharply in the first 50 iterations and then plateaus. Center: the variational mean converges toward the exact posterior mean (dashed line). Right: the variational standard deviation converges toward the exact posterior std. Most optimization work happens early."</span></span>
 <span id="cb8-263"><a href="#cb8-263" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-elbo-convergence</span></span>
-<span id="cb8-264"><a href="#cb8-264" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_elbo_convergence</span>
+<span id="cb8-264"><a href="#cb8-264" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_elbo_convergence</span>
 <span id="cb8-265"><a href="#cb8-265" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-266"><a href="#cb8-266" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2, ax3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
 <span id="cb8-267"><a href="#cb8-267" aria-hidden="true" tabindex="-1"></a>plot_elbo_convergence(</span>
@@ -2232,7 +2232,7 @@ Figure&nbsp;5: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 <span id="cb8-288"><a href="#cb8-288" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb8-289"><a href="#cb8-289" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Effect of the number of base samples on VI accuracy. Each panel shows the converged VI approximation (blue dashed) vs. the exact posterior (orange). With $S = 20$, the noisy ELBO estimate leads to a poor fit. By $S = 200$, the result is already close to the $S = 2000$ result."</span></span>
 <span id="cb8-290"><a href="#cb8-290" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-base-samples</span></span>
-<span id="cb8-291"><a href="#cb8-291" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_base_samples</span>
+<span id="cb8-291"><a href="#cb8-291" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_base_samples</span>
 <span id="cb8-292"><a href="#cb8-292" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-293"><a href="#cb8-293" aria-hidden="true" tabindex="-1"></a>sample_counts <span class="op">=</span> [<span class="dv">20</span>, <span class="dv">200</span>, <span class="dv">2000</span>]</span>
 <span id="cb8-294"><a href="#cb8-294" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="bu">len</span>(sample_counts), figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">3.5</span>),</span>
@@ -2440,7 +2440,7 @@ Figure&nbsp;5: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 <span id="cb8-504"><a href="#cb8-504" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb8-505"><a href="#cb8-505" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam. Left: the exact posterior shows a tilted ridge — $E_1$ and $E_2$ are correlated. Center: the diagonal Gaussian captures the correct center but its axis-aligned ellipses cannot represent the tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior, producing a better fit (lower negative ELBO). The extra expressiveness costs 1 additional parameter (5 vs. 4)."</span></span>
 <span id="cb8-506"><a href="#cb8-506" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-2d</span></span>
-<span id="cb8-507"><a href="#cb8-507" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_vi_2d</span>
+<span id="cb8-507"><a href="#cb8-507" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_2d</span>
 <span id="cb8-508"><a href="#cb8-508" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-509"><a href="#cb8-509" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2, ax3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">17</span>, <span class="dv">5</span>))</span>
 <span id="cb8-510"><a href="#cb8-510" aria-hidden="true" tabindex="-1"></a>plot_vi_2d(</span>

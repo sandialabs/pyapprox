@@ -1122,7 +1122,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="74568911" class="cell" data-execution_count="1">
+<div id="9c9794e1" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1148,7 +1148,7 @@ window.Quarto = {
 <span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
 <span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> (</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> (</span>
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    plot_additive_function,</span>
 <span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    plot_index_set,</span>
 <span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    plot_points_compare,</span>
@@ -1225,7 +1225,7 @@ Figure&nbsp;1: The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    new_values <span class="op">=</span> my_function(new_samples)</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    fitter.step_values(new_values)        <span class="co"># Provide function values</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each call to <code>step_samples()</code> returns the points for the next candidate subspace. After evaluating the function at those points and passing the values back via <code>step_values()</code>, the algorithm decides which subspace to add based on the error indicator.</p>
-<div id="4e0283c6" class="cell" data-execution_count="3">
+<div id="c1c58b0f" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>factories <span class="op">=</span> [ClenshawCurtisLagrangeFactory(marginal, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
@@ -1430,7 +1430,7 @@ Figure&nbsp;5: Adaptive vs.&nbsp;isotropic convergence on the additive benchmark
 </tr>
 </tbody>
 </table>
-<div id="4b246617" class="cell" data-execution_count="8">
+<div id="0114a806" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-dimension maximum levels: more refinement in z1 than z2</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>max_levels <span class="op">=</span> bkd.asarray([<span class="dv">8</span>, <span class="dv">4</span>])</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>per_dim <span class="op">=</span> Max1DLevelsCriteria(max_levels, bkd<span class="op">=</span>bkd)</span>
@@ -2103,7 +2103,7 @@ Figure&nbsp;6: 4D adaptive vs.&nbsp;isotropic convergence for a function with on
 <span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
 <span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> (</span>
+<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> (</span>
 <span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a>    plot_additive_function,</span>
 <span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a>    plot_index_set,</span>
 <span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>    plot_points_compare,</span>

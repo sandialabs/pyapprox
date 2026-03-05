@@ -1975,7 +1975,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-192"><a href="#cb1-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-193"><a href="#cb1-193" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Effect of proposal width on chain behavior. Left: too narrow — the chain takes tiny steps and explores slowly (high acceptance, high autocorrelation). Center: well-tuned — healthy mixing, the chain moves freely through the posterior. Right: too wide — most proposals land in low-density regions and are rejected, causing the chain to stick in place for long stretches."</span></span>
 <span id="cb1-194"><a href="#cb1-194" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-proposal-width</span></span>
-<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_proposal_width</span>
+<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_proposal_width</span>
 <span id="cb1-196"><a href="#cb1-196" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-197"><a href="#cb1-197" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">10</span>))</span>
 <span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a>plot_proposal_width(axes, run_mh, xi1_true, xi2_true)</span>
@@ -1998,7 +1998,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Acceptance rate and effective sample size (ESS) vs. proposal width. The optimal proposal width produces an acceptance rate of roughly $25\\text{--}40\\%$ for 2D problems. Too narrow → high acceptance but low ESS. Too wide → low acceptance and low ESS."</span></span>
 <span id="cb1-219"><a href="#cb1-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-acceptance-rate</span></span>
-<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_acceptance_rate</span>
+<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_acceptance_rate</span>
 <span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a>fig, ax1 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>ax2 <span class="op">=</span> ax1.twinx()</span>
@@ -2022,7 +2022,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Effect of burn-in removal. The red histogram (all samples) is visibly shifted from the true value because the burn-in transient pulls the distribution toward the starting point. The blue histogram (burn-in removed) centers on the true value. The inset trace plot shows the transient approach phase (gray region)."</span></span>
 <span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-burnin</span></span>
-<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_burnin</span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_burnin</span>
 <span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a>plot_burnin(ax, run_mh, xi1_true)</span>
@@ -2040,7 +2040,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Autocorrelation of the $\\xi_1$ chain for three proposal widths. The well-tuned chain (green) decorrelates within ~20 steps. The too-narrow chain (blue) stays correlated for hundreds of steps. The too-wide chain (red) also decorrelates slowly due to frequent rejections."</span></span>
 <span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-autocorrelation</span></span>
-<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_autocorrelation</span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_autocorrelation</span>
 <span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a>configs <span class="op">=</span> [</span>
 <span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"sigma"</span>: np.array([<span class="fl">0.05</span>, <span class="fl">0.05</span>]), <span class="st">"label"</span>: <span class="st">"Too narrow"</span>, <span class="st">"color"</span>: <span class="st">"#2C7FB8"</span>},</span>
@@ -2067,7 +2067,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Delayed Rejection in action. Top: the first proposal (large step) lands in a low-density region and is rejected. Bottom: a second proposal (smaller step) is tried from the same current position. It lands in a higher-density region and is accepted. Without DR, the chain would have stayed put."</span></span>
 <span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-delayed-rejection</span></span>
-<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_delayed_rejection</span>
+<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_delayed_rejection</span>
 <span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">6</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a>plot_delayed_rejection(ax1, ax2, tip_model_1d, y_obs_1d, sigma_noise_1d,</span>
@@ -2095,7 +2095,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Adaptive Metropolis learns the posterior shape. Left: initial isotropic proposal (circle) — the chain makes many rejected moves perpendicular to the posterior ridge. Right: after adaptation, the proposal aligns with the posterior's correlation structure (tilted ellipse) — the chain moves efficiently along the ridge."</span></span>
 <span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-adaptive-proposal</span></span>
-<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_adaptive_proposal</span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_adaptive_proposal</span>
 <span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="co"># Run adaptive MH</span></span>
 <span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a>n_steps_am <span class="op">=</span> <span class="dv">3000</span></span>
@@ -2142,7 +2142,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Comparison of four MCMC variants on the KLE beam problem (3,000 steps each). Top row: trace plots of $\\xi_1$. Bottom row: 2D scatter of posterior samples with ESS annotations. Focus on ESS rather than acceptance rate — DR achieves 90% acceptance but the lowest ESS, because most accepted moves are tiny second-stage steps that barely advance the chain."</span></span>
 <span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-dram-comparison</span></span>
-<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_dram_comparison</span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_dram_comparison</span>
 <span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a>n_compare <span class="op">=</span> <span class="dv">3000</span></span>
 <span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a>burnin_comp <span class="op">=</span> <span class="dv">500</span></span>

@@ -1130,7 +1130,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="ed7c280a" class="cell" data-execution_count="1">
+<div id="7055a30f" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1143,7 +1143,7 @@ window.Quarto = {
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    DynamicPiecewiseBasis,</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    EquidistantNodeGenerator,</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> plot_newton_cotes, plot_pw_quad_convergence</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> plot_newton_cotes, plot_pw_quad_convergence</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
@@ -1357,7 +1357,7 @@ f(x_0) + f(x_2) = 2f(x_1) + \Delta^2 f''(x_1) + \frac{2\Delta^4}{4!} f^{(4)}(x_1
 <li><code>PiecewiseQuadratic</code> <span class="math inline">\(\to\)</span> <strong>Simpson’s rule</strong> (weights follow the <span class="math inline">\(1, 4, 2, 4, \ldots, 1\)</span> pattern)</li>
 </ul>
 <p>We wrap these in <code>DynamicPiecewiseBasis</code> with an <code>EquidistantNodeGenerator</code> so that we can change the number of nodes dynamically.</p>
-<div id="777a735d" class="cell" data-execution_count="3">
+<div id="e6db247e" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Smooth test function: exponential."""</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(<span class="op">-</span>x<span class="op">**</span><span class="dv">2</span>)</span>
@@ -1976,7 +1976,7 @@ Figure&nbsp;2: Convergence of composite trapezoid and Simpson’s rules. Referen
 <span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>    DynamicPiecewiseBasis,</span>
 <span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>    EquidistantNodeGenerator,</span>
 <span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._quadrature <span class="im">import</span> plot_newton_cotes, plot_pw_quad_convergence</span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._quadrature <span class="im">import</span> plot_newton_cotes, plot_pw_quad_convergence</span>
 <span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>

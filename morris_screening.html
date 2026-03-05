@@ -1151,7 +1151,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We use the Ishigami function, which has three variables with distinct roles:</p>
-<div id="b8415585" class="cell" data-execution_count="1">
+<div id="8e6b22f6" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1176,7 +1176,7 @@ Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
 <section id="basic-usage" class="level2">
 <h2 class="anchored" data-anchor-id="basic-usage">Basic Usage</h2>
 <p>The <code>MorrisSensitivityAnalysis</code> workflow has three steps: create the analyzer, generate trajectories, evaluate the function, and compute indices.</p>
-<div id="f0d86130" class="cell" data-execution_count="2">
+<div id="a5246760" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Create Morris analyzer</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>morris <span class="op">=</span> MorrisSensitivityAnalysis(prior, nlevels<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1193,7 +1193,7 @@ Samples per trajectory: 4
 Total evaluations: 80</code></pre>
 </div>
 </div>
-<div id="0e52d4eb" class="cell" data-execution_count="3">
+<div id="a764e3a7" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Evaluate the function at trajectory points</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> func(samples)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1226,7 +1226,7 @@ x_3       4.9990      7.6934      -2.4995     </code></pre>
 <li><strong>Bottom-right</strong>: Important, approximately linear (large <span class="math inline">\(\mu^*\)</span>, small <span class="math inline">\(\sigma\)</span>)</li>
 <li><strong>Top-right</strong>: Important, nonlinear or interacting (large <span class="math inline">\(\mu^*\)</span> and <span class="math inline">\(\sigma\)</span>)</li>
 </ul>
-<div id="51d15b54" class="cell" data-execution_count="4">
+<div id="723153a5" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.plots <span class="im">import</span> plot_morris_screening</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">6</span>))</span>
@@ -1257,7 +1257,7 @@ x_3       4.9990      7.6934      -2.4995     </code></pre>
 <section id="trajectory-optimization" class="level2">
 <h2 class="anchored" data-anchor-id="trajectory-optimization">Trajectory Optimization</h2>
 <p>By default, Morris generates random trajectories. For better space-filling coverage, generate candidate trajectories and select the best subset.</p>
-<div id="f9c6ce5a" class="cell" data-execution_count="5">
+<div id="de49755b" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate optimized trajectories from a larger candidate pool</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>morris_opt <span class="op">=</span> MorrisSensitivityAnalysis(prior, nlevels<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
@@ -1291,7 +1291,7 @@ x_3       4.9990         1.2498         </code></pre>
 <section id="comparison-with-sobol-indices" class="level2">
 <h2 class="anchored" data-anchor-id="comparison-with-sobol-indices">Comparison with Sobol Indices</h2>
 <p>Morris screening provides rankings, not precise indices. Let’s verify that the Morris rankings agree with the Sobol ground truth.</p>
-<div id="8b54978b" class="cell" data-execution_count="6">
+<div id="dfcb17b0" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>

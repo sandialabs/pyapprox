@@ -1119,7 +1119,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="a26b3309" class="cell" data-execution_count="1">
+<div id="decd41c3" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1171,8 +1171,8 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <section id="using-lagrangebasis1d" class="level3">
 <h3 class="anchored" data-anchor-id="using-lagrangebasis1d">Using <code>LagrangeBasis1D</code></h3>
 <p><code>LagrangeBasis1D</code> takes a <strong>quadrature rule callable</strong> — any function with signature <code>(npoints) → (samples, weights)</code> — and builds the Lagrange basis at the rule’s nodes. This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.</p>
-<div id="2231c587" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
+<div id="fc076242" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Clenshaw-Curtis basis ---</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>cc_rule <span class="op">=</span> ClenshawCurtisQuadratureRule(bkd, store<span class="op">=</span><span class="va">True</span>)</span>
@@ -1219,7 +1219,7 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <h2 class="anchored" data-anchor-id="the-runge-phenomenon">The Runge Phenomenon</h2>
 <p>A natural first choice for interpolation nodes is <strong>equally spaced</strong> points. For <span class="math inline">\(M\)</span> equally spaced nodes on <span class="math inline">\([-1, 1]\)</span>, the node product <span class="math inline">\(\prod_j |x - x^{(j)}|\)</span> grows rapidly near the boundary as <span class="math inline">\(M\)</span> increases, causing the interpolation error to diverge for many smooth functions. This failure mode is called the <strong>Runge phenomenon</strong>.</p>
 <div id="cell-fig-runge" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_runge</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_runge</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> runge(x):</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="fl">25.0</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span>)</span>
@@ -1283,8 +1283,8 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 \]</span></p>
 <p>These are the projection of equally spaced points on the unit circle onto the real axis. They minimise <span class="math inline">\(\max_{x \in [-1,1]} \prod_j |x - x^{(j)}|\)</span> among all <span class="math inline">\(M\)</span>-point sets with endpoints fixed at <span class="math inline">\(\pm 1\)</span>, making them near-optimal for interpolation.</p>
 <p>A critical property for sparse grids is that CC nodes are <strong>nested</strong>: the <span class="math inline">\(M = 2^k + 1\)</span> point CC grid contains all points of the <span class="math inline">\(M = 2^{k-1} + 1\)</span> point grid.</p>
-<div id="527b1bde" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_nested_cc</span>
+<div id="7b19bb12" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_nested_cc</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>]</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -1305,7 +1305,7 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 <h2 class="anchored" data-anchor-id="convergence-study">Convergence Study</h2>
 <p>For a function with <span class="math inline">\(r\)</span> continuous derivatives, the Lagrange interpolant on Chebyshev-type nodes converges at rate <span class="math inline">\(O(M^{-r})\)</span>. For <strong>analytic functions</strong> (smooth everywhere in the complex plane) the convergence is <strong>exponential</strong>: <span class="math inline">\(O(\rho^{-M})\)</span> for some <span class="math inline">\(\rho &gt; 1\)</span>.</p>
 <div id="cell-fig-convergence" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_interp_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_interp_convergence</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_analytic(x):</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.cos(np.pi <span class="op">*</span> x))</span>
@@ -1366,7 +1366,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 \int_a^b f_M(x)\, dx = \sum_{j=1}^{M} f\!\left(x^{(j)}\right) \underbrace{\int_a^b \phi_j(x)\, dx}_{=:\, w_j}.
 \]</span></p>
 <p>The quadrature weights <span class="math inline">\(w_j\)</span> are exactly the <strong>integrals of the Lagrange basis functions</strong>. This means that any quadrature rule based on Lagrange interpolation (Gauss, Clenshaw-Curtis, and many others) can be recovered by integrating the basis polynomials analytically.</p>
-<div id="b1b19a41" class="cell" data-execution_count="7">
+<div id="4c6bc0d2" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify: CC quadrature weights via basis integration agree with the rule's weights.</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>basis_verify <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>
@@ -1976,7 +1976,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 <span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-lagrange-basis</span></span>
 <span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_lagrange_basis</span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_lagrange_basis</span>
 <span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>cc_rule <span class="op">=</span> ClenshawCurtisQuadratureRule(bkd, store<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a></span>
@@ -1991,7 +1991,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 <span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a><span class="in">`LagrangeBasis1D`</span> takes a **quadrature rule callable** — any function with signature <span class="in">`(npoints) → (samples, weights)`</span> — and builds the Lagrange basis at the rule's nodes.  This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.</span>
 <span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
+<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
 <span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Clenshaw-Curtis basis ---</span></span>
 <span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>cc_rule <span class="op">=</span> ClenshawCurtisQuadratureRule(bkd, store<span class="op">=</span><span class="va">True</span>)</span>
@@ -2036,7 +2036,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 <span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Runge's function 1/(1+25x^2) interpolated with equally-spaced (M=13) vs. Clenshaw-Curtis (M=17) nodes. Equidistant nodes produce violent oscillations near the boundary; CC nodes give an excellent approximation."</span></span>
 <span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-runge</span></span>
 <span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_runge</span>
+<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_runge</span>
 <span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> runge(x):</span>
 <span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="fl">25.0</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span>)</span>
@@ -2095,7 +2095,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 <span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>A critical property for sparse grids is that CC nodes are **nested**: the $M = 2^k + 1$ point CC grid contains all points of the $M = 2^{k-1} + 1$ point grid.</span>
 <span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_nested_cc</span>
+<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_nested_cc</span>
 <span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>]</span>
 <span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a></span>
@@ -2114,7 +2114,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 <span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Interpolation error vs. number of nodes M for three test functions. Analytic functions converge exponentially; C^1 functions converge algebraically."</span></span>
 <span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
 <span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_interp_convergence</span>
+<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_interp_convergence</span>
 <span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_analytic(x):</span>
 <span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.cos(np.pi <span class="op">*</span> x))</span>

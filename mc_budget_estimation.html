@@ -1180,7 +1180,7 @@ window.Quarto = {
 \]</span></p>
 </div>
 </div>
-<div id="dc8895ed" class="cell" data-execution_count="1">
+<div id="3ccbae6b" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1213,7 +1213,7 @@ Cost per evaluation: 2.1</code></pre>
 <section id="stage-1-pilot-samples" class="level2">
 <h2 class="anchored" data-anchor-id="stage-1-pilot-samples">Stage 1: Pilot Samples</h2>
 <p>We draw a modest number of pilot samples <span class="math inline">\(M_{\text{pilot}}\)</span>, evaluate the model, and estimate the three moment quantities from the resulting QoI values.</p>
-<div id="9b6f4506" class="cell" data-execution_count="2">
+<div id="aec57e7d" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_pilot <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_pilot <span class="op">=</span> variable.rvs(M_pilot)</span>
@@ -1235,7 +1235,7 @@ Values shape: (3, 50)</code></pre>
 <li><span class="math inline">\(\hat{\mathbf{B}}\)</span>: the sample covariance between the QoI values and their centered outer products (<span class="math inline">\(K \times K^2\)</span>)</li>
 </ul>
 <p>The <code>MultiOutputMeanAndVariance</code> statistic class provides <code>compute_pilot_quantities</code> to compute all three from raw model evaluations:</p>
-<div id="fcd0eef3" class="cell" data-execution_count="3">
+<div id="576a87b0" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>stat_mv <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cov_pilot, W_pilot, B_pilot <span class="op">=</span> stat_mv.compute_pilot_quantities([values_pilot])</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1282,7 +1282,7 @@ B shape: (3, 9)</code></pre>
 <li>Create an <strong>estimator</strong> (here, <code>MCEstimator</code>).</li>
 <li>Call <code>allocate_samples</code> with a target computational cost to determine the optimal number of samples.</li>
 </ol>
-<div id="a167bce0" class="cell" data-execution_count="4">
+<div id="bf44ee5a" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1-2: Create stat and set pilot quantities</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(cov_pilot, W_pilot, B_pilot)</span>
@@ -1306,7 +1306,7 @@ Actual cost: 499.8</code></pre>
 <h3 class="anchored" data-anchor-id="understanding-the-output">Understanding the Output</h3>
 <p>The <code>allocate_samples</code> call determines how many model evaluations to run. For single-model Monte Carlo, this is simply <span class="math inline">\(M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor\)</span>. Because the number of samples must be an integer, the actual cost is generally less than the target — no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.</p>
 <p>We can also inspect the <strong>predicted estimator covariance</strong> at this allocation:</p>
-<div id="3d3187db" class="cell" data-execution_count="5">
+<div id="726df546" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>predicted_est_cov <span class="op">=</span> est.optimized_covariance()</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>nstats <span class="op">=</span> stat.nstats()</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of statistics: </span><span class="sc">{</span>nstats<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -1327,7 +1327,7 @@ Diagonal (individual estimator variances):
 <section id="running-the-allocated-experiment" class="level2">
 <h2 class="anchored" data-anchor-id="running-the-allocated-experiment">Running the Allocated Experiment</h2>
 <p>With the budget determined, we generate samples, evaluate the model, and compute the statistics:</p>
-<div id="ad5d6b77" class="cell" data-execution_count="6">
+<div id="51d86144" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples according to the allocation</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>samples_allocated <span class="op">=</span> est.generate_samples_per_model(variable.rvs)[<span class="dv">0</span>]</span>
@@ -1420,7 +1420,7 @@ Figure&nbsp;3: Sensitivity of the budget prediction to pilot size. Each point is
 <section id="the-complete-two-stage-workflow" class="level2">
 <h2 class="anchored" data-anchor-id="the-complete-two-stage-workflow">The Complete Two-Stage Workflow</h2>
 <p>Putting it all together, the practical MC workflow for a target accuracy is:</p>
-<div id="cd025c57" class="cell" data-execution_count="10">
+<div id="98eff0ee" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Full workflow ---</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Choose target accuracy and statistic</span></span>
@@ -1476,7 +1476,7 @@ Predicted std of mean(q_3): 0.032772</code></pre>
 <h3 class="anchored" data-anchor-id="visualizing-the-estimator-covariance">Visualizing the Estimator Covariance</h3>
 <p>The estimator covariance matrix at the allocated budget shows the block structure derived in the previous tutorial.</p>
 <div id="cell-fig-est-cov-final" class="cell" data-execution_count="11">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance</span></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>stat_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
@@ -2216,7 +2216,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-233"><a href="#cb16-233" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Verification of the budget prediction. Histograms of mean estimates from 200 independent experiments at the allocated budget, with the predicted standard deviation (red dashed) and empirical standard deviation (green) overlaid."</span></span>
 <span id="cb16-234"><a href="#cb16-234" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-budget-verification</span></span>
 <span id="cb16-235"><a href="#cb16-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-236"><a href="#cb16-236" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_budget_verification</span>
+<span id="cb16-236"><a href="#cb16-236" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_budget_verification</span>
 <span id="cb16-237"><a href="#cb16-237" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-238"><a href="#cb16-238" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb16-239"><a href="#cb16-239" aria-hidden="true" tabindex="-1"></a>M_alloc <span class="op">=</span> <span class="bu">int</span>(est._rounded_nsamples_per_model[<span class="dv">0</span>])</span>
@@ -2248,7 +2248,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-267"><a href="#cb16-267" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Predicted estimation error (trace of estimator covariance) vs. computational budget for three statistic choices. Estimating the variance requires a larger budget than the mean for the same accuracy, and estimating both simultaneously is the most expensive."</span></span>
 <span id="cb16-268"><a href="#cb16-268" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-budget-vs-statistic</span></span>
 <span id="cb16-269"><a href="#cb16-269" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_budget_vs_statistic</span>
+<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_budget_vs_statistic</span>
 <span id="cb16-271"><a href="#cb16-271" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-272"><a href="#cb16-272" aria-hidden="true" tabindex="-1"></a><span class="co"># Create stat objects and set pilot quantities</span></span>
 <span id="cb16-273"><a href="#cb16-273" aria-hidden="true" tabindex="-1"></a>stat_mean <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
@@ -2286,7 +2286,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-307"><a href="#cb16-307" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sensitivity of the budget prediction to pilot size. Each point is the predicted standard deviation of $\\hat{\\mu}_1$ from an independent pilot experiment. Small pilots ($M_{\\text{pilot}} = 20$) produce highly variable predictions; larger pilots ($M_{\\text{pilot}} = 200$) are much more stable. The true value (from the benchmark's exact moments) is shown as a dashed red line."</span></span>
 <span id="cb16-308"><a href="#cb16-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pilot-sensitivity</span></span>
 <span id="cb16-309"><a href="#cb16-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_pilot_sensitivity</span>
+<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pilot_sensitivity</span>
 <span id="cb16-311"><a href="#cb16-311" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-312"><a href="#cb16-312" aria-hidden="true" tabindex="-1"></a>pilot_sizes <span class="op">=</span> [<span class="dv">20</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">200</span>]</span>
 <span id="cb16-313"><a href="#cb16-313" aria-hidden="true" tabindex="-1"></a>n_pilot_reps <span class="op">=</span> <span class="dv">100</span></span>
@@ -2394,7 +2394,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-419"><a href="#cb16-419" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation at the allocated budget. The block structure from the previous tutorial is visible: mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right)."</span></span>
 <span id="cb16-420"><a href="#cb16-420" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-est-cov-final</span></span>
 <span id="cb16-421"><a href="#cb16-421" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
+<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
 <span id="cb16-423"><a href="#cb16-423" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-424"><a href="#cb16-424" aria-hidden="true" tabindex="-1"></a><span class="co"># Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance</span></span>
 <span id="cb16-425"><a href="#cb16-425" aria-hidden="true" tabindex="-1"></a>stat_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>

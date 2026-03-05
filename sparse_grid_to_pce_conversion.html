@@ -1121,7 +1121,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="5e9a4ad2" class="cell" data-execution_count="1">
+<div id="1a1f4c99" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1149,7 +1149,7 @@ window.Quarto = {
 </ul>
 <p>Neither is “better” — they serve different purposes.</p>
 <div id="cell-fig-two-bases" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_two_bases</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_two_bases</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>bases_1d <span class="op">=</span> create_bases_1d([marginal], bkd)</span>
@@ -1198,7 +1198,7 @@ c_{jk} = \int L_j(x)\, P_k(x)\, d\mu(x) = \sum_{i} w_i\, L_j(x_i^q)\, P_k(x_i^q)
 <p>So the PCE coefficient for <span class="math inline">\(P_k\)</span> is a weighted sum of the function values at the interpolation nodes, where the weights are the projection coefficients <span class="math inline">\(c_{jk}\)</span>.</p>
 <p>We can compute this projection matrix using PyApprox’s internal API:</p>
 <div id="cell-fig-projection-1d" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_projection_1d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_projection_1d</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build the converter's 1D projection matrix</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>converter_1d <span class="op">=</span> TensorProductSubspaceToPCEConverter(bkd, bases_1d)</span>
@@ -1255,7 +1255,7 @@ Figure&nbsp;2: Projection of a single Lagrange basis function L_2(x). Left: the 
 <p>where <span class="math inline">\(\hat{c}_{k_1 k_2} = \sum_{j_1, j_2} f(x_{j_1}, x_{j_2})\, c^{(1)}_{j_1 k_1}\, c^{(2)}_{j_2 k_2}\)</span>.</p>
 <p>This is a tensor contraction — each dimension is projected independently, so no multivariate quadrature is needed.</p>
 <div id="cell-fig-2d-tp" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_2d_tp</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_2d_tp</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a 2D example: f(x1, x2) = x1^2 + x1*x2</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>marginals_2d <span class="op">=</span> [</span>
@@ -1319,7 +1319,7 @@ Figure&nbsp;3: 2D tensor product conversion. Left: function values at the 4x4 te
 \]</span></p>
 <p>Different subspaces may produce the <strong>same</strong> multi-index <span class="math inline">\(\mathbf{k}\)</span>, so their coefficients must be <strong>accumulated</strong> (summed). This merging step is what <code>SparseGridToPCEConverter</code> handles.</p>
 <div id="cell-fig-smolyak-merge" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_smolyak_merge</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_smolyak_merge</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build level-2 SG to have multiple subspaces</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>fitter_l2 <span class="op">=</span> IsotropicSparseGridFitter(</span>
@@ -1371,7 +1371,7 @@ Figure&nbsp;4: Smolyak merging for a 2D, level-2 sparse grid with <span class="m
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_sg_vs_pce</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_sg_vs_pce</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert the level-2 SG to PCE</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>pce_l2 <span class="op">=</span> converter.convert(sg_l2)</span>
@@ -1403,7 +1403,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 </div>
 </div>
 <p>The maximum error should be near machine epsilon (<span class="math inline">\(\sim 10^{-15}\)</span>), confirming that the conversion is exact for polynomial functions.</p>
-<div id="33056832" class="cell" data-execution_count="7">
+<div id="5c05d17d" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify moments match</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>sg_mean_l2 <span class="op">=</span> bkd.to_numpy(sg_l2.mean())</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>pce_mean_l2 <span class="op">=</span> bkd.to_numpy(pce_l2.mean())</span>
@@ -1991,7 +1991,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 <span id="cb8-90"><a href="#cb8-90" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Both sets span the space of polynomials of degree 3. Left: four Lagrange basis functions, each peaking at its node. Right: four Legendre polynomials, smooth and oscillatory. The Lagrange basis is defined by interpolation nodes; the orthonormal basis is defined by the probability measure."</span></span>
 <span id="cb8-91"><a href="#cb8-91" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-bases</span></span>
 <span id="cb8-92"><a href="#cb8-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_two_bases</span>
+<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_two_bases</span>
 <span id="cb8-94"><a href="#cb8-94" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-95"><a href="#cb8-95" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
 <span id="cb8-96"><a href="#cb8-96" aria-hidden="true" tabindex="-1"></a>bases_1d <span class="op">=</span> create_bases_1d([marginal], bkd)</span>
@@ -2039,7 +2039,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 <span id="cb8-140"><a href="#cb8-140" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Projection of a single Lagrange basis function L_2(x). Left: the Lagrange function (solid) and its reconstruction from orthonormal polynomial coefficients (dashed) --- they overlap exactly. Right: bar chart of the projection coefficients c_{2,k}, showing how L_2 decomposes into the orthonormal basis."</span></span>
 <span id="cb8-141"><a href="#cb8-141" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-projection-1d</span></span>
 <span id="cb8-142"><a href="#cb8-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-143"><a href="#cb8-143" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_projection_1d</span>
+<span id="cb8-143"><a href="#cb8-143" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_projection_1d</span>
 <span id="cb8-144"><a href="#cb8-144" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-145"><a href="#cb8-145" aria-hidden="true" tabindex="-1"></a><span class="co"># Build the converter's 1D projection matrix</span></span>
 <span id="cb8-146"><a href="#cb8-146" aria-hidden="true" tabindex="-1"></a>converter_1d <span class="op">=</span> TensorProductSubspaceToPCEConverter(bkd, bases_1d)</span>
@@ -2086,7 +2086,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 <span id="cb8-189"><a href="#cb8-189" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "2D tensor product conversion. Left: function values at the 4x4 tensor product grid. Right: the corresponding PCE multi-indices with color-coded coefficient magnitudes. Each grid point's value is projected through the 1D matrices to produce the PCE coefficients."</span></span>
 <span id="cb8-190"><a href="#cb8-190" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-tp</span></span>
 <span id="cb8-191"><a href="#cb8-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-192"><a href="#cb8-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_2d_tp</span>
+<span id="cb8-192"><a href="#cb8-192" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_2d_tp</span>
 <span id="cb8-193"><a href="#cb8-193" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-194"><a href="#cb8-194" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a 2D example: f(x1, x2) = x1^2 + x1*x2</span></span>
 <span id="cb8-195"><a href="#cb8-195" aria-hidden="true" tabindex="-1"></a>marginals_2d <span class="op">=</span> [</span>
@@ -2148,7 +2148,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 <span id="cb8-253"><a href="#cb8-253" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with $f(x_1, x_2) = x_1^2 + x_1 x_2$. Each dot is a PCE multi-index $(k_1, k_2)$. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value $c_{\\ell} \\hat{c}_{\\mathbf{k}}^{(\\ell)}$. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure $x_2$ term, so the $(0,1)$ coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same $(k_1, k_2)$, their weighted coefficients are summed."</span></span>
 <span id="cb8-254"><a href="#cb8-254" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-smolyak-merge</span></span>
 <span id="cb8-255"><a href="#cb8-255" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-256"><a href="#cb8-256" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_smolyak_merge</span>
+<span id="cb8-256"><a href="#cb8-256" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_smolyak_merge</span>
 <span id="cb8-257"><a href="#cb8-257" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-258"><a href="#cb8-258" aria-hidden="true" tabindex="-1"></a><span class="co"># Build level-2 SG to have multiple subspaces</span></span>
 <span id="cb8-259"><a href="#cb8-259" aria-hidden="true" tabindex="-1"></a>fitter_l2 <span class="op">=</span> IsotropicSparseGridFitter(</span>
@@ -2195,7 +2195,7 @@ Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identi
 <span id="cb8-302"><a href="#cb8-302" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
 <span id="cb8-303"><a href="#cb8-303" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
 <span id="cb8-304"><a href="#cb8-304" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-305"><a href="#cb8-305" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_sg_vs_pce</span>
+<span id="cb8-305"><a href="#cb8-305" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_sg_vs_pce</span>
 <span id="cb8-306"><a href="#cb8-306" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-307"><a href="#cb8-307" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert the level-2 SG to PCE</span></span>
 <span id="cb8-308"><a href="#cb8-308" aria-hidden="true" tabindex="-1"></a>pce_l2 <span class="op">=</span> converter.convert(sg_l2)</span>

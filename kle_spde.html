@@ -1106,7 +1106,7 @@ window.Quarto = {
 <li>Choose between <code>MeshKLE</code>, <code>DataDrivenKLE</code>, and <code>SPDEMaternKLE</code> for a given problem</li>
 </ul>
 <p>In <a href="./kle_introduction.html">KLE I</a> we introduced the KLE and in <a href="./kle_mesh_and_data_driven.html">KLE II</a> we compared kernel-based and data-driven approaches. Both rely on dense <span class="math inline">\(O(N^2)\)</span> matrices. The <strong>SPDE approach</strong> replaces the dense covariance with a <em>sparse</em> PDE operator whose Green’s function is the Matern covariance, giving <span class="math inline">\(O(N)\)</span> memory.</p>
-<div id="78a41ab0" class="cell" data-execution_count="1">
+<div id="4a1ee348" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1162,7 +1162,7 @@ window.Quarto = {
 \ell_c = \sqrt{\gamma/\delta} = 1/\kappa\]</span></p>
 <div id="cell-fig-matern-kernels-paths" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> kv</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_matern_kernels_paths</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_matern_kernels_paths</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">200</span>)</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>mesh_plot <span class="op">=</span> bkd.array(x_plot[<span class="va">None</span>, :])</span>
@@ -1226,7 +1226,7 @@ Figure&nbsp;1: Left: Matern kernel functions for four smoothness values <span cl
 <p>The <code>create_spde_matern_kle</code> factory assembles the sparse FEM precision operator <span class="math inline">\(A = \gamma K_{\text{stiff}} + \delta M + \xi M_{\partial}\)</span> and solves the generalized eigenvalue problem <span class="math inline">\(A\phi_k = \mu_k M \phi_k\)</span>. The KLE eigenvalues are <span class="math inline">\(\lambda_k = \gamma^2/(\tau^2 \mu_k^2)\)</span>.</p>
 <p>This uses only sparse matrices, giving <span class="math inline">\(O(N)\)</span> memory instead of <span class="math inline">\(O(N^2)\)</span>.</p>
 <div id="cell-fig-spde-overview" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_spde_overview</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_overview</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Parameters for ell_c = 0.5 in 1D</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>ell_c <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1295,7 +1295,7 @@ Figure&nbsp;2: Left: SPDE eigenfunctions on <span class="math inline">\([0, 2]\)
 <h2 class="anchored" data-anchor-id="boundary-effects-the-key-spde-limitation">Boundary effects: the key SPDE limitation</h2>
 <p>The Matern covariance on <span class="math inline">\(\mathbb{R}^d\)</span> is stationary (translation invariant). On a bounded domain the SPDE uses Robin boundary conditions that modify the covariance near the edges. This <strong>boundary artefact</strong> decreases as the domain grows relative to <span class="math inline">\(\ell_c\)</span>.</p>
 <div id="cell-fig-boundary-artefacts" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_boundary_artefacts</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_boundary_artefacts</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>ell_c_fixed <span class="op">=</span> <span class="fl">0.5</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>domain_data <span class="op">=</span> []</span>
@@ -1346,7 +1346,7 @@ Figure&nbsp;3: Pointwise variance of the SPDE KLE for three domain sizes. On the
 <li><strong><code>SPDEMaternKLE</code></strong>: Sparse generalized eigenvalue solve costs <span class="math inline">\(O(N \cdot K)\)</span> with iterative methods (e.g.&nbsp;ARPACK)</li>
 </ul>
 <div id="cell-fig-memory-scaling" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_memory_scaling</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_memory_scaling</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling data</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>N_vals <span class="op">=</span> np.array([<span class="dv">100</span>, <span class="dv">300</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">5000</span>])</span>
@@ -1400,7 +1400,7 @@ Figure&nbsp;4: Left: memory and eigenvalue-solve cost scaling of the dense covar
 <h2 class="anchored" data-anchor-id="choosing-gamma-delta-xi-from-physical-parameters">Choosing <span class="math inline">\(\gamma\)</span>, <span class="math inline">\(\delta\)</span>, <span class="math inline">\(\xi\)</span> from physical parameters</h2>
 <p>Given target correlation length <span class="math inline">\(\ell_c\)</span> and marginal std <span class="math inline">\(\sigma\)</span>:</p>
 <div id="cell-fig-spde-parameters" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_spde_parameters</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_parameters</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Empirical covariance at midpoint for each correlation length</span></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>mid <span class="op">=</span> nx_s <span class="op">//</span> <span class="dv">2</span></span>
@@ -2037,7 +2037,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-matern-kernels-paths</span></span>
 <span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: Matern kernel functions for four smoothness values $\\nu$, all with $\\ell = 0.4$. Centre and right: sample paths from Matern-1/2 (rough, non-differentiable) and Matern-3/2 (once differentiable). The SPDE bilaplacian prior produces Matern-3/2 in 1D."</span></span>
 <span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> kv</span>
-<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_matern_kernels_paths</span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_matern_kernels_paths</span>
 <span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>x_plot <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">200</span>)</span>
 <span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a>mesh_plot <span class="op">=</span> bkd.array(x_plot[<span class="va">None</span>, :])</span>
@@ -2099,7 +2099,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-spde-overview</span></span>
 <span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: SPDE eigenfunctions on $[0, 2]$. Centre: five sample paths with $\\pm 2\\sigma$ envelope from `pointwise_variance()`. Right: eigenvalue comparison between the sparse SPDE KLE and the dense `MeshKLE` with Matern-3/2 kernel. They agree at low modes but differ near the boundary."</span></span>
-<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_spde_overview</span>
+<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_overview</span>
 <span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a><span class="co"># Parameters for ell_c = 0.5 in 1D</span></span>
 <span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>ell_c <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -2165,7 +2165,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-boundary-artefacts</span></span>
 <span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Pointwise variance of the SPDE KLE for three domain sizes. On the short domain ($L/\\ell_c = 2$) the variance drops significantly near boundaries due to Robin BCs. As the domain grows relative to $\\ell_c$, the interior variance approaches the target $\\sigma^2 = 1$ and boundary effects become negligible."</span></span>
-<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_boundary_artefacts</span>
+<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_boundary_artefacts</span>
 <span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a>ell_c_fixed <span class="op">=</span> <span class="fl">0.5</span></span>
 <span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a>domain_data <span class="op">=</span> []</span>
@@ -2209,7 +2209,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-memory-scaling</span></span>
 <span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: memory and eigenvalue-solve cost scaling of the dense covariance matrix ($O(N^2)$) vs the sparse SPDE precision operator ($O(N)$). Right: SPDE sample paths for three correlation lengths $\\ell_c = 0.3, 0.5, 0.8$, showing shorter $\\ell_c$ produces rougher fields."</span></span>
-<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_memory_scaling</span>
+<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_memory_scaling</span>
 <span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling data</span></span>
 <span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>N_vals <span class="op">=</span> np.array([<span class="dv">100</span>, <span class="dv">300</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">5000</span>])</span>
@@ -2259,7 +2259,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-spde-parameters</span></span>
 <span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: max relative eigenvalue error between SPDE and dense KLE as the domain length $L$ increases, confirming asymptotic convergence. Right: empirical covariance at the domain midpoint from 2000 Monte Carlo samples for three correlation lengths."</span></span>
-<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_spde_parameters</span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_parameters</span>
 <span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a><span class="co"># Empirical covariance at midpoint for each correlation length</span></span>
 <span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a>mid <span class="op">=</span> nx_s <span class="op">//</span> <span class="dv">2</span></span>
@@ -2322,7 +2322,7 @@ Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code>
 <span id="cb7-393"><a href="#cb7-393" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-method-comparison</span></span>
 <span id="cb7-394"><a href="#cb7-394" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Summary comparison of the three KLE methods: `MeshKLE` (dense kernel), `DataDrivenKLE` (SVD of samples), and `SPDEMaternKLE` (sparse PDE operator)."</span></span>
 <span id="cb7-395"><a href="#cb7-395" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-396"><a href="#cb7-396" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_method_comparison</span>
+<span id="cb7-396"><a href="#cb7-396" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_method_comparison</span>
 <span id="cb7-397"><a href="#cb7-397" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-398"><a href="#cb7-398" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">3.5</span>))</span>
 <span id="cb7-399"><a href="#cb7-399" aria-hidden="true" tabindex="-1"></a>plot_method_comparison(ax)</span>

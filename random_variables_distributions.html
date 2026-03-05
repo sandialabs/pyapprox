@@ -1176,7 +1176,7 @@ E_2 \sim \text{Beta}(6, 2) \;\text{on}\; [4{,}500,\; 5{,}500]
 \pdf(E_1, E_2) = \pdf_1(E_1) \cdot \pdf_2(E_2)
 \]</span></p>
 <p>The joint density is the product of the marginals — this is the defining property of independence.</p>
-<div id="19335a9b" class="cell" data-execution_count="1">
+<div id="4447a1bd" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1242,7 +1242,7 @@ Figure&nbsp;1: Independent Beta prior. <span class="math inline">\(E_1\)</span> 
 <li>Apply each marginal’s inverse CDF: <span class="math inline">\(E_i = F_i^{-1}(u_i)\)</span>.</li>
 </ol>
 <p>The result: samples that respect the Beta marginals <em>and</em> exhibit the desired correlation.</p>
-<div id="4db3f562" class="cell" data-execution_count="3">
+<div id="aecc2898" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.copula.bivariate.gaussian <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    BivariateGaussianCopula,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1346,7 +1346,7 @@ Figure&nbsp;3: Two prior specifications for <span class="math inline">\((E_1, E_
 \end{pmatrix}
 \]</span></p>
 <p>The copula draws correlated standard normals with this correlation structure, transforms them to <span class="math inline">\([0, 1]\)</span> via the normal CDF, and applies each marginal’s inverse CDF — exactly as in the bivariate case.</p>
-<div id="fc9a1bfc" class="cell" data-execution_count="6">
+<div id="8b937b89" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.copula.correlation.cholesky <span class="im">import</span> (</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    CholeskyCorrelationParameterization,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1381,7 +1381,7 @@ Empirical correlation matrix:
 </div>
 </div>
 <p>To visualize a 3D distribution, we plot all pairwise 2D marginals on the lower triangle and the 1D marginals on the diagonal. The <code>PairPlotter</code> automates this using a <strong>dimension reducer</strong> — here we use <code>FunctionMarginalizer</code> with Gauss-Legendre quadrature to integrate out variables from the joint PDF.</p>
-<div id="b67b78cd" class="cell" data-execution_count="7">
+<div id="87ed8b44" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature.tensor_product_factory <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    TensorProductQuadratureFactory,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2013,7 +2013,7 @@ Figure&nbsp;4: Corner plot for the 3-parameter Gaussian copula. Diagonal: 1D mar
 <span id="cb8-122"><a href="#cb8-122" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Independent Beta prior. $E_1$ has a Beta(2,6) marginal (left-skewed) and $E_2$ has a Beta(6,2) marginal (right-skewed), both on $\\pm 10\\%$ of nominal. The contours are axis-aligned because the parameters are uncorrelated."</span></span>
 <span id="cb8-123"><a href="#cb8-123" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-indep-beta</span></span>
 <span id="cb8-124"><a href="#cb8-124" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb8-125"><a href="#cb8-125" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_indep_beta</span>
+<span id="cb8-125"><a href="#cb8-125" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_indep_beta</span>
 <span id="cb8-126"><a href="#cb8-126" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-127"><a href="#cb8-127" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">6</span>),</span>
 <span id="cb8-128"><a href="#cb8-128" aria-hidden="true" tabindex="-1"></a>                          gridspec_kw<span class="op">=</span>{<span class="st">"width_ratios"</span>: [<span class="dv">3</span>, <span class="dv">1</span>],</span>
@@ -2074,7 +2074,7 @@ Figure&nbsp;4: Corner plot for the 3-parameter Gaussian copula. Diagonal: 1D mar
 <span id="cb8-187"><a href="#cb8-187" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb8-188"><a href="#cb8-188" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Gaussian copula with Beta marginals ($\\rho = 0.95$). The strong correlation produces a crescent-shaped cloud. The marginals remain Beta(2,6) and Beta(6,2) --- only the dependence structure has changed."</span></span>
 <span id="cb8-189"><a href="#cb8-189" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-copula-beta</span></span>
-<span id="cb8-190"><a href="#cb8-190" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_copula_beta</span>
+<span id="cb8-190"><a href="#cb8-190" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_copula_beta</span>
 <span id="cb8-191"><a href="#cb8-191" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-192"><a href="#cb8-192" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">6</span>),</span>
 <span id="cb8-193"><a href="#cb8-193" aria-hidden="true" tabindex="-1"></a>                          gridspec_kw<span class="op">=</span>{<span class="st">"width_ratios"</span>: [<span class="dv">3</span>, <span class="dv">1</span>],</span>
@@ -2105,7 +2105,7 @@ Figure&nbsp;4: Corner plot for the 3-parameter Gaussian copula. Diagonal: 1D mar
 <span id="cb8-220"><a href="#cb8-220" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb8-221"><a href="#cb8-221" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Two prior specifications for $(E_1, E_2)$. Left: independent Beta marginals. Right: Gaussian copula with the same Beta marginals and $\\rho = 0.95$. The choice of prior directly affects the push-forward distribution of the QoI."</span></span>
 <span id="cb8-222"><a href="#cb8-222" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-priors</span></span>
-<span id="cb8-223"><a href="#cb8-223" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_two_priors</span>
+<span id="cb8-223"><a href="#cb8-223" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_two_priors</span>
 <span id="cb8-224"><a href="#cb8-224" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-225"><a href="#cb8-225" aria-hidden="true" tabindex="-1"></a>plotter <span class="op">=</span> variable_indep.plotter()</span>
 <span id="cb8-226"><a href="#cb8-226" aria-hidden="true" tabindex="-1"></a>plotter_cop <span class="op">=</span> variable_copula.plotter()</span>

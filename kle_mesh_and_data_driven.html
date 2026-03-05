@@ -1141,7 +1141,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<div id="ba1e3a1c" class="cell" data-execution_count="1">
+<div id="ccfea8c0" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1168,7 +1168,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="how-meshkle-works-weighted-eigendecomposition">How <code>MeshKLE</code> works: weighted eigendecomposition</h2>
 <p>Given mesh coordinates and a kernel, <code>MeshKLE</code> assembles the <span class="math inline">\(N \times N\)</span> covariance matrix <span class="math inline">\(C_{ij} = k(x_i, x_j)\)</span> and solves the weighted eigenproblem <span class="math inline">\(W^{1/2} C W^{1/2} \hat\phi = \lambda \hat\phi\)</span> where <span class="math inline">\(W = \mathrm{diag}(w_i)\)</span> are quadrature weights.</p>
 <div id="cell-fig-mesh-kle-overview" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_mesh_kle_overview</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_mesh_kle_overview</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>nterms <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>ell <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1206,7 +1206,7 @@ Figure&nbsp;1: Left: covariance matrix <span class="math inline">\(C(x,x')\)</sp
 <h2 class="anchored" data-anchor-id="how-datadrivenkle-works-svd-of-samples">How <code>DataDrivenKLE</code> works: SVD of samples</h2>
 <p>Given <span class="math inline">\(N_s\)</span> field realizations stacked as columns, <code>DataDrivenKLE</code> computes the SVD: <span class="math inline">\(A = U \Sigma V^T\)</span>. The left singular vectors <span class="math inline">\(U\)</span> are the empirical eigenfunctions; the eigenvalues are <span class="math inline">\(\lambda_k = \sigma_k^2 / (N_s - 1)\)</span>.</p>
 <div id="cell-fig-data-driven-eigenfunctions" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_data_driven_eigenfunctions</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_data_driven_eigenfunctions</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the MeshKLE to use as "data"</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>N_samples_list <span class="op">=</span> [<span class="dv">50</span>, <span class="dv">500</span>, <span class="dv">5000</span>]</span>
@@ -1246,7 +1246,7 @@ Figure&nbsp;2: <code>DataDrivenKLE</code> eigenfunctions (solid) vs <code>MeshKL
 <section id="eigenvalue-convergence-with-sample-count" class="level2">
 <h2 class="anchored" data-anchor-id="eigenvalue-convergence-with-sample-count">Eigenvalue convergence with sample count</h2>
 <div id="cell-fig-eigenvalue-convergence" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_eigenvalue_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_eigenvalue_convergence</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Ns_range <span class="op">=</span> np.logspace(<span class="fl">1.5</span>, <span class="dv">4</span>, <span class="dv">25</span>, dtype<span class="op">=</span><span class="bu">int</span>)</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>errors <span class="op">=</span> np.zeros((<span class="bu">len</span>(Ns_range), nterms))</span>
@@ -1301,7 +1301,7 @@ Figure&nbsp;3: Left: relative eigenvalue error of <code>DataDrivenKLE</code> vs 
 <p>For <code>MeshKLE</code>, finer mesh yields a better approximation of the integral. The error in eigenvalue <span class="math inline">\(k\)</span> scales as <span class="math inline">\(O(h^2)\)</span> for the trapezoid rule.</p>
 <div id="cell-fig-mesh-convergence" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kle <span class="im">import</span> AnalyticalExponentialKLE1D</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_mesh_convergence</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_mesh_convergence</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>npts_list <span class="op">=</span> [<span class="dv">20</span>, <span class="dv">40</span>, <span class="dv">80</span>, <span class="dv">160</span>, <span class="dv">320</span>]</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
@@ -1356,7 +1356,7 @@ Figure&nbsp;4: Left: <code>MeshKLE</code> eigenvalue convergence with mesh refin
 <h2 class="anchored" data-anchor-id="reconstructing-a-field-from-new-data">Reconstructing a field from new data</h2>
 <p>Both KLEs can project new observations onto the KLE basis. Given a field <span class="math inline">\(f(x)\)</span>, the projection coefficients are <span class="math inline">\(c_k = \langle f, \phi_k \rangle_w = \sum_i w_i\, f(x_i)\, \phi_k(x_i)\)</span>. The reconstruction with <span class="math inline">\(K\)</span> terms is <span class="math inline">\(\hat{f}(x) = \sum_{k=1}^K c_k\, \sqrt{\lambda_k}\, \phi_k(x)\)</span>.</p>
 <div id="cell-fig-field-reconstruction" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_field_reconstruction</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_field_reconstruction</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a "new" realization for reconstruction</span></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>z_new <span class="op">=</span> bkd.array(rng.standard_normal((nterms, <span class="dv">1</span>)))</span>
@@ -1941,7 +1941,7 @@ Figure&nbsp;5: Reconstruction of a test field from its KLE projection using <spa
 <span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mesh-kle-overview</span></span>
 <span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: covariance matrix $C(x,x')$ for the exponential kernel with $\\ell = 0.5$. Centre: the first five `MeshKLE` eigenfunctions. Right: the Gram matrix $\\Phi^T W \\Phi$ verifying weighted orthonormality (should be the identity)."</span></span>
-<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_mesh_kle_overview</span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_mesh_kle_overview</span>
 <span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>nterms <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a>ell <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1974,7 +1974,7 @@ Figure&nbsp;5: Reconstruction of a test field from its KLE projection using <spa
 <span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-data-driven-eigenfunctions</span></span>
 <span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "`DataDrivenKLE` eigenfunctions (solid) vs `MeshKLE` reference (dashed) for increasing sample counts $N_s = 50, 500, 5000$. With few samples the empirical modes are noisy; by $N_s = 5000$ they closely match the kernel-based reference."</span></span>
-<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_data_driven_eigenfunctions</span>
+<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_data_driven_eigenfunctions</span>
 <span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the MeshKLE to use as "data"</span></span>
 <span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a>N_samples_list <span class="op">=</span> [<span class="dv">50</span>, <span class="dv">500</span>, <span class="dv">5000</span>]</span>
@@ -2007,7 +2007,7 @@ Figure&nbsp;5: Reconstruction of a test field from its KLE projection using <spa
 <span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-eigenvalue-convergence</span></span>
 <span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: relative eigenvalue error of `DataDrivenKLE` vs sample count $N_s$, decaying as $1/\\sqrt{N_s}$. Right: effect of quadrature weights on the first two eigenfunctions at $N_s = 500$. Weights improve accuracy when the mesh spacing is non-uniform."</span></span>
-<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_eigenvalue_convergence</span>
+<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_eigenvalue_convergence</span>
 <span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>Ns_range <span class="op">=</span> np.logspace(<span class="fl">1.5</span>, <span class="dv">4</span>, <span class="dv">25</span>, dtype<span class="op">=</span><span class="bu">int</span>)</span>
 <span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a>errors <span class="op">=</span> np.zeros((<span class="bu">len</span>(Ns_range), nterms))</span>
@@ -2059,7 +2059,7 @@ Figure&nbsp;5: Reconstruction of a test field from its KLE projection using <spa
 <span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mesh-convergence</span></span>
 <span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: `MeshKLE` eigenvalue convergence with mesh refinement (relative to the analytical solution), showing $O(h^2)$ convergence for the trapezoid rule. Right: summary comparison of `MeshKLE` vs `DataDrivenKLE` properties."</span></span>
 <span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kle <span class="im">import</span> AnalyticalExponentialKLE1D</span>
-<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_mesh_convergence</span>
+<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_mesh_convergence</span>
 <span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a>npts_list <span class="op">=</span> [<span class="dv">20</span>, <span class="dv">40</span>, <span class="dv">80</span>, <span class="dv">160</span>, <span class="dv">320</span>]</span>
 <span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a></span>
@@ -2109,7 +2109,7 @@ Figure&nbsp;5: Reconstruction of a test field from its KLE projection using <spa
 <span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-field-reconstruction</span></span>
 <span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Reconstruction of a test field from its KLE projection using $K = 1, 3, 5$ terms. The shaded area shows the pointwise error. The RMSE decreases as $K$ increases, driven by the eigenvalue spectrum."</span></span>
-<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_field_reconstruction</span>
+<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_field_reconstruction</span>
 <span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate a "new" realization for reconstruction</span></span>
 <span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a>z_new <span class="op">=</span> bkd.array(rng.standard_normal((nterms, <span class="dv">1</span>)))</span>

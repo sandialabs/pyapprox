@@ -1169,7 +1169,7 @@ Figure&nbsp;1: Single-problem VI (top) runs a separate optimization for each dat
 <li>Noise: <span class="math inline">\(\varepsilon \sim \mathcal{N}(0, 0.5)\)</span></li>
 </ul>
 <p>For this model, the posterior given observations <span class="math inline">\(\{y_i\}_{i=1}^n\)</span> is Gaussian with mean and variance that depend linearly on the sufficient statistic <span class="math inline">\(\bar{y} = \frac{1}{n} \sum_i y_i\)</span>. A degree-1 polynomial can represent this mapping exactly.</p>
-<div id="695e232a" class="cell" data-execution_count="3">
+<div id="6c4372d9" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
@@ -1259,7 +1259,7 @@ Figure&nbsp;1: Single-problem VI (top) runs a separate optimization for each dat
 <li><strong>Aggregation</strong> — reduce variable-length features to a fixed-size vector (e.g., mean, flatten)</li>
 </ol>
 <p>These compose via <code>TransformAggregateSummary</code>:</p>
-<div id="6b44efbd" class="cell" data-execution_count="4">
+<div id="0b86e04d" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mean summary: identity transform + mean aggregation</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nobs_dim <span class="op">=</span> <span class="dv">1</span>  <span class="co"># each observation is a scalar</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>summary_mean <span class="op">=</span> TransformAggregateSummary(</span>
@@ -1338,7 +1338,7 @@ Label dimensions: 1</code></pre>
 <section id="building-the-training-groups" class="level2">
 <h2 class="anchored" data-anchor-id="building-the-training-groups">Building the Training Groups</h2>
 <p>We create <span class="math inline">\(K\)</span> training groups by choosing different true parameter values <span class="math inline">\(\theta_k\)</span> and generating noisy observations for each.</p>
-<div id="6fdee04a" class="cell" data-execution_count="5">
+<div id="7e3785da" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate K groups of observations</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> <span class="dv">3</span>  <span class="co"># number of training groups</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
@@ -1370,7 +1370,7 @@ Label dimensions: 1</code></pre>
 <section id="building-the-amortized-elbo" class="level2">
 <h2 class="anchored" data-anchor-id="building-the-amortized-elbo">Building the Amortized ELBO</h2>
 <p>The key difference from single-problem VI is <code>make_discrete_group_elbo</code>, which constructs a joint objective over all <span class="math inline">\(K\)</span> groups. Pass the raw observations and summary statistic — the function computes and normalizes the labels internally.</p>
-<div id="5958cd72" class="cell" data-execution_count="6">
+<div id="951f40f2" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _make_expansion(bkd, degree, coeff<span class="op">=</span><span class="fl">0.0</span>):</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""BasisExpansion with given degree (1D input, 1 QoI)."""</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)]</span>
@@ -1427,7 +1427,7 @@ Label dimensions: 1</code></pre>
 Joint quadrature points: 3 groups x 500 base = 1500</code></pre>
 </div>
 </div>
-<div id="cb8214e8" class="cell" data-execution_count="7">
+<div id="af46ea56" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Optimize</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
@@ -1443,7 +1443,7 @@ VIFitResult(neg_elbo=2.4477, success=True)</code></pre>
 <section id="verifying-on-training-groups" class="level2">
 <h2 class="anchored" data-anchor-id="verifying-on-training-groups">Verifying on Training Groups</h2>
 <p>After optimization, we evaluate the amortized model at each training label and compare to the exact conjugate posterior. We need the normalization constants to map observation summaries to labels at test time.</p>
-<div id="13c03bc8" class="cell" data-execution_count="8">
+<div id="4b5ab6cb" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.elbo <span class="im">import</span> _compute_normalized_labels</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover the normalization constants used during ELBO construction</span></span>
@@ -1506,7 +1506,7 @@ Figure&nbsp;2: Amortized VI posteriors (blue dashed) at each of the <span class=
 <section id="generalization-to-unseen-data" class="level2">
 <h2 class="anchored" data-anchor-id="generalization-to-unseen-data">Generalization to Unseen Data</h2>
 <p>The real payoff of amortization is <strong>generalization</strong>: evaluating the learned parameter functions at labels that were not part of the training set, without any additional optimization. For the linear Gaussian model, the map from observations to posterior parameters is affine, so a degree-1 polynomial can represent it exactly — generalization should be perfect.</p>
-<div id="a3c96c06" class="cell" data-execution_count="10">
+<div id="1a854968" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate test data from previously unseen parameter values</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>theta_test <span class="op">=</span> np.array([<span class="op">-</span><span class="fl">0.5</span>, <span class="fl">0.7</span>, <span class="fl">1.2</span>])</span>
@@ -2221,7 +2221,7 @@ Figure&nbsp;3: Left: the learned <span class="math inline">\(\mu(x)\)</span> and
 <span id="cb14-85"><a href="#cb14-85" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Single-problem VI (top) runs a separate optimization for each dataset, producing independent posteriors. Amortized VI (bottom) learns parameter functions $\\mu(x)$ and $\\sigma(x)$ that map any dataset descriptor $x$ to the corresponding posterior --- a single optimization covers all problems."</span></span>
 <span id="cb14-86"><a href="#cb14-86" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-amortization-concept</span></span>
 <span id="cb14-87"><a href="#cb14-87" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb14-88"><a href="#cb14-88" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_amortization_concept</span>
+<span id="cb14-88"><a href="#cb14-88" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_amortization_concept</span>
 <span id="cb14-89"><a href="#cb14-89" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-90"><a href="#cb14-90" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">7</span>),</span>
 <span id="cb14-91"><a href="#cb14-91" aria-hidden="true" tabindex="-1"></a>                                 gridspec_kw<span class="op">=</span>{<span class="st">"hspace"</span>: <span class="fl">0.5</span>})</span>
@@ -2494,7 +2494,7 @@ Figure&nbsp;3: Left: the learned <span class="math inline">\(\mu(x)\)</span> and
 <span id="cb14-374"><a href="#cb14-374" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-training-recovery</span></span>
 <span id="cb14-375"><a href="#cb14-375" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb14-376"><a href="#cb14-376" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb14-377"><a href="#cb14-377" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_training_recovery</span>
+<span id="cb14-377"><a href="#cb14-377" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_training_recovery</span>
 <span id="cb14-378"><a href="#cb14-378" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-379"><a href="#cb14-379" aria-hidden="true" tabindex="-1"></a>theta_grid <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">300</span>)</span>
 <span id="cb14-380"><a href="#cb14-380" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, K, figsize<span class="op">=</span>(<span class="dv">5</span> <span class="op">*</span> K, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
@@ -2564,7 +2564,7 @@ Figure&nbsp;3: Left: the learned <span class="math inline">\(\mu(x)\)</span> and
 <span id="cb14-448"><a href="#cb14-448" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb14-449"><a href="#cb14-449" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: the learned $\\mu(x)$ and $\\sigma(x)$ functions (solid curves) evaluated across the label range $[-1, 1]$. Training points (circles) and test points (stars) are shown. Right: the amortized posterior at a test label compared to the exact conjugate posterior. The degree-1 polynomial exactly captures the affine relationship between the observations and the posterior parameters."</span></span>
 <span id="cb14-450"><a href="#cb14-450" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-generalization</span></span>
-<span id="cb14-451"><a href="#cb14-451" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_generalization</span>
+<span id="cb14-451"><a href="#cb14-451" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_generalization</span>
 <span id="cb14-452"><a href="#cb14-452" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-453"><a href="#cb14-453" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb14-454"><a href="#cb14-454" aria-hidden="true" tabindex="-1"></a>plot_generalization(</span>

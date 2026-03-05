@@ -1226,7 +1226,7 @@ window.Quarto = {
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We verify <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a> using a tunable two-model ensemble where the correlation <span class="math inline">\(\rho_{\alpha\kappa}\)</span> is controlled by a single parameter <span class="math inline">\(\theta_1\)</span>.</p>
-<div id="d3b643a3" class="cell" data-execution_count="1">
+<div id="d1017d91" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1274,7 +1274,7 @@ window.Quarto = {
 <span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> np.array(theoretical_reductions)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="cell-fig-verification" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover rho values for x-axis</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>rho_vals <span class="op">=</span> np.sqrt(<span class="dv">1</span> <span class="op">-</span> theoretical_reductions)</span>
@@ -2041,7 +2041,7 @@ Figure&nbsp;1: Empirical variance reduction (dots) versus the theoretical predic
 <span id="cb3-246"><a href="#cb3-246" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Empirical variance reduction (dots) versus the theoretical prediction $1 - \\rho^2$ (line) across a range of model correlations. The agreement confirms @eq-variance-reduction."</span></span>
 <span id="cb3-247"><a href="#cb3-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-verification</span></span>
 <span id="cb3-248"><a href="#cb3-248" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
+<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
 <span id="cb3-250"><a href="#cb3-250" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-251"><a href="#cb3-251" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover rho values for x-axis</span></span>
 <span id="cb3-252"><a href="#cb3-252" aria-hidden="true" tabindex="-1"></a>rho_vals <span class="op">=</span> np.sqrt(<span class="dv">1</span> <span class="op">-</span> theoretical_reductions)</span>

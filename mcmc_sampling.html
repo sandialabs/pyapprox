@@ -1219,7 +1219,7 @@ Figure&nbsp;2: Three scenarios for a proposed move. Top: the proposal lands in a
 <section id="running-mcmc-on-the-1d-beam" class="level2">
 <h2 class="anchored" data-anchor-id="running-mcmc-on-the-1d-beam">Running MCMC on the 1D Beam</h2>
 <p>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>. We observe the tip deflection with 10% Gaussian noise and want to infer <span class="math inline">\(\xi\)</span>. Rather than writing a manual Metropolis-Hastings loop, we use the <code>LogUnNormalizedPosterior</code> and <code>MetropolisHastingsSampler</code> classes from the typing API.</p>
-<div id="a3620f3b" class="cell" data-execution_count="3">
+<div id="4abcf348" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1278,7 +1278,7 @@ Figure&nbsp;3: MCMC output for the 1D beam problem. Left: trace plot showing the
 \log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i
 \]</span></p>
 <p>where <span class="math inline">\(\overline{EI}\)</span> is the mean stiffness, <span class="math inline">\((\lambda_i, \phi_i)\)</span> are the KLE eigenvalues and eigenfunctions, and <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</p>
-<div id="6c043aae" class="cell" data-execution_count="5">
+<div id="f9628e1b" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
@@ -1316,7 +1316,7 @@ Observed:             10.120178
 Noise std (10%):      0.865673</code></pre>
 </div>
 </div>
-<div id="229006e7" class="cell" data-execution_count="6">
+<div id="132cfee2" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
@@ -1957,7 +1957,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-random-walk-concept</span></span>
 <span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
 <span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
 <span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>plot_random_walk_concept(fig, ax)</span>
@@ -1987,7 +1987,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
 <span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a></span>
@@ -2086,7 +2086,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."</span></span>
 <span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-trace-and-histogram</span></span>
-<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
 <span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,</span>
@@ -2171,7 +2171,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."</span></span>
 <span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-chain</span></span>
-<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_2d_chain</span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_chain</span>
 <span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a>burnin_2d <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a>chain_2d_post <span class="op">=</span> chain_2d[burnin_2d:]</span>
@@ -2189,7 +2189,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."</span></span>
 <span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-marginals</span></span>
-<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
 <span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a>plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)</span>
@@ -2206,7 +2206,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-347"><a href="#cb7-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-348"><a href="#cb7-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."</span></span>
 <span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-posterior-predictive</span></span>
-<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
+<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
 <span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb7-353"><a href="#cb7-353" aria-hidden="true" tabindex="-1"></a>plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,</span>

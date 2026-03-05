@@ -223,7 +223,7 @@ window.Quarto = {
 <meta property="og:image" content="https://sandialabs.github.io/pyapprox/uq_with_gp_files/figure-html/fig-marginal-density-output-1.png">
 <meta property="og:site_name" content="PyApprox">
 <meta property="og:image:height" content="746">
-<meta property="og:image:width" content="1322">
+<meta property="og:image:width" content="1321">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1131,7 +1131,7 @@ window.Quarto = {
 <section id="setup-beam-model-and-gp-surrogate" class="level2">
 <h2 class="anchored" data-anchor-id="setup-beam-model-and-gp-surrogate">Setup: Beam Model and GP Surrogate</h2>
 <p>We use the same 2D cantilever beam as in <a href="./gp_surrogate.html">Building a GP Surrogate</a>, with three Gaussian KLE coefficients as uncertain inputs.</p>
-<div id="9be4c978" class="cell" data-execution_count="1">
+<div id="5662a03a" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1169,7 +1169,7 @@ k(\boldsymbol{\xi}, \boldsymbol{\xi}') = \prod_{d=1}^{D} k_d(\xi_d, \xi_d')
 <p>This factorisation lets the <span class="math inline">\(d\)</span>-dimensional integral over the kernel split into a product of <span class="math inline">\(d\)</span> one-dimensional integrals, which can be computed exactly with Gauss quadrature. Kernels such as Matérn 5/2 with a <em>combined</em> Euclidean distance do <strong>not</strong> satisfy this property and cannot be used with this calculator. We therefore use a <code>SeparableProductKernel</code> composed of independent 1D SE kernels, one per input dimension.</p>
 </div>
 </div>
-<div id="28018929" class="cell" data-execution_count="2">
+<div id="0338710e" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># One squared-exponential kernel per input dimension — product is separable</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>kernels <span class="op">=</span> [</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.05</span>, <span class="fl">5.0</span>), <span class="dv">1</span>, bkd)</span>
@@ -1226,7 +1226,7 @@ k(\boldsymbol{\xi}, \boldsymbol{\xi}') = \prod_{d=1}^{D} k_d(\xi_d, \xi_d')
 <p>where <span class="math inline">\(P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(j)}) \rho(\boldsymbol{\xi})\,\dd\boldsymbol{\xi}\)</span> is the <strong>P matrix</strong> — a double kernel integral computable via separable quadrature.</p>
 <section id="building-the-calculator" class="level3">
 <h3 class="anchored" data-anchor-id="building-the-calculator">Building the Calculator</h3>
-<div id="f4fdcd6a" class="cell" data-execution_count="3">
+<div id="fc7f0337" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis_factory <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    create_basis_factories,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1245,7 +1245,7 @@ k(\boldsymbol{\xi}, \boldsymbol{\xi}') = \prod_{d=1}^{D} k_d(\xi_d, \xi_d')
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>calc  <span class="op">=</span> SeparableKernelIntegralCalculator(gp, bases, marginals, bkd<span class="op">=</span>bkd)</span>
 <span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> GaussianProcessStatistics(gp, calc)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="93a0fcd4" class="cell" data-execution_count="4">
+<div id="ad209609" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mean of GP mean: E_xi[mu*(xi)]</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>eta <span class="op">=</span> stats.mean_of_mean()</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1304,7 +1304,7 @@ k(\boldsymbol{\xi}, \boldsymbol{\xi}') = \prod_{d=1}^{D} k_d(\xi_d, \xi_d')
 <section id="comparing-to-true-model-quadrature" class="level3">
 <h3 class="anchored" data-anchor-id="comparing-to-true-model-quadrature">Comparing to True-Model Quadrature</h3>
 <p>We compute reference statistics by evaluating the <em>true beam model</em> on a small tensor product Gauss-Hermite rule (5 points per dimension = 125 model evaluations). These serve as ground truth for the GP-based estimates.</p>
-<div id="e99d5d9a" class="cell" data-execution_count="5">
+<div id="c26332a3" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    TensorProductQuadratureRule,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    gauss_quadrature_rule,</span>
@@ -1339,7 +1339,7 @@ k(\boldsymbol{\xi}, \boldsymbol{\xi}') = \prod_{d=1}^{D} k_d(\xi_d, \xi_d')
 <h2 class="anchored" data-anchor-id="marginal-densities">Marginal Densities</h2>
 <p>Rather than summarising the QoI distribution with moments, we can estimate its full marginal density. With a surrogate, this is straightforward: sample many inputs from the prior, evaluate the (cheap) surrogate, and plot a histogram.</p>
 <div id="cell-fig-marginal-density" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_gp_marginal_density</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_gp_marginal_density</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">999</span>)</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>N_mc <span class="op">=</span> <span class="dv">50_000</span></span>
@@ -1389,7 +1389,7 @@ Figure&nbsp;1: Estimated marginal density of tip deflection using the GP surroga
 = \tilde{\boldsymbol{\tau}}_{\sim p}(\boldsymbol{\xi}_p)^\top \boldsymbol{\alpha}
 \]</span></p>
 <p>where <span class="math inline">\(\tilde{\boldsymbol{\tau}}_{\sim p}\)</span> is the conditional kernel integral vector with the non-active dimensions integrated out. This is the <strong>main effect</strong> of input <span class="math inline">\(\boldsymbol{\xi}_p\)</span> — the portion of the QoI variation attributable to those variables alone.</p>
-<div id="f635c804" class="cell" data-execution_count="7">
+<div id="782271df" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.statistics.marginalization <span class="im">import</span> (</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    MarginalizedGP,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2254,7 +2254,7 @@ Figure&nbsp;2: Main effects (diagonal) and pairwise interaction contours (off-di
 <span id="cb9-299"><a href="#cb9-299" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Estimated marginal density of tip deflection using the GP surrogate ($N=50\\,000$ evaluations). The dashed line marks $\\E_{\\boldsymbol{\\xi}}[\\mu^*]$; the shaded band shows $\\pm 1\\sigma$ where $\\sigma = \\sqrt{\\E_{\\boldsymbol{\\xi}}[\\gamma_f] + \\Var_{\\boldsymbol{\\xi}}[\\mu^*]}$."</span></span>
 <span id="cb9-300"><a href="#cb9-300" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-marginal-density</span></span>
 <span id="cb9-301"><a href="#cb9-301" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-302"><a href="#cb9-302" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._pce <span class="im">import</span> plot_gp_marginal_density</span>
+<span id="cb9-302"><a href="#cb9-302" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_gp_marginal_density</span>
 <span id="cb9-303"><a href="#cb9-303" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-304"><a href="#cb9-304" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">999</span>)</span>
 <span id="cb9-305"><a href="#cb9-305" aria-hidden="true" tabindex="-1"></a>N_mc <span class="op">=</span> <span class="dv">50_000</span></span>

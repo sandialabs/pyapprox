@@ -1106,7 +1106,7 @@ window.Quarto = {
 <li>Assess truncation error using eigenvalue decay and pointwise variance</li>
 </ul>
 <p>A <strong>random field</strong> assigns a random variable to every point in space. The Karhunen-Loeve Expansion (KLE) decomposes it into deterministic spatial modes weighted by uncorrelated random scalars – a PCA for functions.</p>
-<div id="ac16d832" class="cell" data-execution_count="1">
+<div id="eb473bd8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1128,7 +1128,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="the-covariance-kernel-controls-spatial-correlation">The covariance kernel controls spatial correlation</h2>
 <p>The covariance <span class="math inline">\(C(x, x') = \sigma^2 k(x, x')\)</span> determines how similar the field is at nearby points. The correlation length <span class="math inline">\(\ell\)</span> controls the spatial scale.</p>
 <div id="cell-fig-cov-matrices" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_cov_matrices</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_cov_matrices</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>kernel_factory <span class="op">=</span> <span class="kw">lambda</span> ell: ExponentialKernel(bkd.array([ell]), (<span class="fl">0.01</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd)</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -1160,7 +1160,7 @@ Figure&nbsp;1: Covariance matrix <span class="math inline">\(C(x,x')\)</span> of
 <p>gives eigenfunctions <span class="math inline">\(\phi_k\)</span> (deterministic shapes) and eigenvalues <span class="math inline">\(\lambda_k\)</span> (variance explained by each mode).</p>
 <p><code>MeshKLE</code> discretizes this integral using quadrature weights <span class="math inline">\(w_i\)</span> and solves the weighted eigenproblem <span class="math inline">\(W^{1/2}\,C\,W^{1/2}\,\hat\phi = \lambda\,\hat\phi\)</span>.</p>
 <div id="cell-fig-eigenvalues-eigenfunctions" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_eigenvalues_eigenfunctions</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_eigenvalues_eigenfunctions</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Trapezoid quadrature weights</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>dx <span class="op">=</span> x[<span class="dv">1</span>] <span class="op">-</span> x[<span class="dv">0</span>]</span>
@@ -1204,7 +1204,7 @@ Figure&nbsp;2: Left: eigenvalue decay showing the variance captured by each mode
 \qquad z_k \sim \mathcal{N}(0,1)\]</span></p>
 <p>Each draw of <span class="math inline">\(z_1, \ldots, z_K\)</span> gives one realization of the random field. <code>MeshKLE.__call__</code> evaluates this expansion: pass a <code>(nterms, nsamples)</code> coefficient array and get back <code>(ncoords, nsamples)</code> field values.</p>
 <div id="cell-fig-sample-paths" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_sample_paths</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_sample_paths</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>K_list <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>]</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">5</span></span>
@@ -1245,7 +1245,7 @@ Figure&nbsp;3: Sample paths from the KLE using <span class="math inline">\(K = 1
 <p>The fraction of variance explained by <span class="math inline">\(K\)</span> terms is:</p>
 <p><span class="math display">\[\frac{\sum_{k=1}^K \lambda_k}{\sum_{k=1}^{\infty} \lambda_k}\]</span></p>
 <div id="cell-fig-truncation-error" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_kle_truncation_error</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_kle_truncation_error</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>nterms_full <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>kle_full <span class="op">=</span> MeshKLE(</span>
@@ -1285,7 +1285,7 @@ Figure&nbsp;4: Left: cumulative variance explained as a function of the number o
 <section id="pointwise-variance-how-much-does-truncation-miss" class="level2">
 <h2 class="anchored" data-anchor-id="pointwise-variance-how-much-does-truncation-miss">Pointwise variance: how much does truncation miss?</h2>
 <div id="cell-fig-pointwise-variance" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_pointwise_variance</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_pointwise_variance</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>K_vals <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">6</span>, <span class="dv">20</span>]</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -1327,7 +1327,7 @@ Figure&nbsp;5: Left: pointwise variance recovered by the truncated KLE for <span
 <p>The exponential kernel on <span class="math inline">\([0, L]\)</span> has known eigenvalues and eigenfunctions. <code>AnalyticalExponentialKLE1D</code> computes these analytically, providing a ground truth to validate the numerical <code>MeshKLE</code> solution.</p>
 <div id="cell-fig-analytical-validation" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kle <span class="im">import</span> AnalyticalExponentialKLE1D</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_analytical_validation</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_analytical_validation</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical solution for the same kernel on [0, 2]</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>kle_exact <span class="op">=</span> AnalyticalExponentialKLE1D(</span>
@@ -1922,7 +1922,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-76"><a href="#cb8-76" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb8-77"><a href="#cb8-77" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cov-matrices</span></span>
 <span id="cb8-78"><a href="#cb8-78" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Covariance matrix $C(x,x')$ of the exponential kernel for three correlation lengths. Larger $\\ell$ concentrates the covariance along the diagonal over a wider band, encoding longer-range spatial dependence."</span></span>
-<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_cov_matrices</span>
+<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_cov_matrices</span>
 <span id="cb8-80"><a href="#cb8-80" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-81"><a href="#cb8-81" aria-hidden="true" tabindex="-1"></a>kernel_factory <span class="op">=</span> <span class="kw">lambda</span> ell: ExponentialKernel(bkd.array([ell]), (<span class="fl">0.01</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd)</span>
 <span id="cb8-82"><a href="#cb8-82" aria-hidden="true" tabindex="-1"></a></span>
@@ -1952,7 +1952,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-108"><a href="#cb8-108" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb8-109"><a href="#cb8-109" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-eigenvalues-eigenfunctions</span></span>
 <span id="cb8-110"><a href="#cb8-110" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: eigenvalue decay showing the variance captured by each mode. Right: the first four eigenfunctions $\\phi_k(x)$, which are orthogonal spatial oscillations matched to the exponential covariance structure."</span></span>
-<span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_eigenvalues_eigenfunctions</span>
+<span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_eigenvalues_eigenfunctions</span>
 <span id="cb8-112"><a href="#cb8-112" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-113"><a href="#cb8-113" aria-hidden="true" tabindex="-1"></a><span class="co"># Trapezoid quadrature weights</span></span>
 <span id="cb8-114"><a href="#cb8-114" aria-hidden="true" tabindex="-1"></a>dx <span class="op">=</span> x[<span class="dv">1</span>] <span class="op">-</span> x[<span class="dv">0</span>]</span>
@@ -1994,7 +1994,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-152"><a href="#cb8-152" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb8-153"><a href="#cb8-153" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sample-paths</span></span>
 <span id="cb8-154"><a href="#cb8-154" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sample paths from the KLE using $K = 1, 2, 4, 6$ terms with the same random coefficients $z_k$. More terms add finer spatial detail; by $K = 6$ essentially all variance is captured for $\\ell = 0.5$."</span></span>
-<span id="cb8-155"><a href="#cb8-155" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_sample_paths</span>
+<span id="cb8-155"><a href="#cb8-155" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_sample_paths</span>
 <span id="cb8-156"><a href="#cb8-156" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-157"><a href="#cb8-157" aria-hidden="true" tabindex="-1"></a>K_list <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>]</span>
 <span id="cb8-158"><a href="#cb8-158" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">5</span></span>
@@ -2030,7 +2030,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-190"><a href="#cb8-190" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb8-191"><a href="#cb8-191" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-truncation-error</span></span>
 <span id="cb8-192"><a href="#cb8-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: cumulative variance explained as a function of the number of KLE terms $K$, showing the thresholds at 90%, 95%, and 99%. Right: normalised eigenvalue decay for three correlation lengths on a log scale. Larger $\\ell$ produces faster decay, meaning fewer terms are needed."</span></span>
-<span id="cb8-193"><a href="#cb8-193" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_kle_truncation_error</span>
+<span id="cb8-193"><a href="#cb8-193" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_kle_truncation_error</span>
 <span id="cb8-194"><a href="#cb8-194" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-195"><a href="#cb8-195" aria-hidden="true" tabindex="-1"></a>nterms_full <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb8-196"><a href="#cb8-196" aria-hidden="true" tabindex="-1"></a>kle_full <span class="op">=</span> MeshKLE(</span>
@@ -2063,7 +2063,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-225"><a href="#cb8-225" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb8-226"><a href="#cb8-226" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pointwise-variance</span></span>
 <span id="cb8-227"><a href="#cb8-227" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: pointwise variance recovered by the truncated KLE for $K = 1, 3, 6, 20$ terms compared with the exact diagonal of $C$. Right: relative error in pointwise variance on a log scale. Boundary nodes converge more slowly -- a systematic effect in all mesh-based KLE methods."</span></span>
-<span id="cb8-228"><a href="#cb8-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_pointwise_variance</span>
+<span id="cb8-228"><a href="#cb8-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_pointwise_variance</span>
 <span id="cb8-229"><a href="#cb8-229" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-230"><a href="#cb8-230" aria-hidden="true" tabindex="-1"></a>K_vals <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">6</span>, <span class="dv">20</span>]</span>
 <span id="cb8-231"><a href="#cb8-231" aria-hidden="true" tabindex="-1"></a></span>
@@ -2100,7 +2100,7 @@ Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) 
 <span id="cb8-264"><a href="#cb8-264" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-analytical-validation</span></span>
 <span id="cb8-265"><a href="#cb8-265" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: eigenvalues from the numerical `MeshKLE` (blue) vs the analytical solution (orange) for the exponential kernel on $[0, 2]$. Right: relative eigenvalue error on a log scale, showing the numerical discretisation error decreases with mesh refinement."</span></span>
 <span id="cb8-266"><a href="#cb8-266" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kle <span class="im">import</span> AnalyticalExponentialKLE1D</span>
-<span id="cb8-267"><a href="#cb8-267" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._kle <span class="im">import</span> plot_analytical_validation</span>
+<span id="cb8-267"><a href="#cb8-267" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_analytical_validation</span>
 <span id="cb8-268"><a href="#cb8-268" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-269"><a href="#cb8-269" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical solution for the same kernel on [0, 2]</span></span>
 <span id="cb8-270"><a href="#cb8-270" aria-hidden="true" tabindex="-1"></a>kle_exact <span class="op">=</span> AnalyticalExponentialKLE1D(</span>

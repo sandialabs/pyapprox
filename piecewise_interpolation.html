@@ -1116,7 +1116,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="37a0c039" class="cell" data-execution_count="1">
+<div id="d8768808" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1144,7 +1144,7 @@ window.Quarto = {
 \]</span></p>
 <p>requires <span class="math inline">\(f\)</span> to have <span class="math inline">\(M\)</span> bounded derivatives. For functions with a <strong>discontinuity</strong> or a <strong>kink</strong>, this bound is violated and global polynomials exhibit the Gibbs phenomenon: persistent oscillations near the singularity that do not decay as <span class="math inline">\(M\)</span> increases.</p>
 <div id="cell-fig-gibbs" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_gibbs</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_gibbs</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_step(x):</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> np.zeros_like(x)</span>
@@ -1198,8 +1198,8 @@ Figure&nbsp;1: A step function interpolated by global Lagrange and piecewise lin
 <h2 class="anchored" data-anchor-id="local-basis-functions">Local Basis Functions</h2>
 <p>Piecewise polynomial interpolation divides <span class="math inline">\([a, b]\)</span> into cells and fits a low-degree polynomial <strong>locally within each cell</strong>. The basis functions have <strong>compact support</strong>: <span class="math inline">\(\phi_j(x) = 0\)</span> outside the one or two cells adjacent to node <span class="math inline">\(j\)</span>. This locality prevents errors at one node from propagating across the domain.</p>
 <p>The <code>PiecewiseLinear</code>, <code>PiecewiseQuadratic</code>, and <code>PiecewiseCubic</code> classes each take a 1D array of nodes and a backend. The <code>__call__</code> method evaluates all basis functions at given points.</p>
-<div id="ec869f55" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
+<div id="9e300d11" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">7</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>nodes_1d <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
@@ -1262,7 +1262,7 @@ Figure&nbsp;1: A step function interpolated by global Lagrange and piecewise lin
 \]</span></p>
 <p>where <span class="math inline">\(C_p\)</span> depends only on the polynomial degree <span class="math inline">\(p\)</span>. Doubling the number of points (halving <span class="math inline">\(h\)</span>) reduces the error by a factor of <span class="math inline">\(2^{p+1}\)</span>: by 4 for piecewise linear (<span class="math inline">\(p=1\)</span>), by 8 for piecewise quadratic (<span class="math inline">\(p=2\)</span>), and by 16 for piecewise cubic (<span class="math inline">\(p=3\)</span>).</p>
 <div id="cell-fig-pw-convergence" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.sin(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
@@ -1330,7 +1330,7 @@ Figure&nbsp;2: Convergence of piecewise linear and cubic interpolants on a smoot
 </div>
 </div>
 <div id="cell-fig-discontinuous" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_discontinuous</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_discontinuous</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_kink(x):</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">abs</span>(x <span class="op">-</span> <span class="fl">1.0</span> <span class="op">/</span> <span class="fl">3.0</span>)</span>
@@ -1382,7 +1382,7 @@ Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span c
 <section id="piecewisefactory-for-sparse-grids" class="level2">
 <h2 class="anchored" data-anchor-id="piecewisefactory-for-sparse-grids"><code>PiecewiseFactory</code> for Sparse Grids</h2>
 <p>In the sparse grid framework the 1D basis is specified via a factory object. <code>PiecewiseFactory</code> wraps the piecewise polynomial construction to provide the same interface as <code>LejaLagrangeFactory</code> or <code>GaussLagrangeFactory</code>, enabling sparse grids with local basis functions.</p>
-<div id="ceec0f44" class="cell" data-execution_count="6">
+<div id="1531690e" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> PiecewiseFactory</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1974,7 +1974,7 @@ Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span c
 <span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity."</span></span>
 <span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gibbs</span></span>
 <span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_gibbs</span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_gibbs</span>
 <span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_step(x):</span>
 <span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> np.zeros_like(x)</span>
@@ -2020,7 +2020,7 @@ Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span c
 <span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>The <span class="in">`PiecewiseLinear`</span>, <span class="in">`PiecewiseQuadratic`</span>, and <span class="in">`PiecewiseCubic`</span> classes each take a 1D array of nodes and a backend.  The <span class="in">`__call__`</span> method evaluates all basis functions at given points.</span>
 <span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
+<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
 <span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">7</span></span>
 <span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>nodes_1d <span class="op">=</span> bkd.array(np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, M))</span>
@@ -2075,7 +2075,7 @@ Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span c
 <span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm $O(h^2)$ and $O(h^4)$ theory."</span></span>
 <span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pw-convergence</span></span>
 <span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
+<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
 <span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
 <span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.sin(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
@@ -2128,7 +2128,7 @@ Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span c
 <span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Error vs. $M$ for $|x - 1/3|$ (kink at $x = 1/3$). Piecewise linear converges at $O(M^{-1})$; global Lagrange converges much more slowly."</span></span>
 <span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-discontinuous</span></span>
 <span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_discontinuous</span>
+<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_discontinuous</span>
 <span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_kink(x):</span>
 <span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">abs</span>(x <span class="op">-</span> <span class="fl">1.0</span> <span class="op">/</span> <span class="fl">3.0</span>)</span>

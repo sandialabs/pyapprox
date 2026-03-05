@@ -1128,7 +1128,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="840a1346" class="cell" data-execution_count="1">
+<div id="5094bd9e" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1192,8 +1192,8 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <li><strong>Bounds</strong> for the domain</li>
 </ul>
 <p>The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.</p>
-<div id="ba9265ca" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_node_distribution</span>
+<div id="88651e8f" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_node_distribution</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Leja sequence on [-1, 1] with Christoffel weighting</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>poly_leg <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
@@ -1232,7 +1232,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="nestedness-verification" class="level3">
 <h3 class="anchored" data-anchor-id="nestedness-verification">Nestedness verification</h3>
 <p>Leja sequences are nested by construction: the first <span class="math inline">\(M\)</span> points of an <span class="math inline">\(N\)</span>-point sequence (<span class="math inline">\(N &gt; M\)</span>) are identical to the <span class="math inline">\(M\)</span>-point sequence.</p>
-<div id="71029cae" class="cell" data-execution_count="4">
+<div id="03859609" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify nestedness</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>nodes5, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">5</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>nodes10, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">10</span>)</span>
@@ -1250,8 +1250,8 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="using-lagrangebasis1d-with-leja-points" class="level2">
 <h2 class="anchored" data-anchor-id="using-lagrangebasis1d-with-leja-points">Using <code>LagrangeBasis1D</code> with Leja Points</h2>
 <p><code>LagrangeBasis1D</code> accepts any quadrature rule callable with signature <code>(npoints) → (samples, weights)</code>. We can pass <code>leja.quadrature_rule</code> directly:</p>
-<div id="29d42add" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
+<div id="ef2b6f2a" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Lagrange basis on Leja points</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>basis_leja <span class="op">=</span> LagrangeBasis1D(bkd, leja.quadrature_rule)</span>
@@ -1281,7 +1281,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <section id="lejalagrangefactory-for-sparse-grids" class="level2">
 <h2 class="anchored" data-anchor-id="lejalagrangefactory-for-sparse-grids"><code>LejaLagrangeFactory</code> for Sparse Grids</h2>
 <p>In the sparse grid framework (Tutorial 6), each dimension of the grid needs a <strong>factory object</strong> that produces the 1D basis at any requested level. <code>LejaLagrangeFactory</code> wraps the Leja sequence construction into this interface.</p>
-<div id="07e676d6" class="cell" data-execution_count="6">
+<div id="bbe06bb2" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># LejaLagrangeFactory takes a marginal and backend;</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># it lazily constructs a LejaSequence1D and wraps it</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># as a LagrangeBasis1D.</span></span>
@@ -1301,7 +1301,7 @@ Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Eac
 <h2 class="anchored" data-anchor-id="convergence-comparison">Convergence Comparison</h2>
 <p>For a uniform distribution the three families — Leja, Clenshaw-Curtis, and Gauss — all achieve exponential convergence for analytic functions. Leja sequences typically match CC accuracy for moderate <span class="math inline">\(M\)</span> while retaining the flexibility to be grown one point at a time.</p>
 <div id="cell-fig-leja-convergence" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_leja_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_convergence</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_test(x):</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.cos(np.pi <span class="op">*</span> x))</span>
@@ -1379,7 +1379,7 @@ Figure&nbsp;2: Interpolation error vs.&nbsp;M for an analytic function. Leja and
 <section id="constructing-a-two-point-leja-sequence" class="level3">
 <h3 class="anchored" data-anchor-id="constructing-a-two-point-leja-sequence">Constructing a Two-Point Leja Sequence</h3>
 <p>Pass <code>objective_class=TwoPointLejaObjective</code> to <code>LejaSequence1D</code>:</p>
-<div id="20af75d1" class="cell" data-execution_count="8">
+<div id="950cd6a0" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.leja <span class="im">import</span> TwoPointLejaObjective</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Fresh polynomial and weighting objects for each sequence</span></span>
@@ -1409,7 +1409,7 @@ Figure&nbsp;2: Interpolation error vs.&nbsp;M for an analytic function. Leja and
 <h3 class="anchored" data-anchor-id="quadrature-accuracy-comparison">Quadrature Accuracy Comparison</h3>
 <p>Two-point optimization typically produces more accurate quadrature weights, especially for moderate <span class="math inline">\(M\)</span>:</p>
 <div id="cell-fig-two-point-quadrature" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_two_point_quadrature</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_two_point_quadrature</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_quad_test(x):</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Test integrand: Runge-like function."""</span></span>
@@ -1469,7 +1469,7 @@ Figure&nbsp;3: Quadrature error for one-point vs.&nbsp;two-point optimized Leja 
 <p>For a <span class="math inline">\(\text{Beta}(\alpha, \beta)\)</span> distribution on <span class="math inline">\([0, 1]\)</span>, the matched orthogonal polynomials are the Jacobi polynomials with parameters <span class="math inline">\((\beta - 1, \alpha - 1)\)</span>.</p>
 <div id="cell-fig-leja-beta" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> beta <span class="im">as</span> beta_dist</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_leja_beta</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_beta</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>alpha_s, beta_s <span class="op">=</span> <span class="fl">3.0</span>, <span class="fl">5.0</span></span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>rv_beta <span class="op">=</span> beta_dist(alpha_s, beta_s)</span>
@@ -2115,7 +2115,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-106"><a href="#cb10-106" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-leja-growth</span></span>
 <span id="cb10-107"><a href="#cb10-107" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb10-108"><a href="#cb10-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-109"><a href="#cb10-109" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_leja_growth</span>
+<span id="cb10-109"><a href="#cb10-109" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_growth</span>
 <span id="cb10-110"><a href="#cb10-110" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-111"><a href="#cb10-111" aria-hidden="true" tabindex="-1"></a>poly <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
 <span id="cb10-112"><a href="#cb10-112" aria-hidden="true" tabindex="-1"></a>poly.set_nterms(<span class="dv">30</span>)</span>
@@ -2144,7 +2144,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-135"><a href="#cb10-135" aria-hidden="true" tabindex="-1"></a>The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.</span>
 <span id="cb10-136"><a href="#cb10-136" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-139"><a href="#cb10-139" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb10-140"><a href="#cb10-140" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_node_distribution</span>
+<span id="cb10-140"><a href="#cb10-140" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_node_distribution</span>
 <span id="cb10-141"><a href="#cb10-141" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-142"><a href="#cb10-142" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Leja sequence on [-1, 1] with Christoffel weighting</span></span>
 <span id="cb10-143"><a href="#cb10-143" aria-hidden="true" tabindex="-1"></a>poly_leg <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
@@ -2198,7 +2198,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-193"><a href="#cb10-193" aria-hidden="true" tabindex="-1"></a><span class="in">`LagrangeBasis1D`</span> accepts any quadrature rule callable with signature <span class="in">`(npoints) → (samples, weights)`</span>.  We can pass <span class="in">`leja.quadrature_rule`</span> directly:</span>
 <span id="cb10-194"><a href="#cb10-194" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-197"><a href="#cb10-197" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb10-198"><a href="#cb10-198" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
+<span id="cb10-198"><a href="#cb10-198" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
 <span id="cb10-199"><a href="#cb10-199" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-200"><a href="#cb10-200" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Lagrange basis on Leja points</span></span>
 <span id="cb10-201"><a href="#cb10-201" aria-hidden="true" tabindex="-1"></a>basis_leja <span class="op">=</span> LagrangeBasis1D(bkd, leja.quadrature_rule)</span>
@@ -2248,7 +2248,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-249"><a href="#cb10-249" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Interpolation error vs. M for an analytic function. Leja and CC achieve comparable exponential convergence; Gauss is slightly more efficient but non-nested."</span></span>
 <span id="cb10-250"><a href="#cb10-250" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-leja-convergence</span></span>
 <span id="cb10-251"><a href="#cb10-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-252"><a href="#cb10-252" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_leja_convergence</span>
+<span id="cb10-252"><a href="#cb10-252" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_convergence</span>
 <span id="cb10-253"><a href="#cb10-253" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-254"><a href="#cb10-254" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_test(x):</span>
 <span id="cb10-255"><a href="#cb10-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(np.cos(np.pi <span class="op">*</span> x))</span>
@@ -2356,7 +2356,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-361"><a href="#cb10-361" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Quadrature error for one-point vs. two-point optimized Leja sequences. Two-point optimization improves accuracy for moderate M."</span></span>
 <span id="cb10-362"><a href="#cb10-362" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-point-quadrature</span></span>
 <span id="cb10-363"><a href="#cb10-363" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-364"><a href="#cb10-364" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_two_point_quadrature</span>
+<span id="cb10-364"><a href="#cb10-364" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_two_point_quadrature</span>
 <span id="cb10-365"><a href="#cb10-365" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-366"><a href="#cb10-366" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_quad_test(x):</span>
 <span id="cb10-367"><a href="#cb10-367" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Test integrand: Runge-like function."""</span></span>
@@ -2401,7 +2401,7 @@ Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials
 <span id="cb10-408"><a href="#cb10-408" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-leja-beta</span></span>
 <span id="cb10-409"><a href="#cb10-409" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-410"><a href="#cb10-410" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> beta <span class="im">as</span> beta_dist</span>
-<span id="cb10-411"><a href="#cb10-411" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._interpolation <span class="im">import</span> plot_leja_beta</span>
+<span id="cb10-411"><a href="#cb10-411" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_beta</span>
 <span id="cb10-412"><a href="#cb10-412" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-413"><a href="#cb10-413" aria-hidden="true" tabindex="-1"></a>alpha_s, beta_s <span class="op">=</span> <span class="fl">3.0</span>, <span class="fl">5.0</span></span>
 <span id="cb10-414"><a href="#cb10-414" aria-hidden="true" tabindex="-1"></a>rv_beta <span class="op">=</span> beta_dist(alpha_s, beta_s)</span>

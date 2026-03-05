@@ -1265,7 +1265,7 @@ r^* = \sqrt{\frac{C_\alpha}{C_\kappa}\cdot\frac{\rho^2_{\alpha\kappa}}{1 - \rho^
 <span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>r_fine <span class="op">=</span> np.linspace(<span class="fl">1.01</span>, <span class="dv">55</span>, <span class="dv">300</span>)</span>
 <span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>theory_line <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> (r_fine <span class="op">-</span> <span class="dv">1</span>) <span class="op">/</span> r_fine <span class="op">*</span> rho<span class="op">**</span><span class="dv">2</span></span>
 <span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_acv_two_model_verification</span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_acv_two_model_verification</span>
 <span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>plot_acv_two_model_verification(r_values, empirical_reductions, rho,</span>
@@ -1464,7 +1464,7 @@ A_{m, 2\alpha}   = 1 \iff \mathcal{P}_m \subseteq \mathcal{Z}_\alpha.
 <span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>        allocator <span class="op">=</span> ACVAllocator(est, optimizer<span class="op">=</span>optimizer)</span>
 <span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    est.set_allocation(allocator.allocate(target_cost))</span>
 <span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_allocation_matrices</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_allocation_matrices</span>
 <span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">5</span>))</span>
 <span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>plot_allocation_matrices(estimators, bkd, axes)</span>
@@ -1541,7 +1541,7 @@ Figure&nbsp;2: Allocation matrices for MLMC, MFMC, ACVMF, and ACVIS at budget <s
 <span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>    mfmc_vars_emp.append(mfmc_ests_t.var())</span>
 <span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    acvmf_vars_emp.append(acvmf_ests_t.var())</span>
 <span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_variance_verification</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_variance_verification</span>
 <span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>plot_variance_verification(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>
@@ -2323,7 +2323,7 @@ Tip
 <span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a>r_fine <span class="op">=</span> np.linspace(<span class="fl">1.01</span>, <span class="dv">55</span>, <span class="dv">300</span>)</span>
 <span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a>theory_line <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> (r_fine <span class="op">-</span> <span class="dv">1</span>) <span class="op">/</span> r_fine <span class="op">*</span> rho<span class="op">**</span><span class="dv">2</span></span>
 <span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_acv_two_model_verification</span>
+<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_acv_two_model_verification</span>
 <span id="cb4-215"><a href="#cb4-215" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a>plot_acv_two_model_verification(r_values, empirical_reductions, rho,</span>
@@ -2556,7 +2556,7 @@ Tip
 <span id="cb4-446"><a href="#cb4-446" aria-hidden="true" tabindex="-1"></a>        allocator <span class="op">=</span> ACVAllocator(est, optimizer<span class="op">=</span>optimizer)</span>
 <span id="cb4-447"><a href="#cb4-447" aria-hidden="true" tabindex="-1"></a>    est.set_allocation(allocator.allocate(target_cost))</span>
 <span id="cb4-448"><a href="#cb4-448" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-449"><a href="#cb4-449" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_allocation_matrices</span>
+<span id="cb4-449"><a href="#cb4-449" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_allocation_matrices</span>
 <span id="cb4-450"><a href="#cb4-450" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-451"><a href="#cb4-451" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="dv">20</span>, <span class="dv">5</span>))</span>
 <span id="cb4-452"><a href="#cb4-452" aria-hidden="true" tabindex="-1"></a>plot_allocation_matrices(estimators, bkd, axes)</span>
@@ -2626,7 +2626,7 @@ Tip
 <span id="cb4-518"><a href="#cb4-518" aria-hidden="true" tabindex="-1"></a>    mfmc_vars_emp.append(mfmc_ests_t.var())</span>
 <span id="cb4-519"><a href="#cb4-519" aria-hidden="true" tabindex="-1"></a>    acvmf_vars_emp.append(acvmf_ests_t.var())</span>
 <span id="cb4-520"><a href="#cb4-520" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-521"><a href="#cb4-521" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._cv_acv <span class="im">import</span> plot_variance_verification</span>
+<span id="cb4-521"><a href="#cb4-521" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_variance_verification</span>
 <span id="cb4-522"><a href="#cb4-522" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-523"><a href="#cb4-523" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb4-524"><a href="#cb4-524" aria-hidden="true" tabindex="-1"></a>plot_variance_verification(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>

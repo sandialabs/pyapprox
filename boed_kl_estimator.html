@@ -1891,7 +1891,7 @@ Figure&nbsp;1: Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε)
 <span id="cb1-160"><a href="#cb1-160" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε) jointly and forms y(w) via the reparameterization. The observation y^(m) is passed to the inner loop (orange, right), which draws independent θ* samples and averages their likelihoods to approximate the marginal evidence. The outer log-likelihood ℓₘ and inner log-evidence feed the final EIG estimate (green, bottom)."</span></span>
 <span id="cb1-161"><a href="#cb1-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-double-loop</span></span>
 <span id="cb1-162"><a href="#cb1-162" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_double_loop</span>
+<span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_double_loop</span>
 <span id="cb1-164"><a href="#cb1-164" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">7.5</span>))</span>
 <span id="cb1-166"><a href="#cb1-166" aria-hidden="true" tabindex="-1"></a>plot_double_loop(ax)</span>

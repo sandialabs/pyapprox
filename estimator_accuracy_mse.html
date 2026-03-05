@@ -2063,7 +2063,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-162"><a href="#cb1-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."</span></span>
 <span id="cb1-164"><a href="#cb1-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-mse-convergence</span></span>
-<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_mean_mse_convergence</span>
+<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mean_mse_convergence</span>
 <span id="cb1-166"><a href="#cb1-166" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-167"><a href="#cb1-167" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-168"><a href="#cb1-168" aria-hidden="true" tabindex="-1"></a>empirical_var_of_mean, M_values <span class="op">=</span> plot_mean_mse_convergence(</span>
@@ -2102,7 +2102,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."</span></span>
 <span id="cb1-205"><a href="#cb1-205" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-vs-var-convergence</span></span>
-<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_mean_vs_var_convergence</span>
+<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mean_vs_var_convergence</span>
 <span id="cb1-207"><a href="#cb1-207" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-208"><a href="#cb1-208" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-209"><a href="#cb1-209" aria-hidden="true" tabindex="-1"></a>plot_mean_vs_var_convergence(</span>
@@ -2263,7 +2263,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a>    [block_mv.T,  block_vv],</span>
 <span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>])</span>
 <span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_estimator_covariance</span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_estimator_covariance</span>
 <span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> (</span>
 <span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a>    [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(K)]</span>
@@ -2285,7 +2285,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."</span></span>
 <span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-diagonal-variances</span></span>
 <span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._forward_uq <span class="im">import</span> plot_diagonal_variances</span>
+<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_diagonal_variances</span>
 <span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a>plot_diagonal_variances(empirical_est_cov, theoretical_est_cov, labels, ax)</span>

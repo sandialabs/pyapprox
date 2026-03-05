@@ -1242,7 +1242,7 @@ r_\alpha^* = \sqrt{
 </section>
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
-<div id="db500f6e" class="cell" data-execution_count="1">
+<div id="171bb4e9" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1289,7 +1289,7 @@ r_\alpha^* = \sqrt{
 </div>
 </div>
 <div id="cell-fig-variance-verify" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._hierarchy <span class="im">import</span> plot_mfmc_variance_verify</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mfmc_variance_verify</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(bkd.asarray(cov_true))</span>
@@ -2106,7 +2106,7 @@ Figure&nbsp;1: MFMC and MC variance vs total cost: <code>optimized_covariance()<
 <span id="cb4-277"><a href="#cb4-277" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MFMC and MC variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."</span></span>
 <span id="cb4-278"><a href="#cb4-278" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variance-verify</span></span>
 <span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._hierarchy <span class="im">import</span> plot_mfmc_variance_verify</span>
+<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mfmc_variance_verify</span>
 <span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
 <span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(bkd.asarray(cov_true))</span>

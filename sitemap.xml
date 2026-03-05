@@ -2,354 +2,354 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://sandialabs.github.io/pyapprox/vi_optimization.html</loc>
-    <lastmod>2026-03-04T14:45:10.062Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.349Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/vi_intro.html</loc>
-    <lastmod>2026-03-04T14:45:10.062Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.349Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/vi_amortized.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.349Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/uq_with_pce.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/uq_with_functiontrain.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/tensor_product_interpolation.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/surrogate_design.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/sparse_grid_to_pce_conversion.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/setup_environment.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/random_variables_distributions.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/qmc_practical.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/polynomial_chaos_surrogates.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/pilot_studies_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/piecewise_interpolation.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/pacv_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/multioutput_gp.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/multioutput_acv_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/multifidelity_estimation_cookbook.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/monte_carlo_sampling.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mlmc_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mlblue_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mfmc_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mcmc_sampling.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/leja_sequences.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/kle_spde.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/kle_introduction.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.341Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/index.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.341Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/gp_surrogate.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/gauss_quadrature.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/functiontrain_sensitivity.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/forward_uq.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/estimator_accuracy_mse.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/dram_mcmc.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/control_variate_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_pred_usage.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_pred_lognormal_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_pred_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_qmc.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_gradients.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_design_stability.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_data_workflow_usage.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.337Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/bayesian_inference_intro.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.337Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/adaptive_gp_sampling.html</loc>
-    <lastmod>2026-03-04T14:45:10.038Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.325Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/acv_many_models_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.038Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.325Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/acv_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.038Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.325Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/acv_many_models_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.038Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.325Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/adaptive_sparse_grids.html</loc>
-    <lastmod>2026-03-04T14:45:10.038Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.325Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/bin_based_sensitivity.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.337Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.337Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_estimator.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_nonlinear_usage.html</loc>
-    <lastmod>2026-03-04T14:45:10.052Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_kl_usage.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_pred_gaussian_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/boed_pred_nonlinear_usage.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/control_variate_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.338Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/design_under_uncertainty.html</loc>
-    <lastmod>2026-03-04T14:45:10.053Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/ensemble_selection_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/experimental_design_intro.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.339Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/function_train_surrogates.html</loc>
-    <lastmod>2026-03-04T14:45:10.054Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/functiontrain_sensitivity_math.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/gp_sensitivity.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.340Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/importance_sampling_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.055Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.341Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/isotropic_sparse_grids.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.341Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/kle_mesh_and_data_driven.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.341Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/lagrange_interpolation.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mc_budget_estimation.html</loc>
-    <lastmod>2026-03-04T14:45:10.056Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mfmc_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.342Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mlblue_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/mlmc_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/models_decisions_uncertainty.html</loc>
-    <lastmod>2026-03-04T14:45:10.057Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.343Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/morris_screening.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/multifidelity_sparse_grids.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/multioutput_acv_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/pacv_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.058Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.344Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/pce_sensitivity.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/piecewise_quadrature.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/pilot_studies_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.345Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/practical_pce_fitting.html</loc>
-    <lastmod>2026-03-04T14:45:10.059Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/quasi_monte_carlo_sampling.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/sensitivity_analysis_concept.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.346Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/sobol_sensitivity_analysis.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/sparse_pce_fitting.html</loc>
-    <lastmod>2026-03-04T14:45:10.060Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/surrogate_workflow.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.347Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/tutorials.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/uq_with_gp.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/uq_with_sparse_grids.html</loc>
-    <lastmod>2026-03-04T14:45:10.061Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.348Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/vi_families.html</loc>
-    <lastmod>2026-03-04T14:45:10.062Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.349Z</lastmod>
   </url>
   <url>
     <loc>https://sandialabs.github.io/pyapprox/vi_objective.html</loc>
-    <lastmod>2026-03-04T14:45:10.062Z</lastmod>
+    <lastmod>2026-03-05T18:05:00.349Z</lastmod>
   </url>
 </urlset>

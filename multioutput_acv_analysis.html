@@ -1232,7 +1232,7 @@ window.Quarto = {
 </section>
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
-<div id="13aef609" class="cell" data-execution_count="1">
+<div id="7f214ae9" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1330,7 +1330,7 @@ Gain (SOACV - MOACV diagonal):
 <span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
 <span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
 <span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
 <span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>
@@ -1350,7 +1350,7 @@ Figure&nbsp;1: Theoretical (bars) vs empirical (dots) variance for each QoI unde
 </div>
 </div>
 </div>
-<div id="4fe8b5b0" class="cell" data-execution_count="3">
+<div id="dc3a53a9" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify PSD ordering: SOACV - MOACV should be PSD</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> cov_so_np <span class="op">-</span> cov_mo_np</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(diff)</span>
@@ -1365,7 +1365,7 @@ All non-negative? False</code></pre>
 <section id="how-boldsymbolsigma_delta-q_0-drives-the-gain" class="level2">
 <h2 class="anchored" data-anchor-id="how-boldsymbolsigma_delta-q_0-drives-the-gain">How <span class="math inline">\(\boldsymbol{\Sigma}_{\Delta Q_0}\)</span> Drives the Gain</h2>
 <p>To make the gain concrete, print the full <span class="math inline">\(\boldsymbol{\Sigma}_{\Delta Q_0}\)</span> matrix and identify the off-diagonal blocks that SOACV ignores.</p>
-<div id="981f9506" class="cell" data-execution_count="4">
+<div id="d40728c4" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sigma_DeltaQ0 is accessible via the estimator's internal covariance computation.</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># For the ACVMF (GMF with zero recursion index), with ratio r at the optimal allocation,</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the (alpha,s),(t) entry is: (r-1)/r * Sigma_{alpha_s, 0_t} / N0</span></span>
@@ -2189,7 +2189,7 @@ All non-negative? False</code></pre>
 <span id="cb8-311"><a href="#cb8-311" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
 <span id="cb8-312"><a href="#cb8-312" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
 <span id="cb8-313"><a href="#cb8-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-314"><a href="#cb8-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
+<span id="cb8-314"><a href="#cb8-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
 <span id="cb8-315"><a href="#cb8-315" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-316"><a href="#cb8-316" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
 <span id="cb8-317"><a href="#cb8-317" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>

@@ -1153,7 +1153,7 @@ Figure&nbsp;1: Forward UQ (top, faded) propagates a prior distribution through t
 \delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
 \]</span></p>
 <p>with fixed values <span class="math inline">\(q_0 = 10\)</span>, <span class="math inline">\(L = 100\)</span>, <span class="math inline">\(I = H^3/12\)</span>, <span class="math inline">\(H = 30\)</span>. The only uncertain parameter is <span class="math inline">\(E\)</span>.</p>
-<div id="3d6c0915" class="cell" data-execution_count="3">
+<div id="6dc46aa9" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
@@ -1172,7 +1172,7 @@ Figure&nbsp;1: Forward UQ (top, faded) propagates a prior distribution through t
 <p><span class="math display">\[
 E \sim \mathcal{N}(\mu_{\text{prior}},\, \sigma_{\text{prior}}^2) = \mathcal{N}(12{,}000,\; 2{,}000^2)
 \]</span></p>
-<div id="eb42be40" class="cell" data-execution_count="4">
+<div id="e9184224" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>mu_prior <span class="op">=</span> <span class="dv">12_000</span></span>
@@ -1183,7 +1183,7 @@ E \sim \mathcal{N}(\mu_{\text{prior}},\, \sigma_{\text{prior}}^2) = \mathcal{N}(
 <section id="generating-synthetic-data" class="level2">
 <h2 class="anchored" data-anchor-id="generating-synthetic-data">Generating Synthetic Data</h2>
 <p>To see Bayesian inference in action, we create a controlled experiment. We pick a “true” parameter value, run the model, and add measurement noise to produce a synthetic observation — mimicking what would happen in a real experiment.</p>
-<div id="a6856801" class="cell" data-execution_count="5">
+<div id="23e8cf67" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
@@ -1247,7 +1247,7 @@ Noise std dev:       0.4</code></pre>
 <p><span class="math display">\[
 E = \frac{11\, q_0\, L^4}{120\, y_{\text{obs}}\, I}
 \]</span></p>
-<div id="31f44703" class="cell" data-execution_count="6">
+<div id="121ab934" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>I_rect <span class="op">=</span> H<span class="op">**</span><span class="dv">3</span> <span class="op">/</span> <span class="fl">12.0</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>E_point_estimate <span class="op">=</span> (<span class="dv">11</span> <span class="op">*</span> q0 <span class="op">*</span> L<span class="op">**</span><span class="dv">4</span>) <span class="op">/</span> (<span class="dv">120</span> <span class="op">*</span> y_obs <span class="op">*</span> I_rect)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Point estimate of E: </span><span class="sc">{</span>E_point_estimate<span class="sc">:.1f}</span><span class="ss">"</span>)</span>
@@ -1313,7 +1313,7 @@ Figure&nbsp;3: The prior distribution (blue) encodes our belief before seeing da
 \tag{1}\]</span></span></p>
 <p>The <strong>evidence</strong> <span class="math inline">\(p(y_{\text{obs}}) = \int \mathcal{L}(E)\, p(E)\, dE\)</span> is a normalizing constant that ensures the posterior integrates to one. Because this integral is an expectation with respect to the prior, we can evaluate it accurately with Gauss quadrature: a small set of carefully chosen points and weights that exactly integrate polynomials of high degree.</p>
 <p>The intuition is simple: <strong>the posterior is high where both the prior and the likelihood are high</strong>. Where the prior thinks <span class="math inline">\(E\)</span> is plausible <em>and</em> the data agrees, we have high posterior probability.</p>
-<div id="5797972a" class="cell" data-execution_count="9">
+<div id="6673b740" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature <span class="im">import</span> gauss_quadrature_rule</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Gauss quadrature rule for the prior: points and probability-measure weights</span></span>
@@ -1365,7 +1365,7 @@ Figure&nbsp;4: Bayes’ theorem in action. The posterior (orange) combines the p
 <li>The <strong>posterior mean is shifted</strong> from the prior mean (<span class="math inline">\(12{,}000\)</span>) toward the data-consistent value (<span class="math inline">\(\approx 10{,}000\)</span>): the observation has updated our belief.</li>
 <li>The <strong>true value</strong> falls within the posterior’s support: the inference is working correctly.</li>
 </ul>
-<div id="c6a607ba" class="cell" data-execution_count="11">
+<div id="2f15f48c" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior summary statistics via quadrature</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># E[E | y] = sum_i w_i * E_i * L(E_i) / evidence</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>posterior_mean <span class="op">=</span> <span class="bu">float</span>(</span>
@@ -2026,7 +2026,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-71"><a href="#cb11-71" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Forward UQ (top, faded) propagates a prior distribution through the model to predict the QoI. Bayesian inference (bottom, vivid) reverses the arrow: a single observation is combined with the model via Bayes' theorem to produce an updated posterior distribution over the parameter."</span></span>
 <span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-forward-inverse-schematic</span></span>
 <span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_forward_inverse_schematic</span>
+<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_forward_inverse_schematic</span>
 <span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(</span>
 <span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>    <span class="dv">2</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">6</span>),</span>
@@ -2161,7 +2161,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-218"><a href="#cb11-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-219"><a href="#cb11-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A point estimate (red dashed line) gives a single value, but ignores measurement noise and prior information. Multiple noisy measurements of the same beam would give different point estimates (gray lines), showing the inherent uncertainty in the inversion."</span></span>
 <span id="cb11-220"><a href="#cb11-220" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-point-estimate-problem</span></span>
-<span id="cb11-221"><a href="#cb11-221" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_point_estimate_problem</span>
+<span id="cb11-221"><a href="#cb11-221" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_point_estimate_problem</span>
 <span id="cb11-222"><a href="#cb11-222" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-223"><a href="#cb11-223" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb11-224"><a href="#cb11-224" aria-hidden="true" tabindex="-1"></a>plot_point_estimate_problem(</span>
@@ -2194,7 +2194,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-253"><a href="#cb11-253" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-254"><a href="#cb11-254" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The prior distribution (blue) encodes our belief before seeing data. The likelihood function (red) peaks where the model prediction matches the observation. The two disagree: the data suggests $E$ is lower than the prior mean."</span></span>
 <span id="cb11-255"><a href="#cb11-255" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-likelihood</span></span>
-<span id="cb11-256"><a href="#cb11-256" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_likelihood</span>
+<span id="cb11-256"><a href="#cb11-256" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_likelihood</span>
 <span id="cb11-257"><a href="#cb11-257" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-258"><a href="#cb11-258" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate likelihood on grid using the composed model+likelihood object</span></span>
 <span id="cb11-259"><a href="#cb11-259" aria-hidden="true" tabindex="-1"></a>E_grid <span class="op">=</span> np.linspace(<span class="dv">6_000</span>, <span class="dv">18_000</span>, <span class="dv">500</span>)</span>
@@ -2260,7 +2260,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-323"><a href="#cb11-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-324"><a href="#cb11-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Bayes' theorem in action. The posterior (orange) combines the prior (blue) and the likelihood (red, scaled). It sits between the two, shifted toward the data-consistent region but shaped by the prior. The true parameter value (green dashed) falls within the posterior's support."</span></span>
 <span id="cb11-325"><a href="#cb11-325" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bayes-update</span></span>
-<span id="cb11-326"><a href="#cb11-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_bayes_update</span>
+<span id="cb11-326"><a href="#cb11-326" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_bayes_update</span>
 <span id="cb11-327"><a href="#cb11-327" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-328"><a href="#cb11-328" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
 <span id="cb11-329"><a href="#cb11-329" aria-hidden="true" tabindex="-1"></a>plot_bayes_update(ax, E_grid, prior_vals, likelihood_vals,</span>
@@ -2301,7 +2301,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-368"><a href="#cb11-368" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-369"><a href="#cb11-369" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The balance between prior and data. Left: a vague prior (large $\\sigma_{\\text{prior}}$) lets the data dominate --- the posterior nearly coincides with the likelihood. Right: a tight prior (small $\\sigma_{\\text{prior}}$) resists the data --- the posterior stays close to the prior even though the data disagrees."</span></span>
 <span id="cb11-370"><a href="#cb11-370" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-prior-likelihood-balance</span></span>
-<span id="cb11-371"><a href="#cb11-371" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_prior_likelihood_balance</span>
+<span id="cb11-371"><a href="#cb11-371" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_prior_likelihood_balance</span>
 <span id="cb11-372"><a href="#cb11-372" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-373"><a href="#cb11-373" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb11-374"><a href="#cb11-374" aria-hidden="true" tabindex="-1"></a>plot_prior_likelihood_balance(ax1, ax2, E_grid, likelihood_vals,</span>
@@ -2327,7 +2327,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-396"><a href="#cb11-396" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-397"><a href="#cb11-397" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "More data narrows the posterior. Blue: prior. Light orange: posterior after one observation. Dark orange: posterior after two independent observations. Each observation provides additional information, reducing the remaining uncertainty about $E$."</span></span>
 <span id="cb11-398"><a href="#cb11-398" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-multiple-observations</span></span>
-<span id="cb11-399"><a href="#cb11-399" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_multiple_observations</span>
+<span id="cb11-399"><a href="#cb11-399" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_multiple_observations</span>
 <span id="cb11-400"><a href="#cb11-400" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-401"><a href="#cb11-401" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior after one observation (already computed)</span></span>
 <span id="cb11-402"><a href="#cb11-402" aria-hidden="true" tabindex="-1"></a>post_1 <span class="op">=</span> posterior_vals</span>
@@ -2388,7 +2388,7 @@ Figure&nbsp;7: Push-forward distributions using the prior (blue) and the posteri
 <span id="cb11-459"><a href="#cb11-459" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb11-460"><a href="#cb11-460" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Push-forward distributions using the prior (blue) and the posterior after 5 observations (orange). The posterior-based push-forward is much narrower and centered closer to the true tip deflection, because the data has reduced parameter uncertainty."</span></span>
 <span id="cb11-461"><a href="#cb11-461" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-posterior-pushforward</span></span>
-<span id="cb11-462"><a href="#cb11-462" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._bayesian <span class="im">import</span> plot_posterior_pushforward</span>
+<span id="cb11-462"><a href="#cb11-462" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_posterior_pushforward</span>
 <span id="cb11-463"><a href="#cb11-463" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-464"><a href="#cb11-464" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb11-465"><a href="#cb11-465" aria-hidden="true" tabindex="-1"></a>plot_posterior_pushforward(ax1, ax2, beam_model, prior, post_5, E_grid,</span>

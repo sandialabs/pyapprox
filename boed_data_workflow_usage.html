@@ -1124,7 +1124,7 @@ window.Quarto = {
 </section>
 <section id="the-benchmark-obstructed-advection-diffusion" class="level2">
 <h2 class="anchored" data-anchor-id="the-benchmark-obstructed-advection-diffusion">The Benchmark: Obstructed Advection-Diffusion</h2>
-<div id="c905572a" class="cell" data-execution_count="1">
+<div id="efc22a8f" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1146,7 +1146,7 @@ window.Quarto = {
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cc446860" class="cell" data-execution_count="2">
+<div id="ad325ddb" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use lower mesh refinement for the tutorial (nrefine=2 instead of default 3).</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Production runs should use nrefine=3 or higher.</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>benchmark  <span class="op">=</span> ObstructedAdvectionDiffusionOEDBenchmark(</span>
@@ -1174,7 +1174,7 @@ Figure&nbsp;1: Candidate sensor locations (circles) for the obstructed advection
 </section>
 <section id="phase-1-generate-and-save-the-dataset" class="level2">
 <h2 class="anchored" data-anchor-id="phase-1-generate-and-save-the-dataset">Phase 1: Generate and Save the Dataset</h2>
-<div id="631b0a63" class="cell" data-execution_count="4">
+<div id="c6386a43" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ------------------------------------------------------------------</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Configure sample sizes. For production, use 10_000 / 10_000.</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># These small values are used only so this tutorial runs in CI.</span></span>
@@ -1210,7 +1210,7 @@ Figure&nbsp;1: Candidate sensor locations (circles) for the obstructed advection
 <span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>qoi_quad_weights <span class="op">=</span> bkd.full((nqoi, <span class="dv">1</span>), <span class="fl">1.0</span> <span class="op">/</span> nqoi)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now we run the forward model — the expensive step — and save everything.</p>
-<div id="4b22c408" class="cell" data-execution_count="5">
+<div id="26c8c7d2" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>data_dir  <span class="op">=</span> <span class="st">"data"</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>os.makedirs(data_dir, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>filename  <span class="op">=</span> os.path.join(</span>
@@ -1255,14 +1255,14 @@ Saved.</code></pre>
 <section id="phase-2-load-and-run-oed" class="level2">
 <h2 class="anchored" data-anchor-id="phase-2-load-and-run-oed">Phase 2: Load and Run OED</h2>
 <p>In a separate session (or in the same session after the generate phase), load the dataset and run the optimiser — no forward model calls needed.</p>
-<div id="7f8fff26" class="cell" data-execution_count="6">
+<div id="33f07ffb" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Load ----</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>data_manager.load_data(filename)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <section id="selecting-a-spatial-subset" class="level3">
 <h3 class="anchored" data-anchor-id="selecting-a-spatial-subset">Selecting a Spatial Subset</h3>
 <p>The saved dataset covers all <code>nobs_total</code> sensor locations. For the OED we may want to use only a spatial subset — for example, every third location.</p>
-<div id="991c5176" class="cell" data-execution_count="7">
+<div id="903df197" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Select a subset of observations (every third sensor location)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>active_obs_idx  <span class="op">=</span> bkd.arange(data_manager.nobservations())[::<span class="dv">3</span>]</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>active_loc_idx  <span class="op">=</span> active_obs_idx  <span class="co"># same indices into location array</span></span>
@@ -1291,7 +1291,7 @@ Saved.</code></pre>
 </section>
 <section id="run-the-optimiser" class="level3">
 <h3 class="anchored" data-anchor-id="run-the-optimiser">Run the Optimiser</h3>
-<div id="7d72ff84" class="cell" data-execution_count="8">
+<div id="88b308d9" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>nobs_oed       <span class="op">=</span> <span class="bu">int</span>(bkd.to_numpy(active_obs_idx).shape[<span class="dv">0</span>])</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.full((nobs_oed,), noise_std<span class="op">**</span><span class="dv">2</span>)</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1326,7 +1326,7 @@ Saved.</code></pre>
 <section id="visualise-the-design" class="level2">
 <h2 class="anchored" data-anchor-id="visualise-the-design">Visualise the Design</h2>
 <div id="cell-fig-advec-diff-design" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_advec_diff_design</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_advec_diff_design</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">4</span>))</span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>obs_locs <span class="op">=</span> bkd.to_numpy(oed_data[<span class="st">"observation_locations"</span>])</span>
@@ -2104,7 +2104,7 @@ Figure&nbsp;2: Optimal sensor weights for the advection-diffusion domain. Circle
 <span id="cb10-292"><a href="#cb10-292" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb10-293"><a href="#cb10-293" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Optimal sensor weights for the advection-diffusion domain. Circle area is proportional to weight; the OED concentrates budget on sensors where the flow signal is strongest."</span></span>
 <span id="cb10-294"><a href="#cb10-294" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-advec-diff-design</span></span>
-<span id="cb10-295"><a href="#cb10-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_advec_diff_design</span>
+<span id="cb10-295"><a href="#cb10-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_advec_diff_design</span>
 <span id="cb10-296"><a href="#cb10-296" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-297"><a href="#cb10-297" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">4</span>))</span>
 <span id="cb10-298"><a href="#cb10-298" aria-hidden="true" tabindex="-1"></a>obs_locs <span class="op">=</span> bkd.to_numpy(oed_data[<span class="st">"observation_locations"</span>])</span>

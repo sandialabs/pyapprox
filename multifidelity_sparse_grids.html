@@ -1139,7 +1139,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="aa87900a" class="cell" data-execution_count="1">
+<div id="e4787343" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1176,7 +1176,7 @@ f_\alpha(z) = \cos\!\left(\frac{\pi(z+1)}{2} + \epsilon_\alpha\right), \quad z \
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> LinearGrowthRule</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_model_hierarchy</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_model_hierarchy</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>epsilons <span class="op">=</span> {<span class="dv">0</span>: <span class="fl">0.5</span>, <span class="dv">1</span>: <span class="fl">0.0</span>}</span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>z_plot <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">300</span>)</span>
@@ -1276,7 +1276,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 </ul>
 <p>The config index is a tuple of integers, e.g.&nbsp;<code>(0,)</code> for low fidelity and <code>(1,)</code> for high fidelity.</p>
 <p>You can implement the protocol as a class, or use the convenience <code>DictModelFactory</code> which wraps a dictionary of callables:</p>
-<div id="f39edf9e" class="cell" data-execution_count="4">
+<div id="4851cfb6" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    DictModelFactory,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    ModelFactoryProtocol,</span>
@@ -1327,7 +1327,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 <li><strong><code>nconfig_vars</code></strong> — number of configuration dimensions (required)</li>
 <li>Optionally, a <strong>cost model</strong> for cost-aware refinement</li>
 </ol>
-<div id="100c1c0f" class="cell" data-execution_count="5">
+<div id="6562501f" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    MultiFidelityAdaptiveSparseGridFitter,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1374,7 +1374,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 <section id="auto-mode-refine_to_tolerance" class="level3">
 <h3 class="anchored" data-anchor-id="auto-mode-refine_to_tolerance">Auto Mode: <code>refine_to_tolerance()</code></h3>
 <p>Pass a <code>ModelFactoryProtocol</code> to <code>refine_to_tolerance()</code> and the fitter automatically evaluates the correct model at each step:</p>
-<div id="76c96229" class="cell" data-execution_count="6">
+<div id="73333f8d" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> mf_fitter.refine_to_tolerance(factory, tol<span class="op">=</span><span class="fl">1e-6</span>, max_steps<span class="op">=</span><span class="dv">15</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
@@ -1383,7 +1383,7 @@ Figure&nbsp;2: Configuration variables as mesh refinement levels. Each panel sho
 <h2 class="anchored" data-anchor-id="visualizing-the-multi-index-set">Visualizing the Multi-Index Set</h2>
 <p>The selected subspace indices show how the algorithm balances physical resolution and model fidelity.</p>
 <div id="cell-fig-mf-indices-1d" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_indices_1d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_indices_1d</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>sel <span class="op">=</span> result.indices</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>sel_np <span class="op">=</span> bkd.to_numpy(sel).astype(<span class="bu">int</span>)</span>
@@ -1597,36 +1597,36 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_img9663ff10b9e84af7b6cd882c84568580" class="figure-img">
+  <img id="_anim_img566b003fed9b4693be55433209b7c673" class="figure-img">
   <div class="anim-controls">
-    <input id="_anim_slider9663ff10b9e84af7b6cd882c84568580" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim9663ff10b9e84af7b6cd882c84568580.set_frame(parseInt(this.value));">
+    <input id="_anim_slider566b003fed9b4693be55433209b7c673" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim566b003fed9b4693be55433209b7c673.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim9663ff10b9e84af7b6cd882c84568580.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim566b003fed9b4693be55433209b7c673.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="anim566b003fed9b4693be55433209b7c673.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="anim566b003fed9b4693be55433209b7c673.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="anim9663ff10b9e84af7b6cd882c84568580.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="anim566b003fed9b4693be55433209b7c673.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="anim9663ff10b9e84af7b6cd882c84568580.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="anim566b003fed9b4693be55433209b7c673.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="anim9663ff10b9e84af7b6cd882c84568580.play_animation()">
+      <button title="Play" aria-label="Play" onclick="anim566b003fed9b4693be55433209b7c673.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="anim566b003fed9b4693be55433209b7c673.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="anim9663ff10b9e84af7b6cd882c84568580.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="anim566b003fed9b4693be55433209b7c673.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="anim9663ff10b9e84af7b6cd882c84568580.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="anim566b003fed9b4693be55433209b7c673.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select9663ff10b9e84af7b6cd882c84568580" class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_9663ff10b9e84af7b6cd882c84568580">
-      <label for="_anim_radio1_9663ff10b9e84af7b6cd882c84568580">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_9663ff10b9e84af7b6cd882c84568580" checked="">
-      <label for="_anim_radio2_9663ff10b9e84af7b6cd882c84568580">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_9663ff10b9e84af7b6cd882c84568580">
-      <label for="_anim_radio3_9663ff10b9e84af7b6cd882c84568580">Reflect</label>
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select566b003fed9b4693be55433209b7c673" class="anim-state">
+      <input type="radio" name="state" value="once" id="_anim_radio1_566b003fed9b4693be55433209b7c673">
+      <label for="_anim_radio1_566b003fed9b4693be55433209b7c673">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_566b003fed9b4693be55433209b7c673" checked="">
+      <label for="_anim_radio2_566b003fed9b4693be55433209b7c673">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_566b003fed9b4693be55433209b7c673">
+      <label for="_anim_radio3_566b003fed9b4693be55433209b7c673">Reflect</label>
     </form>
   </div>
 </div>
@@ -1636,9 +1636,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_img9663ff10b9e84af7b6cd882c84568580";
-    var slider_id = "_anim_slider9663ff10b9e84af7b6cd882c84568580";
-    var loop_select_id = "_anim_loop_select9663ff10b9e84af7b6cd882c84568580";
+    var img_id = "_anim_img566b003fed9b4693be55433209b7c673";
+    var slider_id = "_anim_slider566b003fed9b4693be55433209b7c673";
+    var loop_select_id = "_anim_loop_select566b003fed9b4693be55433209b7c673";
     var frames = new Array(11);
     
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABUAAAAGwCAYAAABo288xAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -12135,7 +12135,7 @@ Yf0fvpb4za4MMOsAAAAASUVORK5CYII=\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        anim9663ff10b9e84af7b6cd882c84568580 = new Animation(frames, img_id, slider_id, 800.0,
+        anim566b003fed9b4693be55433209b7c673 = new Animation(frames, img_id, slider_id, 800.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -12152,7 +12152,7 @@ Figure&nbsp;4: Animated multi-index refinement. Solid boxes are selected subspac
 <section id="manual-mode-step_samples-step_values" class="level2">
 <h2 class="anchored" data-anchor-id="manual-mode-step_samples-step_values">Manual Mode: <code>step_samples()</code> / <code>step_values()</code></h2>
 <p>For more control, use the manual step pattern. <code>step_samples()</code> returns a dictionary mapping each config index to its required physical samples:</p>
-<div id="0e49da86" class="cell" data-execution_count="9">
+<div id="f844a7ad" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>tp_factory2 <span class="op">=</span> TensorProductSubspaceFactory(bkd, phys_factories, growth)</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>max_1d2 <span class="op">=</span> bkd.asarray([<span class="dv">10</span>, <span class="dv">1</span>], dtype<span class="op">=</span>bkd.int64_dtype())</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>admis2 <span class="op">=</span> CompositeCriteria(</span>
@@ -12193,7 +12193,7 @@ Figure&nbsp;4: Animated multi-index refinement. Solid boxes are selected subspac
 <span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="cell-fig-mf-manual-convergence" class="cell" data-execution_count="10">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_manual_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_manual_convergence</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>steps <span class="op">=</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(error_estimates) <span class="op">+</span> <span class="dv">1</span>)</span>
@@ -12217,7 +12217,7 @@ Figure&nbsp;5: Multi-index refinement convergence in manual mode. The error esti
 <section id="cost-aware-refinement" class="level2">
 <h2 class="anchored" data-anchor-id="cost-aware-refinement">Cost-Aware Refinement</h2>
 <p>By default, all models are treated as having equal cost (<code>ConstantCostModel</code>). For realistic multi-fidelity problems, the high-fidelity model is far more expensive. <code>ExponentialConfigCostModel</code> assigns cost <span class="math inline">\(= \text{base}^{\sum \alpha_i}\)</span>, and <code>CostWeightedIndicator</code> divides each subspace’s error indicator by its cost, making the algorithm prefer refining cheap models first.</p>
-<div id="1a02c57f" class="cell" data-execution_count="11">
+<div id="04bcc270" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ExponentialConfigCostModel,</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    CostWeightedIndicator,</span>
@@ -12415,36 +12415,36 @@ input[type=range].anim-slider {
 </style>
 
 <div class="animation">
-  <img id="_anim_img4ddc6f86618041149a7d46694b29e99d" class="figure-img">
+  <img id="_anim_img13196bb59c624e6dbf5069afc82b7591" class="figure-img">
   <div class="anim-controls">
-    <input id="_anim_slider4ddc6f86618041149a7d46694b29e99d" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim4ddc6f86618041149a7d46694b29e99d.set_frame(parseInt(this.value));">
+    <input id="_anim_slider13196bb59c624e6dbf5069afc82b7591" type="range" class="anim-slider" name="points" min="0" max="1" step="1" value="0" oninput="anim13196bb59c624e6dbf5069afc82b7591.set_frame(parseInt(this.value));">
     <div class="anim-buttons">
-      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim4ddc6f86618041149a7d46694b29e99d.slower()">
+      <button title="Decrease speed" aria-label="Decrease speed" onclick="anim13196bb59c624e6dbf5069afc82b7591.slower()">
           <i class="fa fa-minus"></i></button>
-      <button title="First frame" aria-label="First frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.first_frame()">
+      <button title="First frame" aria-label="First frame" onclick="anim13196bb59c624e6dbf5069afc82b7591.first_frame()">
         <i class="fa fa-fast-backward"></i></button>
-      <button title="Previous frame" aria-label="Previous frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.previous_frame()">
+      <button title="Previous frame" aria-label="Previous frame" onclick="anim13196bb59c624e6dbf5069afc82b7591.previous_frame()">
           <i class="fa fa-step-backward"></i></button>
-      <button title="Play backwards" aria-label="Play backwards" onclick="anim4ddc6f86618041149a7d46694b29e99d.reverse_animation()">
+      <button title="Play backwards" aria-label="Play backwards" onclick="anim13196bb59c624e6dbf5069afc82b7591.reverse_animation()">
           <i class="fa fa-play fa-flip-horizontal"></i></button>
-      <button title="Pause" aria-label="Pause" onclick="anim4ddc6f86618041149a7d46694b29e99d.pause_animation()">
+      <button title="Pause" aria-label="Pause" onclick="anim13196bb59c624e6dbf5069afc82b7591.pause_animation()">
           <i class="fa fa-pause"></i></button>
-      <button title="Play" aria-label="Play" onclick="anim4ddc6f86618041149a7d46694b29e99d.play_animation()">
+      <button title="Play" aria-label="Play" onclick="anim13196bb59c624e6dbf5069afc82b7591.play_animation()">
           <i class="fa fa-play"></i></button>
-      <button title="Next frame" aria-label="Next frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.next_frame()">
+      <button title="Next frame" aria-label="Next frame" onclick="anim13196bb59c624e6dbf5069afc82b7591.next_frame()">
           <i class="fa fa-step-forward"></i></button>
-      <button title="Last frame" aria-label="Last frame" onclick="anim4ddc6f86618041149a7d46694b29e99d.last_frame()">
+      <button title="Last frame" aria-label="Last frame" onclick="anim13196bb59c624e6dbf5069afc82b7591.last_frame()">
           <i class="fa fa-fast-forward"></i></button>
-      <button title="Increase speed" aria-label="Increase speed" onclick="anim4ddc6f86618041149a7d46694b29e99d.faster()">
+      <button title="Increase speed" aria-label="Increase speed" onclick="anim13196bb59c624e6dbf5069afc82b7591.faster()">
           <i class="fa fa-plus"></i></button>
     </div>
-    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select4ddc6f86618041149a7d46694b29e99d" class="anim-state">
-      <input type="radio" name="state" value="once" id="_anim_radio1_4ddc6f86618041149a7d46694b29e99d">
-      <label for="_anim_radio1_4ddc6f86618041149a7d46694b29e99d">Once</label>
-      <input type="radio" name="state" value="loop" id="_anim_radio2_4ddc6f86618041149a7d46694b29e99d" checked="">
-      <label for="_anim_radio2_4ddc6f86618041149a7d46694b29e99d">Loop</label>
-      <input type="radio" name="state" value="reflect" id="_anim_radio3_4ddc6f86618041149a7d46694b29e99d">
-      <label for="_anim_radio3_4ddc6f86618041149a7d46694b29e99d">Reflect</label>
+    <form title="Repetition mode" aria-label="Repetition mode" action="#n" name="_anim_loop_select13196bb59c624e6dbf5069afc82b7591" class="anim-state">
+      <input type="radio" name="state" value="once" id="_anim_radio1_13196bb59c624e6dbf5069afc82b7591">
+      <label for="_anim_radio1_13196bb59c624e6dbf5069afc82b7591">Once</label>
+      <input type="radio" name="state" value="loop" id="_anim_radio2_13196bb59c624e6dbf5069afc82b7591" checked="">
+      <label for="_anim_radio2_13196bb59c624e6dbf5069afc82b7591">Loop</label>
+      <input type="radio" name="state" value="reflect" id="_anim_radio3_13196bb59c624e6dbf5069afc82b7591">
+      <label for="_anim_radio3_13196bb59c624e6dbf5069afc82b7591">Reflect</label>
     </form>
   </div>
 </div>
@@ -12454,9 +12454,9 @@ input[type=range].anim-slider {
   /* Instantiate the Animation class. */
   /* The IDs given should match those used in the template above. */
   (function() {
-    var img_id = "_anim_img4ddc6f86618041149a7d46694b29e99d";
-    var slider_id = "_anim_slider4ddc6f86618041149a7d46694b29e99d";
-    var loop_select_id = "_anim_loop_select4ddc6f86618041149a7d46694b29e99d";
+    var img_id = "_anim_img13196bb59c624e6dbf5069afc82b7591";
+    var slider_id = "_anim_slider13196bb59c624e6dbf5069afc82b7591";
+    var loop_select_id = "_anim_loop_select13196bb59c624e6dbf5069afc82b7591";
     var frames = new Array(15);
     
   frames[0] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABUAAAAGwCAYAAABo288xAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90\
@@ -22003,7 +22003,7 @@ yK3/B5hFX7SWVKEjAAAAAElFTkSuQmCC\
     /* set a timeout to make sure all the above elements are created before
        the object is initialized. */
     setTimeout(function() {
-        anim4ddc6f86618041149a7d46694b29e99d = new Animation(frames, img_id, slider_id, 800.0,
+        anim13196bb59c624e6dbf5069afc82b7591 = new Animation(frames, img_id, slider_id, 800.0,
                                  loop_select_id);
     }, 0);
   })()
@@ -22020,7 +22020,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <section id="measured-costs-with-timedmodelfactory" class="level2">
 <h2 class="anchored" data-anchor-id="measured-costs-with-timedmodelfactory">Measured Costs with <code>TimedModelFactory</code></h2>
 <p>When model costs are unknown a priori, <code>TimedModelFactory</code> wraps any <code>ModelFactoryProtocol</code> and records wall-clock times for every evaluation. <code>MeasuredCostModel</code> reads these timings to provide data-driven cost estimates that update as the algorithm runs.</p>
-<div id="07ad07df" class="cell" data-execution_count="14">
+<div id="4452e014" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    TimedModelFactory,</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    MeasuredCostModel,</span>
@@ -22036,7 +22036,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>_ <span class="op">=</span> timed_factory.get_model((<span class="dv">1</span>,))(test_samples)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>In a real application where different fidelity levels have genuinely different costs (e.g., coarse vs fine mesh PDE solves), the measured costs would differ significantly, and the cost-weighted indicator would automatically favor the cheaper model.</p>
-<div id="1fc878b8" class="cell" data-execution_count="15">
+<div id="fc95e773" class="cell" data-execution_count="15">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use measured costs with the adaptive fitter</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>tp_factory_mc <span class="op">=</span> TensorProductSubspaceFactory(bkd, phys_factories, growth)</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>max_1d_mc <span class="op">=</span> bkd.asarray([<span class="dv">10</span>, <span class="dv">1</span>], dtype<span class="op">=</span>bkd.int64_dtype())</span>
@@ -22065,7 +22065,7 @@ Figure&nbsp;6: Side-by-side comparison of unweighted (left) and cost-weighted (r
 <p><span class="math display">\[
 f_\alpha(z_1, z_2) = \cos\!\left(\pi z_1 + \epsilon_\alpha\right) \cdot \sin\!\left(\pi z_2 / 2\right), \quad \epsilon_0 = 0.3,\ \epsilon_1 = 0.
 \]</span></p>
-<div id="8a90efed" class="cell" data-execution_count="16">
+<div id="75a3059b" class="cell" data-execution_count="16">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>epsilons_2d <span class="op">=</span> {<span class="dv">0</span>: <span class="fl">0.3</span>, <span class="dv">1</span>: <span class="fl">0.0</span>}</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -22105,7 +22105,7 @@ f_\alpha(z_1, z_2) = \cos\!\left(\pi z_1 + \epsilon_\alpha\right) \cdot \sin\!\l
 <h3 class="anchored" data-anchor-id="visualizing-the-2d-multi-index-set">Visualizing the 2D Multi-Index Set</h3>
 <p>With two physical variables and one configuration variable, each selected subspace index is a triple <span class="math inline">\([\beta_1, \beta_2, \alpha]\)</span>. A 3D scatter plot reveals how the algorithm distributes resolution across the two physical dimensions and the model hierarchy.</p>
 <div id="cell-fig-mf-indices-2d" class="cell" data-execution_count="17">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_indices_2d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_indices_2d</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>sel_2d <span class="op">=</span> result_2d.indices</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>sel_2d_np <span class="op">=</span> bkd.to_numpy(sel_2d).astype(<span class="bu">int</span>)</span>
@@ -22140,7 +22140,7 @@ Figure&nbsp;7: Selected multi-indices <span class="math inline">\([\beta_1, \bet
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_2d_accuracy</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_2d_accuracy</span>
 <span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> [<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>]</span>
 <span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
@@ -22792,7 +22792,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-103"><a href="#cb16-103" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb16-104"><a href="#cb16-104" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> LinearGrowthRule</span>
 <span id="cb16-105"><a href="#cb16-105" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
-<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_model_hierarchy</span>
+<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_model_hierarchy</span>
 <span id="cb16-107"><a href="#cb16-107" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-108"><a href="#cb16-108" aria-hidden="true" tabindex="-1"></a>epsilons <span class="op">=</span> {<span class="dv">0</span>: <span class="fl">0.5</span>, <span class="dv">1</span>: <span class="fl">0.0</span>}</span>
 <span id="cb16-109"><a href="#cb16-109" aria-hidden="true" tabindex="-1"></a>z_plot <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">300</span>)</span>
@@ -22857,7 +22857,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-170"><a href="#cb16-170" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Configuration variables as mesh refinement levels. Each panel shows a different combination of $x$- and $y$-mesh resolution, illustrating how two independent configuration variables control solver fidelity."</span></span>
 <span id="cb16-171"><a href="#cb16-171" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-config-vars</span></span>
 <span id="cb16-172"><a href="#cb16-172" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-173"><a href="#cb16-173" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_config_vars</span>
+<span id="cb16-173"><a href="#cb16-173" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_config_vars</span>
 <span id="cb16-174"><a href="#cb16-174" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-175"><a href="#cb16-175" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
 <span id="cb16-176"><a href="#cb16-176" aria-hidden="true" tabindex="-1"></a>plot_config_vars(axes)</span>
@@ -22983,7 +22983,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-304"><a href="#cb16-304" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Selected multi-indices for the 1D physical + 1 config variable problem. Blue boxes are cheap model evaluations ($\\alpha=0$); red boxes are expensive model evaluations ($\\alpha=1$). The algorithm uses many physical levels for the cheap model and few for the expensive one."</span></span>
 <span id="cb16-305"><a href="#cb16-305" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mf-indices-1d</span></span>
 <span id="cb16-306"><a href="#cb16-306" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-307"><a href="#cb16-307" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_indices_1d</span>
+<span id="cb16-307"><a href="#cb16-307" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_indices_1d</span>
 <span id="cb16-308"><a href="#cb16-308" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-309"><a href="#cb16-309" aria-hidden="true" tabindex="-1"></a>sel <span class="op">=</span> result.indices</span>
 <span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a>sel_np <span class="op">=</span> bkd.to_numpy(sel).astype(<span class="bu">int</span>)</span>
@@ -23006,7 +23006,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-329"><a href="#cb16-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Animated multi-index refinement. Solid boxes are selected subspaces; dashed boxes are candidates. The algorithm alternates between cheap ($\\alpha=0$, blue) and expensive ($\\alpha=1$, red) model evaluations."</span></span>
 <span id="cb16-330"><a href="#cb16-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mf-animation</span></span>
 <span id="cb16-331"><a href="#cb16-331" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-332"><a href="#cb16-332" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_animation</span>
+<span id="cb16-332"><a href="#cb16-332" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_animation</span>
 <span id="cb16-333"><a href="#cb16-333" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-334"><a href="#cb16-334" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a fresh fitter for animation</span></span>
 <span id="cb16-335"><a href="#cb16-335" aria-hidden="true" tabindex="-1"></a>tp_factory_anim <span class="op">=</span> TensorProductSubspaceFactory(bkd, phys_factories, growth)</span>
@@ -23097,7 +23097,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-424"><a href="#cb16-424" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Multi-index refinement convergence in manual mode. The error estimate (blue) tracks the true test error (red) closely, validating the built-in error indicator."</span></span>
 <span id="cb16-425"><a href="#cb16-425" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mf-manual-convergence</span></span>
 <span id="cb16-426"><a href="#cb16-426" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-427"><a href="#cb16-427" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_manual_convergence</span>
+<span id="cb16-427"><a href="#cb16-427" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_manual_convergence</span>
 <span id="cb16-428"><a href="#cb16-428" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-429"><a href="#cb16-429" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb16-430"><a href="#cb16-430" aria-hidden="true" tabindex="-1"></a>steps <span class="op">=</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(error_estimates) <span class="op">+</span> <span class="dv">1</span>)</span>
@@ -23196,7 +23196,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-529"><a href="#cb16-529" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Side-by-side comparison of unweighted (left) and cost-weighted (right) refinement paths. The cost-weighted algorithm defers expensive model evaluations, reaching the same accuracy at lower total cost."</span></span>
 <span id="cb16-530"><a href="#cb16-530" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cost-weighted-animation</span></span>
 <span id="cb16-531"><a href="#cb16-531" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-532"><a href="#cb16-532" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_cost_weighted_animation</span>
+<span id="cb16-532"><a href="#cb16-532" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_cost_weighted_animation</span>
 <span id="cb16-533"><a href="#cb16-533" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-534"><a href="#cb16-534" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="fl">4.5</span>))</span>
 <span id="cb16-535"><a href="#cb16-535" aria-hidden="true" tabindex="-1"></a>html_cw <span class="op">=</span> plot_cost_weighted_animation(</span>
@@ -23308,7 +23308,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-649"><a href="#cb16-649" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$ for the 2D physical + 1 config variable problem, shown as 3D voxels. Blue voxels ($\\alpha=0$) represent cheap model evaluations spanning many physical levels; red voxels ($\\alpha=1$) represent expensive model evaluations at fewer physical levels."</span></span>
 <span id="cb16-650"><a href="#cb16-650" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mf-indices-2d</span></span>
 <span id="cb16-651"><a href="#cb16-651" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-652"><a href="#cb16-652" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_indices_2d</span>
+<span id="cb16-652"><a href="#cb16-652" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_indices_2d</span>
 <span id="cb16-653"><a href="#cb16-653" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-654"><a href="#cb16-654" aria-hidden="true" tabindex="-1"></a>sel_2d <span class="op">=</span> result_2d.indices</span>
 <span id="cb16-655"><a href="#cb16-655" aria-hidden="true" tabindex="-1"></a>sel_2d_np <span class="op">=</span> bkd.to_numpy(sel_2d).astype(<span class="bu">int</span>)</span>
@@ -23337,7 +23337,7 @@ Figure&nbsp;8: Multi-fidelity surrogate accuracy on the 2D problem. Left: true h
 <span id="cb16-680"><a href="#cb16-680" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
 <span id="cb16-681"><a href="#cb16-681" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb16-682"><a href="#cb16-682" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-683"><a href="#cb16-683" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._sparse_grids <span class="im">import</span> plot_mf_2d_accuracy</span>
+<span id="cb16-683"><a href="#cb16-683" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_mf_2d_accuracy</span>
 <span id="cb16-684"><a href="#cb16-684" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-685"><a href="#cb16-685" aria-hidden="true" tabindex="-1"></a>plot_limits <span class="op">=</span> [<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>]</span>
 <span id="cb16-686"><a href="#cb16-686" aria-hidden="true" tabindex="-1"></a></span>

@@ -1125,7 +1125,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We use the 2D composite beam from the <a href="./vi_optimization.html">previous tutorial</a>: a cantilever beam with uncertain skin modulus <span class="math inline">\(E_1\)</span> and core modulus <span class="math inline">\(E_2\)</span>. With two correlated parameters, the limitations of each family are clearly visible.</p>
-<div id="c351196a" class="cell" data-execution_count="2">
+<div id="e7b41890" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    CantileverBeam1DAnalytical,</span>
@@ -1222,7 +1222,7 @@ Observed tip deflection: 5.377065</code></pre>
 q(E_1, E_2) = q_1(E_1) \cdot q_2(E_2) = \mathcal{N}(E_1;\, \mu_1, \sigma_1^2) \cdot \mathcal{N}(E_2;\, \mu_2, \sigma_2^2)
 \]</span></p>
 <p>This is what <code>ConditionalIndependentJoint</code> with per-dimension <code>ConditionalGaussian</code> components provides. It has <strong>4 parameters</strong>: <span class="math inline">\((\mu_1, \log\sigma_1, \mu_2, \log\sigma_2)\)</span>.</p>
-<div id="2931a567" class="cell" data-execution_count="3">
+<div id="6bf3880b" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate <span class="im">import</span> UniformMarginal</span>
@@ -1302,7 +1302,7 @@ Negative ELBO: 2.9044</code></pre>
 L = \begin{pmatrix} e^{\ell_{11}} &amp; 0 \\ \ell_{21} &amp; e^{\ell_{22}} \end{pmatrix}, \qquad \Sigma = L L^\top
 \]</span></p>
 <p>This is exactly what <code>ConditionalDenseCholGaussian</code> implements. For <span class="math inline">\(d = 2\)</span>, the parameterization has <span class="math inline">\(2 + 2 + 1 = 5\)</span> parameters (2 means, 2 log-diagonal entries, 1 off-diagonal entry).</p>
-<div id="a674c9df" class="cell" data-execution_count="4">
+<div id="84b87ecd" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.multivariate_gaussian <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    ConditionalDenseCholGaussian,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1383,7 +1383,7 @@ Figure&nbsp;1: Diagonal vs.&nbsp;full-covariance Gaussian VI on the 2D composite
 \]</span></p>
 <p>where <span class="math inline">\(D = \mathrm{diag}(e^{\ell_1}, \ldots, e^{\ell_d})\)</span> is a diagonal matrix and <span class="math inline">\(V\)</span> is a <span class="math inline">\(d \times r\)</span> factor with <span class="math inline">\(r \ll d\)</span>. This captures the <span class="math inline">\(r\)</span> most important correlation directions using only <span class="math inline">\(d + dr\)</span> parameters instead of <span class="math inline">\(d(d+1)/2\)</span>.</p>
 <p>In PyApprox, <code>ConditionalLowRankCholGaussian</code> implements this parameterization. For the 2D problem (<span class="math inline">\(d = 2\)</span>, <span class="math inline">\(r = 2\)</span>), low-rank and full-covariance have the same capacity; the benefit appears for <span class="math inline">\(d \gg 2\)</span>.</p>
-<div id="dde7ba52" class="cell" data-execution_count="6">
+<div id="97658d3e" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.multivariate_gaussian <span class="im">import</span> (</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    ConditionalLowRankCholGaussian,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1441,7 +1441,7 @@ Negative ELBO: 2.6823</code></pre>
 <h2 class="anchored" data-anchor-id="family-4-beta-for-bounded-parameters">Family 4: Beta for Bounded Parameters</h2>
 <p>Not all parameters are unbounded. For a probability <span class="math inline">\(p \in (0, 1)\)</span>, a Gaussian variational distribution is a poor choice because it places mass outside the valid range. A <strong>Beta</strong> variational family naturally respects the bounds.</p>
 <p>To illustrate, consider the classic Beta-Bernoulli problem: we observe coin flips and want to infer the probability of heads <span class="math inline">\(p\)</span>. The prior is <span class="math inline">\(p \sim \text{Beta}(2, 2)\)</span> (mildly favoring fairness), and we observe <span class="math inline">\([1, 1, 0, 1, 0]\)</span> (3 heads, 2 tails). The exact conjugate posterior is <span class="math inline">\(\text{Beta}(5, 4)\)</span>.</p>
-<div id="6d0067b2" class="cell" data-execution_count="7">
+<div id="c318256c" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.beta <span class="im">import</span> ConditionalBeta</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.beta <span class="im">import</span> BetaMarginal</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.conjugate.beta <span class="im">import</span> BetaConjugatePosterior</span>
@@ -1462,7 +1462,7 @@ Negative ELBO: 2.6823</code></pre>
 Exact posterior mean: 0.5556</code></pre>
 </div>
 </div>
-<div id="1f3a5373" class="cell" data-execution_count="8">
+<div id="c1009bbf" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># VI with Beta variational family</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>log_alpha_func <span class="op">=</span> _make_degree0_expansion(bkd, math.log(prior_alpha))</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>log_beta_func <span class="op">=</span> _make_degree0_expansion(bkd, math.log(prior_beta))</span>
@@ -2371,7 +2371,7 @@ Figure&nbsp;2: Beta VI on the coin-flip problem. The VI approximation (blue dash
 <span id="cb13-317"><a href="#cb13-317" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb13-318"><a href="#cb13-318" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam posterior. Left: the diagonal (mean-field) Gaussian has axis-aligned ellipses --- it cannot represent the posterior's tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior correlation, producing a substantially better fit and a lower negative ELBO."</span></span>
 <span id="cb13-319"><a href="#cb13-319" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-family-comparison</span></span>
-<span id="cb13-320"><a href="#cb13-320" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_family_comparison</span>
+<span id="cb13-320"><a href="#cb13-320" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_family_comparison</span>
 <span id="cb13-321"><a href="#cb13-321" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-322"><a href="#cb13-322" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
 <span id="cb13-323"><a href="#cb13-323" aria-hidden="true" tabindex="-1"></a>plot_family_comparison(</span>
@@ -2508,7 +2508,7 @@ Figure&nbsp;2: Beta VI on the coin-flip problem. The VI approximation (blue dash
 <span id="cb13-462"><a href="#cb13-462" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb13-463"><a href="#cb13-463" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Beta VI on the coin-flip problem. The VI approximation (blue dashed) closely matches the exact conjugate posterior (orange). The Beta variational family naturally respects the parameter bounds $p \\in (0, 1)$."</span></span>
 <span id="cb13-464"><a href="#cb13-464" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-beta-vi</span></span>
-<span id="cb13-465"><a href="#cb13-465" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures._vi <span class="im">import</span> plot_beta_vi</span>
+<span id="cb13-465"><a href="#cb13-465" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_beta_vi</span>
 <span id="cb13-466"><a href="#cb13-466" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-467"><a href="#cb13-467" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
 <span id="cb13-468"><a href="#cb13-468" aria-hidden="true" tabindex="-1"></a>plot_beta_vi(prior_alpha, prior_beta, exact_posterior_alpha,</span>

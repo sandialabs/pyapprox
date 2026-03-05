@@ -1196,7 +1196,7 @@ Figure&nbsp;3: Response surfaces for the two sensor locations. Contours show def
 <section id="which-sensor-learned-more" class="level2">
 <h2 class="anchored" data-anchor-id="which-sensor-learned-more">Which Sensor Learned More?</h2>
 <p>Both sensors reduced the posterior uncertainty compared to the prior, but by different amounts. We quantify this by comparing the <strong>posterior covariance</strong>. A smaller covariance means the experiment was more informative.</p>
-<div id="bce343c2" class="cell" data-execution_count="6">
+<div id="dbe83d1f" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cov_det(gaussian):</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.to_float(bkd.det(gaussian.covariance()))</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1242,7 +1242,7 @@ Figure&nbsp;4: Combining sensors. Left: two sensors at the tip — the strong si
 \]</span></p>
 <p>The KL divergence measures how much the posterior differs from the prior — how much the experiment “taught” us. The expectation averages over all possible data <span class="math inline">\(y\)</span> we might observe. Higher EIG means the design is expected to be more informative, regardless of what data actually arrives.</p>
 <p>For our linear Gaussian problem, the EIG has a closed form that we can compute using <code>DenseGaussianConjugatePosterior</code>:</p>
-<div id="05833e88" class="cell" data-execution_count="8">
+<div id="ba21ad8c" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_eig(A_design):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Expected Information Gain for linear Gaussian model."""</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    nobs <span class="op">=</span> A_design.shape[<span class="dv">0</span>]</span>
@@ -1871,7 +1871,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Composite cantilever beam with uncertain loading $t_y(x) = -(\\theta_1 + \\theta_2\\, x/L)$. The beam has stiff skins (blue) and a compliant core (orange) with five circular holes. Two candidate sensor locations are marked: tip (green) and midpoint (purple). Both measure the vertical deflection at their location."</span></span>
 <span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-beam-setup</span></span>
-<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_beam_setup</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_beam_setup</span>
 <span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="fl">4.5</span>))</span>
 <span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>plot_beam_setup(ax)</span>
@@ -1959,7 +1959,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-170"><a href="#cb3-170" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-171"><a href="#cb3-171" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Same prior, same budget, different posteriors. The tip sensor (green) and midpoint sensor (purple) each constrain a different combination of $(\\theta_1, \\theta_2)$. The posterior ellipses are elongated in different directions --- each sensor leaves a different parameter combination unresolved."</span></span>
 <span id="cb3-172"><a href="#cb3-172" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-posteriors</span></span>
-<span id="cb3-173"><a href="#cb3-173" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_two_posteriors</span>
+<span id="cb3-173"><a href="#cb3-173" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_two_posteriors</span>
 <span id="cb3-174"><a href="#cb3-174" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-175"><a href="#cb3-175" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">7</span>))</span>
 <span id="cb3-176"><a href="#cb3-176" aria-hidden="true" tabindex="-1"></a>plot_two_posteriors(prior_dist, post_tip, post_mid, theta_true, ax)</span>
@@ -1984,7 +1984,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-197"><a href="#cb3-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-198"><a href="#cb3-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Response surfaces for the two sensor locations. Contours show deflection as a function of $(\\theta_1, \\theta_2)$. The contour orientation differs --- the tip (left) and midpoint (right) have different sensitivity to the two load parameters. The bold black curve marks the observed-value level set: the data constrains $\\boldsymbol{\\theta}$ to lie near this curve. The red X marks the true parameter values."</span></span>
 <span id="cb3-199"><a href="#cb3-199" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-response-surfaces</span></span>
-<span id="cb3-200"><a href="#cb3-200" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_response_surfaces</span>
+<span id="cb3-200"><a href="#cb3-200" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_response_surfaces</span>
 <span id="cb3-201"><a href="#cb3-201" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-202"><a href="#cb3-202" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
 <span id="cb3-203"><a href="#cb3-203" aria-hidden="true" tabindex="-1"></a>plot_response_surfaces(a_tip, a_mid, y_tip, y_mid, theta_true, fig, axes)</span>
@@ -2042,7 +2042,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-259"><a href="#cb3-259" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-260"><a href="#cb3-260" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Combining sensors. Left: two sensors at the tip --- the strong signal from both measurements reduces noise effectively. Center: one at the tip plus one at the midpoint --- diversity adds some new information, but the midpoint's weaker signal limits the gain. Right: posterior covariance determinant for all three configurations."</span></span>
 <span id="cb3-261"><a href="#cb3-261" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-combined-experiments</span></span>
-<span id="cb3-262"><a href="#cb3-262" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_combined_experiments</span>
+<span id="cb3-262"><a href="#cb3-262" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_combined_experiments</span>
 <span id="cb3-263"><a href="#cb3-263" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-264"><a href="#cb3-264" aria-hidden="true" tabindex="-1"></a><span class="co"># Two-sensor posteriors</span></span>
 <span id="cb3-265"><a href="#cb3-265" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> two_sensor_posterior(x1, x2, seed):</span>
@@ -2116,7 +2116,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-337"><a href="#cb3-337" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-338"><a href="#cb3-338" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Expected Information Gain vs. sensor position along the beam. The tip region is most informative because deflection is largest there, giving the best signal-to-noise ratio. The clamped end provides almost no information (near-zero deflection regardless of parameters)."</span></span>
 <span id="cb3-339"><a href="#cb3-339" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-eig-sweep</span></span>
-<span id="cb3-340"><a href="#cb3-340" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_eig_sweep</span>
+<span id="cb3-340"><a href="#cb3-340" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_eig_sweep</span>
 <span id="cb3-341"><a href="#cb3-341" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-342"><a href="#cb3-342" aria-hidden="true" tabindex="-1"></a>x_candidates <span class="op">=</span> bkd.to_numpy(all_sensor_xs)</span>
 <span id="cb3-343"><a href="#cb3-343" aria-hidden="true" tabindex="-1"></a>eig_values <span class="op">=</span> np.array([</span>
@@ -2139,7 +2139,7 @@ Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for 
 <span id="cb3-362"><a href="#cb3-362" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb3-363"><a href="#cb3-363" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "EIG heatmap for two-sensor designs. Each pixel shows the EIG for the sensor pair $(x_1, x_2)$. The diagonal corresponds to placing both sensors at the same location. The star marks the optimal pair."</span></span>
 <span id="cb3-364"><a href="#cb3-364" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-eig-2sensor-heatmap</span></span>
-<span id="cb3-365"><a href="#cb3-365" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> _figures <span class="im">import</span> plot_eig_2sensor_heatmap</span>
+<span id="cb3-365"><a href="#cb3-365" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_eig_2sensor_heatmap</span>
 <span id="cb3-366"><a href="#cb3-366" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-367"><a href="#cb3-367" aria-hidden="true" tabindex="-1"></a>n_sweep <span class="op">=</span> <span class="dv">40</span></span>
 <span id="cb3-368"><a href="#cb3-368" aria-hidden="true" tabindex="-1"></a>x_sweep <span class="op">=</span> np.linspace(<span class="dv">2</span>, L, n_sweep)</span>
