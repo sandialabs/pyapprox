@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="MLBLUE: Analysis – PyApprox">
 <meta property="og:description" content="Deriving the GLS normal equations, the information matrix Psi, and the MLBLUE variance formula beta^T Psi^{-1} beta — with numerical verification and a detailed walk-through of the three-subset example from the concept tutorial.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mlblue_analysis_files/figure-html/fig-verify-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="838">
-<meta property="og:image:width" content="1513">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1236,7 +1233,7 @@ window.Quarto = {
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We manually construct <span class="math inline">\(\boldsymbol{\Psi}\)</span> for the three-subset example from the concept tutorial and verify <a href="#eq-variance" class="quarto-xref">Equation&nbsp;6</a> against empirical variance from repeated trials.</p>
-<div id="9cd172b5" class="cell" data-execution_count="1">
+<div id="18a8ffb3" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1275,7 +1272,7 @@ window.Quarto = {
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>beta <span class="op">=</span> np.zeros(M <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span> beta[<span class="dv">0</span>] <span class="op">=</span> <span class="fl">1.0</span>   <span class="co"># extract HF mean</span></span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>var_theo <span class="op">=</span> <span class="bu">float</span>(beta <span class="op">@</span> Psi_inv <span class="op">@</span> beta)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="c8174200" class="cell" data-execution_count="2">
+<div id="75fe81f1" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-subset information contributions — shows which subsets inform which means</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, (sidx, mk) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(subsets_idx, m_counts)):</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Rk <span class="op">=</span> restriction(sidx, M)</span>
@@ -1283,7 +1280,9 @@ window.Quarto = {
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    term <span class="op">=</span> mk <span class="op">*</span> Rk.T <span class="op">@</span> np.linalg.solve(Ck, Rk)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now verify <a href="#eq-variance" class="quarto-xref">Equation&nbsp;6</a> empirically.</p>
-<div id="cell-fig-verify" class="cell" data-execution_count="3">
+<div id="fig-verify" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> [benchmark.models()[i] <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(nmodels)]</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">1000</span></span>
@@ -1313,24 +1312,19 @@ window.Quarto = {
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax)</span>
 <span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-verify" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="mlblue_analysis_files/figure-html/fig-verify-output-1.png" width="757" height="419" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Empirical distribution of MLBLUE estimates for <span class="math inline">\(Q_0\)</span> from 1000 independent trials (blue histogram), compared with the true mean (red dashed) and the theoretical +/-1 std band (shaded). The empirical std matches the theoretical prediction <span class="math inline">\(\sqrt{\boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}}\)</span> to within Monte Carlo noise.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="how-subset-sample-counts-affect-variance" class="level2">
 <h2 class="anchored" data-anchor-id="how-subset-sample-counts-affect-variance">How Subset Sample Counts Affect Variance</h2>
 <p>Increasing <span class="math inline">\(m_k\)</span> for any subset <span class="math inline">\(k\)</span> scales its contribution to <span class="math inline">\(\boldsymbol{\Psi}\)</span> linearly: <span class="math inline">\(\boldsymbol{\Psi} \propto m_k\)</span> for that term. The variance therefore decreases roughly as <span class="math inline">\(1/m_k\)</span> for large <span class="math inline">\(m_k\)</span>. <a href="#fig-m-sweep" class="quarto-xref">Figure&nbsp;2</a> shows this for the three-subset example.</p>
-<div id="cell-fig-m-sweep" class="cell" data-execution_count="4">
+<div id="fig-m-sweep" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-m-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>m3_vals <span class="op">=</span> np.logspace(<span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">80</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>vars_sweep <span class="op">=</span> []</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> m3 <span class="kw">in</span> m3_vals:</span>
@@ -1356,18 +1350,11 @@ Figure&nbsp;1: Empirical distribution of MLBLUE estimates for <span class="math 
 <span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax)</span>
 <span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-m-sweep" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-m-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="mlblue_analysis_files/figure-html/fig-m-sweep-output-1.png" width="755" height="369" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-m-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: MLBLUE variance <span class="math inline">\(\boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}\)</span> as a function of the sample count <span class="math inline">\(m_3\)</span> for subset <span class="math inline">\(S_3 = \{f_0, f_1\}\)</span> (holding <span class="math inline">\(m_1=1\)</span>, <span class="math inline">\(m_2=1\)</span> fixed). As <span class="math inline">\(m_3 \to \infty\)</span> the variance converges to the CV-1 limit (the maximum achievable when only <span class="math inline">\(f_1\)</span> provides cross-model information). Adding more models to the active subsets would lower this floor further.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-m-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="optimal-sample-allocation" class="level2">

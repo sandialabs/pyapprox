@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="General ACV: Analysis – PyApprox">
 <meta property="og:description" content="From the two-model ACV derivation through the general optimal weight matrix, the Schur complement variance reduction, and the allocation-matrix framework that parametrises all ACV estimators.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/acv_many_models_analysis_files/figure-html/fig-acv-verification-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="839">
-<meta property="og:image:width" content="1321">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1191,7 +1188,9 @@ r^* = \sqrt{\frac{C_\alpha}{C_\kappa}\cdot\frac{\rho^2_{\alpha\kappa}}{1 - \rho^
 </section>
 <section id="numerical-verification" class="level3">
 <h3 class="anchored" data-anchor-id="numerical-verification">Numerical verification</h3>
-<div id="cell-fig-acv-verification" class="cell" data-execution_count="1">
+<div id="fig-acv-verification" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-acv-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1272,18 +1271,11 @@ r^* = \sqrt{\frac{C_\alpha}{C_\kappa}\cdot\frac{\rho^2_{\alpha\kappa}}{1 - \rho^
 <span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>                                N, n_trials, ax)</span>
 <span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-acv-verification" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-acv-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_many_models_analysis_files/figure-html/fig-acv-verification-output-1.png" width="661" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-acv-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Empirical ACV variance reduction (dots) versus the theoretical prediction <span class="math inline">\(1 - \frac{r-1}{r}\rho^2\)</span> (dashed line) across a range of sample ratios <span class="math inline">\(r\)</span>. Each point uses <span class="math inline">\(N = 50\)</span> HF samples and 2000 independent trials.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-acv-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 </section>
@@ -1416,7 +1408,9 @@ A_{m, 2\alpha}   = 1 \iff \mathcal{P}_m \subseteq \mathcal{Z}_\alpha.
 </section>
 <section id="visualising-allocation-matrices" class="level3">
 <h3 class="anchored" data-anchor-id="visualising-allocation-matrices">Visualising allocation matrices</h3>
-<div id="cell-fig-allocation-matrices" class="cell" data-execution_count="2">
+<div id="fig-allocation-matrices" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-allocation-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1471,25 +1465,20 @@ A_{m, 2\alpha}   = 1 \iff \mathcal{P}_m \subseteq \mathcal{Z}_\alpha.
 <span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"Allocation matrices at budget $P = </span><span class="sc">{</span>target_cost<span class="sc">}</span><span class="ss">$"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-allocation-matrices" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-allocation-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_many_models_analysis_files/figure-html/fig-allocation-matrices-output-1.png" width="1909" height="492" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-allocation-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Allocation matrices for MLMC, MFMC, ACVMF, and ACVIS at budget <span class="math inline">\(P = 100\)</span>. Each row is a partition <span class="math inline">\(\mathcal{P}_m\)</span>; each column pair is <span class="math inline">\((\mathcal{Z}_\alpha^*, \mathcal{Z}_\alpha)\)</span>. Numbers show optimised partition sizes.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-allocation-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 </section>
 <section id="numerical-verification-1" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification-1">Numerical Verification</h2>
 <p>We verify <a href="#eq-acv-min-cov" class="quarto-xref">Equation&nbsp;9</a> by comparing predicted variance from <code>optimized_covariance()</code> against empirical variance from independent trials.</p>
-<div id="cell-fig-variance-verify" class="cell" data-execution_count="3">
+<div id="fig-variance-verify" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-variance-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>variable  <span class="op">=</span> benchmark.prior()</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>opt_verify <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
@@ -1550,18 +1539,11 @@ Figure&nbsp;2: Allocation matrices for MLMC, MFMC, ACVMF, and ACVIS at budget <s
 <span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>                           n_trials, ax)</span>
 <span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-variance-verify" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-variance-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_many_models_analysis_files/figure-html/fig-variance-verify-output-1.png" width="662" height="419" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: MC, MFMC, and ACVMF variance vs total cost: predictions (lines) compared to empirical variance from 200 independent trials (markers).
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-variance-verify-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="acvmf-vs-mfmc-what-changes" class="level2">

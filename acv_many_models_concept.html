@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="General Approximate Control Variates – PyApprox">
 <meta property="og:description" content="How using all low-fidelity models as direct control variates for the high-fidelity model breaks the CV-1 variance ceiling that limits MLMC and MFMC.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/acv_many_models_concept_files/figure-html/fig-direct-vs-indirect-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="979">
-<meta property="og:image:width" content="2284">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1134,43 +1131,15 @@ window.Quarto = {
 \tag{1}\]</span></span></p>
 <p>where <span class="math inline">\(\hat{\mu}_\alpha(\mathcal{Z}_\alpha^*) - \hat{\mu}_\alpha(\mathcal{Z}_\alpha)\)</span> is the <em>correction term</em> for model <span class="math inline">\(\alpha\)</span>: it is unbiased for zero, so the estimator remains unbiased for any weights <span class="math inline">\(\eta_\alpha\)</span>.</p>
 <p>This looks identical to the MFMC estimator — and algebraically it is. What differs is the <strong>sample-set structure</strong>. In MFMC, <span class="math inline">\(\mathcal{Z}_\alpha^* = \mathcal{Z}_{\alpha-1}\)</span> (each model anchors on the model above it in the chain). In the <strong>ACVMF</strong> estimator, <span class="math inline">\(\mathcal{Z}_\alpha^* = \mathcal{Z}_0\)</span> for <strong>every</strong> <span class="math inline">\(\alpha\)</span>: all LF models share the HF sample set as their comparison point. Each correction is therefore directly correlated with <span class="math inline">\(\hat{\mu}_0(\mathcal{Z}_0)\)</span>, and each one can reduce HF variance independently.</p>
-<p><a href="#fig-direct-vs-indirect" class="quarto-xref">Figure&nbsp;1</a> makes this structural difference visual.</p>
-<div id="cell-fig-direct-vs-indirect" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-direct-vs-indirect" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-direct-vs-indirect-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_many_models_concept_files/figure-html/fig-direct-vs-indirect-output-1.png" width="1142" height="490" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-direct-vs-indirect-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Sample-set wiring for four models (<span class="math inline">\(f_0\)</span> HF, <span class="math inline">\(f_1\)</span>–<span class="math inline">\(f_3\)</span> LF). Left: MFMC — corrections are chained; only <span class="math inline">\(f_1\)</span> directly touches <span class="math inline">\(f_0\)</span>’s sample set <span class="math inline">\(\mathcal{Z}_0\)</span> (red). Right: ACVMF — every LF model uses <span class="math inline">\(\mathcal{Z}_0\)</span> as its anchor, so all three corrections are directly correlated with <span class="math inline">\(\hat{\mu}_0(\mathcal{Z}_0)\)</span>. Unlike MFMC, ACV does not require a fidelity hierarchy among the LF models.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-direct-vs-indirect</strong> makes this structural difference visual.</p>
 </section>
 <section id="breaking-the-ceiling" class="level2">
 <h2 class="anchored" data-anchor-id="breaking-the-ceiling">Breaking the Ceiling</h2>
 <p>When all LF models correct <span class="math inline">\(f_0\)</span> directly and have access to enough exclusive samples, the variance of the ACVMF estimator converges to the <strong>multi-model CV limit</strong> — the reduction achievable if all LF means were known exactly simultaneously. This limit depends on the <em>joint</em> correlation between <span class="math inline">\(f_0\)</span> and all LF models, not just the pairwise correlation with <span class="math inline">\(f_1\)</span>.</p>
-<p><a href="#fig-acv-ceiling" class="quarto-xref">Figure&nbsp;2</a> shows this on the five-model polynomial benchmark.</p>
-<div id="cell-fig-acv-ceiling" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-acv-ceiling" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-acv-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_many_models_concept_files/figure-html/fig-acv-ceiling-output-1.png" width="950" height="468" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-acv-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Variance / MC variance vs total cost. MLMC and MFMC plateau at the CV-1 ceiling (set by <span class="math inline">\(\rho_{0,1}\)</span> alone). ACVMF converges toward the much lower CV-4 ceiling that exploits all four LF models simultaneously. CV-<span class="math inline">\(k\)</span> limits (dashed) are the theoretical minima if the means of the <span class="math inline">\(k\)</span> most informative LF models were known exactly.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-acv-ceiling</strong> shows this on the five-model polynomial benchmark.</p>
 <p>The green curve converges to the CV-4 limit — the reduction possible when all four LF models simultaneously correct <span class="math inline">\(f_0\)</span>. MFMC and MLMC are bounded by the much higher CV-1 limit regardless of how many additional LF samples are added.</p>
 <p>Why? Because in <a href="#eq-general-acv" class="quarto-xref">Equation&nbsp;1</a> with <span class="math inline">\(\mathcal{Z}_\alpha^* = \mathcal{Z}_0\)</span> for every <span class="math inline">\(\alpha\)</span>, the optimal weights exploit the <em>full</em> joint covariance between <span class="math inline">\(\hat{\mu}_0(\mathcal{Z}_0)\)</span> and all <span class="math inline">\(M\)</span> corrections simultaneously. The resulting variance reduction — shown in <a href="./acv_many_models_analysis.html">General ACV Analysis</a> to be a multi-model Schur complement — is at least as large as using any single correction alone, and often much larger.</p>
-<p>Note, however, that <a href="#fig-acv-ceiling" class="quarto-xref">Figure&nbsp;2</a> also shows MFMC outperforming ACVMF at small total costs. Moreover, the plot above holds the HF sample count fixed at <span class="math inline">\(N_0 = 1\)</span>. When the optimizer is free to jointly choose <span class="math inline">\(N_0\)</span> and the LF partition sizes, MFMC can outperform ACVMF on problems whose models form a natural hierarchy ordered by correlation per unit cost — for example, models obtained by successive mesh refinement. In such hierarchies the chained correction structure of MFMC aligns with the cost–accuracy ordering, and the indirect path through <span class="math inline">\(f_1\)</span> is already highly efficient. The general ACV framework pays off most when the LF models do not form a hierarchy but are still correlated with the HF model.</p>
+<p>Note, however, that <strong>?@fig-acv-ceiling</strong> also shows MFMC outperforming ACVMF at small total costs. Moreover, the plot above holds the HF sample count fixed at <span class="math inline">\(N_0 = 1\)</span>. When the optimizer is free to jointly choose <span class="math inline">\(N_0\)</span> and the LF partition sizes, MFMC can outperform ACVMF on problems whose models form a natural hierarchy ordered by correlation per unit cost — for example, models obtained by successive mesh refinement. In such hierarchies the chained correction structure of MFMC aligns with the cost–accuracy ordering, and the indirect path through <span class="math inline">\(f_1\)</span> is already highly efficient. The general ACV framework pays off most when the LF models do not form a hierarchy but are still correlated with the HF model.</p>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
@@ -1185,7 +1154,7 @@ Figure&nbsp;2: Variance / MC variance vs total cost. MLMC and MFMC plateau at th
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>From <a href="#fig-acv-ceiling" class="quarto-xref">Figure&nbsp;2</a>, at approximately what LF-to-HF ratio does ACVMF achieve half the variance of MFMC at the same ratio?</p></li>
+<li><p>From <strong>?@fig-acv-ceiling</strong>, at approximately what LF-to-HF ratio does ACVMF achieve half the variance of MFMC at the same ratio?</p></li>
 <li><p>Suppose <span class="math inline">\(\rho_{0,1} = 0.95\)</span> and <span class="math inline">\(\rho_{0,\alpha} = 0.6\)</span> for all <span class="math inline">\(\alpha \geq 2\)</span>. Compute the CV-1 and CV-<span class="math inline">\(M\)</span> limits as <span class="math inline">\(M\)</span> grows from 1 to 5. At what <span class="math inline">\(M\)</span> does the incremental gain become less than 1% of MC variance?</p></li>
 <li><p>Explain in one sentence why fixing <span class="math inline">\(\mathcal{Z}_\alpha^* = \mathcal{Z}_0\)</span> for every <span class="math inline">\(\alpha\)</span> in <a href="#eq-general-acv" class="quarto-xref">Equation&nbsp;1</a> is the structural change that breaks the CV-1 ceiling.</p></li>
 </ol>

@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Output ACV: Analysis – PyApprox">
 <meta property="og:description" content="Deriving the MOACV optimal weight matrix, the minimum covariance formula, and the condition under which joint estimation provably improves on independent scalar ACVs.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/multioutput_acv_analysis_files/figure-html/fig-mo-theory-vs-empirical-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="744">
-<meta property="og:image:width" content="1322">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1232,7 +1229,7 @@ window.Quarto = {
 </section>
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
-<div id="7f214ae9" class="cell" data-execution_count="1">
+<div id="4d6b644a" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1284,118 +1281,77 @@ window.Quarto = {
 <span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi):</span>
 <span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>    gain_pct <span class="op">=</span> (cov_so_np[qi, qi] <span class="op">-</span> cov_mo_np[qi, qi]) <span class="op">/</span> cov_so_np[qi, qi] <span class="op">*</span> <span class="dv">100</span></span>
 <span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  QoI </span><span class="sc">{</span>qi<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>gain_pct<span class="sc">:.1f}</span><span class="ss">% variance reduction from joint estimation"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>MOACV covariance (P=100, true cov):
-[[ 9.0e-05  2.4e-05 -2.4e-05]
- [ 2.4e-05  7.0e-06 -9.0e-06]
- [-2.4e-05 -9.0e-06  7.5e-05]]
-
-SOACV covariance (diagonal, independent per QoI):
-[[5.56e-04 0.00e+00 0.00e+00]
- [0.00e+00 9.00e-05 0.00e+00]
- [0.00e+00 0.00e+00 4.40e-05]]
-
-Gain (SOACV - MOACV diagonal):
-  QoI 0: 83.9% variance reduction from joint estimation
-  QoI 1: 91.9% variance reduction from joint estimation
-  QoI 2: -70.8% variance reduction from joint estimation</code></pre>
-</div>
 </div>
 <p>Now verify both predictions against empirical variance from repeated trials.</p>
-<div id="cell-fig-mo-theory-vs-empirical" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">1000</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, :nqoi]</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_mo(est, n_trials):</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run MOACV estimator for n_trials, return (n_trials, nqoi) array."""</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a]) <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        vals.append(bkd.to_numpy(est(vpm)).ravel())</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_so(est, qi, n_trials):</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run SOACV estimator for QoI qi, return length-n_trials array."""</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a])[qi:qi<span class="op">+</span><span class="dv">1</span>] <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        vals.append(<span class="bu">float</span>(est(vpm)))</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>mo_trials <span class="op">=</span> run_trials_mo(est_mo, n_trials)   <span class="co"># (n_trials, nqoi)</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>                            so_vars_emp, n_trials, ax)</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-mo-theory-vs-empirical" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-mo-theory-vs-empirical" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-mo-theory-vs-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="multioutput_acv_analysis_files/figure-html/fig-mo-theory-vs-empirical-output-1.png" width="661" height="372" class="figure-img">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, :nqoi]</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_mo(est, n_trials):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run MOACV estimator for n_trials, return (n_trials, nqoi) array."""</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a]) <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        vals.append(bkd.to_numpy(est(vpm)).ravel())</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_so(est, qi, n_trials):</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run SOACV estimator for QoI qi, return length-n_trials array."""</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a])[qi:qi<span class="op">+</span><span class="dv">1</span>] <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        vals.append(<span class="bu">float</span>(est(vpm)))</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>mo_trials <span class="op">=</span> run_trials_mo(est_mo, n_trials)   <span class="co"># (n_trials, nqoi)</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>                            so_vars_emp, n_trials, ax)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mo-theory-vs-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Theoretical (bars) vs empirical (dots) variance for each QoI under MOACV and SOACV, from 1000 independent trials. MOACV (purple) achieves lower variance for every QoI than SOACV (blue).
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-mo-theory-vs-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
 </div>
-</div>
-</div>
-<div id="dc3a53a9" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify PSD ordering: SOACV - MOACV should be PSD</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> cov_so_np <span class="op">-</span> cov_mo_np</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(diff)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Eigenvalues of (SOACV cov - MOACV cov): </span><span class="sc">{</span>eigvals<span class="sc">.</span><span class="bu">round</span>(<span class="dv">8</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"All non-negative? </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">all</span>(eigvals <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span>)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Eigenvalues of (SOACV cov - MOACV cov): [-3.3050e-05  8.2000e-05  4.6929e-04]
-All non-negative? False</code></pre>
-</div>
+<div id="afcc123a" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify PSD ordering: SOACV - MOACV should be PSD</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> cov_so_np <span class="op">-</span> cov_mo_np</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(diff)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Eigenvalues of (SOACV cov - MOACV cov): </span><span class="sc">{</span>eigvals<span class="sc">.</span><span class="bu">round</span>(<span class="dv">8</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"All non-negative? </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">all</span>(eigvals <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span>)<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="how-boldsymbolsigma_delta-q_0-drives-the-gain" class="level2">
 <h2 class="anchored" data-anchor-id="how-boldsymbolsigma_delta-q_0-drives-the-gain">How <span class="math inline">\(\boldsymbol{\Sigma}_{\Delta Q_0}\)</span> Drives the Gain</h2>
 <p>To make the gain concrete, print the full <span class="math inline">\(\boldsymbol{\Sigma}_{\Delta Q_0}\)</span> matrix and identify the off-diagonal blocks that SOACV ignores.</p>
-<div id="d40728c4" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sigma_DeltaQ0 is accessible via the estimator's internal covariance computation.</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># For the ACVMF (GMF with zero recursion index), with ratio r at the optimal allocation,</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the (alpha,s),(t) entry is: (r-1)/r * Sigma_{alpha_s, 0_t} / N0</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># We can approximate it from the joint covariance structure.</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>cov_np <span class="op">=</span> bkd.to_numpy(cov_true)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>N0     <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est_mo.nsamples_per_model())[<span class="dv">0</span>])  <span class="co"># HF samples</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Off-diagonal blocks of Sigma_{Delta,Q0} (cross-QoI covariances):"</span>)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"(These are ignored by SOACV but used by MOACV)"</span>)</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, nmodels):</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    block_full <span class="op">=</span> cov_np[a<span class="op">*</span>nqoi:(a<span class="op">+</span><span class="dv">1</span>)<span class="op">*</span>nqoi, :nqoi]  <span class="co"># Sigma_{alpha, 0}</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Model </span><span class="sc">{</span>a<span class="sc">}</span><span class="ss"> vs HF cross-block Sigma_</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">0:</span><span class="ch">\n</span><span class="sc">{</span>block_full<span class="sc">.</span><span class="bu">round</span>(<span class="dv">4</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    offdiag <span class="op">=</span> block_full.copy()<span class="op">;</span> np.fill_diagonal(offdiag, <span class="dv">0</span>)</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Off-diagonal (ignored by SOACV): max |entry| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(offdiag)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Off-diagonal blocks of Sigma_{Delta,Q0} (cross-QoI covariances):
-(These are ignored by SOACV but used by MOACV)
-
-  Model 1 vs HF cross-block Sigma_10:
-[[ 0.6094  0.1984 -0.3571]
- [ 0.6094  0.2016 -0.4211]
- [ 0.3011  0.1108 -0.5   ]]
-  Off-diagonal (ignored by SOACV): max |entry| = 0.6094
-
-  Model 2 vs HF cross-block Sigma_20:
-[[ 0.1995  0.066  -0.1378]
- [ 0.171   0.0577 -0.1378]
- [ 0.4196  0.1391 -0.3536]]
-  Off-diagonal (ignored by SOACV): max |entry| = 0.4196</code></pre>
-</div>
+<div id="35325096" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sigma_DeltaQ0 is accessible via the estimator's internal covariance computation.</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># For the ACVMF (GMF with zero recursion index), with ratio r at the optimal allocation,</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the (alpha,s),(t) entry is: (r-1)/r * Sigma_{alpha_s, 0_t} / N0</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># We can approximate it from the joint covariance structure.</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>cov_np <span class="op">=</span> bkd.to_numpy(cov_true)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>N0     <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est_mo.nsamples_per_model())[<span class="dv">0</span>])  <span class="co"># HF samples</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Off-diagonal blocks of Sigma_{Delta,Q0} (cross-QoI covariances):"</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"(These are ignored by SOACV but used by MOACV)"</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, nmodels):</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    block_full <span class="op">=</span> cov_np[a<span class="op">*</span>nqoi:(a<span class="op">+</span><span class="dv">1</span>)<span class="op">*</span>nqoi, :nqoi]  <span class="co"># Sigma_{alpha, 0}</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Model </span><span class="sc">{</span>a<span class="sc">}</span><span class="ss"> vs HF cross-block Sigma_</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">0:</span><span class="ch">\n</span><span class="sc">{</span>block_full<span class="sc">.</span><span class="bu">round</span>(<span class="dv">4</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    offdiag <span class="op">=</span> block_full.copy()<span class="op">;</span> np.fill_diagonal(offdiag, <span class="dv">0</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Off-diagonal (ignored by SOACV): max |entry| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(offdiag)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="key-takeaways" class="level2">
@@ -1880,394 +1836,394 @@ All non-negative? False</code></pre>
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multi-Output ACV: Analysis"</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving the MOACV optimal weight matrix, the minimum covariance formula, and the condition under which joint estimation provably improves on independent scalar ACVs."</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 15</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - multioutput_acv_concept</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-output</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - optimal-weights</span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - covariance-matrix</span></span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/multioutput_acv_analysis.ipynb)</span></span>
-<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write the MOACV estimator for $S$ QoIs and $M$ LF models</span>
-<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the optimal weight matrix $\mathbf{H}^* \in \mathbb{R}^{S \times SM}$ and the</span>
-<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>  minimum covariance formula</span>
-<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Show that the MOACV covariance is always $\leq$ SOACV in the PSD sense</span>
-<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Identify the cross-QoI covariance terms responsible for the improvement</span>
-<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the theory numerically against empirical variance estimates</span>
-<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Multi-Output ACV Concept</span><span class="co">](multioutput_acv_concept.qmd)</span> and</span>
-<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span> before this tutorial.</span>
-<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup and Notation</span></span>
-<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>Let $\mathbf{f}_\alpha \in \mathbb{R}^S$ ($\alpha = 0, \ldots, M$) be model outputs</span>
-<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>and let $\boldsymbol{\mu}_0 = \mathbb{E}<span class="co">[</span><span class="ot">\mathbf{f}_0</span><span class="co">]</span> \in \mathbb{R}^S$ be the target.</span>
-<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>Define the correction vectors</span>
-<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Delta}_\alpha = \mathbf{Q}_\alpha(\mathcal{Z}_\alpha^*) - \mathbf{Q}_\alpha(\mathcal{Z}_\alpha),</span>
-<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a>\quad \alpha = 1, \ldots, M,</span>
-<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a>where $\mathbf{Q}_\alpha(\mathcal{Z}) = \frac{1}{|\mathcal{Z}|}\sum_{k \in \mathcal{Z}} \mathbf{f}_\alpha(\boldsymbol{\theta}^{(k)}) \in \mathbb{R}^S$.</span>
-<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>Each $\boldsymbol{\Delta}_\alpha$ is unbiased for $\mathbf{0}$.</span>
-<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-67"><a href="#cb8-67" aria-hidden="true" tabindex="-1"></a>Stack all corrections: $\boldsymbol{\Delta} = <span class="co">[</span><span class="ot">\boldsymbol{\Delta}_1^\top, \ldots, \boldsymbol{\Delta}_M^\top</span><span class="co">]</span>^\top \in \mathbb{R}^{SM}$.</span>
-<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-69"><a href="#cb8-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-70"><a href="#cb8-70" aria-hidden="true" tabindex="-1"></a><span class="fu">## The MOACV Estimator</span></span>
-<span id="cb8-71"><a href="#cb8-71" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-72"><a href="#cb8-72" aria-hidden="true" tabindex="-1"></a>The **multi-output ACV (MOACV)** estimator is</span>
-<span id="cb8-73"><a href="#cb8-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-74"><a href="#cb8-74" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-75"><a href="#cb8-75" aria-hidden="true" tabindex="-1"></a>\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}</span>
-<span id="cb8-76"><a href="#cb8-76" aria-hidden="true" tabindex="-1"></a>= \mathbf{Q}_0(\mathcal{Z}_0) + \mathbf{H}\,\boldsymbol{\Delta},</span>
-<span id="cb8-77"><a href="#cb8-77" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv}</span>
-<span id="cb8-78"><a href="#cb8-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a>where $\mathbf{H} \in \mathbb{R}^{S \times SM}$ is the weight matrix. Partitioning</span>
-<span id="cb8-80"><a href="#cb8-80" aria-hidden="true" tabindex="-1"></a>$\mathbf{H} = <span class="co">[</span><span class="ot">\mathbf{H}_1, \ldots, \mathbf{H}_M</span><span class="co">]</span>$ with $\mathbf{H}_\alpha \in \mathbb{R}^{S\times S}$:</span>
-<span id="cb8-81"><a href="#cb8-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-82"><a href="#cb8-82" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-83"><a href="#cb8-83" aria-hidden="true" tabindex="-1"></a>\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}</span>
-<span id="cb8-84"><a href="#cb8-84" aria-hidden="true" tabindex="-1"></a>= \mathbf{Q}_0(\mathcal{Z}_0)</span>
-<span id="cb8-85"><a href="#cb8-85" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>\sum_{\alpha=1}^M \mathbf{H}_\alpha\,\boldsymbol{\Delta}_\alpha.</span>
-<span id="cb8-86"><a href="#cb8-86" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-87"><a href="#cb8-87" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-88"><a href="#cb8-88" aria-hidden="true" tabindex="-1"></a>For $S = 1$ (scalar QoI), $\mathbf{H}_\alpha$ reduces to the scalar weight $\eta_\alpha$</span>
-<span id="cb8-89"><a href="#cb8-89" aria-hidden="true" tabindex="-1"></a>and @eq-moacv is the general ACV estimator.</span>
-<span id="cb8-90"><a href="#cb8-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-91"><a href="#cb8-91" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb8-92"><a href="#cb8-92" aria-hidden="true" tabindex="-1"></a><span class="fu">## What distinguishes MOACV from SOACV</span></span>
-<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a>In SOACV, $\mathbf{H}_\alpha$ is restricted to be *diagonal*: QoI $s$ uses only the</span>
-<span id="cb8-94"><a href="#cb8-94" aria-hidden="true" tabindex="-1"></a>correction for QoI $s$ from each LF model, not the corrections for other QoIs.</span>
-<span id="cb8-95"><a href="#cb8-95" aria-hidden="true" tabindex="-1"></a>In MOACV, $\mathbf{H}_\alpha$ is a full $S\times S$ matrix. The off-diagonal entries</span>
-<span id="cb8-96"><a href="#cb8-96" aria-hidden="true" tabindex="-1"></a>weight corrections of QoI $t \neq s$ when estimating QoI $s$.</span>
-<span id="cb8-97"><a href="#cb8-97" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb8-98"><a href="#cb8-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-99"><a href="#cb8-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-100"><a href="#cb8-100" aria-hidden="true" tabindex="-1"></a><span class="fu">## Covariance of the MOACV Estimator</span></span>
-<span id="cb8-101"><a href="#cb8-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-102"><a href="#cb8-102" aria-hidden="true" tabindex="-1"></a>Using the variance-of-sums formula (and noting that $\mathbf{Q}_0(\mathcal{Z}_0)$ and</span>
-<span id="cb8-103"><a href="#cb8-103" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Delta}$ may share samples via $\mathcal{Z}_\alpha^* \ni \mathcal{Z}_0$):</span>
-<span id="cb8-104"><a href="#cb8-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-105"><a href="#cb8-105" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-106"><a href="#cb8-106" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)</span>
-<span id="cb8-107"><a href="#cb8-107" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
-<span id="cb8-108"><a href="#cb8-108" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta\Delta}\,\mathbf{H}^\top</span>
-<span id="cb8-109"><a href="#cb8-109" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta Q_0}</span>
-<span id="cb8-110"><a href="#cb8-110" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\mathbf{H}^\top,</span>
-<span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-cov}</span>
-<span id="cb8-112"><a href="#cb8-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-113"><a href="#cb8-113" aria-hidden="true" tabindex="-1"></a>where</span>
-<span id="cb8-114"><a href="#cb8-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-115"><a href="#cb8-115" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-116"><a href="#cb8-116" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\Delta\Delta}</span>
-<span id="cb8-117"><a href="#cb8-117" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta},\boldsymbol{\Delta}) \in \mathbb{R}^{SM\times SM},</span>
-<span id="cb8-118"><a href="#cb8-118" aria-hidden="true" tabindex="-1"></a>\qquad</span>
-<span id="cb8-119"><a href="#cb8-119" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\Delta Q_0}</span>
-<span id="cb8-120"><a href="#cb8-120" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta},\mathbf{Q}_0) \in \mathbb{R}^{SM\times S}.</span>
-<span id="cb8-121"><a href="#cb8-121" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-122"><a href="#cb8-122" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-123"><a href="#cb8-123" aria-hidden="true" tabindex="-1"></a>These matrices have the same structure as in the scalar case, except that each entry is</span>
-<span id="cb8-124"><a href="#cb8-124" aria-hidden="true" tabindex="-1"></a>an $S\times S$ block instead of a scalar. Specifically, the $(α,β)$ block of</span>
-<span id="cb8-125"><a href="#cb8-125" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{\Delta\Delta}$ is</span>
-<span id="cb8-126"><a href="#cb8-126" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-127"><a href="#cb8-127" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-128"><a href="#cb8-128" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta\Delta}</span><span class="co">]</span>_{\alpha\beta}</span>
-<span id="cb8-129"><a href="#cb8-129" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta}_\alpha, \boldsymbol{\Delta}_\beta) \in \mathbb{R}^{S\times S},</span>
-<span id="cb8-130"><a href="#cb8-130" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-131"><a href="#cb8-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-132"><a href="#cb8-132" aria-hidden="true" tabindex="-1"></a>which depends on the sample-set intersection sizes and the population covariance</span>
-<span id="cb8-133"><a href="#cb8-133" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{\alpha\beta}$ (see <span class="co">[</span><span class="ot">ACV Covariances</span><span class="co">](acv_many_models_analysis.qmd#sec-covariance-formulas)</span>).</span>
-<span id="cb8-134"><a href="#cb8-134" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-135"><a href="#cb8-135" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-136"><a href="#cb8-136" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimal Weight Matrix</span></span>
-<span id="cb8-137"><a href="#cb8-137" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-138"><a href="#cb8-138" aria-hidden="true" tabindex="-1"></a>@eq-moacv-cov is quadratic in $\mathbf{H}$. Minimising $\det(\mathbb{C}\mathrm{ov})$</span>
-<span id="cb8-139"><a href="#cb8-139" aria-hidden="true" tabindex="-1"></a>(or equivalently, for a fixed $\boldsymbol{\Sigma}_{\Delta\Delta}$ structure,</span>
-<span id="cb8-140"><a href="#cb8-140" aria-hidden="true" tabindex="-1"></a>$\mathrm{tr}(\mathbb{C}\mathrm{ov})$) over $\mathbf{H}$:</span>
-<span id="cb8-141"><a href="#cb8-141" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-142"><a href="#cb8-142" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-143"><a href="#cb8-143" aria-hidden="true" tabindex="-1"></a>\frac{\partial}{\partial \mathbf{H}}\,</span>
-<span id="cb8-144"><a href="#cb8-144" aria-hidden="true" tabindex="-1"></a>\mathrm{tr}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\mathbb{C}\mathrm{ov}\!\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)\right</span><span class="co">]</span></span>
-<span id="cb8-145"><a href="#cb8-145" aria-hidden="true" tabindex="-1"></a>= 2\,\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta\Delta}</span>
-<span id="cb8-146"><a href="#cb8-146" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>2\,\boldsymbol{\Sigma}_{Q_0\Delta}^\top = \mathbf{0}.</span>
-<span id="cb8-147"><a href="#cb8-147" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-148"><a href="#cb8-148" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-149"><a href="#cb8-149" aria-hidden="true" tabindex="-1"></a>Solving:</span>
-<span id="cb8-150"><a href="#cb8-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-151"><a href="#cb8-151" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-152"><a href="#cb8-152" aria-hidden="true" tabindex="-1"></a>\boxed{</span>
-<span id="cb8-153"><a href="#cb8-153" aria-hidden="true" tabindex="-1"></a>\mathbf{H}^* = -\boldsymbol{\Sigma}_{Q_0\Delta}^\top\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}</span>
-<span id="cb8-154"><a href="#cb8-154" aria-hidden="true" tabindex="-1"></a>             = -\boldsymbol{\Sigma}_{\Delta Q_0}^\top\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}.</span>
-<span id="cb8-155"><a href="#cb8-155" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb8-156"><a href="#cb8-156" aria-hidden="true" tabindex="-1"></a>$$ {#eq-h-star}</span>
-<span id="cb8-157"><a href="#cb8-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-158"><a href="#cb8-158" aria-hidden="true" tabindex="-1"></a>This is the direct generalisation of the scalar optimal weight $\eta^* = -\Sigma_{\Delta Q_0}^\top\Sigma_{\Delta\Delta}^{-1}$ from <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>. In the scalar case, $\mathbf{H}^*$ is a row vector; in MOACV it is an $S\times SM$ matrix.</span>
-<span id="cb8-159"><a href="#cb8-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-160"><a href="#cb8-160" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-161"><a href="#cb8-161" aria-hidden="true" tabindex="-1"></a><span class="fu">## Minimum Covariance</span></span>
-<span id="cb8-162"><a href="#cb8-162" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-163"><a href="#cb8-163" aria-hidden="true" tabindex="-1"></a>Substituting @eq-h-star into @eq-moacv-cov:</span>
-<span id="cb8-164"><a href="#cb8-164" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-165"><a href="#cb8-165" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-166"><a href="#cb8-166" aria-hidden="true" tabindex="-1"></a>\boxed{</span>
-<span id="cb8-167"><a href="#cb8-167" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)</span>
-<span id="cb8-168"><a href="#cb8-168" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
-<span id="cb8-169"><a href="#cb8-169" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,</span>
-<span id="cb8-170"><a href="#cb8-170" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}.</span>
-<span id="cb8-171"><a href="#cb8-171" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb8-172"><a href="#cb8-172" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-min-cov}</span>
-<span id="cb8-173"><a href="#cb8-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-174"><a href="#cb8-174" aria-hidden="true" tabindex="-1"></a>The variance reduction is the Schur complement</span>
-<span id="cb8-175"><a href="#cb8-175" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,\boldsymbol{\Sigma}_{\Delta Q_0}$,</span>
-<span id="cb8-176"><a href="#cb8-176" aria-hidden="true" tabindex="-1"></a>which is positive semidefinite for any choice of sample-set structure.</span>
-<span id="cb8-177"><a href="#cb8-177" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-178"><a href="#cb8-178" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-179"><a href="#cb8-179" aria-hidden="true" tabindex="-1"></a><span class="fu">## MOACV $\leq$ SOACV: The Key Inequality</span></span>
-<span id="cb8-180"><a href="#cb8-180" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-181"><a href="#cb8-181" aria-hidden="true" tabindex="-1"></a>In SOACV, the weight matrix is block-diagonal:</span>
-<span id="cb8-182"><a href="#cb8-182" aria-hidden="true" tabindex="-1"></a>$\mathbf{H}^{\text{SO}} = \mathrm{blkdiag}(\eta_1, \ldots, \eta_M)$ (scalar weights on</span>
-<span id="cb8-183"><a href="#cb8-183" aria-hidden="true" tabindex="-1"></a>the diagonal blocks). SOACV optimises each $\eta_\alpha$ independently for each QoI.</span>
-<span id="cb8-184"><a href="#cb8-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-185"><a href="#cb8-185" aria-hidden="true" tabindex="-1"></a>Let $\boldsymbol{\Sigma}_{\text{MOACV}}$ and $\boldsymbol{\Sigma}_{\text{SOACV}}$ denote</span>
-<span id="cb8-186"><a href="#cb8-186" aria-hidden="true" tabindex="-1"></a>the respective minimum covariances. We claim:</span>
-<span id="cb8-187"><a href="#cb8-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-188"><a href="#cb8-188" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-189"><a href="#cb8-189" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\text{MOACV}} \preceq \boldsymbol{\Sigma}_{\text{SOACV}}.</span>
-<span id="cb8-190"><a href="#cb8-190" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-leq-soacv}</span>
-<span id="cb8-191"><a href="#cb8-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-192"><a href="#cb8-192" aria-hidden="true" tabindex="-1"></a>**Proof.** The MOACV optimum @eq-h-star is the global minimiser over all $\mathbf{H}$,</span>
-<span id="cb8-193"><a href="#cb8-193" aria-hidden="true" tabindex="-1"></a>while the SOACV optimum restricts $\mathbf{H}$ to the set of block-diagonal matrices.</span>
-<span id="cb8-194"><a href="#cb8-194" aria-hidden="true" tabindex="-1"></a>A constrained minimum is always $\geq$ the unconstrained minimum in the PSD sense.</span>
-<span id="cb8-195"><a href="#cb8-195" aria-hidden="true" tabindex="-1"></a>Therefore $\boldsymbol{\Sigma}_{\text{MOACV}} \preceq \boldsymbol{\Sigma}_{\text{SOACV}}$. $\square$</span>
-<span id="cb8-196"><a href="#cb8-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-197"><a href="#cb8-197" aria-hidden="true" tabindex="-1"></a>**When does equality hold?** The MOACV and SOACV optima coincide exactly when the</span>
-<span id="cb8-198"><a href="#cb8-198" aria-hidden="true" tabindex="-1"></a>unrestricted $\mathbf{H}^*$ is already block-diagonal — that is, when</span>
-<span id="cb8-199"><a href="#cb8-199" aria-hidden="true" tabindex="-1"></a>$<span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha s)(\beta t)} = 0$ for all $s \neq t$.</span>
-<span id="cb8-200"><a href="#cb8-200" aria-hidden="true" tabindex="-1"></a>This happens only when all cross-QoI corrections are uncorrelated with the HF QoI</span>
-<span id="cb8-201"><a href="#cb8-201" aria-hidden="true" tabindex="-1"></a>errors — a degenerate case not typically seen in practice.</span>
-<span id="cb8-202"><a href="#cb8-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-203"><a href="#cb8-203" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-204"><a href="#cb8-204" aria-hidden="true" tabindex="-1"></a><span class="fu">## Structure of the Gain</span></span>
-<span id="cb8-205"><a href="#cb8-205" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-206"><a href="#cb8-206" aria-hidden="true" tabindex="-1"></a>The gain $\boldsymbol{\Sigma}_{\text{SOACV}} - \boldsymbol{\Sigma}_{\text{MOACV}}$ is</span>
-<span id="cb8-207"><a href="#cb8-207" aria-hidden="true" tabindex="-1"></a>determined by the off-diagonal blocks of $\boldsymbol{\Sigma}_{\Delta Q_0}$. The</span>
-<span id="cb8-208"><a href="#cb8-208" aria-hidden="true" tabindex="-1"></a>$(s,t)$ off-diagonal block is</span>
-<span id="cb8-209"><a href="#cb8-209" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-210"><a href="#cb8-210" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-211"><a href="#cb8-211" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha,s),t}</span>
-<span id="cb8-212"><a href="#cb8-212" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\Delta_{\alpha,s},\, Q_{0,t}(\mathcal{Z}_0)\right).</span>
-<span id="cb8-213"><a href="#cb8-213" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-214"><a href="#cb8-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-215"><a href="#cb8-215" aria-hidden="true" tabindex="-1"></a>This is the covariance between the correction for LF model $\alpha$ QoI $s$ and the</span>
-<span id="cb8-216"><a href="#cb8-216" aria-hidden="true" tabindex="-1"></a>HF estimator for QoI $t$. In SOACV, all such cross-QoI entries are ignored. In MOACV,</span>
-<span id="cb8-217"><a href="#cb8-217" aria-hidden="true" tabindex="-1"></a>they enter $\mathbf{H}^*$ and contribute to the Schur complement. The larger these</span>
-<span id="cb8-218"><a href="#cb8-218" aria-hidden="true" tabindex="-1"></a>cross-QoI covariances, the greater the MOACV gain.</span>
-<span id="cb8-219"><a href="#cb8-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-220"><a href="#cb8-220" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-221"><a href="#cb8-221" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
-<span id="cb8-222"><a href="#cb8-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-225"><a href="#cb8-225" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb8-226"><a href="#cb8-226" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb8-227"><a href="#cb8-227" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb8-228"><a href="#cb8-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb8-229"><a href="#cb8-229" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
-<span id="cb8-230"><a href="#cb8-230" aria-hidden="true" tabindex="-1"></a>    multioutput_ensemble_3x3,</span>
-<span id="cb8-231"><a href="#cb8-231" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-232"><a href="#cb8-232" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
-<span id="cb8-233"><a href="#cb8-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv <span class="im">import</span> GMFEstimator</span>
-<span id="cb8-234"><a href="#cb8-234" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.search <span class="im">import</span> ACVSearch</span>
-<span id="cb8-235"><a href="#cb8-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-236"><a href="#cb8-236" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb8-237"><a href="#cb8-237" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb8-238"><a href="#cb8-238" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> multioutput_ensemble_3x3(bkd)</span>
-<span id="cb8-239"><a href="#cb8-239" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> benchmark.costs()</span>
-<span id="cb8-240"><a href="#cb8-240" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> benchmark.models()[<span class="dv">0</span>].nqoi()</span>
-<span id="cb8-241"><a href="#cb8-241" aria-hidden="true" tabindex="-1"></a>nmodels   <span class="op">=</span> benchmark.nmodels()</span>
-<span id="cb8-242"><a href="#cb8-242" aria-hidden="true" tabindex="-1"></a>cov_true  <span class="op">=</span> benchmark.ensemble_covariance()</span>
-<span id="cb8-243"><a href="#cb8-243" aria-hidden="true" tabindex="-1"></a>variable  <span class="op">=</span> benchmark.prior()</span>
-<span id="cb8-244"><a href="#cb8-244" aria-hidden="true" tabindex="-1"></a>models    <span class="op">=</span> benchmark.models()</span>
-<span id="cb8-245"><a href="#cb8-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-246"><a href="#cb8-246" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-output stat (MOACV)</span></span>
-<span id="cb8-247"><a href="#cb8-247" aria-hidden="true" tabindex="-1"></a>stat_mo <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb8-248"><a href="#cb8-248" aria-hidden="true" tabindex="-1"></a>stat_mo.set_pilot_quantities(cov_true)</span>
-<span id="cb8-249"><a href="#cb8-249" aria-hidden="true" tabindex="-1"></a>search_mo <span class="op">=</span> ACVSearch(stat_mo, costs)</span>
-<span id="cb8-250"><a href="#cb8-250" aria-hidden="true" tabindex="-1"></a>result_mo <span class="op">=</span> search_mo.search(<span class="fl">100.0</span>)</span>
-<span id="cb8-251"><a href="#cb8-251" aria-hidden="true" tabindex="-1"></a>est_mo    <span class="op">=</span> result_mo.estimator</span>
-<span id="cb8-252"><a href="#cb8-252" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-253"><a href="#cb8-253" aria-hidden="true" tabindex="-1"></a><span class="co"># Single-output stats (SOACV) for each QoI</span></span>
-<span id="cb8-254"><a href="#cb8-254" aria-hidden="true" tabindex="-1"></a>ests_so <span class="op">=</span> []</span>
-<span id="cb8-255"><a href="#cb8-255" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi):</span>
-<span id="cb8-256"><a href="#cb8-256" aria-hidden="true" tabindex="-1"></a>    (cov_qi,) <span class="op">=</span> stat_mo.get_pilot_quantities_subset(</span>
-<span id="cb8-257"><a href="#cb8-257" aria-hidden="true" tabindex="-1"></a>        nmodels, nqoi, <span class="bu">list</span>(<span class="bu">range</span>(nmodels)), [qi]</span>
-<span id="cb8-258"><a href="#cb8-258" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb8-259"><a href="#cb8-259" aria-hidden="true" tabindex="-1"></a>    stat_qi <span class="op">=</span> MultiOutputMean(<span class="dv">1</span>, bkd)</span>
-<span id="cb8-260"><a href="#cb8-260" aria-hidden="true" tabindex="-1"></a>    stat_qi.set_pilot_quantities(cov_qi)</span>
-<span id="cb8-261"><a href="#cb8-261" aria-hidden="true" tabindex="-1"></a>    search_qi <span class="op">=</span> ACVSearch(stat_qi, costs)</span>
-<span id="cb8-262"><a href="#cb8-262" aria-hidden="true" tabindex="-1"></a>    result_qi <span class="op">=</span> search_qi.search(<span class="fl">100.0</span>)</span>
-<span id="cb8-263"><a href="#cb8-263" aria-hidden="true" tabindex="-1"></a>    ests_so.append(result_qi.estimator)</span>
-<span id="cb8-264"><a href="#cb8-264" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-265"><a href="#cb8-265" aria-hidden="true" tabindex="-1"></a>cov_mo_np <span class="op">=</span> bkd.to_numpy(est_mo.optimized_covariance())</span>
-<span id="cb8-266"><a href="#cb8-266" aria-hidden="true" tabindex="-1"></a>cov_so_np <span class="op">=</span> np.diag([<span class="bu">float</span>(bkd.to_numpy(e.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb8-267"><a href="#cb8-267" aria-hidden="true" tabindex="-1"></a>                     <span class="cf">for</span> e <span class="kw">in</span> ests_so])</span>
-<span id="cb8-268"><a href="#cb8-268" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-269"><a href="#cb8-269" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"MOACV covariance (P=100, true cov):"</span>)</span>
-<span id="cb8-270"><a href="#cb8-270" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(cov_mo_np.<span class="bu">round</span>(<span class="dv">6</span>))</span>
-<span id="cb8-271"><a href="#cb8-271" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">SOACV covariance (diagonal, independent per QoI):"</span>)</span>
-<span id="cb8-272"><a href="#cb8-272" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(cov_so_np.<span class="bu">round</span>(<span class="dv">6</span>))</span>
-<span id="cb8-273"><a href="#cb8-273" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Gain (SOACV - MOACV diagonal):"</span>)</span>
-<span id="cb8-274"><a href="#cb8-274" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi):</span>
-<span id="cb8-275"><a href="#cb8-275" aria-hidden="true" tabindex="-1"></a>    gain_pct <span class="op">=</span> (cov_so_np[qi, qi] <span class="op">-</span> cov_mo_np[qi, qi]) <span class="op">/</span> cov_so_np[qi, qi] <span class="op">*</span> <span class="dv">100</span></span>
-<span id="cb8-276"><a href="#cb8-276" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  QoI </span><span class="sc">{</span>qi<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>gain_pct<span class="sc">:.1f}</span><span class="ss">% variance reduction from joint estimation"</span>)</span>
-<span id="cb8-277"><a href="#cb8-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-278"><a href="#cb8-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-279"><a href="#cb8-279" aria-hidden="true" tabindex="-1"></a>Now verify both predictions against empirical variance from repeated trials.</span>
-<span id="cb8-280"><a href="#cb8-280" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-283"><a href="#cb8-283" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb8-284"><a href="#cb8-284" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Theoretical (bars) vs empirical (dots) variance for each QoI under MOACV and SOACV, from 1000 independent trials. MOACV (purple) achieves lower variance for every QoI than SOACV (blue)."</span></span>
-<span id="cb8-285"><a href="#cb8-285" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mo-theory-vs-empirical</span></span>
-<span id="cb8-286"><a href="#cb8-286" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-287"><a href="#cb8-287" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">1000</span></span>
-<span id="cb8-288"><a href="#cb8-288" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, :nqoi]</span>
-<span id="cb8-289"><a href="#cb8-289" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-290"><a href="#cb8-290" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_mo(est, n_trials):</span>
-<span id="cb8-291"><a href="#cb8-291" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run MOACV estimator for n_trials, return (n_trials, nqoi) array."""</span></span>
-<span id="cb8-292"><a href="#cb8-292" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
-<span id="cb8-293"><a href="#cb8-293" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb8-294"><a href="#cb8-294" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
-<span id="cb8-295"><a href="#cb8-295" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
-<span id="cb8-296"><a href="#cb8-296" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a]) <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
-<span id="cb8-297"><a href="#cb8-297" aria-hidden="true" tabindex="-1"></a>        vals.append(bkd.to_numpy(est(vpm)).ravel())</span>
-<span id="cb8-298"><a href="#cb8-298" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
-<span id="cb8-299"><a href="#cb8-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-300"><a href="#cb8-300" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_so(est, qi, n_trials):</span>
-<span id="cb8-301"><a href="#cb8-301" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run SOACV estimator for QoI qi, return length-n_trials array."""</span></span>
-<span id="cb8-302"><a href="#cb8-302" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
-<span id="cb8-303"><a href="#cb8-303" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb8-304"><a href="#cb8-304" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
-<span id="cb8-305"><a href="#cb8-305" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
-<span id="cb8-306"><a href="#cb8-306" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a])[qi:qi<span class="op">+</span><span class="dv">1</span>] <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
-<span id="cb8-307"><a href="#cb8-307" aria-hidden="true" tabindex="-1"></a>        vals.append(<span class="bu">float</span>(est(vpm)))</span>
-<span id="cb8-308"><a href="#cb8-308" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
-<span id="cb8-309"><a href="#cb8-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-310"><a href="#cb8-310" aria-hidden="true" tabindex="-1"></a>mo_trials <span class="op">=</span> run_trials_mo(est_mo, n_trials)   <span class="co"># (n_trials, nqoi)</span></span>
-<span id="cb8-311"><a href="#cb8-311" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
-<span id="cb8-312"><a href="#cb8-312" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
-<span id="cb8-313"><a href="#cb8-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-314"><a href="#cb8-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
-<span id="cb8-315"><a href="#cb8-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-316"><a href="#cb8-316" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
-<span id="cb8-317"><a href="#cb8-317" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>
-<span id="cb8-318"><a href="#cb8-318" aria-hidden="true" tabindex="-1"></a>                            so_vars_emp, n_trials, ax)</span>
-<span id="cb8-319"><a href="#cb8-319" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb8-320"><a href="#cb8-320" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb8-321"><a href="#cb8-321" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-322"><a href="#cb8-322" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-325"><a href="#cb8-325" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb8-326"><a href="#cb8-326" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify PSD ordering: SOACV - MOACV should be PSD</span></span>
-<span id="cb8-327"><a href="#cb8-327" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> cov_so_np <span class="op">-</span> cov_mo_np</span>
-<span id="cb8-328"><a href="#cb8-328" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(diff)</span>
-<span id="cb8-329"><a href="#cb8-329" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Eigenvalues of (SOACV cov - MOACV cov): </span><span class="sc">{</span>eigvals<span class="sc">.</span><span class="bu">round</span>(<span class="dv">8</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb8-330"><a href="#cb8-330" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"All non-negative? </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">all</span>(eigvals <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb8-331"><a href="#cb8-331" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-332"><a href="#cb8-332" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-333"><a href="#cb8-333" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-334"><a href="#cb8-334" aria-hidden="true" tabindex="-1"></a><span class="fu">## How $\boldsymbol{\Sigma}_{\Delta Q_0}$ Drives the Gain</span></span>
-<span id="cb8-335"><a href="#cb8-335" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-336"><a href="#cb8-336" aria-hidden="true" tabindex="-1"></a>To make the gain concrete, print the full $\boldsymbol{\Sigma}_{\Delta Q_0}$ matrix</span>
-<span id="cb8-337"><a href="#cb8-337" aria-hidden="true" tabindex="-1"></a>and identify the off-diagonal blocks that SOACV ignores.</span>
-<span id="cb8-338"><a href="#cb8-338" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-341"><a href="#cb8-341" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb8-342"><a href="#cb8-342" aria-hidden="true" tabindex="-1"></a><span class="co"># Sigma_DeltaQ0 is accessible via the estimator's internal covariance computation.</span></span>
-<span id="cb8-343"><a href="#cb8-343" aria-hidden="true" tabindex="-1"></a><span class="co"># For the ACVMF (GMF with zero recursion index), with ratio r at the optimal allocation,</span></span>
-<span id="cb8-344"><a href="#cb8-344" aria-hidden="true" tabindex="-1"></a><span class="co"># the (alpha,s),(t) entry is: (r-1)/r * Sigma_{alpha_s, 0_t} / N0</span></span>
-<span id="cb8-345"><a href="#cb8-345" aria-hidden="true" tabindex="-1"></a><span class="co"># We can approximate it from the joint covariance structure.</span></span>
-<span id="cb8-346"><a href="#cb8-346" aria-hidden="true" tabindex="-1"></a>cov_np <span class="op">=</span> bkd.to_numpy(cov_true)</span>
-<span id="cb8-347"><a href="#cb8-347" aria-hidden="true" tabindex="-1"></a>N0     <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est_mo.nsamples_per_model())[<span class="dv">0</span>])  <span class="co"># HF samples</span></span>
-<span id="cb8-348"><a href="#cb8-348" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-349"><a href="#cb8-349" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Off-diagonal blocks of Sigma_{Delta,Q0} (cross-QoI covariances):"</span>)</span>
-<span id="cb8-350"><a href="#cb8-350" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"(These are ignored by SOACV but used by MOACV)"</span>)</span>
-<span id="cb8-351"><a href="#cb8-351" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, nmodels):</span>
-<span id="cb8-352"><a href="#cb8-352" aria-hidden="true" tabindex="-1"></a>    block_full <span class="op">=</span> cov_np[a<span class="op">*</span>nqoi:(a<span class="op">+</span><span class="dv">1</span>)<span class="op">*</span>nqoi, :nqoi]  <span class="co"># Sigma_{alpha, 0}</span></span>
-<span id="cb8-353"><a href="#cb8-353" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Model </span><span class="sc">{</span>a<span class="sc">}</span><span class="ss"> vs HF cross-block Sigma_</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">0:</span><span class="ch">\n</span><span class="sc">{</span>block_full<span class="sc">.</span><span class="bu">round</span>(<span class="dv">4</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb8-354"><a href="#cb8-354" aria-hidden="true" tabindex="-1"></a>    offdiag <span class="op">=</span> block_full.copy()<span class="op">;</span> np.fill_diagonal(offdiag, <span class="dv">0</span>)</span>
-<span id="cb8-355"><a href="#cb8-355" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Off-diagonal (ignored by SOACV): max |entry| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(offdiag)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb8-356"><a href="#cb8-356" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-357"><a href="#cb8-357" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-358"><a href="#cb8-358" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-359"><a href="#cb8-359" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb8-360"><a href="#cb8-360" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-361"><a href="#cb8-361" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The MOACV estimator @eq-moacv uses a full $S\times SM$ weight matrix $\mathbf{H}$;</span>
-<span id="cb8-362"><a href="#cb8-362" aria-hidden="true" tabindex="-1"></a>  SOACV restricts it to block-diagonal</span>
-<span id="cb8-363"><a href="#cb8-363" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The optimal weight is $\mathbf{H}^* = -\boldsymbol{\Sigma}_{\Delta Q_0}^\top\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}$</span>
-<span id="cb8-364"><a href="#cb8-364" aria-hidden="true" tabindex="-1"></a>  — identical in structure to the scalar ACV formula</span>
-<span id="cb8-365"><a href="#cb8-365" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The minimum covariance is the same Schur complement formula as in the scalar case,</span>
-<span id="cb8-366"><a href="#cb8-366" aria-hidden="true" tabindex="-1"></a>  but now it exploits both cross-model and cross-QoI correlations</span>
-<span id="cb8-367"><a href="#cb8-367" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>@eq-moacv-leq-soacv: MOACV $\preceq$ SOACV always, with equality only when all</span>
-<span id="cb8-368"><a href="#cb8-368" aria-hidden="true" tabindex="-1"></a>  cross-QoI corrections are uncorrelated with all HF QoI errors</span>
-<span id="cb8-369"><a href="#cb8-369" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-370"><a href="#cb8-370" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-371"><a href="#cb8-371" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb8-372"><a href="#cb8-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-373"><a href="#cb8-373" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>For $S = 1$, show that @eq-h-star reduces to the scalar ACV optimal weight</span>
-<span id="cb8-374"><a href="#cb8-374" aria-hidden="true" tabindex="-1"></a>   $\mathbf{H}^* = -\Sigma_{\Delta Q_0}^\top \Sigma_{\Delta\Delta}^{-1}$ from</span>
-<span id="cb8-375"><a href="#cb8-375" aria-hidden="true" tabindex="-1"></a>   <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>.</span>
-<span id="cb8-376"><a href="#cb8-376" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-377"><a href="#cb8-377" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>For $S = 2$, $M = 1$ (one LF model), write out @eq-h-star explicitly as a</span>
-<span id="cb8-378"><a href="#cb8-378" aria-hidden="true" tabindex="-1"></a>   $2\times 2$ matrix. Identify the off-diagonal entry in terms of the cross-QoI</span>
-<span id="cb8-379"><a href="#cb8-379" aria-hidden="true" tabindex="-1"></a>   covariance between $\Delta_1$ and $Q_{0,t}$.</span>
-<span id="cb8-380"><a href="#cb8-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-381"><a href="#cb8-381" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Show that when $<span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha s)(t)} = 0$ for $s \neq t$,</span>
-<span id="cb8-382"><a href="#cb8-382" aria-hidden="true" tabindex="-1"></a>   the MOACV optimal weight matrix is block-diagonal, and MOACV = SOACV.</span>
-<span id="cb8-383"><a href="#cb8-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-384"><a href="#cb8-384" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Prove @eq-moacv-leq-soacv rigorously using the fact that the trace</span>
-<span id="cb8-385"><a href="#cb8-385" aria-hidden="true" tabindex="-1"></a>   (or determinant) of a positive semidefinite matrix minus another PSD matrix is</span>
-<span id="cb8-386"><a href="#cb8-386" aria-hidden="true" tabindex="-1"></a>   non-negative.</span>
-<span id="cb8-387"><a href="#cb8-387" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-388"><a href="#cb8-388" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-389"><a href="#cb8-389" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
-<span id="cb8-390"><a href="#cb8-390" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-391"><a href="#cb8-391" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">DWBG2024</span><span class="co">]</span> D. Schaden, E. Ullmann, R. Butler, J. Jakeman. *Multi-output approximate</span>
-<span id="cb8-392"><a href="#cb8-392" aria-hidden="true" tabindex="-1"></a>  control variates.* 2024.</span>
-<span id="cb8-393"><a href="#cb8-393" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">arXiv:2310.00125</span><span class="co">](https://doi.org/10.48550/arXiv.2310.00125)</span></span>
-<span id="cb8-394"><a href="#cb8-394" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-395"><a href="#cb8-395" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">RM1985</span><span class="co">]</span> R. Y. Rubinstein and R. Marcus. *Efficiency of multivariate control variates</span>
-<span id="cb8-396"><a href="#cb8-396" aria-hidden="true" tabindex="-1"></a>  in Monte Carlo simulation.* Operations Research, 33(3):661–677, 1985.</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multi-Output ACV: Analysis"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving the MOACV optimal weight matrix, the minimum covariance formula, and the condition under which joint estimation provably improves on independent scalar ACVs."</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 15</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - multioutput_acv_concept</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-output</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - optimal-weights</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - covariance-matrix</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/multioutput_acv_analysis.ipynb)</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write the MOACV estimator for $S$ QoIs and $M$ LF models</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the optimal weight matrix $\mathbf{H}^* \in \mathbb{R}^{S \times SM}$ and the</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>  minimum covariance formula</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Show that the MOACV covariance is always $\leq$ SOACV in the PSD sense</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Identify the cross-QoI covariance terms responsible for the improvement</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the theory numerically against empirical variance estimates</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Multi-Output ACV Concept</span><span class="co">](multioutput_acv_concept.qmd)</span> and</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span> before this tutorial.</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup and Notation</span></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>Let $\mathbf{f}_\alpha \in \mathbb{R}^S$ ($\alpha = 0, \ldots, M$) be model outputs</span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>and let $\boldsymbol{\mu}_0 = \mathbb{E}<span class="co">[</span><span class="ot">\mathbf{f}_0</span><span class="co">]</span> \in \mathbb{R}^S$ be the target.</span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>Define the correction vectors</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Delta}_\alpha = \mathbf{Q}_\alpha(\mathcal{Z}_\alpha^*) - \mathbf{Q}_\alpha(\mathcal{Z}_\alpha),</span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>\quad \alpha = 1, \ldots, M,</span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>where $\mathbf{Q}_\alpha(\mathcal{Z}) = \frac{1}{|\mathcal{Z}|}\sum_{k \in \mathcal{Z}} \mathbf{f}_\alpha(\boldsymbol{\theta}^{(k)}) \in \mathbb{R}^S$.</span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a>Each $\boldsymbol{\Delta}_\alpha$ is unbiased for $\mathbf{0}$.</span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>Stack all corrections: $\boldsymbol{\Delta} = <span class="co">[</span><span class="ot">\boldsymbol{\Delta}_1^\top, \ldots, \boldsymbol{\Delta}_M^\top</span><span class="co">]</span>^\top \in \mathbb{R}^{SM}$.</span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a><span class="fu">## The MOACV Estimator</span></span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>The **multi-output ACV (MOACV)** estimator is</span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}</span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>= \mathbf{Q}_0(\mathcal{Z}_0) + \mathbf{H}\,\boldsymbol{\Delta},</span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv}</span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a>where $\mathbf{H} \in \mathbb{R}^{S \times SM}$ is the weight matrix. Partitioning</span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>$\mathbf{H} = <span class="co">[</span><span class="ot">\mathbf{H}_1, \ldots, \mathbf{H}_M</span><span class="co">]</span>$ with $\mathbf{H}_\alpha \in \mathbb{R}^{S\times S}$:</span>
+<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a>\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}</span>
+<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>= \mathbf{Q}_0(\mathcal{Z}_0)</span>
+<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>\sum_{\alpha=1}^M \mathbf{H}_\alpha\,\boldsymbol{\Delta}_\alpha.</span>
+<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a>For $S = 1$ (scalar QoI), $\mathbf{H}_\alpha$ reduces to the scalar weight $\eta_\alpha$</span>
+<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>and @eq-moacv is the general ACV estimator.</span>
+<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a><span class="fu">## What distinguishes MOACV from SOACV</span></span>
+<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>In SOACV, $\mathbf{H}_\alpha$ is restricted to be *diagonal*: QoI $s$ uses only the</span>
+<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>correction for QoI $s$ from each LF model, not the corrections for other QoIs.</span>
+<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a>In MOACV, $\mathbf{H}_\alpha$ is a full $S\times S$ matrix. The off-diagonal entries</span>
+<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a>weight corrections of QoI $t \neq s$ when estimating QoI $s$.</span>
+<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a><span class="fu">## Covariance of the MOACV Estimator</span></span>
+<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a>Using the variance-of-sums formula (and noting that $\mathbf{Q}_0(\mathcal{Z}_0)$ and</span>
+<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Delta}$ may share samples via $\mathcal{Z}_\alpha^* \ni \mathcal{Z}_0$):</span>
+<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)</span>
+<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
+<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta\Delta}\,\mathbf{H}^\top</span>
+<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta Q_0}</span>
+<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\mathbf{H}^\top,</span>
+<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-cov}</span>
+<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a>where</span>
+<span id="cb5-114"><a href="#cb5-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-115"><a href="#cb5-115" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\Delta\Delta}</span>
+<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta},\boldsymbol{\Delta}) \in \mathbb{R}^{SM\times SM},</span>
+<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a>\qquad</span>
+<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\Delta Q_0}</span>
+<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta},\mathbf{Q}_0) \in \mathbb{R}^{SM\times S}.</span>
+<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a>These matrices have the same structure as in the scalar case, except that each entry is</span>
+<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a>an $S\times S$ block instead of a scalar. Specifically, the $(α,β)$ block of</span>
+<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{\Delta\Delta}$ is</span>
+<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta\Delta}</span><span class="co">]</span>_{\alpha\beta}</span>
+<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta}_\alpha, \boldsymbol{\Delta}_\beta) \in \mathbb{R}^{S\times S},</span>
+<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>which depends on the sample-set intersection sizes and the population covariance</span>
+<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{\alpha\beta}$ (see <span class="co">[</span><span class="ot">ACV Covariances</span><span class="co">](acv_many_models_analysis.qmd#sec-covariance-formulas)</span>).</span>
+<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimal Weight Matrix</span></span>
+<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a>@eq-moacv-cov is quadratic in $\mathbf{H}$. Minimising $\det(\mathbb{C}\mathrm{ov})$</span>
+<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a>(or equivalently, for a fixed $\boldsymbol{\Sigma}_{\Delta\Delta}$ structure,</span>
+<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a>$\mathrm{tr}(\mathbb{C}\mathrm{ov})$) over $\mathbf{H}$:</span>
+<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a>\frac{\partial}{\partial \mathbf{H}}\,</span>
+<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a>\mathrm{tr}<span class="sc">\!</span>\left<span class="co">[</span><span class="ot">\mathbb{C}\mathrm{ov}\!\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)\right</span><span class="co">]</span></span>
+<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a>= 2\,\mathbf{H}\,\boldsymbol{\Sigma}_{\Delta\Delta}</span>
+<span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>2\,\boldsymbol{\Sigma}_{Q_0\Delta}^\top = \mathbf{0}.</span>
+<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a>Solving:</span>
+<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a>\boxed{</span>
+<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>\mathbf{H}^* = -\boldsymbol{\Sigma}_{Q_0\Delta}^\top\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}</span>
+<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>             = -\boldsymbol{\Sigma}_{\Delta Q_0}^\top\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}.</span>
+<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a>$$ {#eq-h-star}</span>
+<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a>This is the direct generalisation of the scalar optimal weight $\eta^* = -\Sigma_{\Delta Q_0}^\top\Sigma_{\Delta\Delta}^{-1}$ from <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>. In the scalar case, $\mathbf{H}^*$ is a row vector; in MOACV it is an $S\times SM$ matrix.</span>
+<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a><span class="fu">## Minimum Covariance</span></span>
+<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a>Substituting @eq-h-star into @eq-moacv-cov:</span>
+<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>\boxed{</span>
+<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\hat{\boldsymbol{\mu}}_0^{\text{MOACV}}\right)</span>
+<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
+<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,</span>
+<span id="cb5-170"><a href="#cb5-170" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}.</span>
+<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-172"><a href="#cb5-172" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-min-cov}</span>
+<span id="cb5-173"><a href="#cb5-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a>The variance reduction is the Schur complement</span>
+<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,\boldsymbol{\Sigma}_{\Delta Q_0}$,</span>
+<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a>which is positive semidefinite for any choice of sample-set structure.</span>
+<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a><span class="fu">## MOACV $\leq$ SOACV: The Key Inequality</span></span>
+<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a>In SOACV, the weight matrix is block-diagonal:</span>
+<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a>$\mathbf{H}^{\text{SO}} = \mathrm{blkdiag}(\eta_1, \ldots, \eta_M)$ (scalar weights on</span>
+<span id="cb5-183"><a href="#cb5-183" aria-hidden="true" tabindex="-1"></a>the diagonal blocks). SOACV optimises each $\eta_\alpha$ independently for each QoI.</span>
+<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a>Let $\boldsymbol{\Sigma}_{\text{MOACV}}$ and $\boldsymbol{\Sigma}_{\text{SOACV}}$ denote</span>
+<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a>the respective minimum covariances. We claim:</span>
+<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\Sigma}_{\text{MOACV}} \preceq \boldsymbol{\Sigma}_{\text{SOACV}}.</span>
+<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a>$$ {#eq-moacv-leq-soacv}</span>
+<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a>**Proof.** The MOACV optimum @eq-h-star is the global minimiser over all $\mathbf{H}$,</span>
+<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a>while the SOACV optimum restricts $\mathbf{H}$ to the set of block-diagonal matrices.</span>
+<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>A constrained minimum is always $\geq$ the unconstrained minimum in the PSD sense.</span>
+<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a>Therefore $\boldsymbol{\Sigma}_{\text{MOACV}} \preceq \boldsymbol{\Sigma}_{\text{SOACV}}$. $\square$</span>
+<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a>**When does equality hold?** The MOACV and SOACV optima coincide exactly when the</span>
+<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a>unrestricted $\mathbf{H}^*$ is already block-diagonal — that is, when</span>
+<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a>$<span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha s)(\beta t)} = 0$ for all $s \neq t$.</span>
+<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a>This happens only when all cross-QoI corrections are uncorrelated with the HF QoI</span>
+<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a>errors — a degenerate case not typically seen in practice.</span>
+<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a><span class="fu">## Structure of the Gain</span></span>
+<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a>The gain $\boldsymbol{\Sigma}_{\text{SOACV}} - \boldsymbol{\Sigma}_{\text{MOACV}}$ is</span>
+<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a>determined by the off-diagonal blocks of $\boldsymbol{\Sigma}_{\Delta Q_0}$. The</span>
+<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a>$(s,t)$ off-diagonal block is</span>
+<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha,s),t}</span>
+<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a>= \mathbb{C}\mathrm{ov}<span class="sc">\!</span>\left(\Delta_{\alpha,s},\, Q_{0,t}(\mathcal{Z}_0)\right).</span>
+<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a>This is the covariance between the correction for LF model $\alpha$ QoI $s$ and the</span>
+<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a>HF estimator for QoI $t$. In SOACV, all such cross-QoI entries are ignored. In MOACV,</span>
+<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a>they enter $\mathbf{H}^*$ and contribute to the Schur complement. The larger these</span>
+<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a>cross-QoI covariances, the greater the MOACV gain.</span>
+<span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
+<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
+<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a>    multioutput_ensemble_3x3,</span>
+<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
+<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv <span class="im">import</span> GMFEstimator</span>
+<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.search <span class="im">import</span> ACVSearch</span>
+<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> multioutput_ensemble_3x3(bkd)</span>
+<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> benchmark.costs()</span>
+<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> benchmark.models()[<span class="dv">0</span>].nqoi()</span>
+<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a>nmodels   <span class="op">=</span> benchmark.nmodels()</span>
+<span id="cb5-242"><a href="#cb5-242" aria-hidden="true" tabindex="-1"></a>cov_true  <span class="op">=</span> benchmark.ensemble_covariance()</span>
+<span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a>variable  <span class="op">=</span> benchmark.prior()</span>
+<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a>models    <span class="op">=</span> benchmark.models()</span>
+<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-output stat (MOACV)</span></span>
+<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a>stat_mo <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>stat_mo.set_pilot_quantities(cov_true)</span>
+<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a>search_mo <span class="op">=</span> ACVSearch(stat_mo, costs)</span>
+<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a>result_mo <span class="op">=</span> search_mo.search(<span class="fl">100.0</span>)</span>
+<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a>est_mo    <span class="op">=</span> result_mo.estimator</span>
+<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a><span class="co"># Single-output stats (SOACV) for each QoI</span></span>
+<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a>ests_so <span class="op">=</span> []</span>
+<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi):</span>
+<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a>    (cov_qi,) <span class="op">=</span> stat_mo.get_pilot_quantities_subset(</span>
+<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a>        nmodels, nqoi, <span class="bu">list</span>(<span class="bu">range</span>(nmodels)), [qi]</span>
+<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a>    stat_qi <span class="op">=</span> MultiOutputMean(<span class="dv">1</span>, bkd)</span>
+<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a>    stat_qi.set_pilot_quantities(cov_qi)</span>
+<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a>    search_qi <span class="op">=</span> ACVSearch(stat_qi, costs)</span>
+<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a>    result_qi <span class="op">=</span> search_qi.search(<span class="fl">100.0</span>)</span>
+<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a>    ests_so.append(result_qi.estimator)</span>
+<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a>cov_mo_np <span class="op">=</span> bkd.to_numpy(est_mo.optimized_covariance())</span>
+<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a>cov_so_np <span class="op">=</span> np.diag([<span class="bu">float</span>(bkd.to_numpy(e.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a>                     <span class="cf">for</span> e <span class="kw">in</span> ests_so])</span>
+<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"MOACV covariance (P=100, true cov):"</span>)</span>
+<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(cov_mo_np.<span class="bu">round</span>(<span class="dv">6</span>))</span>
+<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">SOACV covariance (diagonal, independent per QoI):"</span>)</span>
+<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(cov_so_np.<span class="bu">round</span>(<span class="dv">6</span>))</span>
+<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Gain (SOACV - MOACV diagonal):"</span>)</span>
+<span id="cb5-274"><a href="#cb5-274" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi):</span>
+<span id="cb5-275"><a href="#cb5-275" aria-hidden="true" tabindex="-1"></a>    gain_pct <span class="op">=</span> (cov_so_np[qi, qi] <span class="op">-</span> cov_mo_np[qi, qi]) <span class="op">/</span> cov_so_np[qi, qi] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb5-276"><a href="#cb5-276" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  QoI </span><span class="sc">{</span>qi<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>gain_pct<span class="sc">:.1f}</span><span class="ss">% variance reduction from joint estimation"</span>)</span>
+<span id="cb5-277"><a href="#cb5-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a>Now verify both predictions against empirical variance from repeated trials.</span>
+<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Theoretical (bars) vs empirical (dots) variance for each QoI under MOACV and SOACV, from 1000 independent trials. MOACV (purple) achieves lower variance for every QoI than SOACV (blue)."</span></span>
+<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mo-theory-vs-empirical</span></span>
+<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_means())[<span class="dv">0</span>, :nqoi]</span>
+<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_mo(est, n_trials):</span>
+<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run MOACV estimator for n_trials, return (n_trials, nqoi) array."""</span></span>
+<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
+<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
+<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
+<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a]) <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
+<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a>        vals.append(bkd.to_numpy(est(vpm)).ravel())</span>
+<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
+<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_trials_so(est, qi, n_trials):</span>
+<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run SOACV estimator for QoI qi, return length-n_trials array."""</span></span>
+<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> []</span>
+<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="dv">5000</span>)</span>
+<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a>        spm <span class="op">=</span> est.generate_samples_per_model(variable.rvs)</span>
+<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a>        vpm <span class="op">=</span> [models[a](spm[a])[qi:qi<span class="op">+</span><span class="dv">1</span>] <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(spm))]</span>
+<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a>        vals.append(<span class="bu">float</span>(est(vpm)))</span>
+<span id="cb5-308"><a href="#cb5-308" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(vals)</span>
+<span id="cb5-309"><a href="#cb5-309" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a>mo_trials <span class="op">=</span> run_trials_mo(est_mo, n_trials)   <span class="co"># (n_trials, nqoi)</span></span>
+<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a>so_vars_emp <span class="op">=</span> [run_trials_so(ests_so[qi], qi, n_trials).var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
+<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a>mo_vars_emp <span class="op">=</span> [mo_trials[:, qi].var() <span class="cf">for</span> qi <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
+<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_mo_theory_vs_empirical</span>
+<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
+<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a>plot_mo_theory_vs_empirical(nqoi, cov_mo_np, cov_so_np, mo_vars_emp,</span>
+<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a>                            so_vars_emp, n_trials, ax)</span>
+<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify PSD ordering: SOACV - MOACV should be PSD</span></span>
+<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> cov_so_np <span class="op">-</span> cov_mo_np</span>
+<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>eigvals <span class="op">=</span> np.linalg.eigvalsh(diff)</span>
+<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Eigenvalues of (SOACV cov - MOACV cov): </span><span class="sc">{</span>eigvals<span class="sc">.</span><span class="bu">round</span>(<span class="dv">8</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"All non-negative? </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">all</span>(eigvals <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a><span class="fu">## How $\boldsymbol{\Sigma}_{\Delta Q_0}$ Drives the Gain</span></span>
+<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a>To make the gain concrete, print the full $\boldsymbol{\Sigma}_{\Delta Q_0}$ matrix</span>
+<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a>and identify the off-diagonal blocks that SOACV ignores.</span>
+<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a><span class="co"># Sigma_DeltaQ0 is accessible via the estimator's internal covariance computation.</span></span>
+<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a><span class="co"># For the ACVMF (GMF with zero recursion index), with ratio r at the optimal allocation,</span></span>
+<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a><span class="co"># the (alpha,s),(t) entry is: (r-1)/r * Sigma_{alpha_s, 0_t} / N0</span></span>
+<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a><span class="co"># We can approximate it from the joint covariance structure.</span></span>
+<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a>cov_np <span class="op">=</span> bkd.to_numpy(cov_true)</span>
+<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a>N0     <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est_mo.nsamples_per_model())[<span class="dv">0</span>])  <span class="co"># HF samples</span></span>
+<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Off-diagonal blocks of Sigma_{Delta,Q0} (cross-QoI covariances):"</span>)</span>
+<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"(These are ignored by SOACV but used by MOACV)"</span>)</span>
+<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, nmodels):</span>
+<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a>    block_full <span class="op">=</span> cov_np[a<span class="op">*</span>nqoi:(a<span class="op">+</span><span class="dv">1</span>)<span class="op">*</span>nqoi, :nqoi]  <span class="co"># Sigma_{alpha, 0}</span></span>
+<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Model </span><span class="sc">{</span>a<span class="sc">}</span><span class="ss"> vs HF cross-block Sigma_</span><span class="sc">{</span>a<span class="sc">}</span><span class="ss">0:</span><span class="ch">\n</span><span class="sc">{</span>block_full<span class="sc">.</span><span class="bu">round</span>(<span class="dv">4</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a>    offdiag <span class="op">=</span> block_full.copy()<span class="op">;</span> np.fill_diagonal(offdiag, <span class="dv">0</span>)</span>
+<span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Off-diagonal (ignored by SOACV): max |entry| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(offdiag)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The MOACV estimator @eq-moacv uses a full $S\times SM$ weight matrix $\mathbf{H}$;</span>
+<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a>  SOACV restricts it to block-diagonal</span>
+<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The optimal weight is $\mathbf{H}^* = -\boldsymbol{\Sigma}_{\Delta Q_0}^\top\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}$</span>
+<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a>  — identical in structure to the scalar ACV formula</span>
+<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The minimum covariance is the same Schur complement formula as in the scalar case,</span>
+<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a>  but now it exploits both cross-model and cross-QoI correlations</span>
+<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>@eq-moacv-leq-soacv: MOACV $\preceq$ SOACV always, with equality only when all</span>
+<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a>  cross-QoI corrections are uncorrelated with all HF QoI errors</span>
+<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-373"><a href="#cb5-373" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>For $S = 1$, show that @eq-h-star reduces to the scalar ACV optimal weight</span>
+<span id="cb5-374"><a href="#cb5-374" aria-hidden="true" tabindex="-1"></a>   $\mathbf{H}^* = -\Sigma_{\Delta Q_0}^\top \Sigma_{\Delta\Delta}^{-1}$ from</span>
+<span id="cb5-375"><a href="#cb5-375" aria-hidden="true" tabindex="-1"></a>   <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>.</span>
+<span id="cb5-376"><a href="#cb5-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-377"><a href="#cb5-377" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>For $S = 2$, $M = 1$ (one LF model), write out @eq-h-star explicitly as a</span>
+<span id="cb5-378"><a href="#cb5-378" aria-hidden="true" tabindex="-1"></a>   $2\times 2$ matrix. Identify the off-diagonal entry in terms of the cross-QoI</span>
+<span id="cb5-379"><a href="#cb5-379" aria-hidden="true" tabindex="-1"></a>   covariance between $\Delta_1$ and $Q_{0,t}$.</span>
+<span id="cb5-380"><a href="#cb5-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-381"><a href="#cb5-381" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Show that when $<span class="co">[</span><span class="ot">\boldsymbol{\Sigma}_{\Delta Q_0}</span><span class="co">]</span>_{(\alpha s)(t)} = 0$ for $s \neq t$,</span>
+<span id="cb5-382"><a href="#cb5-382" aria-hidden="true" tabindex="-1"></a>   the MOACV optimal weight matrix is block-diagonal, and MOACV = SOACV.</span>
+<span id="cb5-383"><a href="#cb5-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-384"><a href="#cb5-384" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Prove @eq-moacv-leq-soacv rigorously using the fact that the trace</span>
+<span id="cb5-385"><a href="#cb5-385" aria-hidden="true" tabindex="-1"></a>   (or determinant) of a positive semidefinite matrix minus another PSD matrix is</span>
+<span id="cb5-386"><a href="#cb5-386" aria-hidden="true" tabindex="-1"></a>   non-negative.</span>
+<span id="cb5-387"><a href="#cb5-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-388"><a href="#cb5-388" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-389"><a href="#cb5-389" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb5-390"><a href="#cb5-390" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-391"><a href="#cb5-391" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">DWBG2024</span><span class="co">]</span> D. Schaden, E. Ullmann, R. Butler, J. Jakeman. *Multi-output approximate</span>
+<span id="cb5-392"><a href="#cb5-392" aria-hidden="true" tabindex="-1"></a>  control variates.* 2024.</span>
+<span id="cb5-393"><a href="#cb5-393" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">arXiv:2310.00125</span><span class="co">](https://doi.org/10.48550/arXiv.2310.00125)</span></span>
+<span id="cb5-394"><a href="#cb5-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-395"><a href="#cb5-395" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">RM1985</span><span class="co">]</span> R. Y. Rubinstein and R. Marcus. *Efficiency of multivariate control variates</span>
+<span id="cb5-396"><a href="#cb5-396" aria-hidden="true" tabindex="-1"></a>  in Monte Carlo simulation.* Operations Research, 33(3):661–677, 1985.</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

@@ -191,10 +191,7 @@ MathJax = {
 
 <meta property="og:title" content="Goal-Oriented OED: Designing for Prediction on a Predator-Prey System – PyApprox">
 <meta property="og:description" content="Comparing standard-deviation and entropic deviation objectives for goal-oriented OED on the Lotka-Volterra model — and discovering that risk preferences can shift which times are most valuable.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_pred_nonlinear_usage_files/figure-html/fig-lv-pred-target-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="840">
-<meta property="og:image:width" content="1706">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1087,7 +1084,7 @@ MathJax = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="42e54d06" class="cell" data-execution_count="1">
+<div id="0e8a941f" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1107,7 +1104,7 @@ MathJax = {
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">2</span>)</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="a1613966" class="cell" data-execution_count="2">
+<div id="c2850b11" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>benchmark  <span class="op">=</span> LotkaVolterraOEDBenchmark(bkd)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>obs_model  <span class="op">=</span> benchmark.observation_model()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>pred_model <span class="op">=</span> benchmark.prediction_model()   <span class="co"># maps theta -&gt; future state values</span></span>
@@ -1121,32 +1118,18 @@ MathJax = {
 <section id="the-prediction-target" class="level2">
 <h2 class="anchored" data-anchor-id="the-prediction-target">The Prediction Target</h2>
 <p>The prediction model evaluates the ODE at future times not used for observation. This represents a common scenario: we observe the system now to forecast its future state.</p>
-<div id="c34cd34e" class="cell" data-execution_count="3">
+<div id="3293893b" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> prior.rvs(<span class="dv">1</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Observations vs. predictions on the same trajectory</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>observations  <span class="op">=</span> obs_model(sample).reshape((<span class="dv">2</span>, <span class="op">-</span><span class="dv">1</span>))</span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>predictions   <span class="op">=</span> pred_model(sample)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cell-fig-lv-pred-target" class="cell" data-execution_count="4">
-<div class="cell-output cell-output-display">
-<div id="fig-lv-pred-target" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-lv-pred-target-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="boed_pred_nonlinear_usage_files/figure-html/fig-lv-pred-target-output-1.png" width="853" height="420" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lv-pred-target-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction targets (crosses, red) for the Lotka-Volterra model. The goal-oriented OED will concentrate observation budget at times that reduce posterior uncertainty at the red crosses.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
 </section>
 <section id="generating-shared-quadrature-data" class="level2">
 <h2 class="anchored" data-anchor-id="generating-shared-quadrature-data">Generating Shared Quadrature Data</h2>
 <p>We generate the data once and reuse it for both OED variants. This avoids re-running the (expensive) model forward pass when comparing utility functions.</p>
-<div id="6206de95" class="cell" data-execution_count="5">
+<div id="67a974d4" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>data_gen <span class="op">=</span> OEDDataGenerator(bkd)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>nouterloop <span class="op">=</span> <span class="dv">5_000</span></span>
@@ -1183,7 +1166,7 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <section id="design-1-standard-deviation-utility" class="level2">
 <h2 class="anchored" data-anchor-id="design-1-standard-deviation-utility">Design 1: Standard Deviation Utility</h2>
 <p>The <strong>standard deviation deviation</strong> treats all prediction errors symmetrically — it minimises the expected posterior standard deviation of each QoI component with equal weight.</p>
-<div id="2c728d56" class="cell" data-execution_count="6">
+<div id="31b6de7d" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>weights_std, utility_std <span class="op">=</span> solve_prediction_oed(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    noise_variances<span class="op">=</span>noise_variances,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    outer_shapes<span class="op">=</span>outer_shapes,</span>
@@ -1200,7 +1183,7 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <section id="design-2-entropic-deviation-utility" class="level2">
 <h2 class="anchored" data-anchor-id="design-2-entropic-deviation-utility">Design 2: Entropic Deviation Utility</h2>
 <p>The <strong>entropic risk deviation</strong> up-weights scenarios where predictions are far from their mean — it is risk-averse towards large prediction errors.</p>
-<div id="c10c08de" class="cell" data-execution_count="7">
+<div id="3ce3e0e4" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>weights_ent, utility_ent <span class="op">=</span> solve_prediction_oed(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    noise_variances<span class="op">=</span>noise_variances,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    outer_shapes<span class="op">=</span>outer_shapes,</span>
@@ -1229,7 +1212,9 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 </section>
 <section id="comparing-the-two-designs" class="level2">
 <h2 class="anchored" data-anchor-id="comparing-the-two-designs">Comparing the Two Designs</h2>
-<div id="cell-fig-lv-design-comparison" class="cell" data-execution_count="8">
+<div id="fig-lv-design-comparison" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-lv-design-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_pred_design_weights</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">8</span>), sharey<span class="op">=</span><span class="st">"row"</span>)</span>
@@ -1237,24 +1222,17 @@ Figure&nbsp;1: Observation times (circles, states 1 and 3) and prediction target
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Goal-oriented OED: deviation measure comparison"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-lv-design-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-lv-design-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="boed_pred_nonlinear_usage_files/figure-html/fig-lv-design-comparison-output-1.png" width="1334" height="757" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lv-design-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Optimal design weights for standard-deviation (blue) and entropic-deviation (orange) objectives, for states 1 and 3 of the Lotka-Volterra ODE. Differences between the two panels indicate that risk preferences influence which observation times are deemed most valuable.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-lv-design-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="cross-evaluating-designs" class="level2">
 <h2 class="anchored" data-anchor-id="cross-evaluating-designs">Cross-Evaluating Designs</h2>
 <p>A rigorous comparison evaluates each design under <em>both</em> utility functions. If design A beats design B on utility A but loses on utility B, neither dominates — the choice must be made based on risk preferences alone.</p>
-<div id="ab46dd86" class="cell" data-execution_count="9">
+<div id="e1be0f62" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create both objectives for cross-evaluation</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>obj_std <span class="op">=</span> create_prediction_oed_objective(</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    noise_variances, outer_shapes, inner_shapes, latent_samples,</span>

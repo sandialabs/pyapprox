@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Lagrange Interpolation: Polynomials on Optimal Points – PyApprox">
 <meta property="og:description" content="Build Lagrange interpolants, explain the Runge phenomenon, and show why Clenshaw-Curtis and Gauss points enable exponential convergence.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/lagrange_interpolation_files/figure-html/fig-lagrange-basis-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="747">
-<meta property="og:image:width" content="1703">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1119,7 +1116,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="decd41c3" class="cell" data-execution_count="1">
+<div id="6b1dba41" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1154,24 +1151,10 @@ f_M(x) = \sum_{j=1}^{M} f\!\left(x^{(j)}\right) \phi_j(x)
 \max_{x \in [a,b]} \lvert f(x) - f_M(x) \rvert \leq \frac{1}{M!} \max_{x \in [a,b]} \left\lvert \prod_{j=1}^{M} \left(x - x^{(j)}\right) \right\rvert \cdot \max_{c \in [a,b]} \lvert f^{(M)}(c) \rvert.
 \]</span></p>
 <p>The first factor depends entirely on the node placement; the second factor is a property of the function. We can minimise the first factor by choosing nodes carefully, but we cannot change the second.</p>
-<div id="cell-fig-lagrange-basis" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-lagrange-basis" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-lagrange-basis-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="lagrange_interpolation_files/figure-html/fig-lagrange-basis-output-1.png" width="852" height="374" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lagrange-basis-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1, 1]. Each basis function equals 1 at one node and 0 at all others.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
 <section id="using-lagrangebasis1d" class="level3">
 <h3 class="anchored" data-anchor-id="using-lagrangebasis1d">Using <code>LagrangeBasis1D</code></h3>
 <p><code>LagrangeBasis1D</code> takes a <strong>quadrature rule callable</strong> — any function with signature <code>(npoints) → (samples, weights)</code> — and builds the Lagrange basis at the rule’s nodes. This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.</p>
-<div id="fc076242" class="cell" data-execution_count="3">
+<div id="67cd8810" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_basis_comparison</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Clenshaw-Curtis basis ---</span></span>
@@ -1204,13 +1187,6 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Lagrange basis functions — same $M$, different nodes"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="lagrange_interpolation_files/figure-html/cell-4-output-1.png" width="1235" height="395" class="figure-img"></p>
-</figure>
-</div>
-</div>
 </div>
 <p>Both sets of basis functions satisfy <span class="math inline">\(\phi_j(x^{(k)}) = \delta_{jk}\)</span>, but their shapes differ because the nodes cluster differently. Clenshaw-Curtis nodes bunch up near <span class="math inline">\(\pm 1\)</span> (Chebyshev distribution), while Gauss-Legendre nodes also cluster toward the endpoints but never include them.</p>
 </section>
@@ -1218,7 +1194,9 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <section id="the-runge-phenomenon" class="level2">
 <h2 class="anchored" data-anchor-id="the-runge-phenomenon">The Runge Phenomenon</h2>
 <p>A natural first choice for interpolation nodes is <strong>equally spaced</strong> points. For <span class="math inline">\(M\)</span> equally spaced nodes on <span class="math inline">\([-1, 1]\)</span>, the node product <span class="math inline">\(\prod_j |x - x^{(j)}|\)</span> grows rapidly near the boundary as <span class="math inline">\(M\)</span> increases, causing the interpolation error to diverge for many smooth functions. This failure mode is called the <strong>Runge phenomenon</strong>.</p>
-<div id="cell-fig-runge" class="cell" data-execution_count="4">
+<div id="fig-runge" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-runge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_runge</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> runge(x):</span>
@@ -1260,18 +1238,11 @@ Figure&nbsp;1: Lagrange basis polynomials for M = 5 Clenshaw-Curtis nodes on [-1
 <span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>           nodes_cc_np, interp_cc, M_cc, axs)</span>
 <span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-runge" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-runge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="lagrange_interpolation_files/figure-html/fig-runge-output-1.png" width="1238" height="470" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-runge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Runge’s function 1/(1+25x^2) interpolated with equally-spaced (M=13) vs.&nbsp;Clenshaw-Curtis (M=17) nodes. Equidistant nodes produce violent oscillations near the boundary; CC nodes give an excellent approximation.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-runge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>The oscillations near <span class="math inline">\(\pm 1\)</span> with equidistant nodes are not a numerical accident — they grow without bound as <span class="math inline">\(M \to \infty\)</span> for Runge’s function. The cure is to <strong>cluster nodes toward the boundary</strong>, as both Clenshaw-Curtis and Gauss points do.</p>
 </section>
@@ -1283,7 +1254,7 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 \]</span></p>
 <p>These are the projection of equally spaced points on the unit circle onto the real axis. They minimise <span class="math inline">\(\max_{x \in [-1,1]} \prod_j |x - x^{(j)}|\)</span> among all <span class="math inline">\(M\)</span>-point sets with endpoints fixed at <span class="math inline">\(\pm 1\)</span>, making them near-optimal for interpolation.</p>
 <p>A critical property for sparse grids is that CC nodes are <strong>nested</strong>: the <span class="math inline">\(M = 2^k + 1\)</span> point CC grid contains all points of the <span class="math inline">\(M = 2^{k-1} + 1\)</span> point grid.</p>
-<div id="7b19bb12" class="cell" data-execution_count="5">
+<div id="c735a9ae" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_nested_cc</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">9</span>]</span>
@@ -1292,19 +1263,14 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>plot_nested_cc(cc_rule, bkd, levels, ax)</span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="lagrange_interpolation_files/figure-html/cell-6-output-1.png" width="949" height="279" class="figure-img"></p>
-</figure>
-</div>
-</div>
 </div>
 </section>
 <section id="convergence-study" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-study">Convergence Study</h2>
 <p>For a function with <span class="math inline">\(r\)</span> continuous derivatives, the Lagrange interpolant on Chebyshev-type nodes converges at rate <span class="math inline">\(O(M^{-r})\)</span>. For <strong>analytic functions</strong> (smooth everywhere in the complex plane) the convergence is <strong>exponential</strong>: <span class="math inline">\(O(\rho^{-M})\)</span> for some <span class="math inline">\(\rho &gt; 1\)</span>.</p>
-<div id="cell-fig-convergence" class="cell" data-execution_count="6">
+<div id="fig-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_interp_convergence</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_analytic(x):</span>
@@ -1344,18 +1310,11 @@ x^{(j)} = \cos\!\left(\frac{(j-1)\pi}{M-1}\right), \qquad j = 1, \ldots, M.
 <span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>plot_interp_convergence(Ms, errors_by_func, labels, ax)</span>
 <span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="lagrange_interpolation_files/figure-html/fig-convergence-output-1.png" width="851" height="470" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test functions. Analytic functions converge exponentially; C^1 functions converge algebraically.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>Both analytic test functions converge exponentially (straight lines on the semi-log plot). The <span class="math inline">\(C^1\)</span> function converges algebraically, consistent with the theoretical rate <span class="math inline">\(O(M^{-2})\)</span>.</p>
 </section>
@@ -1366,7 +1325,7 @@ Figure&nbsp;3: Interpolation error vs.&nbsp;number of nodes M for three test fun
 \int_a^b f_M(x)\, dx = \sum_{j=1}^{M} f\!\left(x^{(j)}\right) \underbrace{\int_a^b \phi_j(x)\, dx}_{=:\, w_j}.
 \]</span></p>
 <p>The quadrature weights <span class="math inline">\(w_j\)</span> are exactly the <strong>integrals of the Lagrange basis functions</strong>. This means that any quadrature rule based on Lagrange interpolation (Gauss, Clenshaw-Curtis, and many others) can be recovered by integrating the basis polynomials analytically.</p>
-<div id="4c6bc0d2" class="cell" data-execution_count="7">
+<div id="044f6fde" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify: CC quadrature weights via basis integration agree with the rule's weights.</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>basis_verify <span class="op">=</span> LagrangeBasis1D(bkd, cc_rule)</span>

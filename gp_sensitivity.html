@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="GP-Based Sensitivity Analysis – PyApprox">
 <meta property="og:description" content="Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/gp_sensitivity_files/figure-html/fig-gp-sobol-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="741">
-<meta property="og:image:width" content="1900">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1167,7 +1164,7 @@ V_p = \E_{\boldsymbol{\xi}_{\sim p}}\bigl[
 <p><span class="math display">\[
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 \]</span></p>
-<div id="2c4aa980" class="cell" data-execution_count="1">
+<div id="39c78808" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1206,7 +1203,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <p>As explained <a href="#why-a-separable-kernel">above</a>, the analytical formulas require a <strong>separable product kernel</strong> so that all multivariate kernel integrals reduce to products of 1D Gauss quadrature sums. We use a <code>SeparableProductKernel</code> composed of independent 1D squared-exponential kernels, one per input dimension.</p>
 </div>
 </div>
-<div id="d6c1c129" class="cell" data-execution_count="2">
+<div id="739504f1" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit GP with separable SE kernel</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>kernels <span class="op">=</span> [</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    SquaredExponentialKernel([<span class="fl">1.0</span>], (<span class="fl">0.01</span>, <span class="fl">20.0</span>), <span class="dv">1</span>, bkd)</span>
@@ -1236,7 +1233,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="gp-kernel-integral-sobol-indices" class="level2">
 <h2 class="anchored" data-anchor-id="gp-kernel-integral-sobol-indices">GP Kernel-Integral Sobol Indices</h2>
 <p>The <code>GaussianProcessSensitivity</code> class wraps a <code>GaussianProcessStatistics</code> object and computes Sobol indices from the conditional P matrices described above.</p>
-<div id="be567d72" class="cell" data-execution_count="3">
+<div id="5496722d" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis_factory <span class="im">import</span> (</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    create_basis_factories,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1269,7 +1266,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="fix-and-freeze-verification" class="level2">
 <h2 class="anchored" data-anchor-id="fix-and-freeze-verification">Fix-and-Freeze Verification</h2>
 <p>As an independent check, we compute Sobol indices via the Saltelli/Jansen <strong>fix-and-freeze</strong> estimator, evaluating the GP surrogate at the Saltelli sample matrices. Since the GP is cheap to evaluate, this uses the surrogate in place of the true model.</p>
-<div id="6f12aebf" class="cell" data-execution_count="4">
+<div id="e89efed8" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> SobolSequenceSensitivityAnalysis</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> SobolSequenceSensitivityAnalysis(prior, bkd, seed<span class="op">=</span><span class="dv">42</span>)</span>
@@ -1283,21 +1280,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 </section>
 <section id="comparison" class="level2">
 <h2 class="anchored" data-anchor-id="comparison">Comparison</h2>
-<p>Both methods — GP kernel integrals and fix-and-freeze — agree closely with the known analytical values. <a href="#fig-gp-sobol" class="quarto-xref">Figure&nbsp;1</a> shows both estimates side-by-side.</p>
-<div id="cell-fig-gp-sobol" class="cell" data-execution_count="5">
-<div class="cell-output cell-output-display">
-<div id="fig-gp-sobol" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-gp-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="gp_sensitivity_files/figure-html/fig-gp-sobol-output-1.png" width="950" height="371" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gp-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: GP-based Sobol indices for the Ishigami function. Bars show GP kernel-integral estimates; dots show fix-and-freeze (Saltelli/Jansen) estimates; dashed lines mark the analytical ground truth.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>Both methods — GP kernel integrals and fix-and-freeze — agree closely with the known analytical values. <strong>?@fig-gp-sobol</strong> shows both estimates side-by-side.</p>
 </section>
 <section id="variability-of-gp-sobol-indices" class="level2">
 <h2 class="anchored" data-anchor-id="variability-of-gp-sobol-indices">Variability of GP Sobol Indices</h2>
@@ -1332,7 +1315,7 @@ V_i^{(r)} = \Var_{\xi_i}\!\bigl[\E_{\boldsymbol{\xi}_{\sim i}}[f^{(r)} \mid \xi_
 <p>The analytical formula computes <span class="math inline">\(\E[\Sobol{i}]\)</span> only approximately, because <span class="math inline">\(\Sobol{i} = V_i / \gamma_f\)</span> is a <strong>ratio of random variables</strong> and <span class="math inline">\(\E[V_i / \gamma_f] \neq \E[V_i] / \E[\gamma_f]\)</span> (Jensen’s inequality). The ensemble approach evaluates the ratio for each realization, correctly capturing the full distribution including any skewness.</p>
 </div>
 </div>
-<div id="f5cac87f" class="cell" data-execution_count="6">
+<div id="000d72d0" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.statistics <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    GaussianProcessEnsemble,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1344,7 +1327,9 @@ V_i^{(r)} = \Var_{\xi_i}\!\bigl[\E_{\boldsymbol{\xi}_{\sim i}}[f^{(r)} \mid \xi_
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span><span class="dv">42</span>,</span>
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cell-fig-sobol-distribution" class="cell" data-execution_count="7">
+<div id="fig-sobol-distribution" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sobol-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_sobol_distribution</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, nvars, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
@@ -1352,18 +1337,11 @@ V_i^{(r)} = \Var_{\xi_i}\!\bigl[\E_{\boldsymbol{\xi}_{\sim i}}[f^{(r)} \mid \xi_
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"GP posterior uncertainty in Sobol indices"</span>, fontsize<span class="op">=</span><span class="dv">11</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-sobol-distribution" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sobol-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="gp_sensitivity_files/figure-html/fig-sobol-distribution-output-1.png" width="1142" height="344" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sobol-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Distribution of first-order Sobol indices across 500 GP posterior realizations. Histograms show the spread due to GP uncertainty; vertical dashed lines mark the analytical ground truth. Narrow distributions indicate the GP has enough training data to pin down the sensitivity structure.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sobol-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 </section>

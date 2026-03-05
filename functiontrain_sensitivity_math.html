@@ -1350,7 +1350,7 @@ S_{12} = \frac{(\theta_1^{(1)} \theta_2^{(1)})^2}{\Var[f]}
 </section>
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
-<div id="4f35fa0a" class="cell" data-execution_count="1">
+<div id="f47d7fb4" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1380,66 +1380,47 @@ S_{12} = \frac{(\theta_1^{(1)} \theta_2^{(1)})^2}{\Var[f]}
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span>T_1<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span>T_2<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Sum of S_i: </span><span class="sc">{</span>S_1 <span class="op">+</span> S_2 <span class="op">+</span> S_12<span class="sc">:.4f}</span><span class="ss"> (should be 1)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Analytical Sobol indices:
-  S_1 = 0.8780
-  S_2 = 0.0976
-  S_12 = 0.0244
-  T_1 = 0.9024
-  T_2 = 0.1220
-
-  Sum of S_i: 1.0000 (should be 1)</code></pre>
 </div>
-</div>
-<div id="cfec98ef" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build and verify with FunctionTrain</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> create_bases_1d</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> compute_hyperbolic_indices</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.basis <span class="im">import</span> OrthonormalPolynomialBasis</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions <span class="im">import</span> BasisExpansion</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.core <span class="im">import</span> FunctionTrainCore</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> FunctionTrain, PCEFunctionTrain</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.statistics <span class="im">import</span> (</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    FunctionTrainMoments,</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    FunctionTrainSensitivity,</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_rank1_pce(theta_0: <span class="bu">float</span>, theta_1: <span class="bu">float</span>):</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)]</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> create_bases_1d(marginals, bkd)</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(<span class="dv">1</span>, <span class="dv">1</span>, <span class="fl">1.0</span>, bkd)</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    basis <span class="op">=</span> OrthonormalPolynomialBasis(bases_1d, bkd, indices)</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    pce <span class="op">=</span> BasisExpansion(basis, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    coef <span class="op">=</span> bkd.asarray([[theta_0], [theta_1]])</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pce.with_params(coef)</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>pce1 <span class="op">=</span> create_rank1_pce(theta1_0, theta1_1)</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>pce2 <span class="op">=</span> create_rank1_pce(theta2_0, theta2_1)</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>core1 <span class="op">=</span> FunctionTrainCore([[pce1]], bkd)</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>core2 <span class="op">=</span> FunctionTrainCore([[pce2]], bkd)</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> FunctionTrain([core1, core2], bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(ft)</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">FunctionTrain Sobol indices:"</span>)</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.sobol_index([<span class="dv">0</span>, <span class="dv">1</span>])[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>
-FunctionTrain Sobol indices:
-  S_1 = 0.8780
-  S_2 = 0.0976
-  S_12 = 0.0244
-  T_1 = 0.9024
-  T_2 = 0.1220</code></pre>
-</div>
+<div id="9709104c" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build and verify with FunctionTrain</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> create_bases_1d</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> compute_hyperbolic_indices</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.basis <span class="im">import</span> OrthonormalPolynomialBasis</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions <span class="im">import</span> BasisExpansion</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.core <span class="im">import</span> FunctionTrainCore</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> FunctionTrain, PCEFunctionTrain</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.statistics <span class="im">import</span> (</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    FunctionTrainMoments,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    FunctionTrainSensitivity,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_rank1_pce(theta_0: <span class="bu">float</span>, theta_1: <span class="bu">float</span>):</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)]</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> create_bases_1d(marginals, bkd)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(<span class="dv">1</span>, <span class="dv">1</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    basis <span class="op">=</span> OrthonormalPolynomialBasis(bases_1d, bkd, indices)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    pce <span class="op">=</span> BasisExpansion(basis, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    coef <span class="op">=</span> bkd.asarray([[theta_0], [theta_1]])</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pce.with_params(coef)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>pce1 <span class="op">=</span> create_rank1_pce(theta1_0, theta1_1)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>pce2 <span class="op">=</span> create_rank1_pce(theta2_0, theta2_1)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>core1 <span class="op">=</span> FunctionTrainCore([[pce1]], bkd)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>core2 <span class="op">=</span> FunctionTrainCore([[pce2]], bkd)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> FunctionTrain([core1, core2], bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(ft)</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">FunctionTrain Sobol indices:"</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.sobol_index([<span class="dv">0</span>, <span class="dv">1</span>])[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="computational-complexity" class="level2">
@@ -2022,431 +2003,431 @@ FunctionTrain Sobol indices:
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "FunctionTrain Sensitivity: Mathematical Derivation"</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving Sobol indices analytically from PCE FunctionTrain structure"</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> sensitivity_analysis</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 7</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - sobol_sensitivity_analysis</span></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - functiontrain_moments_math</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - tensor-decomposition</span></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - sensitivity-analysis</span></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - math</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/functiontrain_sensitivity_math.ipynb)</span></span>
-<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the main effect Sobol index formula using forward/backward sweeps</span>
-<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Understand the total effect formula using Kronecker product structure</span>
-<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the general $S_u$ formula for arbitrary variable subsets</span>
-<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Work through explicit examples with rank-1 FT</span>
-<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Assess the computational complexity of sensitivity analysis</span>
-<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>Complete:</span>
-<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sobol Sensitivity Analysis</span><span class="co">](sobol_sensitivity_analysis.qmd)</span></span>
-<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Index Definitions</span></span>
-<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>Recall the Sobol decomposition for variance:</span>
-<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span> = \sum_{u \neq \emptyset} V_u</span>
-<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>where $V_u$ is the variance contribution from variable subset $u$.</span>
-<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a><span class="fu">### First-Order (Main Effect) Variance</span></span>
-<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>V_k = \Var_{x_k}\left<span class="co">[</span><span class="ot">\E_{x_{\sim k}}[f | x_k]\right</span><span class="co">]</span></span>
-<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a>This measures how much knowing $x_k$ alone reduces variance.</span>
-<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effect Variance</span></span>
-<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>V_k^T = \E_{x_{\sim k}}\left<span class="co">[</span><span class="ot">\Var_{x_k}[f | x_{\sim k}]\right</span><span class="co">]</span></span>
-<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>This measures all variance involving $x_k$ (direct + interactions).</span>
-<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sobol Indices</span></span>
-<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a>\Sobol{k} = \frac{V_k}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}, \quad \SobolT{k} = \frac{V_k^T}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
-<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a><span class="fu">## Main Effect Derivation</span></span>
-<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a><span class="fu">### Conditional Expectation</span></span>
-<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>For FT $f = \mathcal{F}_1 \cdots \mathcal{F}_d$, the conditional expectation given $x_k$:</span>
-<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \E<span class="co">[</span><span class="ot">\mathcal{F}_1</span><span class="co">]</span> \cdots \E<span class="co">[</span><span class="ot">\mathcal{F}_{k-1}</span><span class="co">]</span> \cdot \mathcal{F}_k(x_k) \cdot \E[\mathcal{F}_{k+1}] \cdots \E<span class="co">[</span><span class="ot">\mathcal{F}_d</span><span class="co">]</span></span>
-<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a>Using $\E<span class="co">[</span><span class="ot">\mathcal{F}_j</span><span class="co">]</span> = \Theta_j^{(0)}$:</span>
-<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \underbrace{\Theta_1^{(0)} \cdots \Theta_{k-1}^{(0)}}_{\bar{L}_k} \cdot \mathcal{F}_k(x_k) \cdot \underbrace{\Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)}}_{\bar{R}_k}</span>
-<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a><span class="fu">### Forward and Backward Sweeps</span></span>
-<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a>Define the **sweep products**:</span>
-<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a>\bar{L}_k = \Theta_1^{(0)} \cdot \Theta_2^{(0)} \cdots \Theta_{k-1}^{(0)} \in \mathbb{R}^{1 \times r_{k-1}}</span>
-<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a>\bar{R}_k = \Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)} \in \mathbb{R}^{r_k \times 1}</span>
-<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a>So:</span>
-<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k = \bar{L}_k \cdot \sum_{\ell=0}^{p-1} \Theta_k^{(\ell)} \psi_\ell(x_k) \cdot \bar{R}_k</span>
-<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-114"><a href="#cb5-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-115"><a href="#cb5-115" aria-hidden="true" tabindex="-1"></a>This is a **scalar-valued** univariate function of $x_k$.</span>
-<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effect Variance</span></span>
-<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>V_k = \Var_{x_k}\left<span class="co">[</span><span class="ot">\bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k\right</span><span class="co">]</span></span>
-<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a>Let $c_\ell = \bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k$ (a scalar). Then:</span>
-<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \sum_{\ell=0}^{p-1} c_\ell \psi_\ell(x_k)</span>
-<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a>The mean is $c_0$ and variance is:</span>
-<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>\boxed{V_k = \sum_{\ell=1}^{p-1} c_\ell^2 = \sum_{\ell=1}^{p-1} \left(\bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k\right)^2}</span>
-<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a>Only non-constant terms ($\ell \geq 1$) contribute.</span>
-<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a><span class="fu">## Total Effect Derivation</span></span>
-<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a><span class="fu">### Using Kronecker Structure</span></span>
-<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a>Recall from the moments tutorial:</span>
-<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a>\E<span class="co">[</span><span class="ot">f^2</span><span class="co">]</span> = M_1 \cdot M_2 \cdots M_d</span>
-<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a>where $M_k = \sum_\ell \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$.</span>
-<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a><span class="fu">### Decomposing $M_k$</span></span>
-<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a>We can split:</span>
-<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>M_k = M_k^{(0)} + \Delta M_k</span>
-<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a>where:</span>
-<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$M_k^{(0)} = \Theta_k^{(0)} \otimes \Theta_k^{(0)}$ (constant term only)</span>
-<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k = \sum_{\ell=1}^{p-1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$ (non-constant terms)</span>
-<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effect Formula</span></span>
-<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a>The total effect variance is:</span>
-<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k</span>
-<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-170"><a href="#cb5-170" aria-hidden="true" tabindex="-1"></a>where the **Kronecker sweeps** are:</span>
-<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-172"><a href="#cb5-172" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-173"><a href="#cb5-173" aria-hidden="true" tabindex="-1"></a>\tilde{L}_k = M_1 \cdots M_{k-1} \in \mathbb{R}^{1 \times r_{k-1}^2}</span>
-<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a>\tilde{R}_k = M_{k+1} \cdots M_d \in \mathbb{R}^{r_k^2 \times 1}</span>
-<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a>This gives:</span>
-<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-183"><a href="#cb5-183" aria-hidden="true" tabindex="-1"></a>\boxed{V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k}</span>
-<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a><span class="fu">### Intuition</span></span>
-<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\tilde{L}_k$ and $\tilde{R}_k$ accumulate second moment information from other variables</span>
-<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k$ isolates the non-constant contribution from variable $k$</span>
-<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The product gives variance involving $x_k$</span>
-<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a><span class="fu">## General Sobol Index $S_u$</span></span>
-<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>For arbitrary subset $u \subseteq <span class="sc">\{</span>1, \ldots, d<span class="sc">\}</span>$:</span>
-<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a>V_u = \prod_{k=1}^d N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>}</span>
-<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a>where:</span>
-<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a>N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>} = \begin{cases}</span>
-<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a>\Delta M_k &amp; \text{if } k \in u <span class="sc">\\</span></span>
-<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a>M_k^{(0)} &amp; \text{if } k \notin u</span>
-<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a>\end{cases}</span>
-<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a><span class="fu">### Intuition</span></span>
-<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Variables in $u$: use non-constant contribution $\Delta M_k$</span>
-<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Variables not in $u$: use constant contribution $M_k^{(0)}$</span>
-<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The product selects exactly the variance component for subset $u$</span>
-<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a><span class="fu">### Key Properties</span></span>
-<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Sum equals variance**: $\sum_{u \neq \emptyset} V_u = \Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>$</span>
-<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Main effect**: $V_{<span class="sc">\{</span>k<span class="sc">\}</span>} = V_k$</span>
-<span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Total effect**: $V_k^T = \sum_{u \ni k} V_u$</span>
-<span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a><span class="fu">## Worked Example: Rank-1, 2D</span></span>
-<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-223"><a href="#cb5-223" aria-hidden="true" tabindex="-1"></a>Consider rank-1 (all $\Theta_k^{(\ell)}$ are scalars $\theta_k^{(\ell)}$):</span>
-<span id="cb5-224"><a href="#cb5-224" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = (\theta_1^{(0)} + \theta_1^{(1)} \psi_1(x_1))(\theta_2^{(0)} + \theta_2^{(1)} \psi_1(x_2))</span>
-<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sweeps</span></span>
-<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_1 = 1$ (empty product)</span>
-<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{R}_1 = \theta_2^{(0)}$</span>
-<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_2 = \theta_1^{(0)}$</span>
-<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{R}_2 = 1$</span>
-<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effects</span></span>
-<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a>V_1 = (\bar{L}_1 \cdot \theta_1^{(1)} \cdot \bar{R}_1)^2 = (\theta_1^{(1)} \theta_2^{(0)})^2</span>
-<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-242"><a href="#cb5-242" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a>V_2 = (\bar{L}_2 \cdot \theta_2^{(1)} \cdot \bar{R}_2)^2 = (\theta_1^{(0)} \theta_2^{(1)})^2</span>
-<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a><span class="fu">### Interaction</span></span>
-<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a>V_{12} = (\theta_1^{(1)})^2 (\theta_2^{(1)})^2</span>
-<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Variance</span></span>
-<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a>\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span> = V_1 + V_2 + V_{12} = (\theta_1^{(1)} \theta_2^{(0)})^2 + (\theta_1^{(0)} \theta_2^{(1)})^2 + (\theta_1^{(1)} \theta_2^{(1)})^2</span>
-<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sobol Indices</span></span>
-<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a>\Sobol{1} = \frac{(\theta_1^{(1)} \theta_2^{(0)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}, \quad \Sobol{2} = \frac{(\theta_1^{(0)} \theta_2^{(1)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
-<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a>S_{12} = \frac{(\theta_1^{(1)} \theta_2^{(1)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
-<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a>\SobolT{1} = \Sobol{1} + S_{12}, \quad \SobolT{2} = \Sobol{2} + S_{12}</span>
-<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
-<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-276"><a href="#cb5-276" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb5-277"><a href="#cb5-277" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-281"><a href="#cb5-281" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb5-282"><a href="#cb5-282" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a><span class="co"># Coefficients</span></span>
-<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a>theta1_0, theta1_1 <span class="op">=</span> <span class="fl">2.0</span>, <span class="fl">1.0</span></span>
-<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a>theta2_0, theta2_1 <span class="op">=</span> <span class="fl">3.0</span>, <span class="fl">0.5</span></span>
-<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical formulas</span></span>
-<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a>V_1 <span class="op">=</span> (theta1_1 <span class="op">*</span> theta2_0)<span class="op">**</span><span class="dv">2</span></span>
-<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a>V_2 <span class="op">=</span> (theta1_0 <span class="op">*</span> theta2_1)<span class="op">**</span><span class="dv">2</span></span>
-<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a>V_12 <span class="op">=</span> (theta1_1 <span class="op">*</span> theta2_1)<span class="op">**</span><span class="dv">2</span></span>
-<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a>total_var <span class="op">=</span> V_1 <span class="op">+</span> V_2 <span class="op">+</span> V_12</span>
-<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>S_1 <span class="op">=</span> V_1 <span class="op">/</span> total_var</span>
-<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a>S_2 <span class="op">=</span> V_2 <span class="op">/</span> total_var</span>
-<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a>S_12 <span class="op">=</span> V_12 <span class="op">/</span> total_var</span>
-<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a>T_1 <span class="op">=</span> S_1 <span class="op">+</span> S_12</span>
-<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a>T_2 <span class="op">=</span> S_2 <span class="op">+</span> S_12</span>
-<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Analytical Sobol indices:"</span>)</span>
-<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span>S_1<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span>S_2<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span>S_12<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span>T_1<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span>T_2<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Sum of S_i: </span><span class="sc">{</span>S_1 <span class="op">+</span> S_2 <span class="op">+</span> S_12<span class="sc">:.4f}</span><span class="ss"> (should be 1)"</span>)</span>
-<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a><span class="co"># Build and verify with FunctionTrain</span></span>
-<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
-<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> create_bases_1d</span>
-<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> compute_hyperbolic_indices</span>
-<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.basis <span class="im">import</span> OrthonormalPolynomialBasis</span>
-<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions <span class="im">import</span> BasisExpansion</span>
-<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.core <span class="im">import</span> FunctionTrainCore</span>
-<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> FunctionTrain, PCEFunctionTrain</span>
-<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.statistics <span class="im">import</span> (</span>
-<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>    FunctionTrainMoments,</span>
-<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a>    FunctionTrainSensitivity,</span>
-<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-323"><a href="#cb5-323" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-324"><a href="#cb5-324" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_rank1_pce(theta_0: <span class="bu">float</span>, theta_1: <span class="bu">float</span>):</span>
-<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a>    marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)]</span>
-<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> create_bases_1d(marginals, bkd)</span>
-<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(<span class="dv">1</span>, <span class="dv">1</span>, <span class="fl">1.0</span>, bkd)</span>
-<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>    basis <span class="op">=</span> OrthonormalPolynomialBasis(bases_1d, bkd, indices)</span>
-<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a>    pce <span class="op">=</span> BasisExpansion(basis, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a>    coef <span class="op">=</span> bkd.asarray([[theta_0], [theta_1]])</span>
-<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pce.with_params(coef)</span>
-<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a>pce1 <span class="op">=</span> create_rank1_pce(theta1_0, theta1_1)</span>
-<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a>pce2 <span class="op">=</span> create_rank1_pce(theta2_0, theta2_1)</span>
-<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a>core1 <span class="op">=</span> FunctionTrainCore([[pce1]], bkd)</span>
-<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a>core2 <span class="op">=</span> FunctionTrainCore([[pce2]], bkd)</span>
-<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-339"><a href="#cb5-339" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> FunctionTrain([core1, core2], bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb5-340"><a href="#cb5-340" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(ft)</span>
-<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
-<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
-<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">FunctionTrain Sobol indices:"</span>)</span>
-<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.sobol_index([<span class="dv">0</span>, <span class="dv">1</span>])[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a><span class="fu">## Computational Complexity</span></span>
-<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effects (All Variables)</span></span>
-<span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a>For each variable $k$:</span>
-<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute sweeps $\bar{L}_k$, $\bar{R}_k$: $O(d \cdot r^2)$ total (shared)</span>
-<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute $c_\ell = \bar{L}_k \Theta_k^{(\ell)} \bar{R}_k$: $O(r^2)$ per term</span>
-<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Sum $c_\ell^2$: $O(p)$</span>
-<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a>**Total for all $d$ variables**: $O(d \cdot r^2 \cdot p)$</span>
-<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effects (All Variables)</span></span>
-<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a>For each variable $k$:</span>
-<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute Kronecker sweeps $\tilde{L}_k$, $\tilde{R}_k$: $O(d \cdot r^6)$ total</span>
-<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute $\Delta M_k$: $O(r^4 \cdot p)$</span>
-<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Matrix products: $O(r^4)$</span>
-<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a>**Total for all $d$ variables**: $O(d \cdot r^6)$</span>
-<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a><span class="fu">### General $S_u$</span></span>
-<span id="cb5-373"><a href="#cb5-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-374"><a href="#cb5-374" aria-hidden="true" tabindex="-1"></a>For one subset $u$: $O(d \cdot r^6)$</span>
-<span id="cb5-375"><a href="#cb5-375" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-376"><a href="#cb5-376" aria-hidden="true" tabindex="-1"></a>For all $2^d - 1$ subsets: $O(2^d \cdot d \cdot r^6)$ - exponential in $d$!</span>
-<span id="cb5-377"><a href="#cb5-377" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-378"><a href="#cb5-378" aria-hidden="true" tabindex="-1"></a><span class="fu">### Complexity Summary</span></span>
-<span id="cb5-379"><a href="#cb5-379" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-380"><a href="#cb5-380" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Operation <span class="pp">|</span> Complexity <span class="pp">|</span></span>
-<span id="cb5-381"><a href="#cb5-381" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|------------|</span></span>
-<span id="cb5-382"><a href="#cb5-382" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All main effects <span class="pp">|</span> $O(d \cdot r^2 \cdot p)$ <span class="pp">|</span></span>
-<span id="cb5-383"><a href="#cb5-383" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All total effects <span class="pp">|</span> $O(d \cdot r^6)$ <span class="pp">|</span></span>
-<span id="cb5-384"><a href="#cb5-384" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> One general $S_u$ <span class="pp">|</span> $O(d \cdot r^6)$ <span class="pp">|</span></span>
-<span id="cb5-385"><a href="#cb5-385" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All $2^d-1$ indices <span class="pp">|</span> $O(2^d \cdot d \cdot r^6)$ <span class="pp">|</span></span>
-<span id="cb5-386"><a href="#cb5-386" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-387"><a href="#cb5-387" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb5-388"><a href="#cb5-388" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Guidance</span></span>
-<span id="cb5-389"><a href="#cb5-389" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-390"><a href="#cb5-390" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Main and total effects** are always efficient: $O(d \cdot r^6)$</span>
-<span id="cb5-391"><a href="#cb5-391" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**All general indices** is exponential in $d$ - only practical for $d \lesssim 15$</span>
-<span id="cb5-392"><a href="#cb5-392" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For large $d$, compute only main + total effects, or selected interaction sets</span>
-<span id="cb5-393"><a href="#cb5-393" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb5-394"><a href="#cb5-394" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-395"><a href="#cb5-395" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary of Formulas</span></span>
-<span id="cb5-396"><a href="#cb5-396" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-397"><a href="#cb5-397" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Index <span class="pp">|</span> Formula <span class="pp">|</span></span>
-<span id="cb5-398"><a href="#cb5-398" aria-hidden="true" tabindex="-1"></a><span class="pp">|-------|---------|</span></span>
-<span id="cb5-399"><a href="#cb5-399" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Main effect $V_k$ <span class="pp">|</span> $\sum_{\ell \geq 1} (\bar{L}_k \Theta_k^{(\ell)} \bar{R}_k)^2$ <span class="pp">|</span></span>
-<span id="cb5-400"><a href="#cb5-400" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Total effect $V_k^T$ <span class="pp">|</span> $\tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k$ <span class="pp">|</span></span>
-<span id="cb5-401"><a href="#cb5-401" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> General $V_u$ <span class="pp">|</span> $\prod_{k} N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>}$ <span class="pp">|</span></span>
-<span id="cb5-402"><a href="#cb5-402" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Sobol index <span class="pp">|</span> $S = V / \Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>$ <span class="pp">|</span></span>
-<span id="cb5-403"><a href="#cb5-403" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-404"><a href="#cb5-404" aria-hidden="true" tabindex="-1"></a>Where:</span>
-<span id="cb5-405"><a href="#cb5-405" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_k = \prod_{j &lt; k} \Theta_j^{(0)}$, $\bar{R}_k = \prod_{j &gt; k} \Theta_j^{(0)}$</span>
-<span id="cb5-406"><a href="#cb5-406" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\tilde{L}_k = \prod_{j &lt; k} M_j$, $\tilde{R}_k = \prod_{j &gt; k} M_j$</span>
-<span id="cb5-407"><a href="#cb5-407" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k = \sum_{\ell \geq 1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$</span>
-<span id="cb5-408"><a href="#cb5-408" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-409"><a href="#cb5-409" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb5-410"><a href="#cb5-410" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-411"><a href="#cb5-411" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Main effects** use forward/backward sweeps of constant-term matrices</span>
-<span id="cb5-412"><a href="#cb5-412" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total effects** use Kronecker sweeps with non-constant contributions</span>
-<span id="cb5-413"><a href="#cb5-413" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**General $S_u$** selects contributions via Kronecker product structure</span>
-<span id="cb5-414"><a href="#cb5-414" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Key identity**: $\sum_u S_u = 1$ and $\SobolT{k} = \sum_{u \ni k} S_u$</span>
-<span id="cb5-415"><a href="#cb5-415" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Complexity**: Main/total effects are polynomial; all indices is exponential</span>
-<span id="cb5-416"><a href="#cb5-416" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-417"><a href="#cb5-417" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb5-418"><a href="#cb5-418" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-419"><a href="#cb5-419" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** For the 2D example, verify that $\SobolT{1} \geq \Sobol{1}$ algebraically. When does equality hold?</span>
-<span id="cb5-420"><a href="#cb5-420" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-421"><a href="#cb5-421" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Extend the analytical derivation to a 3D rank-1 FT. Write explicit formulas for all 7 Sobol indices ($S_1, S_2, S_3, S_{12}, S_{13}, S_{23}, S_{123}$).</span>
-<span id="cb5-422"><a href="#cb5-422" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-423"><a href="#cb5-423" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Show that for any PCE FunctionTrain, $\sum_k \Sobol{k} \leq 1$ with equality iff there are no interactions. Hint: Use the decomposition $M_k = M_k^{(0)} + \Delta M_k$.</span>
-<span id="cb5-424"><a href="#cb5-424" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-425"><a href="#cb5-425" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb5-426"><a href="#cb5-426" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-427"><a href="#cb5-427" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb5-428"><a href="#cb5-428" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-429"><a href="#cb5-429" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">FunctionTrain Sensitivity (Usage)</span><span class="co">](functiontrain_sensitivity.qmd)</span> - Computing indices in practice</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "FunctionTrain Sensitivity: Mathematical Derivation"</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving Sobol indices analytically from PCE FunctionTrain structure"</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> sensitivity_analysis</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 7</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - sobol_sensitivity_analysis</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - functiontrain_moments_math</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - tensor-decomposition</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - sensitivity-analysis</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - math</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/functiontrain_sensitivity_math.ipynb)</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the main effect Sobol index formula using forward/backward sweeps</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Understand the total effect formula using Kronecker product structure</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the general $S_u$ formula for arbitrary variable subsets</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Work through explicit examples with rank-1 FT</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Assess the computational complexity of sensitivity analysis</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>Complete:</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sobol Sensitivity Analysis</span><span class="co">](sobol_sensitivity_analysis.qmd)</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Index Definitions</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>Recall the Sobol decomposition for variance:</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span> = \sum_{u \neq \emptyset} V_u</span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>where $V_u$ is the variance contribution from variable subset $u$.</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a><span class="fu">### First-Order (Main Effect) Variance</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>V_k = \Var_{x_k}\left<span class="co">[</span><span class="ot">\E_{x_{\sim k}}[f | x_k]\right</span><span class="co">]</span></span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>This measures how much knowing $x_k$ alone reduces variance.</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effect Variance</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>V_k^T = \E_{x_{\sim k}}\left<span class="co">[</span><span class="ot">\Var_{x_k}[f | x_{\sim k}]\right</span><span class="co">]</span></span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>This measures all variance involving $x_k$ (direct + interactions).</span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sobol Indices</span></span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>\Sobol{k} = \frac{V_k}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}, \quad \SobolT{k} = \frac{V_k^T}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a><span class="fu">## Main Effect Derivation</span></span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a><span class="fu">### Conditional Expectation</span></span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>For FT $f = \mathcal{F}_1 \cdots \mathcal{F}_d$, the conditional expectation given $x_k$:</span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \E<span class="co">[</span><span class="ot">\mathcal{F}_1</span><span class="co">]</span> \cdots \E<span class="co">[</span><span class="ot">\mathcal{F}_{k-1}</span><span class="co">]</span> \cdot \mathcal{F}_k(x_k) \cdot \E[\mathcal{F}_{k+1}] \cdots \E<span class="co">[</span><span class="ot">\mathcal{F}_d</span><span class="co">]</span></span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>Using $\E<span class="co">[</span><span class="ot">\mathcal{F}_j</span><span class="co">]</span> = \Theta_j^{(0)}$:</span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \underbrace{\Theta_1^{(0)} \cdots \Theta_{k-1}^{(0)}}_{\bar{L}_k} \cdot \mathcal{F}_k(x_k) \cdot \underbrace{\Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)}}_{\bar{R}_k}</span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a><span class="fu">### Forward and Backward Sweeps</span></span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>Define the **sweep products**:</span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>\bar{L}_k = \Theta_1^{(0)} \cdot \Theta_2^{(0)} \cdots \Theta_{k-1}^{(0)} \in \mathbb{R}^{1 \times r_{k-1}}</span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>\bar{R}_k = \Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)} \in \mathbb{R}^{r_k \times 1}</span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>So:</span>
+<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-112"><a href="#cb3-112" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k = \bar{L}_k \cdot \sum_{\ell=0}^{p-1} \Theta_k^{(\ell)} \psi_\ell(x_k) \cdot \bar{R}_k</span>
+<span id="cb3-113"><a href="#cb3-113" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-114"><a href="#cb3-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-115"><a href="#cb3-115" aria-hidden="true" tabindex="-1"></a>This is a **scalar-valued** univariate function of $x_k$.</span>
+<span id="cb3-116"><a href="#cb3-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-117"><a href="#cb3-117" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effect Variance</span></span>
+<span id="cb3-118"><a href="#cb3-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-119"><a href="#cb3-119" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-120"><a href="#cb3-120" aria-hidden="true" tabindex="-1"></a>V_k = \Var_{x_k}\left<span class="co">[</span><span class="ot">\bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k\right</span><span class="co">]</span></span>
+<span id="cb3-121"><a href="#cb3-121" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-122"><a href="#cb3-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-123"><a href="#cb3-123" aria-hidden="true" tabindex="-1"></a>Let $c_\ell = \bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k$ (a scalar). Then:</span>
+<span id="cb3-124"><a href="#cb3-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-125"><a href="#cb3-125" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-126"><a href="#cb3-126" aria-hidden="true" tabindex="-1"></a>\E_{x_{\sim k}}<span class="co">[</span><span class="ot">f | x_k</span><span class="co">]</span> = \sum_{\ell=0}^{p-1} c_\ell \psi_\ell(x_k)</span>
+<span id="cb3-127"><a href="#cb3-127" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-128"><a href="#cb3-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-129"><a href="#cb3-129" aria-hidden="true" tabindex="-1"></a>The mean is $c_0$ and variance is:</span>
+<span id="cb3-130"><a href="#cb3-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-131"><a href="#cb3-131" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-132"><a href="#cb3-132" aria-hidden="true" tabindex="-1"></a>\boxed{V_k = \sum_{\ell=1}^{p-1} c_\ell^2 = \sum_{\ell=1}^{p-1} \left(\bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k\right)^2}</span>
+<span id="cb3-133"><a href="#cb3-133" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-134"><a href="#cb3-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-135"><a href="#cb3-135" aria-hidden="true" tabindex="-1"></a>Only non-constant terms ($\ell \geq 1$) contribute.</span>
+<span id="cb3-136"><a href="#cb3-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-137"><a href="#cb3-137" aria-hidden="true" tabindex="-1"></a><span class="fu">## Total Effect Derivation</span></span>
+<span id="cb3-138"><a href="#cb3-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-139"><a href="#cb3-139" aria-hidden="true" tabindex="-1"></a><span class="fu">### Using Kronecker Structure</span></span>
+<span id="cb3-140"><a href="#cb3-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-141"><a href="#cb3-141" aria-hidden="true" tabindex="-1"></a>Recall from the moments tutorial:</span>
+<span id="cb3-142"><a href="#cb3-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-143"><a href="#cb3-143" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-144"><a href="#cb3-144" aria-hidden="true" tabindex="-1"></a>\E<span class="co">[</span><span class="ot">f^2</span><span class="co">]</span> = M_1 \cdot M_2 \cdots M_d</span>
+<span id="cb3-145"><a href="#cb3-145" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-146"><a href="#cb3-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-147"><a href="#cb3-147" aria-hidden="true" tabindex="-1"></a>where $M_k = \sum_\ell \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$.</span>
+<span id="cb3-148"><a href="#cb3-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-149"><a href="#cb3-149" aria-hidden="true" tabindex="-1"></a><span class="fu">### Decomposing $M_k$</span></span>
+<span id="cb3-150"><a href="#cb3-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-151"><a href="#cb3-151" aria-hidden="true" tabindex="-1"></a>We can split:</span>
+<span id="cb3-152"><a href="#cb3-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-153"><a href="#cb3-153" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-154"><a href="#cb3-154" aria-hidden="true" tabindex="-1"></a>M_k = M_k^{(0)} + \Delta M_k</span>
+<span id="cb3-155"><a href="#cb3-155" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-156"><a href="#cb3-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-157"><a href="#cb3-157" aria-hidden="true" tabindex="-1"></a>where:</span>
+<span id="cb3-158"><a href="#cb3-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-159"><a href="#cb3-159" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$M_k^{(0)} = \Theta_k^{(0)} \otimes \Theta_k^{(0)}$ (constant term only)</span>
+<span id="cb3-160"><a href="#cb3-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k = \sum_{\ell=1}^{p-1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$ (non-constant terms)</span>
+<span id="cb3-161"><a href="#cb3-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-162"><a href="#cb3-162" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effect Formula</span></span>
+<span id="cb3-163"><a href="#cb3-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-164"><a href="#cb3-164" aria-hidden="true" tabindex="-1"></a>The total effect variance is:</span>
+<span id="cb3-165"><a href="#cb3-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-166"><a href="#cb3-166" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-167"><a href="#cb3-167" aria-hidden="true" tabindex="-1"></a>V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k</span>
+<span id="cb3-168"><a href="#cb3-168" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-169"><a href="#cb3-169" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-170"><a href="#cb3-170" aria-hidden="true" tabindex="-1"></a>where the **Kronecker sweeps** are:</span>
+<span id="cb3-171"><a href="#cb3-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-172"><a href="#cb3-172" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-173"><a href="#cb3-173" aria-hidden="true" tabindex="-1"></a>\tilde{L}_k = M_1 \cdots M_{k-1} \in \mathbb{R}^{1 \times r_{k-1}^2}</span>
+<span id="cb3-174"><a href="#cb3-174" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-175"><a href="#cb3-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-176"><a href="#cb3-176" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-177"><a href="#cb3-177" aria-hidden="true" tabindex="-1"></a>\tilde{R}_k = M_{k+1} \cdots M_d \in \mathbb{R}^{r_k^2 \times 1}</span>
+<span id="cb3-178"><a href="#cb3-178" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-179"><a href="#cb3-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-180"><a href="#cb3-180" aria-hidden="true" tabindex="-1"></a>This gives:</span>
+<span id="cb3-181"><a href="#cb3-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-182"><a href="#cb3-182" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-183"><a href="#cb3-183" aria-hidden="true" tabindex="-1"></a>\boxed{V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k}</span>
+<span id="cb3-184"><a href="#cb3-184" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-185"><a href="#cb3-185" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-186"><a href="#cb3-186" aria-hidden="true" tabindex="-1"></a><span class="fu">### Intuition</span></span>
+<span id="cb3-187"><a href="#cb3-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-188"><a href="#cb3-188" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\tilde{L}_k$ and $\tilde{R}_k$ accumulate second moment information from other variables</span>
+<span id="cb3-189"><a href="#cb3-189" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k$ isolates the non-constant contribution from variable $k$</span>
+<span id="cb3-190"><a href="#cb3-190" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The product gives variance involving $x_k$</span>
+<span id="cb3-191"><a href="#cb3-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-192"><a href="#cb3-192" aria-hidden="true" tabindex="-1"></a><span class="fu">## General Sobol Index $S_u$</span></span>
+<span id="cb3-193"><a href="#cb3-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-194"><a href="#cb3-194" aria-hidden="true" tabindex="-1"></a>For arbitrary subset $u \subseteq <span class="sc">\{</span>1, \ldots, d<span class="sc">\}</span>$:</span>
+<span id="cb3-195"><a href="#cb3-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-196"><a href="#cb3-196" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-197"><a href="#cb3-197" aria-hidden="true" tabindex="-1"></a>V_u = \prod_{k=1}^d N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>}</span>
+<span id="cb3-198"><a href="#cb3-198" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-199"><a href="#cb3-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-200"><a href="#cb3-200" aria-hidden="true" tabindex="-1"></a>where:</span>
+<span id="cb3-201"><a href="#cb3-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-202"><a href="#cb3-202" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-203"><a href="#cb3-203" aria-hidden="true" tabindex="-1"></a>N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>} = \begin{cases}</span>
+<span id="cb3-204"><a href="#cb3-204" aria-hidden="true" tabindex="-1"></a>\Delta M_k &amp; \text{if } k \in u <span class="sc">\\</span></span>
+<span id="cb3-205"><a href="#cb3-205" aria-hidden="true" tabindex="-1"></a>M_k^{(0)} &amp; \text{if } k \notin u</span>
+<span id="cb3-206"><a href="#cb3-206" aria-hidden="true" tabindex="-1"></a>\end{cases}</span>
+<span id="cb3-207"><a href="#cb3-207" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-208"><a href="#cb3-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-209"><a href="#cb3-209" aria-hidden="true" tabindex="-1"></a><span class="fu">### Intuition</span></span>
+<span id="cb3-210"><a href="#cb3-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-211"><a href="#cb3-211" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Variables in $u$: use non-constant contribution $\Delta M_k$</span>
+<span id="cb3-212"><a href="#cb3-212" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Variables not in $u$: use constant contribution $M_k^{(0)}$</span>
+<span id="cb3-213"><a href="#cb3-213" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The product selects exactly the variance component for subset $u$</span>
+<span id="cb3-214"><a href="#cb3-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-215"><a href="#cb3-215" aria-hidden="true" tabindex="-1"></a><span class="fu">### Key Properties</span></span>
+<span id="cb3-216"><a href="#cb3-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-217"><a href="#cb3-217" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Sum equals variance**: $\sum_{u \neq \emptyset} V_u = \Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>$</span>
+<span id="cb3-218"><a href="#cb3-218" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Main effect**: $V_{<span class="sc">\{</span>k<span class="sc">\}</span>} = V_k$</span>
+<span id="cb3-219"><a href="#cb3-219" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Total effect**: $V_k^T = \sum_{u \ni k} V_u$</span>
+<span id="cb3-220"><a href="#cb3-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-221"><a href="#cb3-221" aria-hidden="true" tabindex="-1"></a><span class="fu">## Worked Example: Rank-1, 2D</span></span>
+<span id="cb3-222"><a href="#cb3-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-223"><a href="#cb3-223" aria-hidden="true" tabindex="-1"></a>Consider rank-1 (all $\Theta_k^{(\ell)}$ are scalars $\theta_k^{(\ell)}$):</span>
+<span id="cb3-224"><a href="#cb3-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-225"><a href="#cb3-225" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-226"><a href="#cb3-226" aria-hidden="true" tabindex="-1"></a>f(x_1, x_2) = (\theta_1^{(0)} + \theta_1^{(1)} \psi_1(x_1))(\theta_2^{(0)} + \theta_2^{(1)} \psi_1(x_2))</span>
+<span id="cb3-227"><a href="#cb3-227" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-228"><a href="#cb3-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-229"><a href="#cb3-229" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sweeps</span></span>
+<span id="cb3-230"><a href="#cb3-230" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-231"><a href="#cb3-231" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_1 = 1$ (empty product)</span>
+<span id="cb3-232"><a href="#cb3-232" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{R}_1 = \theta_2^{(0)}$</span>
+<span id="cb3-233"><a href="#cb3-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_2 = \theta_1^{(0)}$</span>
+<span id="cb3-234"><a href="#cb3-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{R}_2 = 1$</span>
+<span id="cb3-235"><a href="#cb3-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-236"><a href="#cb3-236" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effects</span></span>
+<span id="cb3-237"><a href="#cb3-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-238"><a href="#cb3-238" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-239"><a href="#cb3-239" aria-hidden="true" tabindex="-1"></a>V_1 = (\bar{L}_1 \cdot \theta_1^{(1)} \cdot \bar{R}_1)^2 = (\theta_1^{(1)} \theta_2^{(0)})^2</span>
+<span id="cb3-240"><a href="#cb3-240" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-241"><a href="#cb3-241" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-242"><a href="#cb3-242" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-243"><a href="#cb3-243" aria-hidden="true" tabindex="-1"></a>V_2 = (\bar{L}_2 \cdot \theta_2^{(1)} \cdot \bar{R}_2)^2 = (\theta_1^{(0)} \theta_2^{(1)})^2</span>
+<span id="cb3-244"><a href="#cb3-244" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-245"><a href="#cb3-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-246"><a href="#cb3-246" aria-hidden="true" tabindex="-1"></a><span class="fu">### Interaction</span></span>
+<span id="cb3-247"><a href="#cb3-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-248"><a href="#cb3-248" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a>V_{12} = (\theta_1^{(1)})^2 (\theta_2^{(1)})^2</span>
+<span id="cb3-250"><a href="#cb3-250" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-251"><a href="#cb3-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-252"><a href="#cb3-252" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Variance</span></span>
+<span id="cb3-253"><a href="#cb3-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-254"><a href="#cb3-254" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-255"><a href="#cb3-255" aria-hidden="true" tabindex="-1"></a>\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span> = V_1 + V_2 + V_{12} = (\theta_1^{(1)} \theta_2^{(0)})^2 + (\theta_1^{(0)} \theta_2^{(1)})^2 + (\theta_1^{(1)} \theta_2^{(1)})^2</span>
+<span id="cb3-256"><a href="#cb3-256" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-257"><a href="#cb3-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-258"><a href="#cb3-258" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sobol Indices</span></span>
+<span id="cb3-259"><a href="#cb3-259" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-260"><a href="#cb3-260" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-261"><a href="#cb3-261" aria-hidden="true" tabindex="-1"></a>\Sobol{1} = \frac{(\theta_1^{(1)} \theta_2^{(0)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}, \quad \Sobol{2} = \frac{(\theta_1^{(0)} \theta_2^{(1)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
+<span id="cb3-262"><a href="#cb3-262" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-263"><a href="#cb3-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-264"><a href="#cb3-264" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-265"><a href="#cb3-265" aria-hidden="true" tabindex="-1"></a>S_{12} = \frac{(\theta_1^{(1)} \theta_2^{(1)})^2}{\Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>}</span>
+<span id="cb3-266"><a href="#cb3-266" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-267"><a href="#cb3-267" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-268"><a href="#cb3-268" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-269"><a href="#cb3-269" aria-hidden="true" tabindex="-1"></a>\SobolT{1} = \Sobol{1} + S_{12}, \quad \SobolT{2} = \Sobol{2} + S_{12}</span>
+<span id="cb3-270"><a href="#cb3-270" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb3-271"><a href="#cb3-271" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-272"><a href="#cb3-272" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
+<span id="cb3-273"><a href="#cb3-273" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-276"><a href="#cb3-276" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb3-277"><a href="#cb3-277" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-278"><a href="#cb3-278" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb3-279"><a href="#cb3-279" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb3-280"><a href="#cb3-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-281"><a href="#cb3-281" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb3-282"><a href="#cb3-282" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-283"><a href="#cb3-283" aria-hidden="true" tabindex="-1"></a><span class="co"># Coefficients</span></span>
+<span id="cb3-284"><a href="#cb3-284" aria-hidden="true" tabindex="-1"></a>theta1_0, theta1_1 <span class="op">=</span> <span class="fl">2.0</span>, <span class="fl">1.0</span></span>
+<span id="cb3-285"><a href="#cb3-285" aria-hidden="true" tabindex="-1"></a>theta2_0, theta2_1 <span class="op">=</span> <span class="fl">3.0</span>, <span class="fl">0.5</span></span>
+<span id="cb3-286"><a href="#cb3-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-287"><a href="#cb3-287" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical formulas</span></span>
+<span id="cb3-288"><a href="#cb3-288" aria-hidden="true" tabindex="-1"></a>V_1 <span class="op">=</span> (theta1_1 <span class="op">*</span> theta2_0)<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb3-289"><a href="#cb3-289" aria-hidden="true" tabindex="-1"></a>V_2 <span class="op">=</span> (theta1_0 <span class="op">*</span> theta2_1)<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb3-290"><a href="#cb3-290" aria-hidden="true" tabindex="-1"></a>V_12 <span class="op">=</span> (theta1_1 <span class="op">*</span> theta2_1)<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb3-291"><a href="#cb3-291" aria-hidden="true" tabindex="-1"></a>total_var <span class="op">=</span> V_1 <span class="op">+</span> V_2 <span class="op">+</span> V_12</span>
+<span id="cb3-292"><a href="#cb3-292" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-293"><a href="#cb3-293" aria-hidden="true" tabindex="-1"></a>S_1 <span class="op">=</span> V_1 <span class="op">/</span> total_var</span>
+<span id="cb3-294"><a href="#cb3-294" aria-hidden="true" tabindex="-1"></a>S_2 <span class="op">=</span> V_2 <span class="op">/</span> total_var</span>
+<span id="cb3-295"><a href="#cb3-295" aria-hidden="true" tabindex="-1"></a>S_12 <span class="op">=</span> V_12 <span class="op">/</span> total_var</span>
+<span id="cb3-296"><a href="#cb3-296" aria-hidden="true" tabindex="-1"></a>T_1 <span class="op">=</span> S_1 <span class="op">+</span> S_12</span>
+<span id="cb3-297"><a href="#cb3-297" aria-hidden="true" tabindex="-1"></a>T_2 <span class="op">=</span> S_2 <span class="op">+</span> S_12</span>
+<span id="cb3-298"><a href="#cb3-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-299"><a href="#cb3-299" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Analytical Sobol indices:"</span>)</span>
+<span id="cb3-300"><a href="#cb3-300" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span>S_1<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-301"><a href="#cb3-301" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span>S_2<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-302"><a href="#cb3-302" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span>S_12<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-303"><a href="#cb3-303" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span>T_1<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-304"><a href="#cb3-304" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span>T_2<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-305"><a href="#cb3-305" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">  Sum of S_i: </span><span class="sc">{</span>S_1 <span class="op">+</span> S_2 <span class="op">+</span> S_12<span class="sc">:.4f}</span><span class="ss"> (should be 1)"</span>)</span>
+<span id="cb3-306"><a href="#cb3-306" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb3-307"><a href="#cb3-307" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-310"><a href="#cb3-310" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb3-311"><a href="#cb3-311" aria-hidden="true" tabindex="-1"></a><span class="co"># Build and verify with FunctionTrain</span></span>
+<span id="cb3-312"><a href="#cb3-312" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
+<span id="cb3-313"><a href="#cb3-313" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> create_bases_1d</span>
+<span id="cb3-314"><a href="#cb3-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> compute_hyperbolic_indices</span>
+<span id="cb3-315"><a href="#cb3-315" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.basis <span class="im">import</span> OrthonormalPolynomialBasis</span>
+<span id="cb3-316"><a href="#cb3-316" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions <span class="im">import</span> BasisExpansion</span>
+<span id="cb3-317"><a href="#cb3-317" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.core <span class="im">import</span> FunctionTrainCore</span>
+<span id="cb3-318"><a href="#cb3-318" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> FunctionTrain, PCEFunctionTrain</span>
+<span id="cb3-319"><a href="#cb3-319" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain.statistics <span class="im">import</span> (</span>
+<span id="cb3-320"><a href="#cb3-320" aria-hidden="true" tabindex="-1"></a>    FunctionTrainMoments,</span>
+<span id="cb3-321"><a href="#cb3-321" aria-hidden="true" tabindex="-1"></a>    FunctionTrainSensitivity,</span>
+<span id="cb3-322"><a href="#cb3-322" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-323"><a href="#cb3-323" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-324"><a href="#cb3-324" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_rank1_pce(theta_0: <span class="bu">float</span>, theta_1: <span class="bu">float</span>):</span>
+<span id="cb3-325"><a href="#cb3-325" aria-hidden="true" tabindex="-1"></a>    marginals <span class="op">=</span> [UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)]</span>
+<span id="cb3-326"><a href="#cb3-326" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> create_bases_1d(marginals, bkd)</span>
+<span id="cb3-327"><a href="#cb3-327" aria-hidden="true" tabindex="-1"></a>    indices <span class="op">=</span> compute_hyperbolic_indices(<span class="dv">1</span>, <span class="dv">1</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb3-328"><a href="#cb3-328" aria-hidden="true" tabindex="-1"></a>    basis <span class="op">=</span> OrthonormalPolynomialBasis(bases_1d, bkd, indices)</span>
+<span id="cb3-329"><a href="#cb3-329" aria-hidden="true" tabindex="-1"></a>    pce <span class="op">=</span> BasisExpansion(basis, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-330"><a href="#cb3-330" aria-hidden="true" tabindex="-1"></a>    coef <span class="op">=</span> bkd.asarray([[theta_0], [theta_1]])</span>
+<span id="cb3-331"><a href="#cb3-331" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pce.with_params(coef)</span>
+<span id="cb3-332"><a href="#cb3-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-333"><a href="#cb3-333" aria-hidden="true" tabindex="-1"></a>pce1 <span class="op">=</span> create_rank1_pce(theta1_0, theta1_1)</span>
+<span id="cb3-334"><a href="#cb3-334" aria-hidden="true" tabindex="-1"></a>pce2 <span class="op">=</span> create_rank1_pce(theta2_0, theta2_1)</span>
+<span id="cb3-335"><a href="#cb3-335" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-336"><a href="#cb3-336" aria-hidden="true" tabindex="-1"></a>core1 <span class="op">=</span> FunctionTrainCore([[pce1]], bkd)</span>
+<span id="cb3-337"><a href="#cb3-337" aria-hidden="true" tabindex="-1"></a>core2 <span class="op">=</span> FunctionTrainCore([[pce2]], bkd)</span>
+<span id="cb3-338"><a href="#cb3-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-339"><a href="#cb3-339" aria-hidden="true" tabindex="-1"></a>ft <span class="op">=</span> FunctionTrain([core1, core2], bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-340"><a href="#cb3-340" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(ft)</span>
+<span id="cb3-341"><a href="#cb3-341" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
+<span id="cb3-342"><a href="#cb3-342" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
+<span id="cb3-343"><a href="#cb3-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-344"><a href="#cb3-344" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">FunctionTrain Sobol indices:"</span>)</span>
+<span id="cb3-345"><a href="#cb3-345" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-346"><a href="#cb3-346" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.main_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-347"><a href="#cb3-347" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.sobol_index([<span class="dv">0</span>, <span class="dv">1</span>])[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-348"><a href="#cb3-348" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_1 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">0</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-349"><a href="#cb3-349" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  T_2 = </span><span class="sc">{</span><span class="bu">float</span>(sensitivity.total_effect_index(<span class="dv">1</span>)[<span class="dv">0</span>])<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb3-350"><a href="#cb3-350" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb3-351"><a href="#cb3-351" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-352"><a href="#cb3-352" aria-hidden="true" tabindex="-1"></a><span class="fu">## Computational Complexity</span></span>
+<span id="cb3-353"><a href="#cb3-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-354"><a href="#cb3-354" aria-hidden="true" tabindex="-1"></a><span class="fu">### Main Effects (All Variables)</span></span>
+<span id="cb3-355"><a href="#cb3-355" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-356"><a href="#cb3-356" aria-hidden="true" tabindex="-1"></a>For each variable $k$:</span>
+<span id="cb3-357"><a href="#cb3-357" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute sweeps $\bar{L}_k$, $\bar{R}_k$: $O(d \cdot r^2)$ total (shared)</span>
+<span id="cb3-358"><a href="#cb3-358" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute $c_\ell = \bar{L}_k \Theta_k^{(\ell)} \bar{R}_k$: $O(r^2)$ per term</span>
+<span id="cb3-359"><a href="#cb3-359" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Sum $c_\ell^2$: $O(p)$</span>
+<span id="cb3-360"><a href="#cb3-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-361"><a href="#cb3-361" aria-hidden="true" tabindex="-1"></a>**Total for all $d$ variables**: $O(d \cdot r^2 \cdot p)$</span>
+<span id="cb3-362"><a href="#cb3-362" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-363"><a href="#cb3-363" aria-hidden="true" tabindex="-1"></a><span class="fu">### Total Effects (All Variables)</span></span>
+<span id="cb3-364"><a href="#cb3-364" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-365"><a href="#cb3-365" aria-hidden="true" tabindex="-1"></a>For each variable $k$:</span>
+<span id="cb3-366"><a href="#cb3-366" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute Kronecker sweeps $\tilde{L}_k$, $\tilde{R}_k$: $O(d \cdot r^6)$ total</span>
+<span id="cb3-367"><a href="#cb3-367" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute $\Delta M_k$: $O(r^4 \cdot p)$</span>
+<span id="cb3-368"><a href="#cb3-368" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Matrix products: $O(r^4)$</span>
+<span id="cb3-369"><a href="#cb3-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-370"><a href="#cb3-370" aria-hidden="true" tabindex="-1"></a>**Total for all $d$ variables**: $O(d \cdot r^6)$</span>
+<span id="cb3-371"><a href="#cb3-371" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-372"><a href="#cb3-372" aria-hidden="true" tabindex="-1"></a><span class="fu">### General $S_u$</span></span>
+<span id="cb3-373"><a href="#cb3-373" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-374"><a href="#cb3-374" aria-hidden="true" tabindex="-1"></a>For one subset $u$: $O(d \cdot r^6)$</span>
+<span id="cb3-375"><a href="#cb3-375" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-376"><a href="#cb3-376" aria-hidden="true" tabindex="-1"></a>For all $2^d - 1$ subsets: $O(2^d \cdot d \cdot r^6)$ - exponential in $d$!</span>
+<span id="cb3-377"><a href="#cb3-377" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-378"><a href="#cb3-378" aria-hidden="true" tabindex="-1"></a><span class="fu">### Complexity Summary</span></span>
+<span id="cb3-379"><a href="#cb3-379" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-380"><a href="#cb3-380" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Operation <span class="pp">|</span> Complexity <span class="pp">|</span></span>
+<span id="cb3-381"><a href="#cb3-381" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|------------|</span></span>
+<span id="cb3-382"><a href="#cb3-382" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All main effects <span class="pp">|</span> $O(d \cdot r^2 \cdot p)$ <span class="pp">|</span></span>
+<span id="cb3-383"><a href="#cb3-383" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All total effects <span class="pp">|</span> $O(d \cdot r^6)$ <span class="pp">|</span></span>
+<span id="cb3-384"><a href="#cb3-384" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> One general $S_u$ <span class="pp">|</span> $O(d \cdot r^6)$ <span class="pp">|</span></span>
+<span id="cb3-385"><a href="#cb3-385" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> All $2^d-1$ indices <span class="pp">|</span> $O(2^d \cdot d \cdot r^6)$ <span class="pp">|</span></span>
+<span id="cb3-386"><a href="#cb3-386" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-387"><a href="#cb3-387" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb3-388"><a href="#cb3-388" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Guidance</span></span>
+<span id="cb3-389"><a href="#cb3-389" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-390"><a href="#cb3-390" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Main and total effects** are always efficient: $O(d \cdot r^6)$</span>
+<span id="cb3-391"><a href="#cb3-391" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**All general indices** is exponential in $d$ - only practical for $d \lesssim 15$</span>
+<span id="cb3-392"><a href="#cb3-392" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For large $d$, compute only main + total effects, or selected interaction sets</span>
+<span id="cb3-393"><a href="#cb3-393" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb3-394"><a href="#cb3-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-395"><a href="#cb3-395" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary of Formulas</span></span>
+<span id="cb3-396"><a href="#cb3-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-397"><a href="#cb3-397" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Index <span class="pp">|</span> Formula <span class="pp">|</span></span>
+<span id="cb3-398"><a href="#cb3-398" aria-hidden="true" tabindex="-1"></a><span class="pp">|-------|---------|</span></span>
+<span id="cb3-399"><a href="#cb3-399" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Main effect $V_k$ <span class="pp">|</span> $\sum_{\ell \geq 1} (\bar{L}_k \Theta_k^{(\ell)} \bar{R}_k)^2$ <span class="pp">|</span></span>
+<span id="cb3-400"><a href="#cb3-400" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Total effect $V_k^T$ <span class="pp">|</span> $\tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k$ <span class="pp">|</span></span>
+<span id="cb3-401"><a href="#cb3-401" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> General $V_u$ <span class="pp">|</span> $\prod_{k} N_k^{<span class="co">[</span><span class="ot">u</span><span class="co">]</span>}$ <span class="pp">|</span></span>
+<span id="cb3-402"><a href="#cb3-402" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Sobol index <span class="pp">|</span> $S = V / \Var<span class="co">[</span><span class="ot">f</span><span class="co">]</span>$ <span class="pp">|</span></span>
+<span id="cb3-403"><a href="#cb3-403" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-404"><a href="#cb3-404" aria-hidden="true" tabindex="-1"></a>Where:</span>
+<span id="cb3-405"><a href="#cb3-405" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\bar{L}_k = \prod_{j &lt; k} \Theta_j^{(0)}$, $\bar{R}_k = \prod_{j &gt; k} \Theta_j^{(0)}$</span>
+<span id="cb3-406"><a href="#cb3-406" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\tilde{L}_k = \prod_{j &lt; k} M_j$, $\tilde{R}_k = \prod_{j &gt; k} M_j$</span>
+<span id="cb3-407"><a href="#cb3-407" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\Delta M_k = \sum_{\ell \geq 1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$</span>
+<span id="cb3-408"><a href="#cb3-408" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-409"><a href="#cb3-409" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb3-410"><a href="#cb3-410" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-411"><a href="#cb3-411" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Main effects** use forward/backward sweeps of constant-term matrices</span>
+<span id="cb3-412"><a href="#cb3-412" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total effects** use Kronecker sweeps with non-constant contributions</span>
+<span id="cb3-413"><a href="#cb3-413" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**General $S_u$** selects contributions via Kronecker product structure</span>
+<span id="cb3-414"><a href="#cb3-414" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Key identity**: $\sum_u S_u = 1$ and $\SobolT{k} = \sum_{u \ni k} S_u$</span>
+<span id="cb3-415"><a href="#cb3-415" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Complexity**: Main/total effects are polynomial; all indices is exponential</span>
+<span id="cb3-416"><a href="#cb3-416" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-417"><a href="#cb3-417" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb3-418"><a href="#cb3-418" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-419"><a href="#cb3-419" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** For the 2D example, verify that $\SobolT{1} \geq \Sobol{1}$ algebraically. When does equality hold?</span>
+<span id="cb3-420"><a href="#cb3-420" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-421"><a href="#cb3-421" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Extend the analytical derivation to a 3D rank-1 FT. Write explicit formulas for all 7 Sobol indices ($S_1, S_2, S_3, S_{12}, S_{13}, S_{23}, S_{123}$).</span>
+<span id="cb3-422"><a href="#cb3-422" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-423"><a href="#cb3-423" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Show that for any PCE FunctionTrain, $\sum_k \Sobol{k} \leq 1$ with equality iff there are no interactions. Hint: Use the decomposition $M_k = M_k^{(0)} + \Delta M_k$.</span>
+<span id="cb3-424"><a href="#cb3-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-425"><a href="#cb3-425" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb3-426"><a href="#cb3-426" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-427"><a href="#cb3-427" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb3-428"><a href="#cb3-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-429"><a href="#cb3-429" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">FunctionTrain Sensitivity (Usage)</span><span class="co">](functiontrain_sensitivity.qmd)</span> - Computing indices in practice</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

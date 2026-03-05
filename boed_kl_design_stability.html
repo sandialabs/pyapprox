@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Bayesian OED: Design Stability and Convergence – PyApprox">
 <meta property="og:description" content="Demonstrating that OED designs depend on Monte Carlo realizations at fixed budget, and that they stabilize as the budget grows.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_kl_design_stability_files/figure-html/fig-variability-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="856">
-<meta property="og:image:width" content="2476">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1125,7 +1122,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.</p>
-<div id="56c4b4f8" class="cell" data-execution_count="1">
+<div id="f9e63eef" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1160,7 +1157,7 @@ window.Quarto = {
 </section>
 <section id="helper-solve-oed-for-a-given-budget-and-seed" class="level2">
 <h2 class="anchored" data-anchor-id="helper-solve-oed-for-a-given-budget-and-seed">Helper: Solve OED for a Given Budget and Seed</h2>
-<div id="584bf781" class="cell" data-execution_count="2">
+<div id="020ec653" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solve_oed(M, seed):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Solve the relaxed KL-OED problem for a given outer budget and seed.</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1190,7 +1187,7 @@ window.Quarto = {
 <section id="design-variability-at-fixed-budget" class="level2">
 <h2 class="anchored" data-anchor-id="design-variability-at-fixed-budget">Design Variability at Fixed Budget</h2>
 <p>We solve the OED problem three times at <span class="math inline">\(M = 1{,}000\)</span> with different random seeds. At this moderate budget the EIG estimate is noisy, so the optimal designs should differ visibly between runs.</p>
-<div id="f8636d97" class="cell" data-execution_count="3">
+<div id="51b1d539" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_fixed <span class="op">=</span> <span class="dv">1000</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1200,20 +1197,6 @@ window.Quarto = {
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    w, e <span class="op">=</span> solve_oed(M_fixed, seed<span class="op">=</span>seed <span class="op">*</span> <span class="dv">1000</span>)</span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    designs_fixed.append(w)</span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    eigs_fixed.append(e)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<div id="cell-fig-variability" class="cell" data-execution_count="4">
-<div class="cell-output cell-output-display">
-<div id="fig-variability" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-variability-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="boed_kl_design_stability_files/figure-html/fig-variability-output-1.png" width="1238" height="428" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variability-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design.
-</figcaption>
-</figure>
-</div>
-</div>
 </div>
 <p>The three designs share the same qualitative shape — the optimizer finds the same informative time windows — but the exact weight values differ. This variability is the fingerprint of finite-sample noise in the EIG estimate.</p>
 </section>
@@ -1233,7 +1216,7 @@ Figure&nbsp;1: Optimal design weights from 3 independent MC realizations at M=1,
 <p>Each budget level requires <code>n_seeds</code> independent forward-model evaluations and optimizations. For expensive models, this convergence study is itself a significant investment — but it is the only reliable way to verify that your design is trustworthy.</p>
 </div>
 </div>
-<div id="b1dc5edb" class="cell" data-execution_count="5">
+<div id="6b9a0719" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">4000</span>]</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1247,20 +1230,6 @@ Figure&nbsp;1: Optimal design weights from 3 independent MC realizations at M=1,
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        w, e <span class="op">=</span> solve_oed(M, seed<span class="op">=</span>seed <span class="op">*</span> <span class="dv">1000</span>)</span>
 <span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        designs_at_M.append(w)</span>
 <span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    all_designs[M] <span class="op">=</span> designs_at_M</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<div id="cell-fig-design-convergence" class="cell" data-execution_count="6">
-<div class="cell-output cell-output-display">
-<div id="fig-design-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-design-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="boed_kl_design_stability_files/figure-html/fig-design-convergence-output-1.png" width="1238" height="852" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-design-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized.
-</figcaption>
-</figure>
-</div>
-</div>
 </div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">

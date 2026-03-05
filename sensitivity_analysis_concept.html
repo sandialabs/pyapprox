@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Sensitivity Analysis – PyApprox">
 <meta property="og:description" content="Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/sensitivity_analysis_concept_files/figure-html/fig-variance-decomposition-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="837">
-<meta property="og:image:width" content="1322">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1137,21 +1134,7 @@ window.Quarto = {
 <li><span class="math inline">\(V_{ij}\)</span> is the additional variance from the interaction between <span class="math inline">\(\theta_i\)</span> and <span class="math inline">\(\theta_j\)</span></li>
 <li>Higher-order terms capture three-way and beyond interactions</li>
 </ul>
-<p><a href="#fig-variance-decomposition" class="quarto-xref">Figure&nbsp;1</a> shows how the variance of tip deflection decomposes across the three KLE inputs.</p>
-<div id="cell-fig-variance-decomposition" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-variance-decomposition" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-variance-decomposition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="sensitivity_analysis_concept_files/figure-html/fig-variance-decomposition-output-1.png" width="661" height="419" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-decomposition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Variance decomposition for beam tip deflection. Each slice shows the fraction of total variance attributable to each KLE input. The first KLE term dominates because it represents the lowest-frequency spatial mode of the stiffness field.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-variance-decomposition</strong> shows how the variance of tip deflection decomposes across the three KLE inputs.</p>
 </section>
 <section id="first-order-and-total-order-indices" class="level2">
 <h2 class="anchored" data-anchor-id="first-order-and-total-order-indices">First-Order and Total-Order Indices</h2>
@@ -1182,21 +1165,7 @@ Figure&nbsp;1: Variance decomposition for beam tip deflection. Each slice shows 
 <li><span class="math inline">\(\sum_i \Sobol{i} \leq 1\)</span> (equality iff no interactions)</li>
 <li><span class="math inline">\(\sum_i \SobolT{i} \geq 1\)</span> (equality iff no interactions)</li>
 </ul>
-<p><a href="#fig-sobol-bar-chart" class="quarto-xref">Figure&nbsp;2</a> shows both indices for the beam QoIs that have nonzero variance: tip deflection and maximum curvature.</p>
-<div id="cell-fig-sobol-bar-chart" class="cell" data-execution_count="3">
-<div class="cell-output cell-output-display">
-<div id="fig-sobol-bar-chart" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sobol-bar-chart-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="sensitivity_analysis_concept_files/figure-html/fig-sobol-bar-chart-output-1.png" width="949" height="370" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sobol-bar-chart-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: First-order and total-order Sobol indices for tip deflection and maximum curvature. When the bars are similar in height, interactions are weak. When the total-order bar is much taller, the input participates in interactions with other inputs.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-sobol-bar-chart</strong> shows both indices for the beam QoIs that have nonzero variance: tip deflection and maximum curvature.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1214,21 +1183,7 @@ Figure&nbsp;2: First-order and total-order Sobol indices for tip deflection and 
 </section>
 <section id="visual-confirmation" class="level2">
 <h2 class="anchored" data-anchor-id="visual-confirmation">Visual Confirmation</h2>
-<p>A quick visual check supports the sensitivity indices. <a href="#fig-scatter-dominant" class="quarto-xref">Figure&nbsp;3</a> shows scatter plots of the QoI against the most influential and least influential KLE inputs. The dominant input shows a clear functional trend, while the non-influential input shows no pattern.</p>
-<div id="cell-fig-scatter-dominant" class="cell" data-execution_count="4">
-<div class="cell-output cell-output-display">
-<div id="fig-scatter-dominant" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-scatter-dominant-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="sensitivity_analysis_concept_files/figure-html/fig-scatter-dominant-output-1.png" width="1043" height="371" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-scatter-dominant-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Scatter plots confirming sensitivity rankings. Left: QoI vs.&nbsp;dominant KLE input (clear trend explains high S_i). Right: QoI vs.&nbsp;least influential input (no trend, low S_i).
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>A quick visual check supports the sensitivity indices. <strong>?@fig-scatter-dominant</strong> shows scatter plots of the QoI against the most influential and least influential KLE inputs. The dominant input shows a clear functional trend, while the non-influential input shows no pattern.</p>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
@@ -1243,8 +1198,8 @@ Figure&nbsp;3: Scatter plots confirming sensitivity rankings. Left: QoI vs.&nbsp
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p><strong>(Easy)</strong> From <a href="#fig-sobol-bar-chart" class="quarto-xref">Figure&nbsp;2</a>, which KLE input is most important for each QoI? Do the rankings differ between tip deflection and maximum curvature?</p></li>
-<li><p><strong>(Medium)</strong> For a given QoI, what does it mean if <span class="math inline">\(\SobolT{i} \gg \Sobol{i}\)</span>? Use <a href="#fig-sobol-bar-chart" class="quarto-xref">Figure&nbsp;2</a> to identify whether any input exhibits strong interactions.</p></li>
+<li><p><strong>(Easy)</strong> From <strong>?@fig-sobol-bar-chart</strong>, which KLE input is most important for each QoI? Do the rankings differ between tip deflection and maximum curvature?</p></li>
+<li><p><strong>(Medium)</strong> For a given QoI, what does it mean if <span class="math inline">\(\SobolT{i} \gg \Sobol{i}\)</span>? Use <strong>?@fig-sobol-bar-chart</strong> to identify whether any input exhibits strong interactions.</p></li>
 <li><p><strong>(Challenge)</strong> The sum <span class="math inline">\(\sum_i \Sobol{i}\)</span> measures how additive the model is. Compute this sum for both QoIs. Which has stronger interactions? What physical mechanism might explain this?</p></li>
 </ol>
 </section>

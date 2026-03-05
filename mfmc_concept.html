@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Fidelity Monte Carlo – PyApprox">
 <meta property="og:description" content="A hierarchy estimator using nested sample sets and a recursive correction structure, contrasted with MLMC.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mfmc_concept_files/figure-html/fig-sample-structure-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="648">
-<meta property="og:image:width" content="2281">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1114,21 +1111,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="motivation-a-different-way-to-share-samples">Motivation: A Different Way to Share Samples</h2>
 <p>MLMC decomposes the HF mean as a telescoping sum and estimates each level correction on a completely <strong>independent</strong> sample set. This independence keeps the variance formula clean, but it also means every sample drawn at level <span class="math inline">\(\ell\)</span> is used only once, for the correction at that level.</p>
 <p>Multi-Fidelity Monte Carlo (MFMC) [PWGSIAM2016] takes a different approach. Instead of independent sets, it uses <strong>nested</strong> sample sets where each model sees all the samples the previous model saw, plus more. Cheaper models accumulate samples, but every HF sample propagates through every LF model. This creates a denser web of shared information and, crucially, allows the correction weight <span class="math inline">\(\eta_\alpha\)</span> to be <strong>optimised</strong> at each level rather than fixed at <span class="math inline">\(-1\)</span>.</p>
-<p>Before the algebra, <a href="#fig-sample-structure" class="quarto-xref">Figure&nbsp;1</a> makes the structural difference visual.</p>
-<div id="cell-fig-sample-structure" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-sample-structure" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sample-structure-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="mfmc_concept_files/figure-html/fig-sample-structure-output-1.png" width="1141" height="324" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sample-structure-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Sample allocation for MLMC (left) and MFMC (right) across three models at equal total cost. Each row is a model; each cell is a sample evaluation. MLMC: each level correction uses a disjoint set — no sample appears in more than one row. MFMC: sets are nested — every HF sample (red) is also evaluated by all LF models, and cheaper models evaluate progressively more exclusive samples (orange, blue).
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>Before the algebra, <strong>?@fig-sample-structure</strong> makes the structural difference visual.</p>
 </section>
 <section id="building-the-estimator-recursively" class="level2">
 <h2 class="anchored" data-anchor-id="building-the-estimator-recursively">Building the Estimator Recursively</h2>

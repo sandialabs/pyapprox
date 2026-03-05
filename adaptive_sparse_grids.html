@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions – PyApprox">
 <meta property="og:description" content="Implement the greedy adaptive algorithm, configure admissibility criteria, visualize index set evolution, and compare adaptive vs.&nbsp;isotropic sparse grids on anisotropic functions.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/adaptive_sparse_grids_files/figure-html/fig-additive-function-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="938">
-<meta property="og:image:width" content="1323">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1122,7 +1119,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="9c9794e1" class="cell" data-execution_count="1">
+<div id="e086deda" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1164,7 +1161,9 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="motivation-anisotropy">Motivation: Anisotropy</h2>
 <p>The isotropic sparse grid treats all dimensions symmetrically: level <span class="math inline">\(l\)</span> in dimension 1 pairs with level <span class="math inline">\(l\)</span> in dimension 2. For <strong>anisotropic functions</strong> — where variation is concentrated in a subset of dimensions — this symmetry is wasteful. An adaptive algorithm that allocates more nodes to the high-variation dimensions and fewer to the low-variation ones will reach a given error tolerance with far fewer function evaluations.</p>
 <p>Consider <span class="math inline">\(f(z_1, z_2) = \cos(5z_1) + 0.1 z_2\)</span>. This function varies much more in <span class="math inline">\(z_1\)</span> than in <span class="math inline">\(z_2\)</span>. The isotropic grid places equal resources in both dimensions; an adaptive grid should concentrate almost all nodes along the <span class="math inline">\(z_1\)</span> axis.</p>
-<div id="cell-fig-additive-function" class="cell" data-execution_count="2">
+<div id="fig-additive-function" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-additive-function-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> additive_function(samples, bkd):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""f(z1, z2) = cos(5*z1) + 0.1*z2. Shape: (1, nsamples)."""</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    z1, z2 <span class="op">=</span> samples[<span class="dv">0</span>, :], samples[<span class="dv">1</span>, :]</span>
@@ -1182,18 +1181,11 @@ window.Quarto = {
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>plot_additive_function(ax, plotter)</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-additive-function" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-additive-function-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-additive-function-output-1.png" width="662" height="469" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-additive-function-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation along z_1 dominates; the adaptive algorithm should detect this and refine preferentially in z_1.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-additive-function-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="the-adaptive-algorithm" class="level2">
@@ -1225,7 +1217,7 @@ Figure&nbsp;1: The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    new_values <span class="op">=</span> my_function(new_samples)</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    fitter.step_values(new_values)        <span class="co"># Provide function values</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each call to <code>step_samples()</code> returns the points for the next candidate subspace. After evaluating the function at those points and passing the values back via <code>step_values()</code>, the algorithm decides which subspace to add based on the error indicator.</p>
-<div id="c1c58b0f" class="cell" data-execution_count="3">
+<div id="cc5964fc" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>factories <span class="op">=</span> [ClenshawCurtisLagrangeFactory(marginal, bkd) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(nvars)]</span>
@@ -1273,7 +1265,9 @@ Figure&nbsp;1: The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation
 <span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>ada_result <span class="op">=</span> fitter.result()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cell-fig-adaptive-convergence" class="cell" data-execution_count="4">
+<div id="fig-adaptive-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-adaptive-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>ax.semilogy(nsamples_history, error_history, <span class="st">"o-"</span>, color<span class="op">=</span><span class="st">"#2C7FB8"</span>, lw<span class="op">=</span><span class="dv">2</span>, ms<span class="op">=</span><span class="dv">5</span>)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of samples"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
@@ -1282,24 +1276,19 @@ Figure&nbsp;1: The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, which<span class="op">=</span><span class="st">"both"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-adaptive-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-adaptive-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-adaptive-convergence-output-1.png" width="758" height="471" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-adaptive-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Adaptive sparse grid convergence on the additive function. The error decreases rapidly as the algorithm discovers and refines the important dimension.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-adaptive-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="visualizing-the-selected-index-set" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-the-selected-index-set">Visualizing the Selected Index Set</h2>
 <p>Because <span class="math inline">\(f\)</span> is <strong>additive</strong> (<span class="math inline">\(f = g_1(z_1) + g_2(z_2)\)</span>), no mixed terms are needed: the ideal index set consists only of axis-aligned indices <span class="math inline">\((k, 0)\)</span> and <span class="math inline">\((0, k)\)</span>. The adaptive algorithm discovers both the <strong>additive structure</strong> (no cross-indices) and the <strong>anisotropy</strong> (more levels in <span class="math inline">\(z_1\)</span> than <span class="math inline">\(z_2\)</span>):</p>
-<div id="cell-fig-index-set" class="cell" data-execution_count="5">
+<div id="fig-index-set" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-index-set-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>selected <span class="op">=</span> ada_result.indices</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>sel_np <span class="op">=</span> bkd.to_numpy(selected).astype(<span class="bu">int</span>)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1307,23 +1296,18 @@ Figure&nbsp;2: Adaptive sparse grid convergence on the additive function. The er
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>plot_index_set(ax, sel_np)</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-index-set" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-index-set-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-index-set-output-1.png" width="756" height="314" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-index-set-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Selected index set after adaptive refinement. The algorithm allocates far more levels along z_1 (the dominant dimension) than z_2, demonstrating automatic anisotropy detection.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-index-set-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>Notice that the index set contains only axis-aligned indices — no cross-terms like <span class="math inline">\((2, 1)\)</span> or <span class="math inline">\((1, 2)\)</span> — reflecting the additive structure of <span class="math inline">\(f\)</span>. It also extends much further in <span class="math inline">\(k_1\)</span> than in <span class="math inline">\(k_2\)</span>, reflecting the much stronger dependence on <span class="math inline">\(z_1\)</span>.</p>
 <section id="visualizing-grid-points" class="level3">
 <h3 class="anchored" data-anchor-id="visualizing-grid-points">Visualizing Grid Points</h3>
-<div id="cell-fig-points-compare" class="cell" data-execution_count="6">
+<div id="fig-points-compare" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-points-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Adaptive points --- selected vs candidate</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>ada_selected <span class="op">=</span> bkd.to_numpy(fitter.get_samples(<span class="st">"selected"</span>))</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ada_candidate <span class="op">=</span> bkd.to_numpy(fitter.get_samples(<span class="st">"candidate"</span>))</span>
@@ -1342,24 +1326,19 @@ Figure&nbsp;3: Selected index set after adaptive refinement. The algorithm alloc
 <span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-points-compare" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-points-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-points-compare-output-1.png" width="1029" height="470" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-points-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Point distribution for adaptive (left) vs.&nbsp;isotropic (right) sparse grids. The adaptive grid concentrates more points along the first variable. Blue circles are points from selected subspaces; light blue squares are points from candidate subspaces awaiting prioritisation.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-points-compare-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 </section>
 <section id="convergence-comparison-adaptive-vs.-isotropic" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-comparison-adaptive-vs.-isotropic">Convergence Comparison: Adaptive vs.&nbsp;Isotropic</h2>
-<div id="cell-fig-adaptive-vs-iso" class="cell" data-execution_count="7">
+<div id="fig-adaptive-vs-iso" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-adaptive-vs-iso-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Isotropic convergence</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>iso_nsamples_list, iso_errors <span class="op">=</span> [], []</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1382,18 +1361,11 @@ Figure&nbsp;4: Point distribution for adaptive (left) vs.&nbsp;isotropic (right)
 <span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>                     iso_nsamples_list, iso_errors)</span>
 <span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-adaptive-vs-iso" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-adaptive-vs-iso-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-adaptive-vs-iso-output-1.png" width="758" height="470" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-adaptive-vs-iso-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5: Adaptive vs.&nbsp;isotropic convergence on the additive benchmark. Adaptive refinement reaches the same accuracy with fewer points by concentrating resources on the important dimension.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-adaptive-vs-iso-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="admissibility-criteria" class="level2">
@@ -1430,7 +1402,7 @@ Figure&nbsp;5: Adaptive vs.&nbsp;isotropic convergence on the additive benchmark
 </tr>
 </tbody>
 </table>
-<div id="0114a806" class="cell" data-execution_count="8">
+<div id="2d08ad3c" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-dimension maximum levels: more refinement in z1 than z2</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>max_levels <span class="op">=</span> bkd.asarray([<span class="dv">8</span>, <span class="dv">4</span>])</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>per_dim <span class="op">=</span> Max1DLevelsCriteria(max_levels, bkd<span class="op">=</span>bkd)</span>
@@ -1461,7 +1433,9 @@ Figure&nbsp;5: Adaptive vs.&nbsp;isotropic convergence on the additive benchmark
 <section id="d-adaptive-example" class="level2">
 <h2 class="anchored" data-anchor-id="d-adaptive-example">4D Adaptive Example</h2>
 <p>Adaptive refinement pays larger dividends in higher dimensions, especially when the function depends strongly on only a few inputs.</p>
-<div id="cell-fig-4d-adaptive" class="cell" data-execution_count="9">
+<div id="fig-4d-adaptive" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-4d-adaptive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>nvars4 <span class="op">=</span> <span class="dv">4</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun4d_additive(samples, bkd):</span>
@@ -1517,18 +1491,11 @@ Figure&nbsp;5: Adaptive vs.&nbsp;isotropic convergence on the additive benchmark
 <span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>                 iso_nsamples_4d, iso_errors_4d)</span>
 <span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-4d-adaptive" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-4d-adaptive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="adaptive_sparse_grids_files/figure-html/fig-4d-adaptive-output-1.png" width="758" height="471" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-4d-adaptive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;6: 4D adaptive vs.&nbsp;isotropic convergence for a function with one dominant variable. The adaptive algorithm discovers the important dimension and converges much faster.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-4d-adaptive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="summary" class="level2">

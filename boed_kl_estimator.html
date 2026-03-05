@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Bayesian OED: The Double-Loop Estimator – PyApprox">
 <meta property="og:description" content="How the double-loop Monte Carlo estimator approximates EIG by treating the marginal evidence as a nested average over prior samples.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_kl_estimator_files/figure-html/fig-double-loop-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="1467">
-<meta property="og:image:width" content="2523">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1188,20 +1185,6 @@ p(\mathbf{y}\mid\boldsymbol{\theta}^{(n)},\mathbf{w}).
 \right\}.
 \]</span></p>
 <p>The outer samples <span class="math inline">\((\boldsymbol{\theta}^{(m)}, \boldsymbol{\varepsilon}^{(m)})\)</span> are drawn jointly from the model. The inner samples <span class="math inline">\(\boldsymbol{\theta}^{(n)}\)</span> are drawn independently from the same prior. The observation <span class="math inline">\(\mathbf{y}^{(m)}\)</span> is <strong>reused</strong> across all <span class="math inline">\(N_\text{in}\)</span> inner likelihood evaluations — this is what makes the estimator a nested loop rather than two independent sweeps.</p>
-<div id="cell-fig-double-loop" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-double-loop" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-double-loop-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="boed_kl_estimator_files/figure-html/fig-double-loop-output-1.png" width="1262" height="734" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-double-loop-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε) jointly and forms y(w) via the reparameterization. The observation y^(m) is passed to the inner loop (orange, right), which draws independent θ* samples and averages their likelihoods to approximate the marginal evidence. The outer log-likelihood ℓₘ and inner log-evidence feed the final EIG estimate (green, bottom).
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
 </section>
 <section id="computational-steps" class="level3">
 <h3 class="anchored" data-anchor-id="computational-steps">Computational Steps</h3>

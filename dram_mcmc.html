@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Practical MCMC: Metropolis-Hastings and DRAM – PyApprox">
 <meta property="og:description" content="Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/dram_mcmc_files/figure-html/fig-proposal-width-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="1894">
-<meta property="og:image:width" content="2469">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1126,21 +1123,7 @@ window.Quarto = {
 </section>
 <section id="proposal-width-matters" class="level2">
 <h2 class="anchored" data-anchor-id="proposal-width-matters">Proposal Width Matters</h2>
-<p>The <a href="./mcmc_sampling.html">previous tutorial</a> used a well-tuned proposal and the chain worked. But how did we know the right proposal width? <a href="#fig-proposal-width" class="quarto-xref">Figure&nbsp;1</a> shows what happens when the proposal is too narrow, well-tuned, and too wide.</p>
-<div id="cell-fig-proposal-width" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-proposal-width" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-proposal-width-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-proposal-width-output-1.png" width="1235" height="947" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-proposal-width-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Effect of proposal width on chain behavior. Left: too narrow — the chain takes tiny steps and explores slowly (high acceptance, high autocorrelation). Center: well-tuned — healthy mixing, the chain moves freely through the posterior. Right: too wide — most proposals land in low-density regions and are rejected, causing the chain to stick in place for long stretches.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>The <a href="./mcmc_sampling.html">previous tutorial</a> used a well-tuned proposal and the chain worked. But how did we know the right proposal width? <strong>?@fig-proposal-width</strong> shows what happens when the proposal is too narrow, well-tuned, and too wide.</p>
 <p>The patterns:</p>
 <ul>
 <li><strong>Too narrow</strong> (top): acceptance rate is very high (<span class="math inline">\(&gt;95\%\)</span>) because the proposals are tiny. But the chain barely moves — it takes thousands of steps to traverse the posterior. The 2D scatter shows a tight clump rather than the full distribution.</li>
@@ -1150,21 +1133,7 @@ Figure&nbsp;1: Effect of proposal width on chain behavior. Left: too narrow — 
 </section>
 <section id="acceptance-rate-as-a-diagnostic" class="level2">
 <h2 class="anchored" data-anchor-id="acceptance-rate-as-a-diagnostic">Acceptance Rate as a Diagnostic</h2>
-<p>The acceptance rate provides a quick diagnostic. <a href="#fig-acceptance-rate" class="quarto-xref">Figure&nbsp;2</a> sweeps the proposal width and plots the acceptance rate alongside the effective sample size (a measure of how many independent samples the chain produces).</p>
-<div id="cell-fig-acceptance-rate" class="cell" data-execution_count="3">
-<div class="cell-output cell-output-display">
-<div id="fig-acceptance-rate" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-acceptance-rate-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-acceptance-rate-output-1.png" width="759" height="420" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-acceptance-rate-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Acceptance rate and effective sample size (ESS) vs.&nbsp;proposal width. The optimal proposal width produces an acceptance rate of roughly <span class="math inline">\(25\text{--}40\%\)</span> for 2D problems. Too narrow → high acceptance but low ESS. Too wide → low acceptance and low ESS.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>The acceptance rate provides a quick diagnostic. <strong>?@fig-acceptance-rate</strong> sweeps the proposal width and plots the acceptance rate alongside the effective sample size (a measure of how many independent samples the chain produces).</p>
 <p>The effective sample size peaks near the acceptance rate of <span class="math inline">\(\approx 25\%\)</span>, consistent with theoretical results for random-walk Metropolis in moderate dimensions. This gives a practical rule of thumb: <strong>tune the proposal until the acceptance rate is <span class="math inline">\(20\text{--}40\%\)</span></strong>.</p>
 </section>
 <section id="burn-in-and-autocorrelation" class="level2">
@@ -1172,61 +1141,19 @@ Figure&nbsp;2: Acceptance rate and effective sample size (ESS) vs.&nbsp;proposal
 <section id="burn-in" class="level3">
 <h3 class="anchored" data-anchor-id="burn-in">Burn-In</h3>
 <p>The chain starts wherever we place it and needs time to find the high-density region. Samples from this transient period are not representative of the posterior and must be discarded. This is the <strong>burn-in</strong> period.</p>
-<p><a href="#fig-burnin" class="quarto-xref">Figure&nbsp;3</a> shows how the choice of burn-in length affects the posterior estimate.</p>
-<div id="cell-fig-burnin" class="cell" data-execution_count="4">
-<div class="cell-output cell-output-display">
-<div id="fig-burnin" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-burnin-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-burnin-output-1.png" width="759" height="420" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-burnin-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Effect of burn-in removal. The red histogram (all samples) is visibly shifted from the true value because the burn-in transient pulls the distribution toward the starting point. The blue histogram (burn-in removed) centers on the true value. The inset trace plot shows the transient approach phase (gray region).
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-burnin</strong> shows how the choice of burn-in length affects the posterior estimate.</p>
 </section>
 <section id="autocorrelation" class="level3">
 <h3 class="anchored" data-anchor-id="autocorrelation">Autocorrelation</h3>
 <p>Even after burn-in, consecutive chain samples are correlated — the walker’s position at step <span class="math inline">\(t\)</span> depends on where it was at step <span class="math inline">\(t-1\)</span>. The <strong>autocorrelation function</strong> measures how quickly this dependence decays.</p>
-<p><a href="#fig-autocorrelation" class="quarto-xref">Figure&nbsp;4</a> compares the autocorrelation for the three proposal widths. A well-tuned chain decorrelates quickly; a poorly tuned chain stays correlated for many steps.</p>
-<div id="cell-fig-autocorrelation" class="cell" data-execution_count="5">
-<div class="cell-output cell-output-display">
-<div id="fig-autocorrelation" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-autocorrelation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-autocorrelation-output-1.png" width="759" height="373" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-autocorrelation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Autocorrelation of the <span class="math inline">\(\xi_1\)</span> chain for three proposal widths. The well-tuned chain (green) decorrelates within ~20 steps. The too-narrow chain (blue) stays correlated for hundreds of steps. The too-wide chain (red) also decorrelates slowly due to frequent rejections.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-autocorrelation</strong> compares the autocorrelation for the three proposal widths. A well-tuned chain decorrelates quickly; a poorly tuned chain stays correlated for many steps.</p>
 </section>
 </section>
 <section id="delayed-rejection-dr" class="level2">
 <h2 class="anchored" data-anchor-id="delayed-rejection-dr">Delayed Rejection (DR)</h2>
 <p>Standard Metropolis-Hastings has a binary outcome: accept or reject. If a proposal is rejected, the chain stays at the current position and tries again from scratch. This is wasteful — the rejected proposal told us that the proposed <em>direction</em> might be fine, but the <em>step was too large</em>.</p>
 <p><strong>Delayed Rejection</strong> adds a second chance: if the first proposal is rejected, try a second proposal with a <strong>smaller step size</strong>. The acceptance probability for the second stage is adjusted to maintain the correct stationary distribution.</p>
-<p><a href="#fig-delayed-rejection" class="quarto-xref">Figure&nbsp;5</a> illustrates the mechanism on the 1D KLE beam posterior.</p>
-<div id="cell-fig-delayed-rejection" class="cell" data-execution_count="6">
-<div class="cell-output cell-output-display">
-<div id="fig-delayed-rejection" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-delayed-rejection-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-delayed-rejection-output-1.png" width="853" height="563" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-delayed-rejection-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5: Delayed Rejection in action. Top: the first proposal (large step) lands in a low-density region and is rejected. Bottom: a second proposal (smaller step) is tried from the same current position. It lands in a higher-density region and is accepted. Without DR, the chain would have stayed put.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-delayed-rejection</strong> illustrates the mechanism on the 1D KLE beam posterior.</p>
 <p>The key idea: <strong>DR gives the chain a second chance with a more conservative step</strong>, preventing it from getting stuck after an aggressive proposal is rejected. This is especially useful when the posterior has regions of very different curvature.</p>
 </section>
 <section id="adaptive-metropolis-am" class="level2">
@@ -1236,21 +1163,7 @@ Figure&nbsp;5: Delayed Rejection in action. Top: the first proposal (large step)
 \mathbf{C}_{\text{prop}}^{(t)} = s_d \cdot \hat{\boldsymbol{\Sigma}}_t + \varepsilon \mathbf{I}
 \]</span></p>
 <p>where <span class="math inline">\(\hat{\boldsymbol{\Sigma}}_t\)</span> is the sample covariance of the chain so far, <span class="math inline">\(s_d = 2.4^2 / d\)</span> is a scaling factor, and <span class="math inline">\(\varepsilon \mathbf{I}\)</span> is a small regularization term.</p>
-<p><a href="#fig-adaptive-proposal" class="quarto-xref">Figure&nbsp;6</a> shows the effect on the KLE beam problem. Initially the proposal is isotropic (circular). As the chain runs, the proposal adapts to match the posterior’s elongated shape.</p>
-<div id="cell-fig-adaptive-proposal" class="cell" data-execution_count="7">
-<div class="cell-output cell-output-display">
-<div id="fig-adaptive-proposal" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-adaptive-proposal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-adaptive-proposal-output-1.png" width="1235" height="467" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-adaptive-proposal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;6: Adaptive Metropolis learns the posterior shape. Left: initial isotropic proposal (circle) — the chain makes many rejected moves perpendicular to the posterior ridge. Right: after adaptation, the proposal aligns with the posterior’s correlation structure (tilted ellipse) — the chain moves efficiently along the ridge.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-adaptive-proposal</strong> shows the effect on the KLE beam problem. Initially the proposal is isotropic (circular). As the chain runs, the proposal adapts to match the posterior’s elongated shape.</p>
 <p>The adapted proposal ellipse is tilted to align with the posterior’s correlation between <span class="math inline">\(\xi_1\)</span> and <span class="math inline">\(\xi_2\)</span>. This means the chain proposes moves <em>along</em> the high-density ridge rather than <em>across</em> it, dramatically improving mixing.</p>
 </section>
 <section id="dram-combining-dr-and-am" class="level2">
@@ -1260,21 +1173,7 @@ Figure&nbsp;6: Adaptive Metropolis learns the posterior shape. Left: initial iso
 <li><strong>Adaptive Metropolis</strong> learns the proposal shape from the chain → efficient moves along the posterior ridge</li>
 <li><strong>Delayed Rejection</strong> provides a fallback when an adaptive proposal is rejected → the chain unsticks faster</li>
 </ul>
-<p><a href="#fig-dram-comparison" class="quarto-xref">Figure&nbsp;7</a> compares the four methods on the KLE beam problem. All chains use the same number of steps and start from the same initial point.</p>
-<div id="cell-fig-dram-comparison" class="cell" data-execution_count="8">
-<div class="cell-output cell-output-display">
-<div id="fig-dram-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-dram-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="dram_mcmc_files/figure-html/fig-dram-comparison-output-1.png" width="1534" height="660" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-dram-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 steps each). Top row: trace plots of <span class="math inline">\(\xi_1\)</span>. Bottom row: 2D scatter of posterior samples with ESS annotations. Focus on ESS rather than acceptance rate — DR achieves 90% acceptance but the lowest ESS, because most accepted moves are tiny second-stage steps that barely advance the chain.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-dram-comparison</strong> compares the four methods on the KLE beam problem. All chains use the same number of steps and start from the same initial point.</p>
 <p>Several observations:</p>
 <ul>
 <li><strong>DR</strong> achieves the highest acceptance rate (~90%) but the <em>lowest</em> ESS. Its second-stage proposals are small, so most accepted DR moves barely advance the chain. High acceptance rate is misleading here.</li>

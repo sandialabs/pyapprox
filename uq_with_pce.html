@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="UQ with Polynomial Chaos – PyApprox">
 <meta property="og:description" content="Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/uq_with_pce_files/figure-html/fig-marginal-densities-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="741">
-<meta property="og:image:width" content="2666">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1116,7 +1113,7 @@ window.Quarto = {
 <section id="setup-fit-a-pce" class="level2">
 <h2 class="anchored" data-anchor-id="setup-fit-a-pce">Setup: Fit a PCE</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> parameterized by a 3-term Karhunen–Lo`eve expansion. The three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0,1)\)</span> are the uncertain inputs. The model returns three QoIs: tip deflection, integrated bending stress, and maximum curvature.</p>
-<div id="2c60f8cb" class="cell" data-execution_count="1">
+<div id="4c2fb17f" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1171,7 +1168,7 @@ window.Quarto = {
 \text{Cov}[f_j, f_k] = \sum_{i=1}^{P-1} c_{i,j}\, c_{i,k}
 \]</span></p>
 <p>The mean is the zeroth coefficient (constant term), and the variance is the sum of squares of all other coefficients. Once the PCE is fitted, moment computation is instantaneous.</p>
-<div id="39bdade2" class="cell" data-execution_count="2">
+<div id="b8fde952" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>pce_mean <span class="op">=</span> bkd.to_numpy(pce.mean())           <span class="co"># (nqoi,)</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>pce_var <span class="op">=</span> bkd.to_numpy(pce.variance())         <span class="co"># (nqoi,)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>pce_cov <span class="op">=</span> bkd.to_numpy(pce.covariance())       <span class="co"># (nqoi, nqoi)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1198,7 +1195,9 @@ N_{\text{train}} \times t_{\text{beam}} + M \times t_{\text{PCE}} = 500 \times t
 \quad\Longrightarrow\quad
 M = \frac{(500 - N_{\text{train}}) \times t_{\text{beam}}}{t_{\text{PCE}}}
 \]</span></p>
-<div id="cell-fig-marginal-densities" class="cell" data-execution_count="3">
+<div id="fig-marginal-densities" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.timing <span class="im">import</span> timed</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_pce_marginal_densities</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1232,18 +1231,11 @@ M = \frac{(500 - N_{\text{train}}) \times t_{\text{beam}}}{t_{\text{PCE}}}
 <span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>                            qoi_labels, axes)</span>
 <span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-marginal-densities" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_pce_files/figure-html/fig-marginal-densities-output-1.png" width="1333" height="371" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Marginal density estimates at equal wall-clock cost. MC (blue) uses 500 beam evaluations. PCE (orange) uses N_train=100 beam evaluations for training plus M equivalent-cost surrogate evaluations. The PCE produces much smoother densities because the cheap surrogate allows orders of magnitude more samples in the same time budget.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-marginal-densities-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>The PCE produces much smoother density estimates because the surrogate is orders of magnitude cheaper than the beam model. At equal wall-clock cost, the PCE can draw <span class="math inline">\(M \gg 500\)</span> samples, while MC is limited to 500 noisy evaluations.</p>
 </section>
@@ -1251,7 +1243,9 @@ Figure&nbsp;1: Marginal density estimates at equal wall-clock cost. MC (blue) us
 <h2 class="anchored" data-anchor-id="marginal-plots-via-pce-marginalization">Marginal Plots via PCE Marginalization</h2>
 <p>PCE orthonormality makes input marginalization analytical. For any basis function <span class="math inline">\(\Psi_{\mathbf{i}}(\boldsymbol{\theta}) = \prod_k \psi_{i_k}(\theta_k)\)</span>, integrating out variable <span class="math inline">\(\theta_k\)</span> gives <span class="math inline">\(\mathbb{E}[\psi_{i_k}(\theta_k)] = \delta_{i_k, 0}\)</span>. Only terms where the marginalized variables have degree zero survive, producing a lower-dimensional PCE in the kept variables with no quadrature error.</p>
 <p>The diagonal panels of <a href="#fig-pce-marginal" class="quarto-xref">Figure&nbsp;2</a> show <strong>main effect functions</strong> <span class="math inline">\(\mathbb{E}[f \mid \theta_k]\)</span> — the expected output as a function of each input alone. The off-diagonal panels show <strong>pairwise joint marginals</strong> <span class="math inline">\(\mathbb{E}[f \mid \theta_i, \theta_j]\)</span>, revealing interaction structure between pairs of inputs.</p>
-<div id="cell-fig-pce-marginal" class="cell" data-execution_count="4">
+<div id="fig-pce-marginal" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pce-marginal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    PolynomialChaosExpansion,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1284,39 +1278,18 @@ Figure&nbsp;1: Marginal density estimates at equal wall-clock cost. MC (blue) us
 <span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>fig.suptitle(<span class="ss">f"Input marginals for </span><span class="sc">{</span>qoi_labels[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-pce-marginal" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pce-marginal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_pce_files/figure-html/fig-pce-marginal-output-1.png" width="842" height="884" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-marginal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Input marginalization of the PCE for tip deflection. Diagonal: main effect functions E[f | xi_k]. Off-diagonal: pairwise joint marginals E[f | xi_i, xi_j]. Flat diagonals indicate variables with no main effect (variance comes from interactions only).
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-pce-marginal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="pce-vs.-monte-carlo-efficiency-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="pce-vs.-monte-carlo-efficiency-comparison">PCE vs.&nbsp;Monte Carlo: Efficiency Comparison</h2>
 <p>We now compare the efficiency of PCE-based moment estimation against direct Monte Carlo. The question is: <strong>for a fixed budget of <span class="math inline">\(N\)</span> model evaluations, which approach gives more accurate estimates of the mean and variance?</strong></p>
 <p>For Monte Carlo, we use all <span class="math inline">\(N\)</span> samples directly. For PCE, we increase the polynomial degree with the budget, keeping an oversampling ratio of 2 (twice as many samples as basis terms). This lets the PCE error decay as the budget grows, since higher-degree expansions capture more of the model’s structure.</p>
-<p><a href="#fig-pce-vs-mc" class="quarto-xref">Figure&nbsp;3</a> repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.</p>
-<div id="cell-fig-pce-vs-mc" class="cell" data-execution_count="5">
-<div class="cell-output cell-output-display">
-<div id="fig-pce-vs-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pce-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_pce_files/figure-html/fig-pce-vs-mc-output-1.png" width="1137" height="418" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: PCE vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For PCE, the degree increases with the budget (oversampling ratio = 2). Lines show median over 20 repetitions; bands show 10th–90th percentiles.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-pce-vs-mc</strong> repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.</p>
 <p>The PCE achieves lower error than Monte Carlo for the same computational budget because:</p>
 <ul>
 <li>Monte Carlo converges at rate <span class="math inline">\(1/\sqrt{N}\)</span>, regardless of the function’s smoothness.</li>
@@ -1338,7 +1311,7 @@ Figure&nbsp;3: PCE vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (
 <ol type="1">
 <li><p>Compare the PCE-estimated correlation <span class="math inline">\(\text{Corr}[\delta_{\text{tip}}, \sigma_{\text{int}}]\)</span> against a Monte Carlo estimate using 500 and 2000 model evaluations. How many MC samples are needed to match the PCE estimate?</p></li>
 <li><p>Extract Sobol sensitivity indices via <code>pce.total_sobol_indices()</code> and <code>pce.main_effect_sobol_indices()</code>. Which input variable contributes most to the variance of each QoI?</p></li>
-<li><p>In the convergence comparison (<a href="#fig-pce-vs-mc" class="quarto-xref">Figure&nbsp;3</a>), change the oversampling ratio from 2 to 3. How does this affect the PCE error, especially at lower degrees?</p></li>
+<li><p>In the convergence comparison (<strong>?@fig-pce-vs-mc</strong>), change the oversampling ratio from 2 to 3. How does this affect the PCE error, especially at lower degrees?</p></li>
 </ol>
 </section>
 <section id="next-steps" class="level2">

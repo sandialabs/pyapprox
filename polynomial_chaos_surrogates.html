@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Building a Polynomial Chaos Surrogate – PyApprox">
 <meta property="og:description" content="Approximate an expensive model with a polynomial chaos expansion.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/polynomial_chaos_surrogates_files/figure-html/fig-pce-predictions-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="835">
-<meta property="og:image:width" content="1890">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1120,7 +1117,7 @@ window.Quarto = {
 <section id="setup-the-beam-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-benchmark">Setup: The Beam Benchmark</h2>
 <p>We use a 2D cantilever beam with <span class="math inline">\(d = 3\)</span> uncertain parameters (one KLE mode coefficient per subdomain) parameterizing a spatially varying Young’s modulus field, and <span class="math inline">\(K = 2\)</span> quantities of interest (QoIs): tip deflection and total von Mises stress.</p>
-<div id="3a555e3e" class="cell" data-execution_count="1">
+<div id="cbe2341b" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1191,7 +1188,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <p><span class="math display">\[
 \Lambda_p = \left\{ \mathbf{j} \in \mathbb{N}_0^d : \|\mathbf{j}\|_1 \leq p \right\}
 \]</span></p>
-<div id="9969ce84" class="cell" data-execution_count="2">
+<div id="ca14f4de" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1204,7 +1201,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <section id="collecting-training-data" class="level2">
 <h2 class="anchored" data-anchor-id="collecting-training-data">Collecting Training Data</h2>
 <p>To fit the PCE, we need <strong>training data</strong>: pairs <span class="math inline">\(\{(\boldsymbol{\theta}^{(i)}, \mathbf{q}^{(i)})\}_{i=1}^N\)</span> where <span class="math inline">\(\mathbf{q}^{(i)} = f(\boldsymbol{\theta}^{(i)})\)</span>. The simplest strategy is to draw random samples from the prior.</p>
-<div id="8f0f2eab" class="cell" data-execution_count="3">
+<div id="e442dc31" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)       <span class="co"># (nvars, N_train)</span></span>
@@ -1224,7 +1221,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 </div>
 </div>
 <p>We also set aside an independent <strong>test set</strong> to evaluate surrogate accuracy:</p>
-<div id="576cabbe" class="cell" data-execution_count="4">
+<div id="81694800" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1236,7 +1233,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <section id="building-the-expansion" class="level3">
 <h3 class="anchored" data-anchor-id="building-the-expansion">Building the Expansion</h3>
 <p>We construct a PCE using <code>create_pce_from_marginals</code>, which automatically selects Hermite polynomials for Gaussian marginals and builds the orthonormal basis with a total-degree index set at the specified degree.</p>
-<div id="3a13f7f3" class="cell" data-execution_count="5">
+<div id="40dcb0fe" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1255,7 +1252,7 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 \]</span></p>
 <p>In matrix form: <span class="math inline">\(\hat{\mathbf{C}} = (\boldsymbol{\Phi}^\top \boldsymbol{\Phi})^{-1} \boldsymbol{\Phi}^\top \mathbf{V}\)</span>, where <span class="math inline">\(\Phi_{ij} = \Psi_j(\boldsymbol{\theta}^{(i)})\)</span> is the basis matrix and <span class="math inline">\(\mathbf{V}\)</span> contains the training values.</p>
 <p>We use <code>LeastSquaresFitter</code> to solve this:</p>
-<div id="a4bfe0cf" class="cell" data-execution_count="6">
+<div id="16d65bf6" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1285,32 +1282,20 @@ f(\boldsymbol{\theta}) \approx \hat{f}(\boldsymbol{\theta}) = \sum_{j=0}^{P-1} c
 <p><span class="math display">\[
 \epsilon_k = \frac{\| f_k(\boldsymbol{\Theta}_{\text{test}}) - \hat{f}_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}{\| f_k(\boldsymbol{\Theta}_{\text{test}}) \|_2}, \qquad k = 1, \ldots, K
 \]</span></p>
-<div id="35fb18b4" class="cell" data-execution_count="7">
+<div id="1d401c3e" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>predictions_test <span class="op">=</span> pce(samples_test)     <span class="co"># (nqoi, N_test)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p><a href="#fig-pce-predictions" class="quarto-xref">Figure&nbsp;1</a> shows the predicted vs.&nbsp;true QoI values on the test set. Points near the diagonal indicate a good fit.</p>
-<div id="cell-fig-pce-predictions" class="cell" data-execution_count="8">
-<div class="cell-output cell-output-display">
-<div id="fig-pce-predictions" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pce-predictions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="polynomial_chaos_surrogates_files/figure-html/fig-pce-predictions-output-1.png" width="945" height="418" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-predictions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: PCE predictions vs.&nbsp;true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-pce-predictions</strong> shows the predicted vs.&nbsp;true QoI values on the test set. Points near the diagonal indicate a good fit.</p>
 </section>
 <section id="exploring-the-surrogate" class="level2">
 <h2 class="anchored" data-anchor-id="exploring-the-surrogate">Exploring the Surrogate</h2>
 <p>With the expensive model, generating a dense cross-section plot — fixing some inputs and sweeping others — would require hundreds of additional FEM solves. With the fitted PCE, we can produce these plots instantaneously.</p>
 <p>PyApprox provides <code>CrossSectionReducer</code> and <code>PairPlotter</code> to automate this. The reducer fixes non-plotted variables at nominal values (here, zero for standard-normal inputs); the pair plotter creates a lower-triangular grid of 1D cross sections (diagonal) and 2D contours (off-diagonal).</p>
-<div id="cell-fig-cross-sections" class="cell" data-execution_count="9">
+<div id="fig-cross-sections" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cross-sections-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> CrossSectionReducer</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1329,18 +1314,11 @@ Figure&nbsp;1: PCE predictions vs.&nbsp;true model values on the independent tes
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>                         line_kwargs<span class="op">=</span>{<span class="st">"qoi"</span>: <span class="dv">0</span>})</span>
 <span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-cross-sections" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-cross-sections-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="polynomial_chaos_surrogates_files/figure-html/fig-cross-sections-output-1.png" width="852" height="852" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cross-sections-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: PCE cross sections for tip deflection. Diagonal: 1D slices through each input. Lower triangle: 2D contour plots for each pair of inputs. Non-plotted variables are fixed at zero.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-cross-sections-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>These plots reveal how each input affects tip deflection and where interactions between inputs are strong (curved contours) or weak (parallel lines). Producing them required zero additional model evaluations — only cheap polynomial evaluations through the surrogate.</p>
 </section>

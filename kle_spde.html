@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="KLE III: SPDE-Based KLE for Matern Fields – PyApprox">
 <meta property="og:description" content="Use SPDEMaternKLE for scalable KLE of Matern random fields via sparse PDE operators.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/kle_spde_files/figure-html/fig-matern-kernels-paths-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="747">
-<meta property="og:image:width" content="2665">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1106,7 +1103,7 @@ window.Quarto = {
 <li>Choose between <code>MeshKLE</code>, <code>DataDrivenKLE</code>, and <code>SPDEMaternKLE</code> for a given problem</li>
 </ul>
 <p>In <a href="./kle_introduction.html">KLE I</a> we introduced the KLE and in <a href="./kle_mesh_and_data_driven.html">KLE II</a> we compared kernel-based and data-driven approaches. Both rely on dense <span class="math inline">\(O(N^2)\)</span> matrices. The <strong>SPDE approach</strong> replaces the dense covariance with a <em>sparse</em> PDE operator whose Green’s function is the Matern covariance, giving <span class="math inline">\(O(N)\)</span> memory.</p>
-<div id="4a1ee348" class="cell" data-execution_count="1">
+<div id="1728058b" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1160,7 +1157,9 @@ window.Quarto = {
 <p>The SPDE parameters map to physical parameters as: <span class="math display">\[\gamma \leftrightarrow \text{diffusion}, \quad
 \delta = \kappa^2 \gamma, \quad
 \ell_c = \sqrt{\gamma/\delta} = 1/\kappa\]</span></p>
-<div id="cell-fig-matern-kernels-paths" class="cell" data-execution_count="2">
+<div id="fig-matern-kernels-paths" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-matern-kernels-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> kv</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_matern_kernels_paths</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1206,18 +1205,11 @@ window.Quarto = {
 <span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>plot_matern_kernels_paths(x_plot, kernel_curves, sample_paths_list, path_labels, axes)</span>
 <span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-matern-kernels-paths" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-matern-kernels-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-matern-kernels-paths-output-1.png" width="1333" height="374" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-matern-kernels-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Left: Matern kernel functions for four smoothness values <span class="math inline">\(\nu\)</span>, all with <span class="math inline">\(\ell = 0.4\)</span>. Centre and right: sample paths from Matern-1/2 (rough, non-differentiable) and Matern-3/2 (once differentiable). The SPDE bilaplacian prior produces Matern-3/2 in 1D.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-matern-kernels-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>Smaller <span class="math inline">\(\nu\)</span> produces rougher (less differentiable) paths. The SPDE approach lets us work with any <span class="math inline">\(\nu\)</span> through the integer <span class="math inline">\(\alpha\)</span> parametrization.</p>
 </section>
@@ -1225,7 +1217,9 @@ Figure&nbsp;1: Left: Matern kernel functions for four smoothness values <span cl
 <h2 class="anchored" data-anchor-id="building-the-spde-kle-with-create_spde_matern_kle">Building the SPDE KLE with <code>create_spde_matern_kle</code></h2>
 <p>The <code>create_spde_matern_kle</code> factory assembles the sparse FEM precision operator <span class="math inline">\(A = \gamma K_{\text{stiff}} + \delta M + \xi M_{\partial}\)</span> and solves the generalized eigenvalue problem <span class="math inline">\(A\phi_k = \mu_k M \phi_k\)</span>. The KLE eigenvalues are <span class="math inline">\(\lambda_k = \gamma^2/(\tau^2 \mu_k^2)\)</span>.</p>
 <p>This uses only sparse matrices, giving <span class="math inline">\(O(N)\)</span> memory instead of <span class="math inline">\(O(N^2)\)</span>.</p>
-<div id="cell-fig-spde-overview" class="cell" data-execution_count="3">
+<div id="fig-spde-overview" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-spde-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_overview</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Parameters for ell_c = 0.5 in 1D</span></span>
@@ -1276,25 +1270,20 @@ Figure&nbsp;1: Left: Matern kernel functions for four smoothness values <span cl
 <span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-spde-overview" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-spde-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-spde-overview-output-1.png" width="1334" height="373" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-spde-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Left: SPDE eigenfunctions on <span class="math inline">\([0, 2]\)</span>. Centre: five sample paths with <span class="math inline">\(\pm 2\sigma\)</span> envelope from <code>pointwise_variance()</code>. Right: eigenvalue comparison between the sparse SPDE KLE and the dense <code>MeshKLE</code> with Matern-3/2 kernel. They agree at low modes but differ near the boundary.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-spde-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>The SPDE and dense eigenvalues agree at low modes. They differ near the boundary – an intrinsic feature of the SPDE approach.</p>
 </section>
 <section id="boundary-effects-the-key-spde-limitation" class="level2">
 <h2 class="anchored" data-anchor-id="boundary-effects-the-key-spde-limitation">Boundary effects: the key SPDE limitation</h2>
 <p>The Matern covariance on <span class="math inline">\(\mathbb{R}^d\)</span> is stationary (translation invariant). On a bounded domain the SPDE uses Robin boundary conditions that modify the covariance near the edges. This <strong>boundary artefact</strong> decreases as the domain grows relative to <span class="math inline">\(\ell_c\)</span>.</p>
-<div id="cell-fig-boundary-artefacts" class="cell" data-execution_count="4">
+<div id="fig-boundary-artefacts" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-boundary-artefacts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_boundary_artefacts</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>ell_c_fixed <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1322,18 +1311,11 @@ Figure&nbsp;2: Left: SPDE eigenfunctions on <span class="math inline">\([0, 2]\)
 <span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">12</span>)</span>
 <span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-boundary-artefacts" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-boundary-artefacts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-boundary-artefacts-output-1.png" width="1334" height="381" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-boundary-artefacts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Pointwise variance of the SPDE KLE for three domain sizes. On the short domain (<span class="math inline">\(L/\ell_c = 2\)</span>) the variance drops significantly near boundaries due to Robin BCs. As the domain grows relative to <span class="math inline">\(\ell_c\)</span>, the interior variance approaches the target <span class="math inline">\(\sigma^2 = 1\)</span> and boundary effects become negligible.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-boundary-artefacts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>Rule of thumb: for reliable interior statistics extend the domain by <span class="math inline">\(\gtrsim 3\ell_c\)</span> on each side, then discard the boundary buffer.</p>
 </section>
@@ -1345,7 +1327,9 @@ Figure&nbsp;3: Pointwise variance of the SPDE KLE for three domain sizes. On the
 <li><strong><code>DataDrivenKLE</code></strong>: SVD of the <span class="math inline">\(N \times N_s\)</span> sample matrix costs <span class="math inline">\(O(N \cdot N_s \cdot K)\)</span></li>
 <li><strong><code>SPDEMaternKLE</code></strong>: Sparse generalized eigenvalue solve costs <span class="math inline">\(O(N \cdot K)\)</span> with iterative methods (e.g.&nbsp;ARPACK)</li>
 </ul>
-<div id="cell-fig-memory-scaling" class="cell" data-execution_count="5">
+<div id="fig-memory-scaling" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-memory-scaling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_memory_scaling</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling data</span></span>
@@ -1381,25 +1365,20 @@ Figure&nbsp;3: Pointwise variance of the SPDE KLE for three domain sizes. On the
 <span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-memory-scaling" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-memory-scaling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-memory-scaling-output-1.png" width="1142" height="372" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-memory-scaling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Left: memory and eigenvalue-solve cost scaling of the dense covariance matrix (<span class="math inline">\(O(N^2)\)</span>) vs the sparse SPDE precision operator (<span class="math inline">\(O(N)\)</span>). Right: SPDE sample paths for three correlation lengths <span class="math inline">\(\ell_c = 0.3, 0.5, 0.8\)</span>, showing shorter <span class="math inline">\(\ell_c\)</span> produces rougher fields.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-memory-scaling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>For <span class="math inline">\(N = 5000\)</span> nodes the dense matrix requires <strong>200 MB</strong> vs <strong>0.12 MB</strong> for the sparse SPDE operator. In 2D with <span class="math inline">\(N = 100 \times 100 = 10^4\)</span> nodes the difference is 800 MB vs 0.24 MB – the SPDE approach becomes the only feasible option.</p>
 </section>
 <section id="choosing-gamma-delta-xi-from-physical-parameters" class="level2">
 <h2 class="anchored" data-anchor-id="choosing-gamma-delta-xi-from-physical-parameters">Choosing <span class="math inline">\(\gamma\)</span>, <span class="math inline">\(\delta\)</span>, <span class="math inline">\(\xi\)</span> from physical parameters</h2>
 <p>Given target correlation length <span class="math inline">\(\ell_c\)</span> and marginal std <span class="math inline">\(\sigma\)</span>:</p>
-<div id="cell-fig-spde-parameters" class="cell" data-execution_count="6">
+<div id="fig-spde-parameters" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-spde-parameters-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_spde_parameters</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Empirical covariance at midpoint for each correlation length</span></span>
@@ -1452,37 +1431,16 @@ Figure&nbsp;4: Left: memory and eigenvalue-solve cost scaling of the dense covar
 <span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-spde-parameters" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-spde-parameters-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-spde-parameters-output-1.png" width="1142" height="373" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-spde-parameters-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5: Left: max relative eigenvalue error between SPDE and dense KLE as the domain length <span class="math inline">\(L\)</span> increases, confirming asymptotic convergence. Right: empirical covariance at the domain midpoint from 2000 Monte Carlo samples for three correlation lengths.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-spde-parameters-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <hr>
 </section>
 <section id="summary-which-kle-method-to-use" class="level2">
 <h2 class="anchored" data-anchor-id="summary-which-kle-method-to-use">Summary: which KLE method to use?</h2>
-<div id="cell-fig-method-comparison" class="cell" data-execution_count="7">
-<div class="cell-output cell-output-display">
-<div id="fig-method-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-method-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="kle_spde_files/figure-html/fig-method-comparison-output-1.png" width="1059" height="329" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-method-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;6: Summary comparison of the three KLE methods: <code>MeshKLE</code> (dense kernel), <code>DataDrivenKLE</code> (SVD of samples), and <code>SPDEMaternKLE</code> (sparse PDE operator).
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
 
 
 <!-- -->

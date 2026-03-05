@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Approximate Control Variate Monte Carlo – PyApprox">
 <meta property="og:description" content="Extending control variates to the practical case where the low-fidelity model statistic is unknown, using additional low-fidelity samples in its place.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/acv_concept_files/figure-html/fig-unknown-mean-problem-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="756">
-<meta property="og:image:width" content="2474">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1120,21 +1117,7 @@ window.Quarto = {
 <p>The correction term <span class="math inline">\(\hat{\mu}_\kappa - \mu_\kappa\)</span> works because <span class="math inline">\(\mu_\kappa\)</span> is a <strong>fixed number</strong>: the true low-fidelity (LF) mean. Subtracting it centers the LF estimator error at zero, so the correction has mean zero and purely cancels correlated HF error.</p>
 <p>For a practical numerical model, <span class="math inline">\(\mu_\kappa\)</span> is almost never known analytically. The natural instinct is to estimate it from samples. But this creates a problem: if we use the <strong>same</strong> <span class="math inline">\(N\)</span> samples to estimate both <span class="math inline">\(\hat{\mu}_\alpha\)</span> and <span class="math inline">\(\hat{\mu}_\kappa\)</span>, the correction term becomes <span class="math inline">\(\hat{\mu}_\kappa(\mathcal{Z}_N) - \hat{\mu}_\kappa(\mathcal{Z}_N) = 0\)</span> — it vanishes identically and we gain nothing.</p>
 <p>If instead we use a <strong>separate</strong> set of LF samples to estimate <span class="math inline">\(\mu_\kappa\)</span>, the correction is no longer zero but it is now <strong>noisy</strong> — we are using one random quantity to cancel another. How noisy it is depends on how many LF samples we use.</p>
-<p><a href="#fig-unknown-mean-problem" class="quarto-xref">Figure&nbsp;1</a> makes this concrete. Each panel shows the distribution of the corrected estimator when <span class="math inline">\(\mu_\kappa\)</span> is: (left) known exactly, (centre) estimated from a small LF sample, (right) estimated from a large LF sample.</p>
-<div id="cell-fig-unknown-mean-problem" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-unknown-mean-problem" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-unknown-mean-problem-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_concept_files/figure-html/fig-unknown-mean-problem-output-1.png" width="1237" height="378" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-unknown-mean-problem-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Effect of an unknown <span class="math inline">\(\mu_\kappa\)</span> on the corrected estimator. Left: CVMC with <span class="math inline">\(\mu_\kappa\)</span> known exactly — the correction is precise and the histogram is narrow. Centre: the correction is built from a small independent LF sample (<span class="math inline">\(r = 2\)</span>); the noisy estimate of <span class="math inline">\(\mu_\kappa\)</span> adds spread. Right: a large LF sample (<span class="math inline">\(r = 20\)</span>) makes the LF mean estimate accurate and the histogram approaches the CVMC ideal.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-unknown-mean-problem</strong> makes this concrete. Each panel shows the distribution of the corrected estimator when <span class="math inline">\(\mu_\kappa\)</span> is: (left) known exactly, (centre) estimated from a small LF sample, (right) estimated from a large LF sample.</p>
 <p>The figure shows the core trade-off clearly. A noisy correction (centre) is better than no correction at all — it still reduces variance compared to plain MC — but it cannot match the precision of CVMC. A cheap LF model means we can afford large <span class="math inline">\(r\)</span>, closing the gap to CVMC at modest extra cost.</p>
 </section>
 <section id="the-acv-estimator" class="level2">
@@ -1158,21 +1141,7 @@ C^{\text{ACV}} = N C_\alpha + r N C_\kappa
 \gamma = 1 - \frac{r - 1}{r}\,\rho^2_{\alpha\kappa}.
 \tag{2}\]</span></span></p>
 <p>Two limits are instructive. As <span class="math inline">\(r \to 1^+\)</span> (almost no extra LF samples), <span class="math inline">\(\gamma \to 1\)</span> and ACV offers no improvement over plain MC. As <span class="math inline">\(r \to \infty\)</span> (very many LF samples), <span class="math inline">\(\gamma \to 1 - \rho^2_{\alpha\kappa}\)</span>, recovering the full CVMC variance reduction. For finite <span class="math inline">\(r\)</span>, ACV lies strictly between these bounds.</p>
-<p><a href="#fig-variance-reduction-vs-r" class="quarto-xref">Figure&nbsp;2</a> shows how rapidly <span class="math inline">\(\gamma\)</span> approaches the CVMC limit. Even modest <span class="math inline">\(r\)</span> (e.g.&nbsp;<span class="math inline">\(r = 10\)</span>) recovers <span class="math inline">\(90\%\)</span> of the maximum variance reduction. Because <span class="math inline">\(f_\kappa\)</span> is cheap, large <span class="math inline">\(r\)</span> is usually affordable.</p>
-<div id="cell-fig-variance-reduction-vs-r" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-variance-reduction-vs-r" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-variance-reduction-vs-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="acv_concept_files/figure-html/fig-variance-reduction-vs-r-output-1.png" width="757" height="420" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-reduction-vs-r-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: ACV variance reduction factor <span class="math inline">\(1 - \frac{r-1}{r}\rho^2\)</span> as a function of the LF-to-HF sample ratio <span class="math inline">\(r\)</span>, for three values of model correlation <span class="math inline">\(\rho\)</span>. Dashed horizontal lines show the CVMC limit <span class="math inline">\(1 - \rho^2\)</span> each curve approaches as <span class="math inline">\(r \to \infty\)</span>.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-variance-reduction-vs-r</strong> shows how rapidly <span class="math inline">\(\gamma\)</span> approaches the CVMC limit. Even modest <span class="math inline">\(r\)</span> (e.g.&nbsp;<span class="math inline">\(r = 10\)</span>) recovers <span class="math inline">\(90\%\)</span> of the maximum variance reduction. Because <span class="math inline">\(f_\kappa\)</span> is cheap, large <span class="math inline">\(r\)</span> is usually affordable.</p>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
@@ -1187,7 +1156,7 @@ Figure&nbsp;2: ACV variance reduction factor <span class="math inline">\(1 - \fr
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p><a href="#fig-unknown-mean-problem" class="quarto-xref">Figure&nbsp;1</a> shows that a noisy correction still reduces variance compared to plain MC. Is this always true, or can a bad <span class="math inline">\(\mu_\kappa\)</span> estimate make things worse?</p></li>
+<li><p><strong>?@fig-unknown-mean-problem</strong> shows that a noisy correction still reduces variance compared to plain MC. Is this always true, or can a bad <span class="math inline">\(\mu_\kappa\)</span> estimate make things worse?</p></li>
 <li><p>From <a href="#eq-acv-reduction" class="quarto-xref">Equation&nbsp;2</a>, find the value of <span class="math inline">\(r\)</span> at which ACV achieves <span class="math inline">\(95\%\)</span> of the CVMC variance reduction for <span class="math inline">\(\rho = 0.9\)</span>. How does your answer change for <span class="math inline">\(\rho = 0.5\)</span>?</p></li>
 <li><p>Suppose <span class="math inline">\(C_\kappa = 0.01 C_\alpha\)</span> (LF is 100× cheaper). For a fixed total budget equal to <span class="math inline">\(N C_\alpha\)</span>, roughly how large can you make <span class="math inline">\(r\)</span>? What variance reduction does this buy for <span class="math inline">\(\rho = 0.9\)</span>?</p></li>
 </ol>

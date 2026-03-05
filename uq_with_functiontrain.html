@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="UQ with Function Trains – PyApprox">
 <meta property="og:description" content="Extract analytical moments, marginal densities, and input marginals from a fitted function train.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/uq_with_functiontrain_files/figure-html/fig-ft-marginals-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="1768">
-<meta property="og:image:width" content="1684">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1122,7 +1119,7 @@ window.Quarto = {
 <section id="setup-fit-a-function-train" class="level2">
 <h2 class="anchored" data-anchor-id="setup-fit-a-function-train">Setup: Fit a Function Train</h2>
 <p>We use a 1D Euler–Bernoulli cantilever beam with spatially varying bending stiffness <span class="math inline">\(EI(x)\)</span> parameterized by a 3-term Karhunen–Lo`eve expansion. The three KLE coefficients <span class="math inline">\(\xi_1, \xi_2, \xi_3 \sim \mathcal{N}(0,1)\)</span> are the uncertain inputs. We work with a single QoI — tip deflection <span class="math inline">\(\delta_{\mathrm{tip}}\)</span> — since the function train currently supports <span class="math inline">\(\mathrm{nqoi} = 1\)</span>.</p>
-<div id="faaa5a8c" class="cell" data-execution_count="1">
+<div id="4b460f85" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1191,7 +1188,7 @@ f(\boldsymbol{\xi}) = \mathbf{G}_1(\xi_1)\cdot\mathbf{G}_2(\xi_2)\cdots\mathbf{G
 </section>
 <section id="mean-and-variance" class="level3">
 <h3 class="anchored" data-anchor-id="mean-and-variance">Mean and Variance</h3>
-<div id="cf88f7ce" class="cell" data-execution_count="2">
+<div id="abd49caf" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>ft_mean <span class="op">=</span> bkd.to_numpy(moments.mean())       <span class="co"># scalar (nqoi=1)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ft_var  <span class="op">=</span> bkd.to_numpy(moments.variance())   <span class="co"># scalar</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1240,7 +1237,9 @@ f(\boldsymbol{\xi}) = \mathbf{G}_1(\xi_1)\cdot\mathbf{G}_2(\xi_2)\cdots\mathbf{G
 \cdot \boldsymbol{\mu}_{k+1} \cdots \boldsymbol{\mu}_d
 \]</span></p>
 <p>Similarly, the <strong>pairwise marginal</strong> <span class="math inline">\(\mathbb{E}_{\boldsymbol{\xi}_{-\{i,j\}}}[f \mid \xi_i, \xi_j]\)</span> keeps cores <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span> live and replaces all other cores with their mean matrices. No numerical integration is needed at any stage.</p>
-<div id="cell-fig-ft-marginals" class="cell" data-execution_count="3">
+<div id="fig-ft-marginals" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ft-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> FTDimensionReducer</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.pair_plot <span class="im">import</span> PairPlotter</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1261,18 +1260,11 @@ f(\boldsymbol{\xi}) = \mathbf{G}_1(\xi_1)\cdot\mathbf{G}_2(\xi_2)\cdots\mathbf{G
 <span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>fig.suptitle(<span class="ss">f"Input marginals for </span><span class="sc">{</span>qoi_label<span class="sc">}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-ft-marginals" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-ft-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_functiontrain_files/figure-html/fig-ft-marginals-output-1.png" width="842" height="884" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ft-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Input marginals of the FT for tip deflection. Diagonal: main effect functions E[f | xi_k], showing the expected output as each input varies with the others averaged out. Off-diagonal: pairwise marginals E[f | xi_i, xi_j], revealing interaction structure. Flat diagonals indicate variables whose main effect is small relative to interaction effects.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-ft-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <p>The diagonal panels reveal which inputs have strong main effects on tip deflection. Off-diagonal contour panels reveal where pairs of inputs interact: parallel contour lines indicate near-additive behaviour, while curved or skewed contours indicate genuine nonlinear interaction between variables.</p>
 <div class="callout callout-style-default callout-note callout-titled">
@@ -1307,21 +1299,7 @@ Figure&nbsp;1: Input marginals of the FT for tip deflection. Diagonal: main effe
 <p>With <span class="math inline">\(d = 3\)</span> variables and rank <span class="math inline">\(r = 3\)</span>, the FT can represent any degree-<span class="math inline">\(p\)</span> tensor-product polynomial exactly. The convergence rate is therefore controlled entirely by the polynomial degree, not the rank. For higher-dimensional problems, the rank would need to grow or be chosen carefully to capture cross-variable interactions.</p>
 </div>
 </div>
-<p><a href="#fig-ft-vs-mc" class="quarto-xref">Figure&nbsp;2</a> repeats each experiment 10 times with different random seeds and shows median error with 10th/90th percentile bands.</p>
-<div id="cell-fig-ft-vs-mc" class="cell" data-execution_count="4">
-<div class="cell-output cell-output-display">
-<div id="fig-ft-vs-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-ft-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_functiontrain_files/figure-html/fig-ft-vs-mc-output-1.png" width="1137" height="418" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ft-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: FT vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of beam evaluations. For the FT, polynomial degree increases with budget at oversampling ratio 3. Lines show medians over 10 repetitions; bands show 10th–90th percentiles.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-ft-vs-mc</strong> repeats each experiment 10 times with different random seeds and shows median error with 10th/90th percentile bands.</p>
 <p>The FT achieves lower error than MC for the same computational budget because:</p>
 <ul>
 <li>Monte Carlo converges at the universal rate <span class="math inline">\(1/\sqrt{N}\)</span>, regardless of the function’s smoothness.</li>
@@ -1343,7 +1321,7 @@ Figure&nbsp;2: FT vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (l
 <ol type="1">
 <li><p>Increase the FT rank from 3 to 5. Does the estimated mean and variance change significantly? How does the parameter count compare to a rank-3 FT at the same degree?</p></li>
 <li><p>In the marginal plots, inspect which diagonal panels are flattest. Cross-check by computing <code>FunctionTrainSensitivity(moments).all_total_effects()</code>. Do the least-important variables identified visually match those with the smallest total Sobol indices?</p></li>
-<li><p>In the convergence comparison (<a href="#fig-ft-vs-mc" class="quarto-xref">Figure&nbsp;2</a>), reduce the oversampling ratio from 3 to 2. How does the FT error envelope change, especially at lower degrees? Why does an insufficient oversampling ratio hurt the MSE refinement step?</p></li>
+<li><p>In the convergence comparison (<strong>?@fig-ft-vs-mc</strong>), reduce the oversampling ratio from 3 to 2. How does the FT error envelope change, especially at lower degrees? Why does an insufficient oversampling ratio hurt the MSE refinement step?</p></li>
 <li><p>Modify the convergence comparison to use a fixed rank of 5 instead of 3. How does the error change at each budget level? At what point does the higher rank stop helping, and why?</p></li>
 </ol>
 </section>

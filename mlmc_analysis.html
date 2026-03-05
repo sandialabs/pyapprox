@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Level Monte Carlo: Analysis – PyApprox">
 <meta property="og:description" content="Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mlmc_analysis_files/figure-html/fig-variance-vs-cost-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="837">
-<meta property="og:image:width" content="1323">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1196,7 +1193,7 @@ C_{\text{tot}}^* = \mathcal{O}\!\left(\epsilon^{-2}\right), \quad \alpha &gt; \b
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We verify <a href="#eq-optimal-N" class="quarto-xref">Equation&nbsp;3</a> and <a href="#eq-min-cost" class="quarto-xref">Equation&nbsp;4</a> on the five-level polynomial benchmark <span class="math inline">\(f_\ell(z) = z^{5-\ell}\)</span>, <span class="math inline">\(z \sim \mathcal{U}[0,1]\)</span>, where the true <span class="math inline">\(V_\ell\)</span> can be computed exactly.</p>
-<div id="ee34c63b" class="cell" data-execution_count="1">
+<div id="00703192" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1239,120 +1236,105 @@ C_{\text{tot}}^* = \mathcal{O}\!\left(\epsilon^{-2}\right), \quad \alpha &gt; \b
 <span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MLMC optimized variance: </span><span class="sc">{</span>var_est<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
 <span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MC variance:            </span><span class="sc">{</span>var_mc<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
 <span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variance reduction:     </span><span class="sc">{</span>var_mc <span class="op">/</span> var_est<span class="sc">:.1f}</span><span class="ss">x"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>MLMC optimized variance: 0.000030
-MC variance:            0.000631
-Variance reduction:     20.8x</code></pre>
 </div>
-</div>
-<div id="cell-fig-variance-vs-cost" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_variance_vs_cost</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>target_costs_sweep <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">100</span>, <span class="dv">1000</span>, <span class="dv">10000</span>]</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>mlmc_vars_pred, mc_vars_pred <span class="op">=</span> [], []</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>mlmc_vars_emp, mc_vars_emp <span class="op">=</span> [], []</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> P_t <span class="kw">in</span> target_costs_sweep:</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Predicted variance from optimized_covariance ---</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    ml_e <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    ml_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_pred.append(<span class="bu">float</span>(ml_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    mc_e <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    mc_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    mc_vars_pred.append(<span class="bu">float</span>(mc_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    N_mc <span class="op">=</span> mc_e._rounded_nsamples_per_model[<span class="dv">0</span>]</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Empirical variance from trials ---</span></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    mc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    mlmc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="bu">int</span>(P_t) <span class="op">*</span> <span class="dv">100</span>)</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        s_mc <span class="op">=</span> variable.rvs(N_mc)</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        mc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(bkd.mean(models[<span class="dv">0</span>](s_mc)[<span class="dv">0</span>]))</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        s_per_m <span class="op">=</span> ml_e.generate_samples_per_model(</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span> n: variable.rvs(<span class="bu">int</span>(n)))</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        v_per_m <span class="op">=</span> [models[ell](s_per_m[ell]) <span class="cf">for</span> ell <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(models))]</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        mlmc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(ml_e(v_per_m))</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    mc_vars_emp.append(mc_ests_t.var())</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_emp.append(mlmc_ests_t.var())</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>                      mlmc_vars_pred, mlmc_vars_emp, n_trials, ax)</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-variance-vs-cost" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-variance-vs-cost" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-variance-vs-cost-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="mlmc_analysis_files/figure-html/fig-variance-vs-cost-output-1.png" width="662" height="419" class="figure-img">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_variance_vs_cost</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>target_costs_sweep <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">100</span>, <span class="dv">1000</span>, <span class="dv">10000</span>]</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>mlmc_vars_pred, mc_vars_pred <span class="op">=</span> [], []</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>mlmc_vars_emp, mc_vars_emp <span class="op">=</span> [], []</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> P_t <span class="kw">in</span> target_costs_sweep:</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Predicted variance from optimized_covariance ---</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    ml_e <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    ml_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_pred.append(<span class="bu">float</span>(ml_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    mc_e <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    mc_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    mc_vars_pred.append(<span class="bu">float</span>(mc_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    N_mc <span class="op">=</span> mc_e._rounded_nsamples_per_model[<span class="dv">0</span>]</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Empirical variance from trials ---</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    mc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    mlmc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="bu">int</span>(P_t) <span class="op">*</span> <span class="dv">100</span>)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        s_mc <span class="op">=</span> variable.rvs(N_mc)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        mc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(bkd.mean(models[<span class="dv">0</span>](s_mc)[<span class="dv">0</span>]))</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        s_per_m <span class="op">=</span> ml_e.generate_samples_per_model(</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span> n: variable.rvs(<span class="bu">int</span>(n)))</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        v_per_m <span class="op">=</span> [models[ell](s_per_m[ell]) <span class="cf">for</span> ell <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(models))]</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        mlmc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(ml_e(v_per_m))</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    mc_vars_emp.append(mc_ests_t.var())</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_emp.append(mlmc_ests_t.var())</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>                      mlmc_vars_pred, mlmc_vars_emp, n_trials, ax)</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-vs-cost-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: MLMC variance vs total cost: <code>optimized_covariance()</code> (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator’s variance prediction. The vertical gap is the MLMC improvement factor.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-variance-vs-cost-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="mlmc-as-acv-fixed-vs-optimal-eta" class="level2">
 <h2 class="anchored" data-anchor-id="mlmc-as-acv-fixed-vs-optimal-eta">MLMC as ACV: Fixed vs Optimal <span class="math inline">\(\eta\)</span></h2>
 <p>MLMC fixes the control variate weight at <span class="math inline">\(\eta = -1\)</span> for each level correction. This is motivated by the telescoping identity but is not generally optimal. The ACV framework allows the weight to be optimised, and the resulting estimator — sometimes called MLMC-OPT — can outperform standard MLMC.</p>
-<div id="cell-fig-mlmc-vs-opt" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> GRDEstimator</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> (</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    ScipySLSQPOptimizer,</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mlmc_vs_opt</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>stat_true <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>stat_true.set_pilot_quantities(bkd.asarray(cov_true))</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>P_cmp <span class="op">=</span> <span class="fl">500.0</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat_true, bkd.asarray(costs))</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P_cmp)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>mlmc_var <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>acv_optimizer <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>ri_mlmc <span class="op">=</span> bkd.asarray(np.arange(M), dtype<span class="op">=</span><span class="bu">int</span>)  <span class="co"># [0, 1, 2, 3]</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>acv_est <span class="op">=</span> GRDEstimator(stat_true, bkd.asarray(costs), recursion_index<span class="op">=</span>ri_mlmc)</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>acv_allocator <span class="op">=</span> ACVAllocator(acv_est, optimizer<span class="op">=</span>acv_optimizer)</span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>acv_est.set_allocation(acv_allocator.allocate(P_cmp))</span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>acv_var <span class="op">=</span> <span class="bu">float</span>(acv_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(mc_stat_cmp, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P_cmp)</span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">"MC"</span>, <span class="st">"MLMC</span><span class="ch">\n</span><span class="st">($</span><span class="ch">\\</span><span class="st">eta=-1$)"</span>, <span class="st">"ACV-GRD</span><span class="ch">\n</span><span class="st">(optimal weights)"</span>]</span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>vals   <span class="op">=</span> [mc_var <span class="op">/</span> mc_var, mc_var <span class="op">/</span> mlmc_var, mc_var <span class="op">/</span> acv_var]</span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>colors <span class="op">=</span> [<span class="st">"#aaaaaa"</span>, <span class="st">"#2C7FB8"</span>, <span class="st">"#E67E22"</span>]</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>plot_mlmc_vs_opt(labels, vals, colors, ax)</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-mlmc-vs-opt" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-mlmc-vs-opt" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-mlmc-vs-opt-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="mlmc_analysis_files/figure-html/fig-mlmc-vs-opt-output-1.png" width="567" height="371" class="figure-img">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> GRDEstimator</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> (</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    ScipySLSQPOptimizer,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mlmc_vs_opt</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>stat_true <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>stat_true.set_pilot_quantities(bkd.asarray(cov_true))</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>P_cmp <span class="op">=</span> <span class="fl">500.0</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat_true, bkd.asarray(costs))</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P_cmp)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>mlmc_var <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>acv_optimizer <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>ri_mlmc <span class="op">=</span> bkd.asarray(np.arange(M), dtype<span class="op">=</span><span class="bu">int</span>)  <span class="co"># [0, 1, 2, 3]</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>acv_est <span class="op">=</span> GRDEstimator(stat_true, bkd.asarray(costs), recursion_index<span class="op">=</span>ri_mlmc)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>acv_allocator <span class="op">=</span> ACVAllocator(acv_est, optimizer<span class="op">=</span>acv_optimizer)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>acv_est.set_allocation(acv_allocator.allocate(P_cmp))</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>acv_var <span class="op">=</span> <span class="bu">float</span>(acv_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(mc_stat_cmp, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P_cmp)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">"MC"</span>, <span class="st">"MLMC</span><span class="ch">\n</span><span class="st">($</span><span class="ch">\\</span><span class="st">eta=-1$)"</span>, <span class="st">"ACV-GRD</span><span class="ch">\n</span><span class="st">(optimal weights)"</span>]</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>vals   <span class="op">=</span> [mc_var <span class="op">/</span> mc_var, mc_var <span class="op">/</span> mlmc_var, mc_var <span class="op">/</span> acv_var]</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>colors <span class="op">=</span> [<span class="st">"#aaaaaa"</span>, <span class="st">"#2C7FB8"</span>, <span class="st">"#E67E22"</span>]</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>plot_mlmc_vs_opt(labels, vals, colors, ax)</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mlmc-vs-opt-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Variance reduction relative to MC for standard MLMC (<span class="math inline">\(\eta = -1\)</span>, blue) and MLMC with optimal ACV weights (orange), at target cost <span class="math inline">\(P = 500\)</span>. Optimal weights reduce variance further when the fixed-<span class="math inline">\(\eta\)</span> structure is not optimal for this ensemble.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-mlmc-vs-opt-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1851,372 +1833,372 @@ Figure&nbsp;2: Variance reduction relative to MC for standard MLMC (<span class=
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multi-Level Monte Carlo: Analysis"</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem."</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 76</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - mlmc_concept</span></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-level</span></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - optimal-allocation</span></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - complexity-theorem</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/mlmc_analysis.ipynb)</span></span>
-<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the optimal MLMC sample allocation $N_\ell^*$ via Lagrange multipliers</span>
-<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>State the minimum cost needed to achieve a target estimator variance $\epsilon^2$</span>
-<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the optimal allocation and variance reduction numerically</span>
-<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain the connection between MLMC and ACV and when $\eta = -1$ is suboptimal</span>
-<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">MLMC Concept</span><span class="co">](mlmc_concept.qmd)</span> and <span class="co">[</span><span class="ot">ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd#sec-two-model)</span> before</span>
-<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>this tutorial.</span>
-<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup and Notation</span></span>
-<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>Let $f_0, \ldots, f_M$ be a model hierarchy ordered by decreasing fidelity, with</span>
-<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>$f_{M+1} \equiv 0$. Define level corrections</span>
-<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>Y_\ell = f_\ell - f_{\ell+1}, \quad \ell = 0, \ldots, M.</span>
-<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>Write $V_\ell = \mathbb{V}<span class="co">[</span><span class="ot">Y_\ell</span><span class="co">]</span>$ and $C_\ell$ for the per-sample cost of evaluating</span>
-<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>$f_\ell$ (note each $Y_\ell$ evaluation costs $C_\ell + C_{\ell+1}$; for brevity we absorb</span>
-<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>this into a single level cost). Let $N_\ell = |\mathcal{Z}_\ell|$ be the number of</span>
-<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>independent samples allocated to level $\ell$.</span>
-<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a>The MLMC estimator and its variance are</span>
-<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_0^{\text{ML}} = \sum_{\ell=0}^{M} \hat{Y}_\ell, \qquad</span>
-<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0^{\text{ML}}</span><span class="co">]</span> = \sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell}.</span>
-<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>$$ {#eq-mlmc-var}</span>
-<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>The total cost is</span>
-<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}} = \sum_{\ell=0}^{M} N_\ell C_\ell.</span>
-<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>$$ {#eq-cost}</span>
-<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimal Sample Allocation</span></span>
-<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a>We seek the $N_0, \ldots, N_M$ that minimise total cost $C_{\text{tot}}$ subject to</span>
-<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>the variance constraint $\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0^{\text{ML}}</span><span class="co">]</span> = \epsilon^2$.</span>
-<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>Form the Lagrangian with multiplier $\lambda^2$:</span>
-<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a>\mathcal{J} = \sum_{\ell=0}^{M} N_\ell C_\ell</span>
-<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\lambda^2 \left(\sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell} - \epsilon^2\right).</span>
-<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>Setting $\partial \mathcal{J} / \partial N_\ell = 0$:</span>
-<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>C_\ell - \lambda^2 \frac{V_\ell}{N_\ell^2} = 0</span>
-<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a>\implies</span>
-<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a>\boxed{N_\ell^* = \lambda \sqrt{\frac{V_\ell}{C_\ell}}}.</span>
-<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a>$$ {#eq-optimal-N}</span>
-<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a>The optimal allocation assigns more samples to levels with **high correction variance**</span>
-<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a>and **low cost**. High-fidelity levels (small $\ell$) have large $V_\ell$ but also large</span>
-<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a>$C_\ell$; cheap levels have small $V_\ell$ but also small $C_\ell$. The ratio</span>
-<span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a>$\sqrt{V_\ell / C_\ell}$ balances these competing effects.</span>
-<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a><span class="fu">## Minimum Cost for Target Variance</span></span>
-<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a>To find $\lambda$, substitute @eq-optimal-N into the variance constraint:</span>
-<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a>\sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell^*}</span>
-<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a>= \sum_{\ell=0}^{M} \frac{V_\ell}{\lambda\sqrt{V_\ell / C_\ell}}</span>
-<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a>= \frac{1}{\lambda} \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell} = \epsilon^2</span>
-<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a>\implies \lambda = \frac{1}{\epsilon^2} \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}.</span>
-<span id="cb5-114"><a href="#cb5-114" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-115"><a href="#cb5-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a>Substituting back into @eq-cost:</span>
-<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}}^* = \sum_{\ell=0}^{M} N_\ell^* C_\ell</span>
-<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>= \lambda \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}</span>
-<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a>= \frac{1}{\epsilon^2} \left(\sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}\right)^2.</span>
-<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a>$$ {#eq-min-cost}</span>
-<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a>This is the central result of MLMC. The minimum cost to achieve variance $\epsilon^2$ scales</span>
-<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a>as $\epsilon^{-2}$ (the same dimension-independent rate as plain MC), but the constant</span>
-<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a>$\left(\sum_\ell \sqrt{V_\ell C_\ell}\right)^2$ can be dramatically smaller than the MC</span>
-<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>constant $\sigma^2_0 / C_0$ whenever the level corrections are cheap to estimate.</span>
-<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing to single-level MC</span></span>
-<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a>Plain MC achieves $\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0</span><span class="co">]</span> = \sigma^2_0 / N$ at cost $N C_0$, giving</span>
-<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>minimum cost $C_0 \sigma^2_0 / \epsilon^2$. The MLMC improvement factor is</span>
-<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a>\frac{C_{\text{tot}}^*}{C_{\text{MC}}^*}</span>
-<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a>= \frac{\left(\sum_\ell \sqrt{V_\ell C_\ell}\right)^2}{C_0 \sigma^2_0}.</span>
-<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a>This ratio is less than 1 (MLMC wins) whenever the hierarchy concentrates inexpensive</span>
-<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a>correction variance at cheaper levels faster than the cost per sample decreases.</span>
-<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a><span class="fu">## Complexity Theorem</span></span>
-<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a>When the level corrections arise from mesh refinement at rate $h_\ell \propto 2^{-\ell}$</span>
-<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a>and satisfy standard regularity assumptions, the following decay rates hold:</span>
-<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a>V_\ell \leq C_V \cdot 2^{-\alpha \ell}, \qquad C_\ell \leq C_C \cdot 2^{\beta \ell},</span>
-<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>where $\alpha &gt; 0$ is the rate of variance decay and $\beta &gt; 0$ is the rate of cost</span>
-<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>growth. Under these conditions, @eq-min-cost gives the complexity theorem <span class="co">[</span><span class="ot">GAN2015</span><span class="co">]</span>:</span>
-<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}}^* = \mathcal{O}<span class="sc">\!</span>\left(\epsilon^{-2}\right), \quad \alpha &gt; \beta/2.</span>
-<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a>When $\alpha \leq \beta/2$ the cost grows faster than $\epsilon^{-2}$, but MLMC still</span>
-<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a>outperforms plain MC by a logarithmic factor. The key message is that **if the variance</span>
-<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a>of level corrections decays faster than cost grows, MLMC achieves the same asymptotic</span>
-<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a>rate as MC but with a far smaller constant.**</span>
-<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
-<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>We verify @eq-optimal-N and @eq-min-cost on the five-level polynomial benchmark</span>
-<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a>$f_\ell(z) = z^{5-\ell}$, $z \sim \mathcal{U}<span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$, where the true $V_\ell$ can be</span>
-<span id="cb5-170"><a href="#cb5-170" aria-hidden="true" tabindex="-1"></a>computed exactly.</span>
-<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble <span class="im">import</span> (</span>
-<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a>    polynomial_ensemble_5model,</span>
-<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
-<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> MLMCEstimator</span>
-<span id="cb5-183"><a href="#cb5-183" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
-<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> polynomial_ensemble_5model(bkd)</span>
-<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a>variable  <span class="op">=</span> benchmark.prior()</span>
-<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a>models    <span class="op">=</span> benchmark.models()</span>
-<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> bkd.to_numpy(benchmark.costs())</span>
-<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> models[<span class="dv">0</span>].nqoi()</span>
-<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a>M         <span class="op">=</span> <span class="bu">len</span>(models) <span class="op">-</span> <span class="dv">1</span></span>
-<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact covariance from benchmark</span></span>
-<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>cov_true <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_covariance())</span>
-<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a>sigma2_hf <span class="op">=</span> cov_true[<span class="dv">0</span>, <span class="dv">0</span>]</span>
-<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a><span class="co"># --- MLMC via estimator ---</span></span>
-<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> <span class="fl">100.0</span></span>
-<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(bkd.asarray(cov_true))</span>
-<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
-<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P)</span>
-<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a>N_est <span class="op">=</span> bkd.to_numpy(mlmc_est.nsamples_per_model())</span>
-<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a>var_est <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a><span class="co"># --- MC via estimator ---</span></span>
-<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a>stat_mc <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a>stat_mc.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P)</span>
-<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a>var_mc <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MLMC optimized variance: </span><span class="sc">{</span>var_est<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MC variance:            </span><span class="sc">{</span>var_mc<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variance reduction:     </span><span class="sc">{</span>var_mc <span class="op">/</span> var_est<span class="sc">:.1f}</span><span class="ss">x"</span>)</span>
-<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."</span></span>
-<span id="cb5-223"><a href="#cb5-223" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variance-vs-cost</span></span>
-<span id="cb5-224"><a href="#cb5-224" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_variance_vs_cost</span>
-<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a>target_costs_sweep <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">100</span>, <span class="dv">1000</span>, <span class="dv">10000</span>]</span>
-<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a>mlmc_vars_pred, mc_vars_pred <span class="op">=</span> [], []</span>
-<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a>mlmc_vars_emp, mc_vars_emp <span class="op">=</span> [], []</span>
-<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> P_t <span class="kw">in</span> target_costs_sweep:</span>
-<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Predicted variance from optimized_covariance ---</span></span>
-<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a>    ml_e <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
-<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a>    ml_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
-<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_pred.append(<span class="bu">float</span>(ml_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a>    mc_e <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a>    mc_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
-<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a>    mc_vars_pred.append(<span class="bu">float</span>(mc_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb5-242"><a href="#cb5-242" aria-hidden="true" tabindex="-1"></a>    N_mc <span class="op">=</span> mc_e._rounded_nsamples_per_model[<span class="dv">0</span>]</span>
-<span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Empirical variance from trials ---</span></span>
-<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a>    mc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
-<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a>    mlmc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
-<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
-<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="bu">int</span>(P_t) <span class="op">*</span> <span class="dv">100</span>)</span>
-<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a>        s_mc <span class="op">=</span> variable.rvs(N_mc)</span>
-<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a>        mc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(bkd.mean(models[<span class="dv">0</span>](s_mc)[<span class="dv">0</span>]))</span>
-<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a>        s_per_m <span class="op">=</span> ml_e.generate_samples_per_model(</span>
-<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span> n: variable.rvs(<span class="bu">int</span>(n)))</span>
-<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a>        v_per_m <span class="op">=</span> [models[ell](s_per_m[ell]) <span class="cf">for</span> ell <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(models))]</span>
-<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a>        mlmc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(ml_e(v_per_m))</span>
-<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a>    mc_vars_emp.append(mc_ests_t.var())</span>
-<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_emp.append(mlmc_ests_t.var())</span>
-<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
-<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a>plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>
-<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a>                      mlmc_vars_pred, mlmc_vars_emp, n_trials, ax)</span>
-<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a><span class="fu">## MLMC as ACV: Fixed vs Optimal $\eta$</span></span>
-<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a>MLMC fixes the control variate weight at $\eta = -1$ for each level correction. This is</span>
-<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a>motivated by the telescoping identity but is not generally optimal. The ACV framework</span>
-<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a>allows the weight to be optimised, and the resulting estimator — sometimes called</span>
-<span id="cb5-274"><a href="#cb5-274" aria-hidden="true" tabindex="-1"></a>MLMC-OPT — can outperform standard MLMC.</span>
-<span id="cb5-275"><a href="#cb5-275" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variance reduction relative to MC for standard MLMC ($\\eta = -1$, blue) and MLMC with optimal ACV weights (orange), at target cost $P = 500$. Optimal weights reduce variance further when the fixed-$\\eta$ structure is not optimal for this ensemble."</span></span>
-<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mlmc-vs-opt</span></span>
-<span id="cb5-281"><a href="#cb5-281" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-282"><a href="#cb5-282" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> GRDEstimator</span>
-<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator</span>
-<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> (</span>
-<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a>    ScipySLSQPOptimizer,</span>
-<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mlmc_vs_opt</span>
-<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a>stat_true <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a>stat_true.set_pilot_quantities(bkd.asarray(cov_true))</span>
-<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a>P_cmp <span class="op">=</span> <span class="fl">500.0</span></span>
-<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat_true, bkd.asarray(costs))</span>
-<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P_cmp)</span>
-<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a>mlmc_var <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a>acv_optimizer <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
-<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a>ri_mlmc <span class="op">=</span> bkd.asarray(np.arange(M), dtype<span class="op">=</span><span class="bu">int</span>)  <span class="co"># [0, 1, 2, 3]</span></span>
-<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a>acv_est <span class="op">=</span> GRDEstimator(stat_true, bkd.asarray(costs), recursion_index<span class="op">=</span>ri_mlmc)</span>
-<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a>acv_allocator <span class="op">=</span> ACVAllocator(acv_est, optimizer<span class="op">=</span>acv_optimizer)</span>
-<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a>acv_est.set_allocation(acv_allocator.allocate(P_cmp))</span>
-<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a>acv_var <span class="op">=</span> <span class="bu">float</span>(acv_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(mc_stat_cmp, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
-<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P_cmp)</span>
-<span id="cb5-308"><a href="#cb5-308" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-309"><a href="#cb5-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">"MC"</span>, <span class="st">"MLMC</span><span class="ch">\n</span><span class="st">($</span><span class="ch">\\</span><span class="st">eta=-1$)"</span>, <span class="st">"ACV-GRD</span><span class="ch">\n</span><span class="st">(optimal weights)"</span>]</span>
-<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a>vals   <span class="op">=</span> [mc_var <span class="op">/</span> mc_var, mc_var <span class="op">/</span> mlmc_var, mc_var <span class="op">/</span> acv_var]</span>
-<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a>colors <span class="op">=</span> [<span class="st">"#aaaaaa"</span>, <span class="st">"#2C7FB8"</span>, <span class="st">"#E67E22"</span>]</span>
-<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
-<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a>plot_mlmc_vs_opt(labels, vals, colors, ax)</span>
-<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a><span class="fu">## Pilot estimation and ACV weights</span></span>
-<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a>The comparison above uses the **exact** covariance from the benchmark. In practice,</span>
-<span id="cb5-323"><a href="#cb5-323" aria-hidden="true" tabindex="-1"></a>the covariance is estimated from pilot samples, which introduces noise into the ACV</span>
-<span id="cb5-324"><a href="#cb5-324" aria-hidden="true" tabindex="-1"></a>weight estimates. Because MLMC fixes its weights at $\eta = -1$ (no estimation needed),</span>
-<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a>it is robust to pilot noise. ACV methods that optimise weights can suffer when the</span>
-<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a>pilot is small: the estimated optimal weights may differ enough from the true optimum</span>
-<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>that the realised variance reduction is less than predicted — or even worse than MLMC.</span>
-<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>The advantage of optimised weights grows more reliable as the pilot size increases.</span>
-<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The optimal allocation is $N_\ell^* \propto \sqrt{V_\ell / C_\ell}$, balancing high</span>
-<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a>  correction variance (needs more samples) against high cost (cannot afford more samples)</span>
-<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The minimum cost for target variance $\epsilon^2$ is</span>
-<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a>  $C_{\text{tot}}^* = \epsilon^{-2}\bigl(\sum_\ell \sqrt{V_\ell C_\ell}\bigr)^2$</span>
-<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Both MLMC and MC scale as $\epsilon^{-2}$, but the MLMC constant is much smaller when</span>
-<span id="cb5-339"><a href="#cb5-339" aria-hidden="true" tabindex="-1"></a>  level corrections are cheap to estimate</span>
-<span id="cb5-340"><a href="#cb5-340" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>MLMC fixes $\eta = -1$; optimising the weight (MLMC-OPT / ACV) can reduce variance</span>
-<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a>  further when this constraint is not tight</span>
-<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Using the formula @eq-optimal-N, show that $N_\ell^* C_\ell \propto \sqrt{V_\ell C_\ell}$,</span>
-<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a>   i.e. the fraction of total cost spent on each level is proportional to $\sqrt{V_\ell C_\ell}$.</span>
-<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a>   What does this imply for the level that dominates the total cost?</span>
-<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>If $V_\ell = V_0$ and $C_\ell = C_0$ for all $\ell$ (all levels identical), what does</span>
-<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a>   the optimal MLMC allocation reduce to? Is it better or worse than single-level MC?</span>
-<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>From @eq-min-cost, derive the condition on $\alpha$ and $\beta$ (the variance decay and</span>
-<span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a>   cost growth exponents) under which MLMC achieves a smaller constant than plain MC.</span>
-<span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** For the polynomial benchmark, compute the optimal allocation</span>
-<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a>   analytically using @eq-optimal-N and compare it to the output of <span class="in">`allocate_samples`</span></span>
-<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a>   from the PyApprox API. Are they consistent?</span>
-<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
-<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GAN2015</span><span class="co">]</span> M.B. Giles. *Multilevel Monte Carlo methods.* Acta Numerica, 24:259--328, 2015.</span>
-<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1017/S096249291500001X)</span></span>
-<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GOR2008</span><span class="co">]</span> M.B. Giles. *Multilevel Monte Carlo path simulation.* Operations Research,</span>
-<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a>  56(3):607--617, 2008. <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1287/opre.1070.0496)</span></span>
-<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">CGSTCVS2011</span><span class="co">]</span> K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup. *Multilevel Monte</span>
-<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a>  Carlo methods and applications to elliptic PDEs with random coefficients.* Computing and</span>
-<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a>  Visualization in Science, 14:3--15, 2011.</span>
-<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1007/s00791-011-0160-x)</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multi-Level Monte Carlo: Analysis"</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem."</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 76</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - mlmc_concept</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-level</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - optimal-allocation</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - complexity-theorem</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/mlmc_analysis.ipynb)</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Derive the optimal MLMC sample allocation $N_\ell^*$ via Lagrange multipliers</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>State the minimum cost needed to achieve a target estimator variance $\epsilon^2$</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify the optimal allocation and variance reduction numerically</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain the connection between MLMC and ACV and when $\eta = -1$ is suboptimal</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">MLMC Concept</span><span class="co">](mlmc_concept.qmd)</span> and <span class="co">[</span><span class="ot">ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd#sec-two-model)</span> before</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>this tutorial.</span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup and Notation</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>Let $f_0, \ldots, f_M$ be a model hierarchy ordered by decreasing fidelity, with</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>$f_{M+1} \equiv 0$. Define level corrections</span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>Y_\ell = f_\ell - f_{\ell+1}, \quad \ell = 0, \ldots, M.</span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>Write $V_\ell = \mathbb{V}<span class="co">[</span><span class="ot">Y_\ell</span><span class="co">]</span>$ and $C_\ell$ for the per-sample cost of evaluating</span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>$f_\ell$ (note each $Y_\ell$ evaluation costs $C_\ell + C_{\ell+1}$; for brevity we absorb</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>this into a single level cost). Let $N_\ell = |\mathcal{Z}_\ell|$ be the number of</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>independent samples allocated to level $\ell$.</span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>The MLMC estimator and its variance are</span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>\hat{\mu}_0^{\text{ML}} = \sum_{\ell=0}^{M} \hat{Y}_\ell, \qquad</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0^{\text{ML}}</span><span class="co">]</span> = \sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell}.</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>$$ {#eq-mlmc-var}</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>The total cost is</span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}} = \sum_{\ell=0}^{M} N_\ell C_\ell.</span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>$$ {#eq-cost}</span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimal Sample Allocation</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>We seek the $N_0, \ldots, N_M$ that minimise total cost $C_{\text{tot}}$ subject to</span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>the variance constraint $\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0^{\text{ML}}</span><span class="co">]</span> = \epsilon^2$.</span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a>Form the Lagrangian with multiplier $\lambda^2$:</span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>\mathcal{J} = \sum_{\ell=0}^{M} N_\ell C_\ell</span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>\lambda^2 \left(\sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell} - \epsilon^2\right).</span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a>Setting $\partial \mathcal{J} / \partial N_\ell = 0$:</span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a>C_\ell - \lambda^2 \frac{V_\ell}{N_\ell^2} = 0</span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a>\implies</span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>\boxed{N_\ell^* = \lambda \sqrt{\frac{V_\ell}{C_\ell}}}.</span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>$$ {#eq-optimal-N}</span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>The optimal allocation assigns more samples to levels with **high correction variance**</span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a>and **low cost**. High-fidelity levels (small $\ell$) have large $V_\ell$ but also large</span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>$C_\ell$; cheap levels have small $V_\ell$ but also small $C_\ell$. The ratio</span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>$\sqrt{V_\ell / C_\ell}$ balances these competing effects.</span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a><span class="fu">## Minimum Cost for Target Variance</span></span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a>To find $\lambda$, substitute @eq-optimal-N into the variance constraint:</span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a>\sum_{\ell=0}^{M} \frac{V_\ell}{N_\ell^*}</span>
+<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a>= \sum_{\ell=0}^{M} \frac{V_\ell}{\lambda\sqrt{V_\ell / C_\ell}}</span>
+<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a>= \frac{1}{\lambda} \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell} = \epsilon^2</span>
+<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a>\implies \lambda = \frac{1}{\epsilon^2} \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}.</span>
+<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a>Substituting back into @eq-cost:</span>
+<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}}^* = \sum_{\ell=0}^{M} N_\ell^* C_\ell</span>
+<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a>= \lambda \sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}</span>
+<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a>= \frac{1}{\epsilon^2} \left(\sum_{\ell=0}^{M} \sqrt{V_\ell C_\ell}\right)^2.</span>
+<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a>$$ {#eq-min-cost}</span>
+<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a>This is the central result of MLMC. The minimum cost to achieve variance $\epsilon^2$ scales</span>
+<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a>as $\epsilon^{-2}$ (the same dimension-independent rate as plain MC), but the constant</span>
+<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a>$\left(\sum_\ell \sqrt{V_\ell C_\ell}\right)^2$ can be dramatically smaller than the MC</span>
+<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a>constant $\sigma^2_0 / C_0$ whenever the level corrections are cheap to estimate.</span>
+<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing to single-level MC</span></span>
+<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a>Plain MC achieves $\mathbb{V}<span class="co">[</span><span class="ot">\hat{\mu}_0</span><span class="co">]</span> = \sigma^2_0 / N$ at cost $N C_0$, giving</span>
+<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a>minimum cost $C_0 \sigma^2_0 / \epsilon^2$. The MLMC improvement factor is</span>
+<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a>\frac{C_{\text{tot}}^*}{C_{\text{MC}}^*}</span>
+<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a>= \frac{\left(\sum_\ell \sqrt{V_\ell C_\ell}\right)^2}{C_0 \sigma^2_0}.</span>
+<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a>This ratio is less than 1 (MLMC wins) whenever the hierarchy concentrates inexpensive</span>
+<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a>correction variance at cheaper levels faster than the cost per sample decreases.</span>
+<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a><span class="fu">## Complexity Theorem</span></span>
+<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-146"><a href="#cb4-146" aria-hidden="true" tabindex="-1"></a>When the level corrections arise from mesh refinement at rate $h_\ell \propto 2^{-\ell}$</span>
+<span id="cb4-147"><a href="#cb4-147" aria-hidden="true" tabindex="-1"></a>and satisfy standard regularity assumptions, the following decay rates hold:</span>
+<span id="cb4-148"><a href="#cb4-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-149"><a href="#cb4-149" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-150"><a href="#cb4-150" aria-hidden="true" tabindex="-1"></a>V_\ell \leq C_V \cdot 2^{-\alpha \ell}, \qquad C_\ell \leq C_C \cdot 2^{\beta \ell},</span>
+<span id="cb4-151"><a href="#cb4-151" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-152"><a href="#cb4-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-153"><a href="#cb4-153" aria-hidden="true" tabindex="-1"></a>where $\alpha &gt; 0$ is the rate of variance decay and $\beta &gt; 0$ is the rate of cost</span>
+<span id="cb4-154"><a href="#cb4-154" aria-hidden="true" tabindex="-1"></a>growth. Under these conditions, @eq-min-cost gives the complexity theorem <span class="co">[</span><span class="ot">GAN2015</span><span class="co">]</span>:</span>
+<span id="cb4-155"><a href="#cb4-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-156"><a href="#cb4-156" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-157"><a href="#cb4-157" aria-hidden="true" tabindex="-1"></a>C_{\text{tot}}^* = \mathcal{O}<span class="sc">\!</span>\left(\epsilon^{-2}\right), \quad \alpha &gt; \beta/2.</span>
+<span id="cb4-158"><a href="#cb4-158" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-159"><a href="#cb4-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-160"><a href="#cb4-160" aria-hidden="true" tabindex="-1"></a>When $\alpha \leq \beta/2$ the cost grows faster than $\epsilon^{-2}$, but MLMC still</span>
+<span id="cb4-161"><a href="#cb4-161" aria-hidden="true" tabindex="-1"></a>outperforms plain MC by a logarithmic factor. The key message is that **if the variance</span>
+<span id="cb4-162"><a href="#cb4-162" aria-hidden="true" tabindex="-1"></a>of level corrections decays faster than cost grows, MLMC achieves the same asymptotic</span>
+<span id="cb4-163"><a href="#cb4-163" aria-hidden="true" tabindex="-1"></a>rate as MC but with a far smaller constant.**</span>
+<span id="cb4-164"><a href="#cb4-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-165"><a href="#cb4-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-166"><a href="#cb4-166" aria-hidden="true" tabindex="-1"></a><span class="fu">## Numerical Verification</span></span>
+<span id="cb4-167"><a href="#cb4-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-168"><a href="#cb4-168" aria-hidden="true" tabindex="-1"></a>We verify @eq-optimal-N and @eq-min-cost on the five-level polynomial benchmark</span>
+<span id="cb4-169"><a href="#cb4-169" aria-hidden="true" tabindex="-1"></a>$f_\ell(z) = z^{5-\ell}$, $z \sim \mathcal{U}<span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$, where the true $V_\ell$ can be</span>
+<span id="cb4-170"><a href="#cb4-170" aria-hidden="true" tabindex="-1"></a>computed exactly.</span>
+<span id="cb4-171"><a href="#cb4-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-174"><a href="#cb4-174" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-175"><a href="#cb4-175" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-176"><a href="#cb4-176" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb4-177"><a href="#cb4-177" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb4-178"><a href="#cb4-178" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble <span class="im">import</span> (</span>
+<span id="cb4-179"><a href="#cb4-179" aria-hidden="true" tabindex="-1"></a>    polynomial_ensemble_5model,</span>
+<span id="cb4-180"><a href="#cb4-180" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-181"><a href="#cb4-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
+<span id="cb4-182"><a href="#cb4-182" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> MLMCEstimator</span>
+<span id="cb4-183"><a href="#cb4-183" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
+<span id="cb4-184"><a href="#cb4-184" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-185"><a href="#cb4-185" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb4-186"><a href="#cb4-186" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> polynomial_ensemble_5model(bkd)</span>
+<span id="cb4-187"><a href="#cb4-187" aria-hidden="true" tabindex="-1"></a>variable  <span class="op">=</span> benchmark.prior()</span>
+<span id="cb4-188"><a href="#cb4-188" aria-hidden="true" tabindex="-1"></a>models    <span class="op">=</span> benchmark.models()</span>
+<span id="cb4-189"><a href="#cb4-189" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> bkd.to_numpy(benchmark.costs())</span>
+<span id="cb4-190"><a href="#cb4-190" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> models[<span class="dv">0</span>].nqoi()</span>
+<span id="cb4-191"><a href="#cb4-191" aria-hidden="true" tabindex="-1"></a>M         <span class="op">=</span> <span class="bu">len</span>(models) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb4-192"><a href="#cb4-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-193"><a href="#cb4-193" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact covariance from benchmark</span></span>
+<span id="cb4-194"><a href="#cb4-194" aria-hidden="true" tabindex="-1"></a>cov_true <span class="op">=</span> bkd.to_numpy(benchmark.ensemble_covariance())</span>
+<span id="cb4-195"><a href="#cb4-195" aria-hidden="true" tabindex="-1"></a>sigma2_hf <span class="op">=</span> cov_true[<span class="dv">0</span>, <span class="dv">0</span>]</span>
+<span id="cb4-196"><a href="#cb4-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-197"><a href="#cb4-197" aria-hidden="true" tabindex="-1"></a><span class="co"># --- MLMC via estimator ---</span></span>
+<span id="cb4-198"><a href="#cb4-198" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> <span class="fl">100.0</span></span>
+<span id="cb4-199"><a href="#cb4-199" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb4-200"><a href="#cb4-200" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(bkd.asarray(cov_true))</span>
+<span id="cb4-201"><a href="#cb4-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-202"><a href="#cb4-202" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
+<span id="cb4-203"><a href="#cb4-203" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P)</span>
+<span id="cb4-204"><a href="#cb4-204" aria-hidden="true" tabindex="-1"></a>N_est <span class="op">=</span> bkd.to_numpy(mlmc_est.nsamples_per_model())</span>
+<span id="cb4-205"><a href="#cb4-205" aria-hidden="true" tabindex="-1"></a>var_est <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-206"><a href="#cb4-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-207"><a href="#cb4-207" aria-hidden="true" tabindex="-1"></a><span class="co"># --- MC via estimator ---</span></span>
+<span id="cb4-208"><a href="#cb4-208" aria-hidden="true" tabindex="-1"></a>stat_mc <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb4-209"><a href="#cb4-209" aria-hidden="true" tabindex="-1"></a>stat_mc.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb4-210"><a href="#cb4-210" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P)</span>
+<span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a>var_mc <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MLMC optimized variance: </span><span class="sc">{</span>var_est<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb4-215"><a href="#cb4-215" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"MC variance:            </span><span class="sc">{</span>var_mc<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variance reduction:     </span><span class="sc">{</span>var_mc <span class="op">/</span> var_est<span class="sc">:.1f}</span><span class="ss">x"</span>)</span>
+<span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-218"><a href="#cb4-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-221"><a href="#cb4-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-222"><a href="#cb4-222" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."</span></span>
+<span id="cb4-223"><a href="#cb4-223" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variance-vs-cost</span></span>
+<span id="cb4-224"><a href="#cb4-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-225"><a href="#cb4-225" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_variance_vs_cost</span>
+<span id="cb4-226"><a href="#cb4-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-227"><a href="#cb4-227" aria-hidden="true" tabindex="-1"></a>target_costs_sweep <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">100</span>, <span class="dv">1000</span>, <span class="dv">10000</span>]</span>
+<span id="cb4-228"><a href="#cb4-228" aria-hidden="true" tabindex="-1"></a>n_trials <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb4-229"><a href="#cb4-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-230"><a href="#cb4-230" aria-hidden="true" tabindex="-1"></a>mlmc_vars_pred, mc_vars_pred <span class="op">=</span> [], []</span>
+<span id="cb4-231"><a href="#cb4-231" aria-hidden="true" tabindex="-1"></a>mlmc_vars_emp, mc_vars_emp <span class="op">=</span> [], []</span>
+<span id="cb4-232"><a href="#cb4-232" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-233"><a href="#cb4-233" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> P_t <span class="kw">in</span> target_costs_sweep:</span>
+<span id="cb4-234"><a href="#cb4-234" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Predicted variance from optimized_covariance ---</span></span>
+<span id="cb4-235"><a href="#cb4-235" aria-hidden="true" tabindex="-1"></a>    ml_e <span class="op">=</span> MLMCEstimator(stat, bkd.asarray(costs))</span>
+<span id="cb4-236"><a href="#cb4-236" aria-hidden="true" tabindex="-1"></a>    ml_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
+<span id="cb4-237"><a href="#cb4-237" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_pred.append(<span class="bu">float</span>(ml_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb4-238"><a href="#cb4-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-239"><a href="#cb4-239" aria-hidden="true" tabindex="-1"></a>    mc_e <span class="op">=</span> MCEstimator(stat_mc, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb4-240"><a href="#cb4-240" aria-hidden="true" tabindex="-1"></a>    mc_e.allocate_samples(<span class="bu">float</span>(P_t))</span>
+<span id="cb4-241"><a href="#cb4-241" aria-hidden="true" tabindex="-1"></a>    mc_vars_pred.append(<span class="bu">float</span>(mc_e.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb4-242"><a href="#cb4-242" aria-hidden="true" tabindex="-1"></a>    N_mc <span class="op">=</span> mc_e._rounded_nsamples_per_model[<span class="dv">0</span>]</span>
+<span id="cb4-243"><a href="#cb4-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-244"><a href="#cb4-244" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- Empirical variance from trials ---</span></span>
+<span id="cb4-245"><a href="#cb4-245" aria-hidden="true" tabindex="-1"></a>    mc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb4-246"><a href="#cb4-246" aria-hidden="true" tabindex="-1"></a>    mlmc_ests_t <span class="op">=</span> np.empty(n_trials)</span>
+<span id="cb4-247"><a href="#cb4-247" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_trials):</span>
+<span id="cb4-248"><a href="#cb4-248" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">+</span> <span class="bu">int</span>(P_t) <span class="op">*</span> <span class="dv">100</span>)</span>
+<span id="cb4-249"><a href="#cb4-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-250"><a href="#cb4-250" aria-hidden="true" tabindex="-1"></a>        s_mc <span class="op">=</span> variable.rvs(N_mc)</span>
+<span id="cb4-251"><a href="#cb4-251" aria-hidden="true" tabindex="-1"></a>        mc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(bkd.mean(models[<span class="dv">0</span>](s_mc)[<span class="dv">0</span>]))</span>
+<span id="cb4-252"><a href="#cb4-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-253"><a href="#cb4-253" aria-hidden="true" tabindex="-1"></a>        s_per_m <span class="op">=</span> ml_e.generate_samples_per_model(</span>
+<span id="cb4-254"><a href="#cb4-254" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span> n: variable.rvs(<span class="bu">int</span>(n)))</span>
+<span id="cb4-255"><a href="#cb4-255" aria-hidden="true" tabindex="-1"></a>        v_per_m <span class="op">=</span> [models[ell](s_per_m[ell]) <span class="cf">for</span> ell <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(models))]</span>
+<span id="cb4-256"><a href="#cb4-256" aria-hidden="true" tabindex="-1"></a>        mlmc_ests_t[i] <span class="op">=</span> <span class="bu">float</span>(ml_e(v_per_m))</span>
+<span id="cb4-257"><a href="#cb4-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-258"><a href="#cb4-258" aria-hidden="true" tabindex="-1"></a>    mc_vars_emp.append(mc_ests_t.var())</span>
+<span id="cb4-259"><a href="#cb4-259" aria-hidden="true" tabindex="-1"></a>    mlmc_vars_emp.append(mlmc_ests_t.var())</span>
+<span id="cb4-260"><a href="#cb4-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-261"><a href="#cb4-261" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb4-262"><a href="#cb4-262" aria-hidden="true" tabindex="-1"></a>plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,</span>
+<span id="cb4-263"><a href="#cb4-263" aria-hidden="true" tabindex="-1"></a>                      mlmc_vars_pred, mlmc_vars_emp, n_trials, ax)</span>
+<span id="cb4-264"><a href="#cb4-264" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-265"><a href="#cb4-265" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-266"><a href="#cb4-266" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-267"><a href="#cb4-267" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-268"><a href="#cb4-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-269"><a href="#cb4-269" aria-hidden="true" tabindex="-1"></a><span class="fu">## MLMC as ACV: Fixed vs Optimal $\eta$</span></span>
+<span id="cb4-270"><a href="#cb4-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-271"><a href="#cb4-271" aria-hidden="true" tabindex="-1"></a>MLMC fixes the control variate weight at $\eta = -1$ for each level correction. This is</span>
+<span id="cb4-272"><a href="#cb4-272" aria-hidden="true" tabindex="-1"></a>motivated by the telescoping identity but is not generally optimal. The ACV framework</span>
+<span id="cb4-273"><a href="#cb4-273" aria-hidden="true" tabindex="-1"></a>allows the weight to be optimised, and the resulting estimator — sometimes called</span>
+<span id="cb4-274"><a href="#cb4-274" aria-hidden="true" tabindex="-1"></a>MLMC-OPT — can outperform standard MLMC.</span>
+<span id="cb4-275"><a href="#cb4-275" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-278"><a href="#cb4-278" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variance reduction relative to MC for standard MLMC ($\\eta = -1$, blue) and MLMC with optimal ACV weights (orange), at target cost $P = 500$. Optimal weights reduce variance further when the fixed-$\\eta$ structure is not optimal for this ensemble."</span></span>
+<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mlmc-vs-opt</span></span>
+<span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest <span class="im">import</span> GRDEstimator</span>
+<span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator</span>
+<span id="cb4-284"><a href="#cb4-284" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> (</span>
+<span id="cb4-285"><a href="#cb4-285" aria-hidden="true" tabindex="-1"></a>    ScipySLSQPOptimizer,</span>
+<span id="cb4-286"><a href="#cb4-286" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-287"><a href="#cb4-287" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._hierarchy <span class="im">import</span> plot_mlmc_vs_opt</span>
+<span id="cb4-288"><a href="#cb4-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-289"><a href="#cb4-289" aria-hidden="true" tabindex="-1"></a>stat_true <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb4-290"><a href="#cb4-290" aria-hidden="true" tabindex="-1"></a>stat_true.set_pilot_quantities(bkd.asarray(cov_true))</span>
+<span id="cb4-291"><a href="#cb4-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-292"><a href="#cb4-292" aria-hidden="true" tabindex="-1"></a>P_cmp <span class="op">=</span> <span class="fl">500.0</span></span>
+<span id="cb4-293"><a href="#cb4-293" aria-hidden="true" tabindex="-1"></a>mlmc_est <span class="op">=</span> MLMCEstimator(stat_true, bkd.asarray(costs))</span>
+<span id="cb4-294"><a href="#cb4-294" aria-hidden="true" tabindex="-1"></a>mlmc_est.allocate_samples(P_cmp)</span>
+<span id="cb4-295"><a href="#cb4-295" aria-hidden="true" tabindex="-1"></a>mlmc_var <span class="op">=</span> <span class="bu">float</span>(mlmc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-296"><a href="#cb4-296" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-297"><a href="#cb4-297" aria-hidden="true" tabindex="-1"></a>acv_optimizer <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
+<span id="cb4-298"><a href="#cb4-298" aria-hidden="true" tabindex="-1"></a>ri_mlmc <span class="op">=</span> bkd.asarray(np.arange(M), dtype<span class="op">=</span><span class="bu">int</span>)  <span class="co"># [0, 1, 2, 3]</span></span>
+<span id="cb4-299"><a href="#cb4-299" aria-hidden="true" tabindex="-1"></a>acv_est <span class="op">=</span> GRDEstimator(stat_true, bkd.asarray(costs), recursion_index<span class="op">=</span>ri_mlmc)</span>
+<span id="cb4-300"><a href="#cb4-300" aria-hidden="true" tabindex="-1"></a>acv_allocator <span class="op">=</span> ACVAllocator(acv_est, optimizer<span class="op">=</span>acv_optimizer)</span>
+<span id="cb4-301"><a href="#cb4-301" aria-hidden="true" tabindex="-1"></a>acv_est.set_allocation(acv_allocator.allocate(P_cmp))</span>
+<span id="cb4-302"><a href="#cb4-302" aria-hidden="true" tabindex="-1"></a>acv_var <span class="op">=</span> <span class="bu">float</span>(acv_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-303"><a href="#cb4-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-304"><a href="#cb4-304" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb4-305"><a href="#cb4-305" aria-hidden="true" tabindex="-1"></a>mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[<span class="dv">0</span>:<span class="dv">1</span>, <span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb4-306"><a href="#cb4-306" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(mc_stat_cmp, bkd.asarray(costs[<span class="dv">0</span>:<span class="dv">1</span>]))</span>
+<span id="cb4-307"><a href="#cb4-307" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(P_cmp)</span>
+<span id="cb4-308"><a href="#cb4-308" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(mc_est.optimized_covariance()[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-309"><a href="#cb4-309" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-310"><a href="#cb4-310" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">"MC"</span>, <span class="st">"MLMC</span><span class="ch">\n</span><span class="st">($</span><span class="ch">\\</span><span class="st">eta=-1$)"</span>, <span class="st">"ACV-GRD</span><span class="ch">\n</span><span class="st">(optimal weights)"</span>]</span>
+<span id="cb4-311"><a href="#cb4-311" aria-hidden="true" tabindex="-1"></a>vals   <span class="op">=</span> [mc_var <span class="op">/</span> mc_var, mc_var <span class="op">/</span> mlmc_var, mc_var <span class="op">/</span> acv_var]</span>
+<span id="cb4-312"><a href="#cb4-312" aria-hidden="true" tabindex="-1"></a>colors <span class="op">=</span> [<span class="st">"#aaaaaa"</span>, <span class="st">"#2C7FB8"</span>, <span class="st">"#E67E22"</span>]</span>
+<span id="cb4-313"><a href="#cb4-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-314"><a href="#cb4-314" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
+<span id="cb4-315"><a href="#cb4-315" aria-hidden="true" tabindex="-1"></a>plot_mlmc_vs_opt(labels, vals, colors, ax)</span>
+<span id="cb4-316"><a href="#cb4-316" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-317"><a href="#cb4-317" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-318"><a href="#cb4-318" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-319"><a href="#cb4-319" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-320"><a href="#cb4-320" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb4-321"><a href="#cb4-321" aria-hidden="true" tabindex="-1"></a><span class="fu">## Pilot estimation and ACV weights</span></span>
+<span id="cb4-322"><a href="#cb4-322" aria-hidden="true" tabindex="-1"></a>The comparison above uses the **exact** covariance from the benchmark. In practice,</span>
+<span id="cb4-323"><a href="#cb4-323" aria-hidden="true" tabindex="-1"></a>the covariance is estimated from pilot samples, which introduces noise into the ACV</span>
+<span id="cb4-324"><a href="#cb4-324" aria-hidden="true" tabindex="-1"></a>weight estimates. Because MLMC fixes its weights at $\eta = -1$ (no estimation needed),</span>
+<span id="cb4-325"><a href="#cb4-325" aria-hidden="true" tabindex="-1"></a>it is robust to pilot noise. ACV methods that optimise weights can suffer when the</span>
+<span id="cb4-326"><a href="#cb4-326" aria-hidden="true" tabindex="-1"></a>pilot is small: the estimated optimal weights may differ enough from the true optimum</span>
+<span id="cb4-327"><a href="#cb4-327" aria-hidden="true" tabindex="-1"></a>that the realised variance reduction is less than predicted — or even worse than MLMC.</span>
+<span id="cb4-328"><a href="#cb4-328" aria-hidden="true" tabindex="-1"></a>The advantage of optimised weights grows more reliable as the pilot size increases.</span>
+<span id="cb4-329"><a href="#cb4-329" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-330"><a href="#cb4-330" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-331"><a href="#cb4-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-332"><a href="#cb4-332" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb4-333"><a href="#cb4-333" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-334"><a href="#cb4-334" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The optimal allocation is $N_\ell^* \propto \sqrt{V_\ell / C_\ell}$, balancing high</span>
+<span id="cb4-335"><a href="#cb4-335" aria-hidden="true" tabindex="-1"></a>  correction variance (needs more samples) against high cost (cannot afford more samples)</span>
+<span id="cb4-336"><a href="#cb4-336" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The minimum cost for target variance $\epsilon^2$ is</span>
+<span id="cb4-337"><a href="#cb4-337" aria-hidden="true" tabindex="-1"></a>  $C_{\text{tot}}^* = \epsilon^{-2}\bigl(\sum_\ell \sqrt{V_\ell C_\ell}\bigr)^2$</span>
+<span id="cb4-338"><a href="#cb4-338" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Both MLMC and MC scale as $\epsilon^{-2}$, but the MLMC constant is much smaller when</span>
+<span id="cb4-339"><a href="#cb4-339" aria-hidden="true" tabindex="-1"></a>  level corrections are cheap to estimate</span>
+<span id="cb4-340"><a href="#cb4-340" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>MLMC fixes $\eta = -1$; optimising the weight (MLMC-OPT / ACV) can reduce variance</span>
+<span id="cb4-341"><a href="#cb4-341" aria-hidden="true" tabindex="-1"></a>  further when this constraint is not tight</span>
+<span id="cb4-342"><a href="#cb4-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-343"><a href="#cb4-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-344"><a href="#cb4-344" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb4-345"><a href="#cb4-345" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-346"><a href="#cb4-346" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Using the formula @eq-optimal-N, show that $N_\ell^* C_\ell \propto \sqrt{V_\ell C_\ell}$,</span>
+<span id="cb4-347"><a href="#cb4-347" aria-hidden="true" tabindex="-1"></a>   i.e. the fraction of total cost spent on each level is proportional to $\sqrt{V_\ell C_\ell}$.</span>
+<span id="cb4-348"><a href="#cb4-348" aria-hidden="true" tabindex="-1"></a>   What does this imply for the level that dominates the total cost?</span>
+<span id="cb4-349"><a href="#cb4-349" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-350"><a href="#cb4-350" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>If $V_\ell = V_0$ and $C_\ell = C_0$ for all $\ell$ (all levels identical), what does</span>
+<span id="cb4-351"><a href="#cb4-351" aria-hidden="true" tabindex="-1"></a>   the optimal MLMC allocation reduce to? Is it better or worse than single-level MC?</span>
+<span id="cb4-352"><a href="#cb4-352" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-353"><a href="#cb4-353" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>From @eq-min-cost, derive the condition on $\alpha$ and $\beta$ (the variance decay and</span>
+<span id="cb4-354"><a href="#cb4-354" aria-hidden="true" tabindex="-1"></a>   cost growth exponents) under which MLMC achieves a smaller constant than plain MC.</span>
+<span id="cb4-355"><a href="#cb4-355" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-356"><a href="#cb4-356" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** For the polynomial benchmark, compute the optimal allocation</span>
+<span id="cb4-357"><a href="#cb4-357" aria-hidden="true" tabindex="-1"></a>   analytically using @eq-optimal-N and compare it to the output of <span class="in">`allocate_samples`</span></span>
+<span id="cb4-358"><a href="#cb4-358" aria-hidden="true" tabindex="-1"></a>   from the PyApprox API. Are they consistent?</span>
+<span id="cb4-359"><a href="#cb4-359" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-360"><a href="#cb4-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-361"><a href="#cb4-361" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb4-362"><a href="#cb4-362" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-363"><a href="#cb4-363" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GAN2015</span><span class="co">]</span> M.B. Giles. *Multilevel Monte Carlo methods.* Acta Numerica, 24:259--328, 2015.</span>
+<span id="cb4-364"><a href="#cb4-364" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1017/S096249291500001X)</span></span>
+<span id="cb4-365"><a href="#cb4-365" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-366"><a href="#cb4-366" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GOR2008</span><span class="co">]</span> M.B. Giles. *Multilevel Monte Carlo path simulation.* Operations Research,</span>
+<span id="cb4-367"><a href="#cb4-367" aria-hidden="true" tabindex="-1"></a>  56(3):607--617, 2008. <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1287/opre.1070.0496)</span></span>
+<span id="cb4-368"><a href="#cb4-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-369"><a href="#cb4-369" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">CGSTCVS2011</span><span class="co">]</span> K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup. *Multilevel Monte</span>
+<span id="cb4-370"><a href="#cb4-370" aria-hidden="true" tabindex="-1"></a>  Carlo methods and applications to elliptic PDEs with random coefficients.* Computing and</span>
+<span id="cb4-371"><a href="#cb4-371" aria-hidden="true" tabindex="-1"></a>  Visualization in Science, 14:3--15, 2011.</span>
+<span id="cb4-372"><a href="#cb4-372" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1007/s00791-011-0160-x)</span></span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

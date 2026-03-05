@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="UQ with Sparse Grids – PyApprox">
 <meta property="og:description" content="Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare efficiency against Monte Carlo.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/uq_with_sparse_grids_files/figure-html/fig-sg-sobol-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="838">
-<meta property="og:image:width" content="1957">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1122,7 +1119,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="setup-build-an-isotropic-sparse-grid">Setup: Build an Isotropic Sparse Grid</h2>
 <p>We use the same 1D Euler–Bernoulli cantilever beam with 3 KLE terms and 3 QoIs as in <a href="./uq_with_pce.html">UQ with Polynomial Chaos</a>, enabling direct comparison of the two approaches.</p>
 <p>We build a level-3 isotropic sparse grid with Gauss–Legendre nodes.</p>
-<div id="73e19825" class="cell" data-execution_count="1">
+<div id="9dd75b09" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1172,7 +1169,7 @@ window.Quarto = {
 \text{Var}[\hat{f}] = \sum_k c_k \left(\int \hat{f}_k^2\, d\mu - \left(\int \hat{f}_k\, d\mu\right)^2\right)
 \]</span></p>
 <p>where <span class="math inline">\(c_k\)</span> are Smolyak coefficients and each integral is exact for the polynomial subspace <span class="math inline">\(\hat{f}_k\)</span>.</p>
-<div id="fb934dff" class="cell" data-execution_count="2">
+<div id="d1b0f9ee" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>sg_mean <span class="op">=</span> bkd.to_numpy(surrogate.mean())</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>sg_var <span class="op">=</span> bkd.to_numpy(surrogate.variance())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
@@ -1211,7 +1208,7 @@ window.Quarto = {
 <li><strong>Orthonormal 1D bases</strong> matching the input distribution, created via <code>create_bases_1d()</code></li>
 <li>The fitted <code>CombinationSurrogate</code></li>
 </ol>
-<div id="3e8742d5" class="cell" data-execution_count="3">
+<div id="c14e4496" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> create_bases_1d</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.converters.pce <span class="im">import</span> (</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    SparseGridToPCEConverter,</span>
@@ -1222,7 +1219,7 @@ window.Quarto = {
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> converter.convert(surrogate)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>The converted PCE gives us the full analytical moment toolkit. Let us verify that its mean and variance match the native sparse grid moments:</p>
-<div id="f055c457" class="cell" data-execution_count="4">
+<div id="787a688b" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>pce_mean <span class="op">=</span> bkd.to_numpy(pce.mean())</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>pce_var <span class="op">=</span> bkd.to_numpy(pce.variance())</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>pce_cov <span class="op">=</span> bkd.to_numpy(pce.covariance())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1232,7 +1229,9 @@ window.Quarto = {
 <section id="sensitivity-analysis-via-converted-pce" class="level2">
 <h2 class="anchored" data-anchor-id="sensitivity-analysis-via-converted-pce">Sensitivity Analysis via Converted PCE</h2>
 <p><code>SparseGridSensitivityAnalysis</code> is a convenience wrapper that converts the sparse grid to PCE internally and provides Sobol index computation in a single step.</p>
-<div id="cell-fig-sg-sobol" class="cell" data-execution_count="5">
+<div id="fig-sg-sobol" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sg-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> SparseGridSensitivityAnalysis</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_sg_sobol</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1244,18 +1243,11 @@ window.Quarto = {
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>plot_sg_sobol(axes, main_effects, total_effects, bkd, qoi_labels)</span>
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-sg-sobol" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sg-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_sparse_grids_files/figure-html/fig-sg-sobol-output-1.png" width="979" height="419" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sg-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Sobol indices computed from the sparse grid surrogate via SG-to-PCE conversion. Left: main effect pie chart. Right: total effects bar chart. The first KLE coefficient dominates the variance for all QoIs.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sg-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="marginal-densities-fair-cost-comparison" class="level2">
@@ -1266,7 +1258,9 @@ N_{\text{SG}} \times t_{\text{beam}} + M \times t_{\text{SG}} = 500 \times t_{\t
 \quad\Longrightarrow\quad
 M = \frac{(500 - N_{\text{SG}}) \times t_{\text{beam}}}{t_{\text{SG}}}
 \]</span></p>
-<div id="cell-fig-sg-marginals" class="cell" data-execution_count="6">
+<div id="fig-sg-marginals" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sg-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.timing <span class="im">import</span> timed</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_sg_marginals</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1301,38 +1295,17 @@ M = \frac{(500 - N_{\text{SG}}) \times t_{\text{beam}}}{t_{\text{SG}}}
 <span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>plot_sg_marginals(axes, vals_mc, preds_sg, N_mc, N_sg, M_sg, nqoi, qoi_labels)</span>
 <span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-sg-marginals" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sg-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_sparse_grids_files/figure-html/fig-sg-marginals-output-1.png" width="1330" height="371" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sg-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Marginal density estimates at equal wall-clock cost. MC (blue) uses 500 beam evaluations. SG (orange) uses N_SG beam evaluations for training plus M equivalent-cost surrogate evaluations. The sparse grid surrogate produces much smoother densities because the cheap surrogate allows orders of magnitude more samples in the same time budget.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sg-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="sg-vs.-monte-carlo-efficiency-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="sg-vs.-monte-carlo-efficiency-comparison">SG vs.&nbsp;Monte Carlo: Efficiency Comparison</h2>
 <p>We compare moment estimation efficiency by increasing the sparse grid level with the budget and measuring relative error in the mean and variance. Monte Carlo uses the same number of raw model evaluations at each budget level.</p>
-<p><a href="#fig-sg-vs-mc" class="quarto-xref">Figure&nbsp;3</a> repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.</p>
-<div id="cell-fig-sg-vs-mc" class="cell" data-execution_count="7">
-<div class="cell-output cell-output-display">
-<div id="fig-sg-vs-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sg-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="uq_with_sparse_grids_files/figure-html/fig-sg-vs-mc-output-1.png" width="1137" height="418" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sg-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: SG vs.&nbsp;Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For SG, the level increases with the budget. Lines show median over 20 repetitions; bands show 10th–90th percentiles.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-sg-vs-mc</strong> repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.</p>
 <p>The sparse grid achieves lower error than Monte Carlo for the same number of model evaluations because:</p>
 <ul>
 <li>Monte Carlo converges at rate <span class="math inline">\(1/\sqrt{N}\)</span>, regardless of the function’s smoothness.</li>

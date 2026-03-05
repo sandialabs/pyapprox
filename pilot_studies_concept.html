@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Pilot Studies – PyApprox">
 <meta property="og:description" content="The bootstrapping problem at the heart of multi-fidelity estimation: you need the model covariance to plan the experiment, but computing the covariance requires running the models — and spending budget.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/pilot_studies_concept_files/figure-html/fig-tradeoff-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="849">
-<meta property="og:image:width" content="2282">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1127,22 +1124,8 @@ window.Quarto = {
 <p>The pilot study involves a genuine trade-off between two costs:</p>
 <p><strong>Cost 1: Covariance estimation error.</strong> A small pilot (<span class="math inline">\(N_p\)</span> small) produces a noisy <span class="math inline">\(\hat{\boldsymbol{\Sigma}}\)</span>. The sample allocation and control variate coefficients derived from <span class="math inline">\(\hat{\boldsymbol{\Sigma}}\)</span> are sub-optimal. The resulting estimator has higher variance than the oracle (population-covariance) version.</p>
 <p><strong>Cost 2: Budget consumed.</strong> The pilot uses real compute. If the total budget is <span class="math inline">\(P\)</span> and the pilot costs <span class="math inline">\(P_p = N_p \sum_\alpha C_\alpha\)</span>, then only <span class="math inline">\(P - P_p\)</span> remains for the main estimator. A large pilot leaves too little budget for the estimator itself.</p>
-<p><a href="#fig-tradeoff" class="quarto-xref">Figure&nbsp;1</a> illustrates this tension on the three-model polynomial benchmark.</p>
-<div id="cell-fig-tradeoff" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-tradeoff" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-tradeoff-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="pilot_studies_concept_files/figure-html/fig-tradeoff-output-1.png" width="1141" height="425" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-tradeoff-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: MSE (relative to single-fidelity MC MSE) vs pilot size <span class="math inline">\(N_p\)</span> for MFMC on the three-model polynomial benchmark at total budget <span class="math inline">\(P=100\)</span>. <strong>Left:</strong> Pilot cost is <em>not</em> deducted from the estimator budget — only covariance estimation error matters, so MSE decreases monotonically with <span class="math inline">\(N_p\)</span>. <strong>Right:</strong> Pilot cost <em>is</em> deducted — too large a pilot starves the main estimator, and MSE has a minimum at an intermediate <span class="math inline">\(N_p\)</span>.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
-<p>The left panel of <a href="#fig-tradeoff" class="quarto-xref">Figure&nbsp;1</a> shows that ignoring pilot cost gives a monotonically decreasing MSE — more pilot samples always help with covariance estimation. The right panel (the realistic case) shows a U-shape: too few pilot samples give a bad covariance estimate; too many leave nothing for the main estimator. The minimum is the optimal pilot size.</p>
+<p><strong>?@fig-tradeoff</strong> illustrates this tension on the three-model polynomial benchmark.</p>
+<p>The left panel of <strong>?@fig-tradeoff</strong> shows that ignoring pilot cost gives a monotonically decreasing MSE — more pilot samples always help with covariance estimation. The right panel (the realistic case) shows a U-shape: too few pilot samples give a bad covariance estimate; too many leave nothing for the main estimator. The minimum is the optimal pilot size.</p>
 </section>
 <section id="the-full-two-stage-workflow" class="level2">
 <h2 class="anchored" data-anchor-id="the-full-two-stage-workflow">The Full Two-Stage Workflow</h2>
@@ -1185,7 +1168,7 @@ Stage 2 — Main Estimator
 <ul>
 <li>Every ACV estimator requires a pilot study to estimate <span class="math inline">\(\boldsymbol{\Sigma}\)</span> before it can be planned or run</li>
 <li>A small pilot introduces covariance estimation error; a large pilot consumes too much of the total budget</li>
-<li>The realistic MSE-vs-pilot-size curve has a U-shape with a well-defined optimal <span class="math inline">\(N_p^*\)</span> (<a href="#fig-tradeoff" class="quarto-xref">Figure&nbsp;1</a>, right panel)</li>
+<li>The realistic MSE-vs-pilot-size curve has a U-shape with a well-defined optimal <span class="math inline">\(N_p^*\)</span> (<strong>?@fig-tradeoff</strong>, right panel)</li>
 <li>All models must be evaluated at the same pilot sample points; pilot samples are independent of the main estimator’s samples</li>
 <li>As a rule of thumb, <span class="math inline">\(N_p \approx 2\text{–}5\,(M+1)\)</span> is a good starting point for problems with strong correlations (<span class="math inline">\(\rho \geq 0.8\)</span>)</li>
 </ul>
@@ -1193,7 +1176,7 @@ Stage 2 — Main Estimator
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>From <a href="#fig-tradeoff" class="quarto-xref">Figure&nbsp;1</a> (right), estimate the optimal pilot size <span class="math inline">\(N_p^*\)</span> for this benchmark. At this <span class="math inline">\(N_p^*\)</span>, what fraction of the total budget <span class="math inline">\(P=100\)</span> does the pilot consume?</p></li>
+<li><p>From <strong>?@fig-tradeoff</strong> (right), estimate the optimal pilot size <span class="math inline">\(N_p^*\)</span> for this benchmark. At this <span class="math inline">\(N_p^*\)</span>, what fraction of the total budget <span class="math inline">\(P=100\)</span> does the pilot consume?</p></li>
 <li><p>Why must all models be evaluated at the <em>same</em> pilot sample points? What goes wrong if each model is evaluated at different samples?</p></li>
 <li><p>Suppose the pilot covariance estimate is available but very noisy (<span class="math inline">\(N_p = 5\)</span>). You observe that <code>allocate_samples</code> assigns 0 samples to one model. What is the likely cause, and how can you diagnose it?</p></li>
 <li><p>For a 10-model ensemble at budget <span class="math inline">\(P=500\)</span>, using the rule of thumb <span class="math inline">\(N_p \approx

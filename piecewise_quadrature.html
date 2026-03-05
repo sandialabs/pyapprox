@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules – PyApprox">
 <meta property="og:description" content="Derive Newton-Cotes rules from polynomial interpolation, prove their error bounds via Taylor expansion, and verify algebraic convergence of composite quadrature.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/piecewise_quadrature_files/figure-html/fig-newton-cotes-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="748">
-<meta property="og:image:width" content="2666">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1130,7 +1127,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="7055a30f" class="cell" data-execution_count="1">
+<div id="ae88f0c1" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1207,7 +1204,9 @@ I_M^{\text{simp}}[f] = \frac{h}{6}\!\left[f(a) + 4f\!\left(\frac{a+b}{2}\right) 
 </tbody>
 </table>
 <p>Simpson’s rule gains one extra degree of exactness because the midpoint cancellation happens to annihilate the cubic term.</p>
-<div id="cell-fig-newton-cotes" class="cell" data-execution_count="2">
+<div id="fig-newton-cotes" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-newton-cotes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_demo(x):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(x)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1217,18 +1216,11 @@ I_M^{\text{simp}}[f] = \frac{h}{6}\!\left[f(a) + 4f\!\left(\frac{a+b}{2}\right) 
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>plot_newton_cotes(axs, f_demo, a, b)</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-newton-cotes" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-newton-cotes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="piecewise_quadrature_files/figure-html/fig-newton-cotes-output-1.png" width="1333" height="374" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-newton-cotes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Newton-Cotes rules illustrated on one interval. The shaded area shows the approximation; the solid curve is the true function.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-newton-cotes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 </section>
@@ -1357,7 +1349,7 @@ f(x_0) + f(x_2) = 2f(x_1) + \Delta^2 f''(x_1) + \frac{2\Delta^4}{4!} f^{(4)}(x_1
 <li><code>PiecewiseQuadratic</code> <span class="math inline">\(\to\)</span> <strong>Simpson’s rule</strong> (weights follow the <span class="math inline">\(1, 4, 2, 4, \ldots, 1\)</span> pattern)</li>
 </ul>
 <p>We wrap these in <code>DynamicPiecewiseBasis</code> with an <code>EquidistantNodeGenerator</code> so that we can change the number of nodes dynamically.</p>
-<div id="e6db247e" class="cell" data-execution_count="3">
+<div id="d931f297" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Smooth test function: exponential."""</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.exp(<span class="op">-</span>x<span class="op">**</span><span class="dv">2</span>)</span>
@@ -1386,23 +1378,18 @@ f(x_0) + f(x_2) = 2f(x_1) + \Delta^2 f''(x_1) + \frac{2\Delta^4}{4!} f^{(4)}(x_1
 <span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        approx <span class="op">=</span> wts_np <span class="op">@</span> f_smooth(pts_np)</span>
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        err_list.append(<span class="bu">abs</span>(approx <span class="op">-</span> true_val))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cell-fig-convergence" class="cell" data-execution_count="4">
+<div id="fig-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>plot_pw_quad_convergence(ax, Ms, trap_errors, simp_errors)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="piecewise_quadrature_files/figure-html/fig-convergence-output-1.png" width="755" height="468" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Convergence of composite trapezoid and Simpson’s rules. Reference slopes confirm the theoretical <span class="math inline">\(O(h^2)\)</span> and <span class="math inline">\(O(h^4)\)</span> rates.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">

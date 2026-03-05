@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="PACV: Analysis – PyApprox">
 <meta property="og:description" content="Formal definition of the three PACV estimator families (GMF, GRD, GIS), how the recursion index determines allocation matrix structure, and the covariance formulas that enable enumeration-based best-estimator selection.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/pacv_analysis_files/figure-html/cell-2-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="946">
-<meta property="og:image:width" content="2666">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1155,7 +1152,7 @@ window.Quarto = {
 = \mathbf{A}_\text{ACVMF}
 \]</span></p>
 <p>The difference is in row 1, column 4 (model <span class="math inline">\(f_1\)</span>’s <span class="math inline">\(\mathcal{Z}_2^*\)</span> column): in MFMC (<span class="math inline">\(\gamma_2=1\)</span>), <span class="math inline">\(f_1\)</span>’s sample set is the anchor for <span class="math inline">\(f_2\)</span>, so partition <span class="math inline">\(\mathcal{P}_1\)</span> is included in <span class="math inline">\(\mathcal{Z}_2^*\)</span>. In ACVMF (<span class="math inline">\(\gamma_2=0\)</span>), <span class="math inline">\(f_0\)</span>’s set is the anchor, so <span class="math inline">\(\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*\)</span>.</p>
-<div id="303286b3" class="cell" data-execution_count="1">
+<div id="3cae7553" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1217,13 +1214,6 @@ window.Quarto = {
 <span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"GMF allocation matrices: chain vs star recursion index"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
 <span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="pacv_analysis_files/figure-html/cell-2-output-1.png" width="1333" height="473" class="figure-img"></p>
-</figure>
-</div>
-</div>
 </div>
 </section>
 <section id="the-grd-family" class="level2">
@@ -1234,7 +1224,9 @@ window.Quarto = {
 </blockquote>
 <p>This gives the recursive-difference structure of MLMC at every edge in the DAG.</p>
 <p><strong>Special case:</strong> <span class="math inline">\(\boldsymbol{\gamma} = [0, 1, \ldots, M-1]\)</span> (chain) <span class="math inline">\(\Rightarrow\)</span> MLMC.</p>
-<div id="cell-fig-grd-matrices" class="cell" data-execution_count="2">
+<div id="fig-grd-matrices" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-grd-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>search_grd <span class="op">=</span> ACVSearch(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GRDEstimator],</span>
@@ -1265,18 +1257,11 @@ window.Quarto = {
 <span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GRD allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
 <span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-grd-matrices" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-grd-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="pacv_analysis_files/figure-html/fig-grd-matrices-output-1.png" width="2293" height="1696" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-grd-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: GRD allocation matrices for all valid recursion indices with <span class="math inline">\(M=3\)</span> LF models, showing how the partition structure changes as edges in the DAG are rewired.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-grd-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="the-gis-family" class="level2">
@@ -1287,7 +1272,9 @@ Figure&nbsp;1: GRD allocation matrices for all valid recursion indices with <spa
 </blockquote>
 <p>The key distinction from GMF and GRD: the anchor and the full set of <span class="math inline">\(f_j\)</span> are drawn from <strong>independent partitions</strong>, giving uncorrelated corrections across different models. This is the generalisation of ACVIS’s independent sample structure.</p>
 <p><strong>Special case:</strong> <span class="math inline">\(\boldsymbol{\gamma} = [0, 0, \ldots, 0]\)</span> (star) <span class="math inline">\(\Rightarrow\)</span> ACVIS.</p>
-<div id="cell-fig-gis-matrices" class="cell" data-execution_count="3">
+<div id="fig-gis-matrices" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gis-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>search_gis <span class="op">=</span> ACVSearch(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GISEstimator],</span>
@@ -1315,18 +1302,11 @@ Figure&nbsp;1: GRD allocation matrices for all valid recursion indices with <spa
 <span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GIS allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
 <span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-gis-matrices" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-gis-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="pacv_analysis_files/figure-html/fig-gis-matrices-output-1.png" width="2293" height="1696" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gis-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: GIS allocation matrices for all valid recursion indices with <span class="math inline">\(M=3\)</span> LF models.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-gis-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="partition-sizes-and-the-budget-constraint" class="level2">
@@ -1361,7 +1341,7 @@ c_k = \sum_{\alpha=0}^{M} C_\alpha \cdot \mathbf{1}[\mathcal{P}_k \subseteq \mat
 <section id="how-get_all_recursion_indices-works" class="level2">
 <h2 class="anchored" data-anchor-id="how-get_all_recursion_indices-works">How <code>get_all_recursion_indices</code> Works</h2>
 <p>The valid recursion indices form a product space: <span class="math inline">\(\gamma_j \in \{0, \ldots, j-1\}\)</span> for <span class="math inline">\(j = 1, \ldots, M\)</span>. The total count is <span class="math inline">\(\prod_{j=1}^M j = M!\)</span>.</p>
-<div id="93b8b694" class="cell" data-execution_count="4">
+<div id="28f37950" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Recursion index counts by M:"</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
@@ -1372,77 +1352,61 @@ c_k = \sum_{\alpha=0}^{M} C_\alpha \cdot \mathbf{1}[\mathcal{P}_k \subseteq \mat
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>rec_strat <span class="op">=</span> TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>)</span>
 <span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>all_ri    <span class="op">=</span> rec_strat.indices(nmodels, bkd)</span>
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">PyApprox returned </span><span class="sc">{</span><span class="bu">len</span>(all_ri)<span class="sc">}</span><span class="ss"> indices for M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>[bkd.to_numpy(ri).astype(<span class="bu">int</span>).tolist() <span class="cf">for</span> ri <span class="kw">in</span> all_ri[:<span class="dv">6</span>]]<span class="sc">}</span><span class="ss">..."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Recursion index counts by M:
-  M=1 LF models:     1 valid recursion indices
-  M=2 LF models:     2 valid recursion indices
-  M=3 LF models:     6 valid recursion indices
-  M=4 LF models:    24 valid recursion indices
-  M=5 LF models:   120 valid recursion indices
-  M=6 LF models:   720 valid recursion indices
-
-PyApprox returned 16 indices for M=3: [[2, 3, 0], [3, 1, 0], [3, 3, 0], [3, 0, 2], [2, 0, 1], [2, 0, 2]]...</code></pre>
-</div>
 </div>
 </section>
 <section id="cross-family-variance-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="cross-family-variance-comparison">Cross-Family Variance Comparison</h2>
 <p>For any fixed recursion index, the three families produce different allocation matrices and hence different variance reductions. <a href="#fig-cross-family" class="quarto-xref">Figure&nbsp;3</a> compares GMF, GRD, and GIS for every valid recursion index at a fixed budget.</p>
-<div id="cell-fig-cross-family" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fam_cols    <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"#8E44AD"</span>, <span class="st">"grd"</span>: <span class="st">"#2C7FB8"</span>, <span class="st">"gis"</span>: <span class="st">"#27AE60"</span>}</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>fam_names   <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"GMF"</span>, <span class="st">"grd"</span>: <span class="st">"GRD"</span>, <span class="st">"gis"</span>: <span class="st">"GIS"</span>}</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat, costs[:<span class="dv">1</span>])</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(<span class="fl">500.0</span>)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(mc_est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># GMF search (GRD and GIS reuse result_grd, result_gis from above)</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>search_gmf <span class="op">=</span> ACVSearch(</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GMFEstimator],</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>result_gmf <span class="op">=</span> search_gmf.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract per-index variances from each family's cached results</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> {}</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>ri_list <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> fam, result_fam <span class="kw">in</span> [(<span class="st">"gmf"</span>, result_gmf), (<span class="st">"grd"</span>, result_grd), (<span class="st">"gis"</span>, result_gis)]:</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    fam_vars <span class="op">=</span> []</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    fam_ri <span class="op">=</span> []</span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> est, alloc <span class="kw">in</span> result_fam.all_allocations:</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>        fam_ri.append(ri)</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> alloc.success:</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>            est.set_allocation(alloc)</span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> mc_var</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>        fam_vars.append(var <span class="op">/</span> mc_var)</span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    results[fam] <span class="op">=</span> fam_vars</span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ri_list <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>        ri_list <span class="op">=</span> fam_ri</span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pacv_cross_family</span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,</span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>                       nmodels, ax)</span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div id="fig-cross-family" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-cross-family" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-cross-family-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="pacv_analysis_files/figure-html/fig-cross-family-output-1.png" width="1045" height="466" class="figure-img">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>fam_cols    <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"#8E44AD"</span>, <span class="st">"grd"</span>: <span class="st">"#2C7FB8"</span>, <span class="st">"gis"</span>: <span class="st">"#27AE60"</span>}</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>fam_names   <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"GMF"</span>, <span class="st">"grd"</span>: <span class="st">"GRD"</span>, <span class="st">"gis"</span>: <span class="st">"GIS"</span>}</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat, costs[:<span class="dv">1</span>])</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(<span class="fl">500.0</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(mc_est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># GMF search (GRD and GIS reuse result_grd, result_gis from above)</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>search_gmf <span class="op">=</span> ACVSearch(</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GMFEstimator],</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>result_gmf <span class="op">=</span> search_gmf.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract per-index variances from each family's cached results</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> {}</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>ri_list <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> fam, result_fam <span class="kw">in</span> [(<span class="st">"gmf"</span>, result_gmf), (<span class="st">"grd"</span>, result_grd), (<span class="st">"gis"</span>, result_gis)]:</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    fam_vars <span class="op">=</span> []</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    fam_ri <span class="op">=</span> []</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> est, alloc <span class="kw">in</span> result_fam.all_allocations:</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>        ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        fam_ri.append(ri)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> alloc.success:</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>            est.set_allocation(alloc)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> mc_var</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        fam_vars.append(var <span class="op">/</span> mc_var)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    results[fam] <span class="op">=</span> fam_vars</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ri_list <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>        ri_list <span class="op">=</span> fam_ri</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pacv_cross_family</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>                       nmodels, ax)</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cross-family-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Predicted variance (relative to MC) for every valid recursion index across all three PACV families on the four-model polynomial benchmark at <span class="math inline">\(P = 500\)</span>. The best overall estimator is highlighted. Families differ by their base allocation structure; the recursion index shifts the optimum within each family.
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-cross-family-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3
 </figcaption>
 </figure>
-</div>
-</div>
 </div>
 </section>
 <section id="relationship-to-the-general-acv-formula" class="level2">
@@ -1939,454 +1903,454 @@ Figure&nbsp;3: Predicted variance (relative to MC) for every valid recursion ind
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "PACV: Analysis"</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Formal definition of the three PACV estimator families (GMF, GRD, GIS), how the recursion index determines allocation matrix structure, and the covariance formulas that enable enumeration-based best-estimator selection."</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 77</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - pacv_concept</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - pacv</span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - gmf</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - grd</span></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - gis</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">  - allocation-matrix</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/pacv_analysis.ipynb)</span></span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write the allocation matrix for any GMF, GRD, or GIS estimator given its recursion</span>
-<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>  index $\boldsymbol{\gamma}$</span>
-<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Identify which cells of the allocation matrix change when $\boldsymbol{\gamma}$ changes</span>
-<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>State the partition size formula and how it translates a budget into sample counts for</span>
-<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>  each partition</span>
-<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify that MLMC, MFMC, ACVMF, and ACVIS are recovered as special cases</span>
-<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe the enumeration procedure that PyApprox uses to select the best estimator</span>
-<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">PACV Concept</span><span class="co">](pacv_concept.qmd)</span> and</span>
-<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span> before this tutorial.</span>
-<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">ACV Allocation Matrices</span><span class="co">](acv_many_models_analysis.qmd#sec-allocation-matrix)</span> reference provides supporting</span>
-<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>detail on the notation used throughout.</span>
-<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a><span class="fu">## Notation</span></span>
-<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a>We follow the notation from <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>.</span>
-<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a>Models are $f_0$ (HF) through $f_M$ (cheapest LF). The recursion index is</span>
-<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">\gamma_1, \ldots, \gamma_M</span><span class="co">]</span>^\top$ with $0 \leq \gamma_j &lt; j$.</span>
-<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>Recall from <span class="co">[</span><span class="ot">ACV Allocation Matrices</span><span class="co">](acv_many_models_analysis.qmd#sec-allocation-matrix)</span>: the allocation</span>
-<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>matrix $\mathbf{A} \in <span class="sc">\{</span>0,1<span class="sc">\}</span>^{(M+1)\times 2(M+1)}$ has entry $A_{ij} = 1$ if</span>
-<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>partition $\mathcal{P}_i$ is included in $\mathcal{Z}_\alpha^*$ (column $2\alpha-1$)</span>
-<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>or $\mathcal{Z}_\alpha$ (column $2\alpha$). The first column is always zero ($\mathcal{Z}_0^*$</span>
-<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>is not used).</span>
-<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GMF Family</span></span>
-<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>**Generalised Multi-Fidelity (GMF)** estimators use a base allocation matrix derived from</span>
-<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a>the MFMC structure. For a given recursion index $\boldsymbol{\gamma}$, the rule is:</span>
-<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* = \mathcal{Z}_i$</span></span>
-<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; **and** $\mathcal{Z}_i \subseteq \mathcal{Z}_j$.</span></span>
-<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>The second condition — the anchor is a *nested subset* — is the MFMC inheritance.</span>
-<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a>Translating to the allocation matrix: partition $\mathcal{P}_k$ is included in</span>
-<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>$\mathcal{Z}_j$ if $\mathcal{P}_k \subseteq \mathcal{Z}_{\gamma_j} \subseteq \mathcal{Z}_j$.</span>
-<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a>**Special cases:**</span>
-<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1, \ldots, M-1</span><span class="co">]</span>$ (chain) $\Rightarrow$ MFMC</span>
-<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0, \ldots, 0</span><span class="co">]</span>$ (star) $\Rightarrow$ ACVMF</span>
-<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>For the three-model ($M=2$) case, the two GMF allocation matrices are:</span>
-<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1</span><span class="co">]</span>: \quad</span>
-<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a>\mathbf{A}_{\text{GMF}} =</span>
-<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>\begin{pmatrix}</span>
-<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a>0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
-<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
-<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1</span>
-<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a>\end{pmatrix}</span>
-<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>= \mathbf{A}_\text{MFMC}</span>
-<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0</span><span class="co">]</span>: \quad</span>
-<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>\mathbf{A}_{\text{GMF}} =</span>
-<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a>\begin{pmatrix}</span>
-<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
-<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 <span class="sc">\\</span></span>
-<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1</span>
-<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>\end{pmatrix}</span>
-<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a>= \mathbf{A}_\text{ACVMF}</span>
-<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a>The difference is in row 1, column 4 (model $f_1$'s $\mathcal{Z}_2^*$ column): in MFMC</span>
-<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a>($\gamma_2=1$), $f_1$'s sample set is the anchor for $f_2$, so partition $\mathcal{P}_1$</span>
-<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>is included in $\mathcal{Z}_2^*$. In ACVMF ($\gamma_2=0$), $f_0$'s set is the anchor,</span>
-<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>so $\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*$.</span>
-<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble <span class="im">import</span> (</span>
-<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>    polynomial_ensemble_5model,</span>
-<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
-<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
-<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv <span class="im">import</span> GMFEstimator, GRDEstimator, GISEstimator</span>
-<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.search <span class="im">import</span> ACVSearch</span>
-<span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator, default_allocator_factory</span>
-<span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.strategies <span class="im">import</span> (</span>
-<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a>    FixedRecursionStrategy, TreeDepthRecursionStrategy,</span>
-<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.plotting <span class="im">import</span> plot_allocation</span>
-<span id="cb7-135"><a href="#cb7-135" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> ScipySLSQPOptimizer</span>
-<span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> polynomial_ensemble_5model(bkd)</span>
-<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>nmodels   <span class="op">=</span> <span class="dv">4</span></span>
-<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> benchmark.costs()[:nmodels]</span>
-<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>cov       <span class="op">=</span> benchmark.ensemble_covariance()[:nmodels, :nmodels]</span>
-<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> benchmark.models()[<span class="dv">0</span>].nqoi()</span>
-<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
-<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(cov)</span>
-<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a><span class="co"># Use SLSQP-only allocator for fast search (no DE global search needed for</span></span>
-<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a><span class="co"># this small problem with M=3 LF models)</span></span>
-<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a>_slsqp <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
-<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fast_allocator(est):</span>
-<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Route analytical cases to closed-form, others to SLSQP."""</span></span>
-<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a>    alloc <span class="op">=</span> default_allocator_factory(est)</span>
-<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(alloc, ACVAllocator):</span>
-<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> ACVAllocator(est, optimizer<span class="op">=</span>_slsqp)</span>
-<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> alloc</span>
-<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-158"><a href="#cb7-158" aria-hidden="true" tabindex="-1"></a><span class="co"># MFMC (chain) and ACVMF (star) as GMF estimators</span></span>
-<span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a>ri_chain <span class="op">=</span> (<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>)   <span class="co"># M=3 LF models</span></span>
-<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a>ri_star  <span class="op">=</span> (<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>)</span>
-<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
-<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, ri, title <span class="kw">in</span> <span class="bu">zip</span>(</span>
-<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>    axes,</span>
-<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>    [ri_chain, ri_star],</span>
-<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a>    [<span class="vs">r"GMF with </span><span class="dv">$\b</span><span class="vs">oldsymbol{</span><span class="er">\</span><span class="vs">gamma}=</span><span class="pp">[0,1,2]</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">= MFMC</span><span class="kw">)</span><span class="vs">"</span>,</span>
-<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a>     <span class="vs">r"GMF with </span><span class="dv">$\b</span><span class="vs">oldsymbol{</span><span class="er">\</span><span class="vs">gamma}=</span><span class="pp">[0,0,0]</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">= ACVMF</span><span class="kw">)</span><span class="vs">"</span>],</span>
-<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>):</span>
-<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a>    search <span class="op">=</span> ACVSearch(stat, costs, recursion_strategy<span class="op">=</span>FixedRecursionStrategy(ri),</span>
-<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>                       allocator_factory<span class="op">=</span>fast_allocator)</span>
-<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> search.search(<span class="fl">500.0</span>)</span>
-<span id="cb7-173"><a href="#cb7-173" aria-hidden="true" tabindex="-1"></a>        plot_allocation(result.estimator, ax, show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-174"><a href="#cb7-174" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">RuntimeError</span>:</span>
-<span id="cb7-175"><a href="#cb7-175" aria-hidden="true" tabindex="-1"></a>        ax.text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
-<span id="cb7-176"><a href="#cb7-176" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>ax.transAxes)</span>
-<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a>    ax.set_title(title, fontsize<span class="op">=</span><span class="dv">10</span>)</span>
-<span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"GMF allocation matrices: chain vs star recursion index"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
-<span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GRD Family</span></span>
-<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a>**Generalised Recursive Difference (GRD)** estimators use the MLMC allocation matrix</span>
-<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a>as base. The rule is:</span>
-<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-189"><a href="#cb7-189" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* = \mathcal{Z}_i$</span></span>
-<span id="cb7-190"><a href="#cb7-190" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; **and** if $i \neq j$, then $\mathcal{Z}_i \cap \mathcal{Z}_j \neq \emptyset$</span></span>
-<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; (overlapping but neither nested in the other).</span></span>
-<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a>This gives the recursive-difference structure of MLMC at every edge in the DAG.</span>
-<span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a>**Special case:** $\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1, \ldots, M-1</span><span class="co">]</span>$ (chain) $\Rightarrow$ MLMC.</span>
-<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GRD allocation matrices for all valid recursion indices with $M=3$ LF models, showing how the partition structure changes as edges in the DAG are rewired."</span></span>
-<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-grd-matrices</span></span>
-<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>search_grd <span class="op">=</span> ACVSearch(</span>
-<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
-<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GRDEstimator],</span>
-<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
-<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
-<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-209"><a href="#cb7-209" aria-hidden="true" tabindex="-1"></a>result_grd <span class="op">=</span> search_grd.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-210"><a href="#cb7-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a>n     <span class="op">=</span> <span class="bu">len</span>(result_grd.all_allocations)</span>
-<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>ncols <span class="op">=</span> <span class="bu">min</span>(n, <span class="dv">4</span>)</span>
-<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a>nrows <span class="op">=</span> (n <span class="op">+</span> ncols <span class="op">-</span> <span class="dv">1</span>) <span class="op">//</span> ncols</span>
-<span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows, ncols, figsize<span class="op">=</span>(ncols <span class="op">*</span> <span class="dv">6</span>, nrows <span class="op">*</span> <span class="fl">4.5</span>))</span>
-<span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a>axes <span class="op">=</span> np.array(axes).ravel()</span>
-<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, (est, alloc) <span class="kw">in</span> <span class="bu">enumerate</span>(result_grd.all_allocations):</span>
-<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a>    ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
-<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> alloc.success:</span>
-<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a>        est.set_allocation(alloc)</span>
-<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a>        plot_allocation(est, axes[i], show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>        axes[i].text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
-<span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a>                     fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>axes[i].transAxes)</span>
-<span id="cb7-225"><a href="#cb7-225" aria-hidden="true" tabindex="-1"></a>    axes[i].set_title(<span class="vs">rf"</span><span class="dv">$\b</span><span class="vs">oldsymbol</span><span class="ch">{{</span><span class="er">\</span><span class="vs">gamma</span><span class="ch">}}</span><span class="vs">=</span><span class="sc">{</span><span class="bu">list</span>(ri)<span class="sc">}</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax <span class="kw">in</span> axes[n:]:</span>
-<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a>    ax.set_visible(<span class="va">False</span>)</span>
-<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GRD allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
-<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GIS Family</span></span>
-<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a>**Generalised Independent Sample (GIS)** estimators use the ACVIS allocation matrix</span>
-<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a>as base. The rule is:</span>
-<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* \subseteq \mathcal{Z}_j$</span></span>
-<span id="cb7-242"><a href="#cb7-242" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; and $\mathcal{Z}_j^*$ is the same *independent* sub-partition as $\mathcal{Z}_i$'s anchor.</span></span>
-<span id="cb7-243"><a href="#cb7-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a>The key distinction from GMF and GRD: the anchor and the full set of $f_j$ are drawn</span>
-<span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a>from **independent partitions**, giving uncorrelated corrections across different models.</span>
-<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a>This is the generalisation of ACVIS's independent sample structure.</span>
-<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>**Special case:** $\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0, \ldots, 0</span><span class="co">]</span>$ (star) $\Rightarrow$ ACVIS.</span>
-<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GIS allocation matrices for all valid recursion indices with $M=3$ LF models."</span></span>
-<span id="cb7-254"><a href="#cb7-254" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gis-matrices</span></span>
-<span id="cb7-255"><a href="#cb7-255" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a>search_gis <span class="op">=</span> ACVSearch(</span>
-<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
-<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GISEstimator],</span>
-<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
-<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
-<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a>result_gis <span class="op">=</span> search_gis.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows, ncols, figsize<span class="op">=</span>(ncols <span class="op">*</span> <span class="dv">6</span>, nrows <span class="op">*</span> <span class="fl">4.5</span>))</span>
-<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a>axes <span class="op">=</span> np.array(axes).ravel()</span>
-<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, (est, alloc) <span class="kw">in</span> <span class="bu">enumerate</span>(result_gis.all_allocations):</span>
-<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a>    ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
-<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> alloc.success:</span>
-<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a>        est.set_allocation(alloc)</span>
-<span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a>        plot_allocation(est, axes[i], show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a>        axes[i].text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
-<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a>                     fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>axes[i].transAxes)</span>
-<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a>    axes[i].set_title(<span class="vs">rf"</span><span class="dv">$\b</span><span class="vs">oldsymbol</span><span class="ch">{{</span><span class="er">\</span><span class="vs">gamma</span><span class="ch">}}</span><span class="vs">=</span><span class="sc">{</span><span class="bu">list</span>(ri)<span class="sc">}</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax <span class="kw">in</span> axes[n:]:</span>
-<span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a>    ax.set_visible(<span class="va">False</span>)</span>
-<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GIS allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
-<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a><span class="fu">## Partition Sizes and the Budget Constraint</span></span>
-<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a>For any PACV estimator with allocation matrix $\mathbf{A}$, the cost of a sample in</span>
-<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a>partition $\mathcal{P}_k$ is the sum of costs of all models that evaluate it:</span>
-<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-292"><a href="#cb7-292" aria-hidden="true" tabindex="-1"></a>c_k = \sum_{\alpha=0}^{M} C_\alpha \cdot \mathbf{1}<span class="co">[</span><span class="ot">\mathcal{P}_k \subseteq \mathcal{Z}_\alpha</span><span class="co">]</span>.</span>
-<span id="cb7-293"><a href="#cb7-293" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a>The budget constraint is $\sum_k p_k c_k \leq P$. The optimal partition sizes</span>
-<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a>$\mathbf{p}^*$ are found by solving</span>
-<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a>\min_{\mathbf{p} \geq 0} \;\det<span class="sc">\!</span>\left[\boldsymbol{\Sigma}_{Q_0 Q_0}</span>
-<span id="cb7-300"><a href="#cb7-300" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}(\mathbf{p})\,</span>
-<span id="cb7-301"><a href="#cb7-301" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta\Delta}(\mathbf{p})^{-1}\,</span>
-<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}(\mathbf{p})\right]</span>
-<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a>\quad\text{s.t.}\quad \sum_k p_k c_k \leq P.</span>
-<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a>$$ {#eq-alloc-opt}</span>
-<span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a>PyApprox solves this via <span class="in">`ACVSearch.search(P)`</span> using a quasi-Newton (SLSQP) optimiser.</span>
-<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a>For a fixed allocation matrix, the objective is smooth in $\mathbf{p}$ and the</span>
-<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a>optimisation typically converges in tens of iterations.</span>
-<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why not solve over all recursion indices simultaneously?</span></span>
-<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a>Optimising $\mathbf{p}$ and $\boldsymbol{\gamma}$ jointly would require mixed-integer</span>
-<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a>programming. PACV sidesteps this by decoupling: enumerate all $M!$ indices, solve the</span>
-<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a>continuous optimisation @eq-alloc-opt for each, then pick the best. This is exact and</span>
-<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a>inexpensive for typical ensemble sizes.</span>
-<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb7-317"><a href="#cb7-317" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-318"><a href="#cb7-318" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-319"><a href="#cb7-319" aria-hidden="true" tabindex="-1"></a><span class="fu">## How `get_all_recursion_indices` Works</span></span>
-<span id="cb7-320"><a href="#cb7-320" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-321"><a href="#cb7-321" aria-hidden="true" tabindex="-1"></a>The valid recursion indices form a product space:</span>
-<span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a>$\gamma_j \in <span class="sc">\{</span>0, \ldots, j-1<span class="sc">\}</span>$ for $j = 1, \ldots, M$.</span>
-<span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a>The total count is $\prod_{j=1}^M j = M!$.</span>
-<span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Recursion index counts by M:"</span>)</span>
-<span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
-<span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
-<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a>    n_ri <span class="op">=</span> math.factorial(M)</span>
-<span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  M=</span><span class="sc">{</span>M<span class="sc">}</span><span class="ss"> LF models: </span><span class="sc">{</span>n_ri<span class="sc">:5d}</span><span class="ss"> valid recursion indices"</span>)</span>
-<span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify against PyApprox</span></span>
-<span id="cb7-335"><a href="#cb7-335" aria-hidden="true" tabindex="-1"></a>rec_strat <span class="op">=</span> TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>)</span>
-<span id="cb7-336"><a href="#cb7-336" aria-hidden="true" tabindex="-1"></a>all_ri    <span class="op">=</span> rec_strat.indices(nmodels, bkd)</span>
-<span id="cb7-337"><a href="#cb7-337" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">PyApprox returned </span><span class="sc">{</span><span class="bu">len</span>(all_ri)<span class="sc">}</span><span class="ss"> indices for M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>[bkd.to_numpy(ri).astype(<span class="bu">int</span>).tolist() <span class="cf">for</span> ri <span class="kw">in</span> all_ri[:<span class="dv">6</span>]]<span class="sc">}</span><span class="ss">..."</span>)</span>
-<span id="cb7-338"><a href="#cb7-338" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-339"><a href="#cb7-339" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-340"><a href="#cb7-340" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-341"><a href="#cb7-341" aria-hidden="true" tabindex="-1"></a><span class="fu">## Cross-Family Variance Comparison</span></span>
-<span id="cb7-342"><a href="#cb7-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-343"><a href="#cb7-343" aria-hidden="true" tabindex="-1"></a>For any fixed recursion index, the three families produce different allocation matrices</span>
-<span id="cb7-344"><a href="#cb7-344" aria-hidden="true" tabindex="-1"></a>and hence different variance reductions. @fig-cross-family compares GMF, GRD, and GIS</span>
-<span id="cb7-345"><a href="#cb7-345" aria-hidden="true" tabindex="-1"></a>for every valid recursion index at a fixed budget.</span>
-<span id="cb7-346"><a href="#cb7-346" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Predicted variance (relative to MC) for every valid recursion index across all three PACV families on the four-model polynomial benchmark at $P = 500$. The best overall estimator is highlighted. Families differ by their base allocation structure; the recursion index shifts the optimum within each family."</span></span>
-<span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-family</span></span>
-<span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-353"><a href="#cb7-353" aria-hidden="true" tabindex="-1"></a>fam_cols    <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"#8E44AD"</span>, <span class="st">"grd"</span>: <span class="st">"#2C7FB8"</span>, <span class="st">"gis"</span>: <span class="st">"#27AE60"</span>}</span>
-<span id="cb7-354"><a href="#cb7-354" aria-hidden="true" tabindex="-1"></a>fam_names   <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"GMF"</span>, <span class="st">"grd"</span>: <span class="st">"GRD"</span>, <span class="st">"gis"</span>: <span class="st">"GIS"</span>}</span>
-<span id="cb7-355"><a href="#cb7-355" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-356"><a href="#cb7-356" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat, costs[:<span class="dv">1</span>])</span>
-<span id="cb7-357"><a href="#cb7-357" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(<span class="fl">500.0</span>)</span>
-<span id="cb7-358"><a href="#cb7-358" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(mc_est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb7-359"><a href="#cb7-359" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-360"><a href="#cb7-360" aria-hidden="true" tabindex="-1"></a><span class="co"># GMF search (GRD and GIS reuse result_grd, result_gis from above)</span></span>
-<span id="cb7-361"><a href="#cb7-361" aria-hidden="true" tabindex="-1"></a>search_gmf <span class="op">=</span> ACVSearch(</span>
-<span id="cb7-362"><a href="#cb7-362" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
-<span id="cb7-363"><a href="#cb7-363" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GMFEstimator],</span>
-<span id="cb7-364"><a href="#cb7-364" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
-<span id="cb7-365"><a href="#cb7-365" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
-<span id="cb7-366"><a href="#cb7-366" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-367"><a href="#cb7-367" aria-hidden="true" tabindex="-1"></a>result_gmf <span class="op">=</span> search_gmf.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-368"><a href="#cb7-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-369"><a href="#cb7-369" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract per-index variances from each family's cached results</span></span>
-<span id="cb7-370"><a href="#cb7-370" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> {}</span>
-<span id="cb7-371"><a href="#cb7-371" aria-hidden="true" tabindex="-1"></a>ri_list <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb7-372"><a href="#cb7-372" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> fam, result_fam <span class="kw">in</span> [(<span class="st">"gmf"</span>, result_gmf), (<span class="st">"grd"</span>, result_grd), (<span class="st">"gis"</span>, result_gis)]:</span>
-<span id="cb7-373"><a href="#cb7-373" aria-hidden="true" tabindex="-1"></a>    fam_vars <span class="op">=</span> []</span>
-<span id="cb7-374"><a href="#cb7-374" aria-hidden="true" tabindex="-1"></a>    fam_ri <span class="op">=</span> []</span>
-<span id="cb7-375"><a href="#cb7-375" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> est, alloc <span class="kw">in</span> result_fam.all_allocations:</span>
-<span id="cb7-376"><a href="#cb7-376" aria-hidden="true" tabindex="-1"></a>        ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
-<span id="cb7-377"><a href="#cb7-377" aria-hidden="true" tabindex="-1"></a>        fam_ri.append(ri)</span>
-<span id="cb7-378"><a href="#cb7-378" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> alloc.success:</span>
-<span id="cb7-379"><a href="#cb7-379" aria-hidden="true" tabindex="-1"></a>            est.set_allocation(alloc)</span>
-<span id="cb7-380"><a href="#cb7-380" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb7-381"><a href="#cb7-381" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
-<span id="cb7-382"><a href="#cb7-382" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> mc_var</span>
-<span id="cb7-383"><a href="#cb7-383" aria-hidden="true" tabindex="-1"></a>        fam_vars.append(var <span class="op">/</span> mc_var)</span>
-<span id="cb7-384"><a href="#cb7-384" aria-hidden="true" tabindex="-1"></a>    results[fam] <span class="op">=</span> fam_vars</span>
-<span id="cb7-385"><a href="#cb7-385" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ri_list <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb7-386"><a href="#cb7-386" aria-hidden="true" tabindex="-1"></a>        ri_list <span class="op">=</span> fam_ri</span>
-<span id="cb7-387"><a href="#cb7-387" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-388"><a href="#cb7-388" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pacv_cross_family</span>
-<span id="cb7-389"><a href="#cb7-389" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-390"><a href="#cb7-390" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
-<span id="cb7-391"><a href="#cb7-391" aria-hidden="true" tabindex="-1"></a>plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,</span>
-<span id="cb7-392"><a href="#cb7-392" aria-hidden="true" tabindex="-1"></a>                       nmodels, ax)</span>
-<span id="cb7-393"><a href="#cb7-393" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-394"><a href="#cb7-394" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-395"><a href="#cb7-395" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-396"><a href="#cb7-396" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-397"><a href="#cb7-397" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-398"><a href="#cb7-398" aria-hidden="true" tabindex="-1"></a><span class="fu">## Relationship to the General ACV Formula</span></span>
-<span id="cb7-399"><a href="#cb7-399" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-400"><a href="#cb7-400" aria-hidden="true" tabindex="-1"></a>Every PACV estimator fits the general ACV framework from</span>
-<span id="cb7-401"><a href="#cb7-401" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>. For a given recursion index and</span>
-<span id="cb7-402"><a href="#cb7-402" aria-hidden="true" tabindex="-1"></a>family, the allocation matrix determines the sample-set intersection sizes, which</span>
-<span id="cb7-403"><a href="#cb7-403" aria-hidden="true" tabindex="-1"></a>in turn determine $\boldsymbol{\Sigma}_{\Delta\Delta}$ and $\boldsymbol{\Sigma}_{\Delta Q_0}$.</span>
-<span id="cb7-404"><a href="#cb7-404" aria-hidden="true" tabindex="-1"></a>The optimal variance formula is always @eq-acv-min-cov:</span>
-<span id="cb7-405"><a href="#cb7-405" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-406"><a href="#cb7-406" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-407"><a href="#cb7-407" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}})</span>
-<span id="cb7-408"><a href="#cb7-408" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
-<span id="cb7-409"><a href="#cb7-409" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,</span>
-<span id="cb7-410"><a href="#cb7-410" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}.</span>
-<span id="cb7-411"><a href="#cb7-411" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-412"><a href="#cb7-412" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-413"><a href="#cb7-413" aria-hidden="true" tabindex="-1"></a>What PACV adds is a systematic way to parametrise and search the space of all allocation</span>
-<span id="cb7-414"><a href="#cb7-414" aria-hidden="true" tabindex="-1"></a>matrices, rather than considering only the four classical designs.</span>
-<span id="cb7-415"><a href="#cb7-415" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-416"><a href="#cb7-416" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-417"><a href="#cb7-417" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb7-418"><a href="#cb7-418" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-419"><a href="#cb7-419" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GMF** uses nested anchor sets ($\mathcal{Z}_i \subseteq \mathcal{Z}_j$); contains</span>
-<span id="cb7-420"><a href="#cb7-420" aria-hidden="true" tabindex="-1"></a>  MFMC and ACVMF as special cases</span>
-<span id="cb7-421"><a href="#cb7-421" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GRD** uses overlapping (but not nested) anchor sets; contains MLMC as a special case</span>
-<span id="cb7-422"><a href="#cb7-422" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GIS** uses independent anchor sub-partitions; contains ACVIS as a special case</span>
-<span id="cb7-423"><a href="#cb7-423" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The allocation matrix is fully determined by the recursion index + family; the</span>
-<span id="cb7-424"><a href="#cb7-424" aria-hidden="true" tabindex="-1"></a>  covariance formula $\boldsymbol{\Sigma}_{\Delta\Delta}(\mathbf{p})$ is then tractable</span>
-<span id="cb7-425"><a href="#cb7-425" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The enumeration procedure is: generate all $M!$ recursion indices, solve</span>
-<span id="cb7-426"><a href="#cb7-426" aria-hidden="true" tabindex="-1"></a>  @eq-alloc-opt for each, pick the minimum variance — no additional model evaluations</span>
-<span id="cb7-427"><a href="#cb7-427" aria-hidden="true" tabindex="-1"></a>  beyond the pilot</span>
-<span id="cb7-428"><a href="#cb7-428" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-429"><a href="#cb7-429" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-430"><a href="#cb7-430" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb7-431"><a href="#cb7-431" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-432"><a href="#cb7-432" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Write the GMF allocation matrix for $M=2$ with $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$</span>
-<span id="cb7-433"><a href="#cb7-433" aria-hidden="true" tabindex="-1"></a>   (MFMC) and $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,0</span><span class="co">]</span>$ (ACVMF) explicitly. Confirm they match</span>
-<span id="cb7-434"><a href="#cb7-434" aria-hidden="true" tabindex="-1"></a>   the matrices given in the text.</span>
-<span id="cb7-435"><a href="#cb7-435" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-436"><a href="#cb7-436" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>For the GRD family with $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,0,0</span><span class="co">]</span>$: what does the allocation</span>
-<span id="cb7-437"><a href="#cb7-437" aria-hidden="true" tabindex="-1"></a>   matrix look like? What classical estimator (if any) does this correspond to?</span>
-<span id="cb7-438"><a href="#cb7-438" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-439"><a href="#cb7-439" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>From @fig-cross-family, does the best recursion index for GMF match the best for GRD</span>
-<span id="cb7-440"><a href="#cb7-440" aria-hidden="true" tabindex="-1"></a>   and GIS? What does this suggest about whether family choice matters independently of</span>
-<span id="cb7-441"><a href="#cb7-441" aria-hidden="true" tabindex="-1"></a>   recursion index?</span>
-<span id="cb7-442"><a href="#cb7-442" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-443"><a href="#cb7-443" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Show that for a two-model problem ($M=1$), all three families produce</span>
-<span id="cb7-444"><a href="#cb7-444" aria-hidden="true" tabindex="-1"></a>   the same allocation matrix for $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0</span><span class="co">]</span>$. Why does the distinction</span>
-<span id="cb7-445"><a href="#cb7-445" aria-hidden="true" tabindex="-1"></a>   between families only arise for $M \geq 2$?</span>
-<span id="cb7-446"><a href="#cb7-446" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-447"><a href="#cb7-447" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-448"><a href="#cb7-448" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
-<span id="cb7-449"><a href="#cb7-449" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-450"><a href="#cb7-450" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">BLWLJCP2022</span><span class="co">]</span> G.F. Bomarito, P.E. Leser, J.E. Warner, W.P. Leser. *On the optimization</span>
-<span id="cb7-451"><a href="#cb7-451" aria-hidden="true" tabindex="-1"></a>  of approximate control variates with parametrically defined estimators.* Journal of</span>
-<span id="cb7-452"><a href="#cb7-452" aria-hidden="true" tabindex="-1"></a>  Computational Physics, 451:110882, 2022.</span>
-<span id="cb7-453"><a href="#cb7-453" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1016/j.jcp.2021.110882)</span></span>
-<span id="cb7-454"><a href="#cb7-454" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-455"><a href="#cb7-455" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GGEJJCP2020</span><span class="co">]</span> A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized</span>
-<span id="cb7-456"><a href="#cb7-456" aria-hidden="true" tabindex="-1"></a>  approximate control variate framework for multifidelity uncertainty quantification.*</span>
-<span id="cb7-457"><a href="#cb7-457" aria-hidden="true" tabindex="-1"></a>  Journal of Computational Physics, 408:109257, 2020.</span>
-<span id="cb7-458"><a href="#cb7-458" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1016/j.jcp.2020.109257)</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "PACV: Analysis"</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Formal definition of the three PACV estimator families (GMF, GRD, GIS), how the recursion index determines allocation matrix structure, and the covariance formulas that enable enumeration-based best-estimator selection."</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> analysis</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> multi_fidelity</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> advanced</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 20</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 77</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - pacv_concept</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - acv_many_models_analysis</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - multi-fidelity</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - pacv</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - gmf</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - grd</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - gis</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co">  - allocation-matrix</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co">  - estimator-theory</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/pacv_analysis.ipynb)</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write the allocation matrix for any GMF, GRD, or GIS estimator given its recursion</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>  index $\boldsymbol{\gamma}$</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Identify which cells of the allocation matrix change when $\boldsymbol{\gamma}$ changes</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>State the partition size formula and how it translates a budget into sample counts for</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>  each partition</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Verify that MLMC, MFMC, ACVMF, and ACVIS are recovered as special cases</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe the enumeration procedure that PyApprox uses to select the best estimator</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">PACV Concept</span><span class="co">](pacv_concept.qmd)</span> and</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span> before this tutorial.</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">ACV Allocation Matrices</span><span class="co">](acv_many_models_analysis.qmd#sec-allocation-matrix)</span> reference provides supporting</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>detail on the notation used throughout.</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a><span class="fu">## Notation</span></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>We follow the notation from <span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>.</span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>Models are $f_0$ (HF) through $f_M$ (cheapest LF). The recursion index is</span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">\gamma_1, \ldots, \gamma_M</span><span class="co">]</span>^\top$ with $0 \leq \gamma_j &lt; j$.</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>Recall from <span class="co">[</span><span class="ot">ACV Allocation Matrices</span><span class="co">](acv_many_models_analysis.qmd#sec-allocation-matrix)</span>: the allocation</span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>matrix $\mathbf{A} \in <span class="sc">\{</span>0,1<span class="sc">\}</span>^{(M+1)\times 2(M+1)}$ has entry $A_{ij} = 1$ if</span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a>partition $\mathcal{P}_i$ is included in $\mathcal{Z}_\alpha^*$ (column $2\alpha-1$)</span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>or $\mathcal{Z}_\alpha$ (column $2\alpha$). The first column is always zero ($\mathcal{Z}_0^*$</span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>is not used).</span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GMF Family</span></span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>**Generalised Multi-Fidelity (GMF)** estimators use a base allocation matrix derived from</span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a>the MFMC structure. For a given recursion index $\boldsymbol{\gamma}$, the rule is:</span>
+<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* = \mathcal{Z}_i$</span></span>
+<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; **and** $\mathcal{Z}_i \subseteq \mathcal{Z}_j$.</span></span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a>The second condition — the anchor is a *nested subset* — is the MFMC inheritance.</span>
+<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>Translating to the allocation matrix: partition $\mathcal{P}_k$ is included in</span>
+<span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>$\mathcal{Z}_j$ if $\mathcal{P}_k \subseteq \mathcal{Z}_{\gamma_j} \subseteq \mathcal{Z}_j$.</span>
+<span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a>**Special cases:**</span>
+<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1, \ldots, M-1</span><span class="co">]</span>$ (chain) $\Rightarrow$ MFMC</span>
+<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0, \ldots, 0</span><span class="co">]</span>$ (star) $\Rightarrow$ ACVMF</span>
+<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>For the three-model ($M=2$) case, the two GMF allocation matrices are:</span>
+<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1</span><span class="co">]</span>: \quad</span>
+<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a>\mathbf{A}_{\text{GMF}} =</span>
+<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a>\begin{pmatrix}</span>
+<span id="cb6-94"><a href="#cb6-94" aria-hidden="true" tabindex="-1"></a>0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
+<span id="cb6-95"><a href="#cb6-95" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
+<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1</span>
+<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a>\end{pmatrix}</span>
+<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a>= \mathbf{A}_\text{MFMC}</span>
+<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-101"><a href="#cb6-101" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a>\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0</span><span class="co">]</span>: \quad</span>
+<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a>\mathbf{A}_{\text{GMF}} =</span>
+<span id="cb6-104"><a href="#cb6-104" aria-hidden="true" tabindex="-1"></a>\begin{pmatrix}</span>
+<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>0 &amp; 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1 <span class="sc">\\</span></span>
+<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 1 &amp; 0 &amp; 1 <span class="sc">\\</span></span>
+<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a>0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1</span>
+<span id="cb6-108"><a href="#cb6-108" aria-hidden="true" tabindex="-1"></a>\end{pmatrix}</span>
+<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a>= \mathbf{A}_\text{ACVMF}</span>
+<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-111"><a href="#cb6-111" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a>The difference is in row 1, column 4 (model $f_1$'s $\mathcal{Z}_2^*$ column): in MFMC</span>
+<span id="cb6-113"><a href="#cb6-113" aria-hidden="true" tabindex="-1"></a>($\gamma_2=1$), $f_1$'s sample set is the anchor for $f_2$, so partition $\mathcal{P}_1$</span>
+<span id="cb6-114"><a href="#cb6-114" aria-hidden="true" tabindex="-1"></a>is included in $\mathcal{Z}_2^*$. In ACVMF ($\gamma_2=0$), $f_0$'s set is the anchor,</span>
+<span id="cb6-115"><a href="#cb6-115" aria-hidden="true" tabindex="-1"></a>so $\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*$.</span>
+<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-119"><a href="#cb6-119" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble <span class="im">import</span> (</span>
+<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>    polynomial_ensemble_5model,</span>
+<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> MultiOutputMean</span>
+<span id="cb6-127"><a href="#cb6-127" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
+<span id="cb6-128"><a href="#cb6-128" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv <span class="im">import</span> GMFEstimator, GRDEstimator, GISEstimator</span>
+<span id="cb6-129"><a href="#cb6-129" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.search <span class="im">import</span> ACVSearch</span>
+<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.allocation <span class="im">import</span> ACVAllocator, default_allocator_factory</span>
+<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.acv.strategies <span class="im">import</span> (</span>
+<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a>    FixedRecursionStrategy, TreeDepthRecursionStrategy,</span>
+<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-134"><a href="#cb6-134" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.plotting <span class="im">import</span> plot_allocation</span>
+<span id="cb6-135"><a href="#cb6-135" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.slsqp <span class="im">import</span> ScipySLSQPOptimizer</span>
+<span id="cb6-136"><a href="#cb6-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-137"><a href="#cb6-137" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb6-138"><a href="#cb6-138" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> polynomial_ensemble_5model(bkd)</span>
+<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a>nmodels   <span class="op">=</span> <span class="dv">4</span></span>
+<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a>costs     <span class="op">=</span> benchmark.costs()[:nmodels]</span>
+<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a>cov       <span class="op">=</span> benchmark.ensemble_covariance()[:nmodels, :nmodels]</span>
+<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a>nqoi      <span class="op">=</span> benchmark.models()[<span class="dv">0</span>].nqoi()</span>
+<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
+<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(cov)</span>
+<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a><span class="co"># Use SLSQP-only allocator for fast search (no DE global search needed for</span></span>
+<span id="cb6-149"><a href="#cb6-149" aria-hidden="true" tabindex="-1"></a><span class="co"># this small problem with M=3 LF models)</span></span>
+<span id="cb6-150"><a href="#cb6-150" aria-hidden="true" tabindex="-1"></a>_slsqp <span class="op">=</span> ScipySLSQPOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>)</span>
+<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fast_allocator(est):</span>
+<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Route analytical cases to closed-form, others to SLSQP."""</span></span>
+<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a>    alloc <span class="op">=</span> default_allocator_factory(est)</span>
+<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(alloc, ACVAllocator):</span>
+<span id="cb6-155"><a href="#cb6-155" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> ACVAllocator(est, optimizer<span class="op">=</span>_slsqp)</span>
+<span id="cb6-156"><a href="#cb6-156" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> alloc</span>
+<span id="cb6-157"><a href="#cb6-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a><span class="co"># MFMC (chain) and ACVMF (star) as GMF estimators</span></span>
+<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a>ri_chain <span class="op">=</span> (<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>)   <span class="co"># M=3 LF models</span></span>
+<span id="cb6-160"><a href="#cb6-160" aria-hidden="true" tabindex="-1"></a>ri_star  <span class="op">=</span> (<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>)</span>
+<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
+<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, ri, title <span class="kw">in</span> <span class="bu">zip</span>(</span>
+<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a>    axes,</span>
+<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a>    [ri_chain, ri_star],</span>
+<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a>    [<span class="vs">r"GMF with </span><span class="dv">$\b</span><span class="vs">oldsymbol{</span><span class="er">\</span><span class="vs">gamma}=</span><span class="pp">[0,1,2]</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">= MFMC</span><span class="kw">)</span><span class="vs">"</span>,</span>
+<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a>     <span class="vs">r"GMF with </span><span class="dv">$\b</span><span class="vs">oldsymbol{</span><span class="er">\</span><span class="vs">gamma}=</span><span class="pp">[0,0,0]</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">= ACVMF</span><span class="kw">)</span><span class="vs">"</span>],</span>
+<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a>    search <span class="op">=</span> ACVSearch(stat, costs, recursion_strategy<span class="op">=</span>FixedRecursionStrategy(ri),</span>
+<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a>                       allocator_factory<span class="op">=</span>fast_allocator)</span>
+<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> search.search(<span class="fl">500.0</span>)</span>
+<span id="cb6-173"><a href="#cb6-173" aria-hidden="true" tabindex="-1"></a>        plot_allocation(result.estimator, ax, show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-174"><a href="#cb6-174" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">RuntimeError</span>:</span>
+<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a>        ax.text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>ax.transAxes)</span>
+<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a>    ax.set_title(title, fontsize<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"GMF allocation matrices: chain vs star recursion index"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-182"><a href="#cb6-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-183"><a href="#cb6-183" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GRD Family</span></span>
+<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-186"><a href="#cb6-186" aria-hidden="true" tabindex="-1"></a>**Generalised Recursive Difference (GRD)** estimators use the MLMC allocation matrix</span>
+<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a>as base. The rule is:</span>
+<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-189"><a href="#cb6-189" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* = \mathcal{Z}_i$</span></span>
+<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; **and** if $i \neq j$, then $\mathcal{Z}_i \cap \mathcal{Z}_j \neq \emptyset$</span></span>
+<span id="cb6-191"><a href="#cb6-191" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; (overlapping but neither nested in the other).</span></span>
+<span id="cb6-192"><a href="#cb6-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-193"><a href="#cb6-193" aria-hidden="true" tabindex="-1"></a>This gives the recursive-difference structure of MLMC at every edge in the DAG.</span>
+<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a>**Special case:** $\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 1, \ldots, M-1</span><span class="co">]</span>$ (chain) $\Rightarrow$ MLMC.</span>
+<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GRD allocation matrices for all valid recursion indices with $M=3$ LF models, showing how the partition structure changes as edges in the DAG are rewired."</span></span>
+<span id="cb6-201"><a href="#cb6-201" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-grd-matrices</span></span>
+<span id="cb6-202"><a href="#cb6-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a>search_grd <span class="op">=</span> ACVSearch(</span>
+<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
+<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GRDEstimator],</span>
+<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
+<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
+<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-209"><a href="#cb6-209" aria-hidden="true" tabindex="-1"></a>result_grd <span class="op">=</span> search_grd.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-210"><a href="#cb6-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a>n     <span class="op">=</span> <span class="bu">len</span>(result_grd.all_allocations)</span>
+<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a>ncols <span class="op">=</span> <span class="bu">min</span>(n, <span class="dv">4</span>)</span>
+<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a>nrows <span class="op">=</span> (n <span class="op">+</span> ncols <span class="op">-</span> <span class="dv">1</span>) <span class="op">//</span> ncols</span>
+<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows, ncols, figsize<span class="op">=</span>(ncols <span class="op">*</span> <span class="dv">6</span>, nrows <span class="op">*</span> <span class="fl">4.5</span>))</span>
+<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a>axes <span class="op">=</span> np.array(axes).ravel()</span>
+<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, (est, alloc) <span class="kw">in</span> <span class="bu">enumerate</span>(result_grd.all_allocations):</span>
+<span id="cb6-218"><a href="#cb6-218" aria-hidden="true" tabindex="-1"></a>    ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
+<span id="cb6-219"><a href="#cb6-219" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> alloc.success:</span>
+<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a>        est.set_allocation(alloc)</span>
+<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a>        plot_allocation(est, axes[i], show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a>        axes[i].text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a>                     fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>axes[i].transAxes)</span>
+<span id="cb6-225"><a href="#cb6-225" aria-hidden="true" tabindex="-1"></a>    axes[i].set_title(<span class="vs">rf"</span><span class="dv">$\b</span><span class="vs">oldsymbol</span><span class="ch">{{</span><span class="er">\</span><span class="vs">gamma</span><span class="ch">}}</span><span class="vs">=</span><span class="sc">{</span><span class="bu">list</span>(ri)<span class="sc">}</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb6-226"><a href="#cb6-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-227"><a href="#cb6-227" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax <span class="kw">in</span> axes[n:]:</span>
+<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a>    ax.set_visible(<span class="va">False</span>)</span>
+<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GRD allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-233"><a href="#cb6-233" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-234"><a href="#cb6-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-235"><a href="#cb6-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-236"><a href="#cb6-236" aria-hidden="true" tabindex="-1"></a><span class="fu">## The GIS Family</span></span>
+<span id="cb6-237"><a href="#cb6-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-238"><a href="#cb6-238" aria-hidden="true" tabindex="-1"></a>**Generalised Independent Sample (GIS)** estimators use the ACVIS allocation matrix</span>
+<span id="cb6-239"><a href="#cb6-239" aria-hidden="true" tabindex="-1"></a>as base. The rule is:</span>
+<span id="cb6-240"><a href="#cb6-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-241"><a href="#cb6-241" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; If $\gamma_j = i$, then $\mathcal{Z}_j^* \subseteq \mathcal{Z}_j$</span></span>
+<span id="cb6-242"><a href="#cb6-242" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; and $\mathcal{Z}_j^*$ is the same *independent* sub-partition as $\mathcal{Z}_i$'s anchor.</span></span>
+<span id="cb6-243"><a href="#cb6-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-244"><a href="#cb6-244" aria-hidden="true" tabindex="-1"></a>The key distinction from GMF and GRD: the anchor and the full set of $f_j$ are drawn</span>
+<span id="cb6-245"><a href="#cb6-245" aria-hidden="true" tabindex="-1"></a>from **independent partitions**, giving uncorrelated corrections across different models.</span>
+<span id="cb6-246"><a href="#cb6-246" aria-hidden="true" tabindex="-1"></a>This is the generalisation of ACVIS's independent sample structure.</span>
+<span id="cb6-247"><a href="#cb6-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-248"><a href="#cb6-248" aria-hidden="true" tabindex="-1"></a>**Special case:** $\boldsymbol{\gamma} = <span class="co">[</span><span class="ot">0, 0, \ldots, 0</span><span class="co">]</span>$ (star) $\Rightarrow$ ACVIS.</span>
+<span id="cb6-249"><a href="#cb6-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-252"><a href="#cb6-252" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-253"><a href="#cb6-253" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "GIS allocation matrices for all valid recursion indices with $M=3$ LF models."</span></span>
+<span id="cb6-254"><a href="#cb6-254" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-gis-matrices</span></span>
+<span id="cb6-255"><a href="#cb6-255" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-256"><a href="#cb6-256" aria-hidden="true" tabindex="-1"></a>search_gis <span class="op">=</span> ACVSearch(</span>
+<span id="cb6-257"><a href="#cb6-257" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
+<span id="cb6-258"><a href="#cb6-258" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GISEstimator],</span>
+<span id="cb6-259"><a href="#cb6-259" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
+<span id="cb6-260"><a href="#cb6-260" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
+<span id="cb6-261"><a href="#cb6-261" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-262"><a href="#cb6-262" aria-hidden="true" tabindex="-1"></a>result_gis <span class="op">=</span> search_gis.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-263"><a href="#cb6-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-264"><a href="#cb6-264" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(nrows, ncols, figsize<span class="op">=</span>(ncols <span class="op">*</span> <span class="dv">6</span>, nrows <span class="op">*</span> <span class="fl">4.5</span>))</span>
+<span id="cb6-265"><a href="#cb6-265" aria-hidden="true" tabindex="-1"></a>axes <span class="op">=</span> np.array(axes).ravel()</span>
+<span id="cb6-266"><a href="#cb6-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-267"><a href="#cb6-267" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, (est, alloc) <span class="kw">in</span> <span class="bu">enumerate</span>(result_gis.all_allocations):</span>
+<span id="cb6-268"><a href="#cb6-268" aria-hidden="true" tabindex="-1"></a>    ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
+<span id="cb6-269"><a href="#cb6-269" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> alloc.success:</span>
+<span id="cb6-270"><a href="#cb6-270" aria-hidden="true" tabindex="-1"></a>        est.set_allocation(alloc)</span>
+<span id="cb6-271"><a href="#cb6-271" aria-hidden="true" tabindex="-1"></a>        plot_allocation(est, axes[i], show_partition_sizes<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-272"><a href="#cb6-272" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb6-273"><a href="#cb6-273" aria-hidden="true" tabindex="-1"></a>        axes[i].text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">"opt. failed"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>,</span>
+<span id="cb6-274"><a href="#cb6-274" aria-hidden="true" tabindex="-1"></a>                     fontsize<span class="op">=</span><span class="dv">9</span>, transform<span class="op">=</span>axes[i].transAxes)</span>
+<span id="cb6-275"><a href="#cb6-275" aria-hidden="true" tabindex="-1"></a>    axes[i].set_title(<span class="vs">rf"</span><span class="dv">$\b</span><span class="vs">oldsymbol</span><span class="ch">{{</span><span class="er">\</span><span class="vs">gamma</span><span class="ch">}}</span><span class="vs">=</span><span class="sc">{</span><span class="bu">list</span>(ri)<span class="sc">}</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb6-276"><a href="#cb6-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-277"><a href="#cb6-277" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax <span class="kw">in</span> axes[n:]:</span>
+<span id="cb6-278"><a href="#cb6-278" aria-hidden="true" tabindex="-1"></a>    ax.set_visible(<span class="va">False</span>)</span>
+<span id="cb6-279"><a href="#cb6-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-280"><a href="#cb6-280" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"GIS allocation matrices — all </span><span class="sc">{</span>n<span class="sc">}</span><span class="ss"> recursion indices (M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">)"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb6-281"><a href="#cb6-281" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-282"><a href="#cb6-282" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-283"><a href="#cb6-283" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-284"><a href="#cb6-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-285"><a href="#cb6-285" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-286"><a href="#cb6-286" aria-hidden="true" tabindex="-1"></a><span class="fu">## Partition Sizes and the Budget Constraint</span></span>
+<span id="cb6-287"><a href="#cb6-287" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-288"><a href="#cb6-288" aria-hidden="true" tabindex="-1"></a>For any PACV estimator with allocation matrix $\mathbf{A}$, the cost of a sample in</span>
+<span id="cb6-289"><a href="#cb6-289" aria-hidden="true" tabindex="-1"></a>partition $\mathcal{P}_k$ is the sum of costs of all models that evaluate it:</span>
+<span id="cb6-290"><a href="#cb6-290" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-291"><a href="#cb6-291" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-292"><a href="#cb6-292" aria-hidden="true" tabindex="-1"></a>c_k = \sum_{\alpha=0}^{M} C_\alpha \cdot \mathbf{1}<span class="co">[</span><span class="ot">\mathcal{P}_k \subseteq \mathcal{Z}_\alpha</span><span class="co">]</span>.</span>
+<span id="cb6-293"><a href="#cb6-293" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-294"><a href="#cb6-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-295"><a href="#cb6-295" aria-hidden="true" tabindex="-1"></a>The budget constraint is $\sum_k p_k c_k \leq P$. The optimal partition sizes</span>
+<span id="cb6-296"><a href="#cb6-296" aria-hidden="true" tabindex="-1"></a>$\mathbf{p}^*$ are found by solving</span>
+<span id="cb6-297"><a href="#cb6-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-298"><a href="#cb6-298" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-299"><a href="#cb6-299" aria-hidden="true" tabindex="-1"></a>\min_{\mathbf{p} \geq 0} \;\det<span class="sc">\!</span>\left[\boldsymbol{\Sigma}_{Q_0 Q_0}</span>
+<span id="cb6-300"><a href="#cb6-300" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}(\mathbf{p})\,</span>
+<span id="cb6-301"><a href="#cb6-301" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta\Delta}(\mathbf{p})^{-1}\,</span>
+<span id="cb6-302"><a href="#cb6-302" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}(\mathbf{p})\right]</span>
+<span id="cb6-303"><a href="#cb6-303" aria-hidden="true" tabindex="-1"></a>\quad\text{s.t.}\quad \sum_k p_k c_k \leq P.</span>
+<span id="cb6-304"><a href="#cb6-304" aria-hidden="true" tabindex="-1"></a>$$ {#eq-alloc-opt}</span>
+<span id="cb6-305"><a href="#cb6-305" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-306"><a href="#cb6-306" aria-hidden="true" tabindex="-1"></a>PyApprox solves this via <span class="in">`ACVSearch.search(P)`</span> using a quasi-Newton (SLSQP) optimiser.</span>
+<span id="cb6-307"><a href="#cb6-307" aria-hidden="true" tabindex="-1"></a>For a fixed allocation matrix, the objective is smooth in $\mathbf{p}$ and the</span>
+<span id="cb6-308"><a href="#cb6-308" aria-hidden="true" tabindex="-1"></a>optimisation typically converges in tens of iterations.</span>
+<span id="cb6-309"><a href="#cb6-309" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-310"><a href="#cb6-310" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb6-311"><a href="#cb6-311" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why not solve over all recursion indices simultaneously?</span></span>
+<span id="cb6-312"><a href="#cb6-312" aria-hidden="true" tabindex="-1"></a>Optimising $\mathbf{p}$ and $\boldsymbol{\gamma}$ jointly would require mixed-integer</span>
+<span id="cb6-313"><a href="#cb6-313" aria-hidden="true" tabindex="-1"></a>programming. PACV sidesteps this by decoupling: enumerate all $M!$ indices, solve the</span>
+<span id="cb6-314"><a href="#cb6-314" aria-hidden="true" tabindex="-1"></a>continuous optimisation @eq-alloc-opt for each, then pick the best. This is exact and</span>
+<span id="cb6-315"><a href="#cb6-315" aria-hidden="true" tabindex="-1"></a>inexpensive for typical ensemble sizes.</span>
+<span id="cb6-316"><a href="#cb6-316" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb6-317"><a href="#cb6-317" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-318"><a href="#cb6-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-319"><a href="#cb6-319" aria-hidden="true" tabindex="-1"></a><span class="fu">## How `get_all_recursion_indices` Works</span></span>
+<span id="cb6-320"><a href="#cb6-320" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-321"><a href="#cb6-321" aria-hidden="true" tabindex="-1"></a>The valid recursion indices form a product space:</span>
+<span id="cb6-322"><a href="#cb6-322" aria-hidden="true" tabindex="-1"></a>$\gamma_j \in <span class="sc">\{</span>0, \ldots, j-1<span class="sc">\}</span>$ for $j = 1, \ldots, M$.</span>
+<span id="cb6-323"><a href="#cb6-323" aria-hidden="true" tabindex="-1"></a>The total count is $\prod_{j=1}^M j = M!$.</span>
+<span id="cb6-324"><a href="#cb6-324" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-327"><a href="#cb6-327" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-328"><a href="#cb6-328" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Recursion index counts by M:"</span>)</span>
+<span id="cb6-329"><a href="#cb6-329" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb6-330"><a href="#cb6-330" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> M <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
+<span id="cb6-331"><a href="#cb6-331" aria-hidden="true" tabindex="-1"></a>    n_ri <span class="op">=</span> math.factorial(M)</span>
+<span id="cb6-332"><a href="#cb6-332" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  M=</span><span class="sc">{</span>M<span class="sc">}</span><span class="ss"> LF models: </span><span class="sc">{</span>n_ri<span class="sc">:5d}</span><span class="ss"> valid recursion indices"</span>)</span>
+<span id="cb6-333"><a href="#cb6-333" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-334"><a href="#cb6-334" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify against PyApprox</span></span>
+<span id="cb6-335"><a href="#cb6-335" aria-hidden="true" tabindex="-1"></a>rec_strat <span class="op">=</span> TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb6-336"><a href="#cb6-336" aria-hidden="true" tabindex="-1"></a>all_ri    <span class="op">=</span> rec_strat.indices(nmodels, bkd)</span>
+<span id="cb6-337"><a href="#cb6-337" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">PyApprox returned </span><span class="sc">{</span><span class="bu">len</span>(all_ri)<span class="sc">}</span><span class="ss"> indices for M=</span><span class="sc">{</span>nmodels<span class="op">-</span><span class="dv">1</span><span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>[bkd.to_numpy(ri).astype(<span class="bu">int</span>).tolist() <span class="cf">for</span> ri <span class="kw">in</span> all_ri[:<span class="dv">6</span>]]<span class="sc">}</span><span class="ss">..."</span>)</span>
+<span id="cb6-338"><a href="#cb6-338" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-339"><a href="#cb6-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-340"><a href="#cb6-340" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-341"><a href="#cb6-341" aria-hidden="true" tabindex="-1"></a><span class="fu">## Cross-Family Variance Comparison</span></span>
+<span id="cb6-342"><a href="#cb6-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-343"><a href="#cb6-343" aria-hidden="true" tabindex="-1"></a>For any fixed recursion index, the three families produce different allocation matrices</span>
+<span id="cb6-344"><a href="#cb6-344" aria-hidden="true" tabindex="-1"></a>and hence different variance reductions. @fig-cross-family compares GMF, GRD, and GIS</span>
+<span id="cb6-345"><a href="#cb6-345" aria-hidden="true" tabindex="-1"></a>for every valid recursion index at a fixed budget.</span>
+<span id="cb6-346"><a href="#cb6-346" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-349"><a href="#cb6-349" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-350"><a href="#cb6-350" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Predicted variance (relative to MC) for every valid recursion index across all three PACV families on the four-model polynomial benchmark at $P = 500$. The best overall estimator is highlighted. Families differ by their base allocation structure; the recursion index shifts the optimum within each family."</span></span>
+<span id="cb6-351"><a href="#cb6-351" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cross-family</span></span>
+<span id="cb6-352"><a href="#cb6-352" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-353"><a href="#cb6-353" aria-hidden="true" tabindex="-1"></a>fam_cols    <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"#8E44AD"</span>, <span class="st">"grd"</span>: <span class="st">"#2C7FB8"</span>, <span class="st">"gis"</span>: <span class="st">"#27AE60"</span>}</span>
+<span id="cb6-354"><a href="#cb6-354" aria-hidden="true" tabindex="-1"></a>fam_names   <span class="op">=</span> {<span class="st">"gmf"</span>: <span class="st">"GMF"</span>, <span class="st">"grd"</span>: <span class="st">"GRD"</span>, <span class="st">"gis"</span>: <span class="st">"GIS"</span>}</span>
+<span id="cb6-355"><a href="#cb6-355" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-356"><a href="#cb6-356" aria-hidden="true" tabindex="-1"></a>mc_est <span class="op">=</span> MCEstimator(stat, costs[:<span class="dv">1</span>])</span>
+<span id="cb6-357"><a href="#cb6-357" aria-hidden="true" tabindex="-1"></a>mc_est.allocate_samples(<span class="fl">500.0</span>)</span>
+<span id="cb6-358"><a href="#cb6-358" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(mc_est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb6-359"><a href="#cb6-359" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-360"><a href="#cb6-360" aria-hidden="true" tabindex="-1"></a><span class="co"># GMF search (GRD and GIS reuse result_grd, result_gis from above)</span></span>
+<span id="cb6-361"><a href="#cb6-361" aria-hidden="true" tabindex="-1"></a>search_gmf <span class="op">=</span> ACVSearch(</span>
+<span id="cb6-362"><a href="#cb6-362" aria-hidden="true" tabindex="-1"></a>    stat, costs,</span>
+<span id="cb6-363"><a href="#cb6-363" aria-hidden="true" tabindex="-1"></a>    estimator_classes<span class="op">=</span>[GMFEstimator],</span>
+<span id="cb6-364"><a href="#cb6-364" aria-hidden="true" tabindex="-1"></a>    recursion_strategy<span class="op">=</span>TreeDepthRecursionStrategy(max_depth<span class="op">=</span>nmodels <span class="op">-</span> <span class="dv">1</span>),</span>
+<span id="cb6-365"><a href="#cb6-365" aria-hidden="true" tabindex="-1"></a>    allocator_factory<span class="op">=</span>fast_allocator,</span>
+<span id="cb6-366"><a href="#cb6-366" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-367"><a href="#cb6-367" aria-hidden="true" tabindex="-1"></a>result_gmf <span class="op">=</span> search_gmf.search(<span class="fl">500.0</span>, allow_failures<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-368"><a href="#cb6-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-369"><a href="#cb6-369" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract per-index variances from each family's cached results</span></span>
+<span id="cb6-370"><a href="#cb6-370" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> {}</span>
+<span id="cb6-371"><a href="#cb6-371" aria-hidden="true" tabindex="-1"></a>ri_list <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb6-372"><a href="#cb6-372" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> fam, result_fam <span class="kw">in</span> [(<span class="st">"gmf"</span>, result_gmf), (<span class="st">"grd"</span>, result_grd), (<span class="st">"gis"</span>, result_gis)]:</span>
+<span id="cb6-373"><a href="#cb6-373" aria-hidden="true" tabindex="-1"></a>    fam_vars <span class="op">=</span> []</span>
+<span id="cb6-374"><a href="#cb6-374" aria-hidden="true" tabindex="-1"></a>    fam_ri <span class="op">=</span> []</span>
+<span id="cb6-375"><a href="#cb6-375" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> est, alloc <span class="kw">in</span> result_fam.all_allocations:</span>
+<span id="cb6-376"><a href="#cb6-376" aria-hidden="true" tabindex="-1"></a>        ri <span class="op">=</span> bkd.to_numpy(est._recursion_index).astype(<span class="bu">int</span>).tolist()</span>
+<span id="cb6-377"><a href="#cb6-377" aria-hidden="true" tabindex="-1"></a>        fam_ri.append(ri)</span>
+<span id="cb6-378"><a href="#cb6-378" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> alloc.success:</span>
+<span id="cb6-379"><a href="#cb6-379" aria-hidden="true" tabindex="-1"></a>            est.set_allocation(alloc)</span>
+<span id="cb6-380"><a href="#cb6-380" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> <span class="bu">float</span>(bkd.to_numpy(est.optimized_covariance())[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb6-381"><a href="#cb6-381" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb6-382"><a href="#cb6-382" aria-hidden="true" tabindex="-1"></a>            var <span class="op">=</span> mc_var</span>
+<span id="cb6-383"><a href="#cb6-383" aria-hidden="true" tabindex="-1"></a>        fam_vars.append(var <span class="op">/</span> mc_var)</span>
+<span id="cb6-384"><a href="#cb6-384" aria-hidden="true" tabindex="-1"></a>    results[fam] <span class="op">=</span> fam_vars</span>
+<span id="cb6-385"><a href="#cb6-385" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ri_list <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb6-386"><a href="#cb6-386" aria-hidden="true" tabindex="-1"></a>        ri_list <span class="op">=</span> fam_ri</span>
+<span id="cb6-387"><a href="#cb6-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-388"><a href="#cb6-388" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pacv_cross_family</span>
+<span id="cb6-389"><a href="#cb6-389" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-390"><a href="#cb6-390" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
+<span id="cb6-391"><a href="#cb6-391" aria-hidden="true" tabindex="-1"></a>plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,</span>
+<span id="cb6-392"><a href="#cb6-392" aria-hidden="true" tabindex="-1"></a>                       nmodels, ax)</span>
+<span id="cb6-393"><a href="#cb6-393" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-394"><a href="#cb6-394" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-395"><a href="#cb6-395" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-396"><a href="#cb6-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-397"><a href="#cb6-397" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-398"><a href="#cb6-398" aria-hidden="true" tabindex="-1"></a><span class="fu">## Relationship to the General ACV Formula</span></span>
+<span id="cb6-399"><a href="#cb6-399" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-400"><a href="#cb6-400" aria-hidden="true" tabindex="-1"></a>Every PACV estimator fits the general ACV framework from</span>
+<span id="cb6-401"><a href="#cb6-401" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">General ACV Analysis</span><span class="co">](acv_many_models_analysis.qmd)</span>. For a given recursion index and</span>
+<span id="cb6-402"><a href="#cb6-402" aria-hidden="true" tabindex="-1"></a>family, the allocation matrix determines the sample-set intersection sizes, which</span>
+<span id="cb6-403"><a href="#cb6-403" aria-hidden="true" tabindex="-1"></a>in turn determine $\boldsymbol{\Sigma}_{\Delta\Delta}$ and $\boldsymbol{\Sigma}_{\Delta Q_0}$.</span>
+<span id="cb6-404"><a href="#cb6-404" aria-hidden="true" tabindex="-1"></a>The optimal variance formula is always @eq-acv-min-cov:</span>
+<span id="cb6-405"><a href="#cb6-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-406"><a href="#cb6-406" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-407"><a href="#cb6-407" aria-hidden="true" tabindex="-1"></a>\mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}})</span>
+<span id="cb6-408"><a href="#cb6-408" aria-hidden="true" tabindex="-1"></a>= \boldsymbol{\Sigma}_{Q_0 Q_0}</span>
+<span id="cb6-409"><a href="#cb6-409" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span>\boldsymbol{\Sigma}_{Q_0\Delta}\,\boldsymbol{\Sigma}_{\Delta\Delta}^{-1}\,</span>
+<span id="cb6-410"><a href="#cb6-410" aria-hidden="true" tabindex="-1"></a>    \boldsymbol{\Sigma}_{\Delta Q_0}.</span>
+<span id="cb6-411"><a href="#cb6-411" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb6-412"><a href="#cb6-412" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-413"><a href="#cb6-413" aria-hidden="true" tabindex="-1"></a>What PACV adds is a systematic way to parametrise and search the space of all allocation</span>
+<span id="cb6-414"><a href="#cb6-414" aria-hidden="true" tabindex="-1"></a>matrices, rather than considering only the four classical designs.</span>
+<span id="cb6-415"><a href="#cb6-415" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-416"><a href="#cb6-416" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-417"><a href="#cb6-417" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb6-418"><a href="#cb6-418" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-419"><a href="#cb6-419" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GMF** uses nested anchor sets ($\mathcal{Z}_i \subseteq \mathcal{Z}_j$); contains</span>
+<span id="cb6-420"><a href="#cb6-420" aria-hidden="true" tabindex="-1"></a>  MFMC and ACVMF as special cases</span>
+<span id="cb6-421"><a href="#cb6-421" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GRD** uses overlapping (but not nested) anchor sets; contains MLMC as a special case</span>
+<span id="cb6-422"><a href="#cb6-422" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**GIS** uses independent anchor sub-partitions; contains ACVIS as a special case</span>
+<span id="cb6-423"><a href="#cb6-423" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The allocation matrix is fully determined by the recursion index + family; the</span>
+<span id="cb6-424"><a href="#cb6-424" aria-hidden="true" tabindex="-1"></a>  covariance formula $\boldsymbol{\Sigma}_{\Delta\Delta}(\mathbf{p})$ is then tractable</span>
+<span id="cb6-425"><a href="#cb6-425" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The enumeration procedure is: generate all $M!$ recursion indices, solve</span>
+<span id="cb6-426"><a href="#cb6-426" aria-hidden="true" tabindex="-1"></a>  @eq-alloc-opt for each, pick the minimum variance — no additional model evaluations</span>
+<span id="cb6-427"><a href="#cb6-427" aria-hidden="true" tabindex="-1"></a>  beyond the pilot</span>
+<span id="cb6-428"><a href="#cb6-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-429"><a href="#cb6-429" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-430"><a href="#cb6-430" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb6-431"><a href="#cb6-431" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-432"><a href="#cb6-432" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Write the GMF allocation matrix for $M=2$ with $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$</span>
+<span id="cb6-433"><a href="#cb6-433" aria-hidden="true" tabindex="-1"></a>   (MFMC) and $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,0</span><span class="co">]</span>$ (ACVMF) explicitly. Confirm they match</span>
+<span id="cb6-434"><a href="#cb6-434" aria-hidden="true" tabindex="-1"></a>   the matrices given in the text.</span>
+<span id="cb6-435"><a href="#cb6-435" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-436"><a href="#cb6-436" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>For the GRD family with $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0,0,0</span><span class="co">]</span>$: what does the allocation</span>
+<span id="cb6-437"><a href="#cb6-437" aria-hidden="true" tabindex="-1"></a>   matrix look like? What classical estimator (if any) does this correspond to?</span>
+<span id="cb6-438"><a href="#cb6-438" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-439"><a href="#cb6-439" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>From @fig-cross-family, does the best recursion index for GMF match the best for GRD</span>
+<span id="cb6-440"><a href="#cb6-440" aria-hidden="true" tabindex="-1"></a>   and GIS? What does this suggest about whether family choice matters independently of</span>
+<span id="cb6-441"><a href="#cb6-441" aria-hidden="true" tabindex="-1"></a>   recursion index?</span>
+<span id="cb6-442"><a href="#cb6-442" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-443"><a href="#cb6-443" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Show that for a two-model problem ($M=1$), all three families produce</span>
+<span id="cb6-444"><a href="#cb6-444" aria-hidden="true" tabindex="-1"></a>   the same allocation matrix for $\boldsymbol{\gamma}=<span class="co">[</span><span class="ot">0</span><span class="co">]</span>$. Why does the distinction</span>
+<span id="cb6-445"><a href="#cb6-445" aria-hidden="true" tabindex="-1"></a>   between families only arise for $M \geq 2$?</span>
+<span id="cb6-446"><a href="#cb6-446" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-447"><a href="#cb6-447" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-448"><a href="#cb6-448" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb6-449"><a href="#cb6-449" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-450"><a href="#cb6-450" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">BLWLJCP2022</span><span class="co">]</span> G.F. Bomarito, P.E. Leser, J.E. Warner, W.P. Leser. *On the optimization</span>
+<span id="cb6-451"><a href="#cb6-451" aria-hidden="true" tabindex="-1"></a>  of approximate control variates with parametrically defined estimators.* Journal of</span>
+<span id="cb6-452"><a href="#cb6-452" aria-hidden="true" tabindex="-1"></a>  Computational Physics, 451:110882, 2022.</span>
+<span id="cb6-453"><a href="#cb6-453" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1016/j.jcp.2021.110882)</span></span>
+<span id="cb6-454"><a href="#cb6-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-455"><a href="#cb6-455" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">GGEJJCP2020</span><span class="co">]</span> A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized</span>
+<span id="cb6-456"><a href="#cb6-456" aria-hidden="true" tabindex="-1"></a>  approximate control variate framework for multifidelity uncertainty quantification.*</span>
+<span id="cb6-457"><a href="#cb6-457" aria-hidden="true" tabindex="-1"></a>  Journal of Computational Physics, 408:109257, 2020.</span>
+<span id="cb6-458"><a href="#cb6-458" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">DOI</span><span class="co">](https://doi.org/10.1016/j.jcp.2020.109257)</span></span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

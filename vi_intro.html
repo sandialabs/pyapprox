@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Approximating the Posterior: Introduction to Variational Inference – PyApprox">
 <meta property="og:description" content="Turning Bayesian inference into an optimization problem by fitting a simple distribution to the posterior.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/vi_intro_files/figure-html/fig-two-strategies-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="841">
-<meta property="og:image:width" content="2285">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1120,21 +1117,7 @@ window.Quarto = {
 <section id="a-different-strategy" class="level2">
 <h2 class="anchored" data-anchor-id="a-different-strategy">A Different Strategy</h2>
 <p>The <a href="./bayesian_inference_intro.html">Bayesian inference tutorial</a> computed the posterior exactly on a grid. The <a href="./mcmc_sampling.html">MCMC tutorials</a> generated samples from the posterior via a random walk. Both approaches answer the same question — what is the posterior? — but in different ways.</p>
-<p>Variational inference (VI) takes a third approach. Instead of evaluating the posterior everywhere (grid) or wandering through it (MCMC), we <strong>pick a simple family of distributions</strong> — say, all possible Gaussians — and find the one that best matches the true posterior. <a href="#fig-two-strategies" class="quarto-xref">Figure&nbsp;1</a> contrasts this with MCMC.</p>
-<div id="cell-fig-two-strategies" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-two-strategies" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-two-strategies-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-two-strategies-output-1.png" width="1143" height="421" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-two-strategies-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>Variational inference (VI) takes a third approach. Instead of evaluating the posterior everywhere (grid) or wandering through it (MCMC), we <strong>pick a simple family of distributions</strong> — say, all possible Gaussians — and find the one that best matches the true posterior. <strong>?@fig-two-strategies</strong> contrasts this with MCMC.</p>
 <p>The idea is simple: if we can parameterize a family of distributions (e.g., all Gaussians are parameterized by their mean <span class="math inline">\(\mu\)</span> and standard deviation <span class="math inline">\(\sigma\)</span>), then finding the best approximation is an <strong>optimization problem</strong> — search over <span class="math inline">\((\mu, \sigma)\)</span> to minimize the mismatch with the true posterior. This is the core insight of variational inference.</p>
 </section>
 <section id="setup-the-beam-problem" class="level2">
@@ -1144,7 +1127,7 @@ Figure&nbsp;1: Two strategies for posterior inference. Left: MCMC generates a cl
 \delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
 \]</span></p>
 <p>We place a Gaussian prior on <span class="math inline">\(E\)</span> and observe tip deflection with Gaussian noise.</p>
-<div id="30e3c28d" class="cell" data-execution_count="3">
+<div id="5f09bffb" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
@@ -1203,50 +1186,17 @@ Figure&nbsp;1: Two strategies for posterior inference. Left: MCMC generates a cl
 <span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True E:         </span><span class="sc">{</span>E_true<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed y:     </span><span class="sc">{</span>y_obs<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
 <span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std:      </span><span class="sc">{</span>sigma_noise<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>True E:         10000
-Observed y:     4.272760
-Noise std:      0.4</code></pre>
-</div>
 </div>
 <p>We also compute the exact posterior on a grid (as in the <a href="./bayesian_inference_intro.html">Bayesian inference tutorial</a>) so we can check our work.</p>
 </section>
 <section id="some-gaussians-fit-better-than-others" class="level2">
 <h2 class="anchored" data-anchor-id="some-gaussians-fit-better-than-others">Some Gaussians Fit Better Than Others</h2>
 <p>The posterior is a curve. A Gaussian is also a curve, controlled by two knobs: the mean <span class="math inline">\(\mu\)</span> (where it is centered) and the standard deviation <span class="math inline">\(\sigma\)</span> (how wide it is). Different settings of <span class="math inline">\((\mu, \sigma)\)</span> give different approximations, and some are clearly better than others.</p>
-<p><a href="#fig-candidate-gallery" class="quarto-xref">Figure&nbsp;2</a> shows five candidate Gaussians overlaid on the exact posterior. The worst candidates are centered in the wrong place or have the wrong width. The best one — the one VI would find — closely tracks the true posterior.</p>
-<div id="cell-fig-candidate-gallery" class="cell" data-execution_count="5">
-<div class="cell-output cell-output-display">
-<div id="fig-candidate-gallery" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-candidate-gallery-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-candidate-gallery-output-1.png" width="951" height="469" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-candidate-gallery-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-candidate-gallery</strong> shows five candidate Gaussians overlaid on the exact posterior. The worst candidates are centered in the wrong place or have the wrong width. The best one — the one VI would find — closely tracks the true posterior.</p>
 </section>
 <section id="watching-vi-search" class="level2">
 <h2 class="anchored" data-anchor-id="watching-vi-search">Watching VI Search</h2>
-<p>VI does not try every possible Gaussian. It starts from an initial guess and iteratively improves, adjusting <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\sigma\)</span> to better match the posterior at each step. <a href="#fig-optimization-snapshots" class="quarto-xref">Figure&nbsp;3</a> shows four snapshots of this process: the Gaussian approximation starts as the prior (<span class="math inline">\(\mu = 12{,}000, \sigma = 2{,}000\)</span>) and converges to the posterior in just a few optimizer steps.</p>
-<div id="cell-fig-optimization-snapshots" class="cell" data-execution_count="6">
-<div class="cell-output cell-output-display">
-<div id="fig-optimization-snapshots" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-optimization-snapshots-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-optimization-snapshots-output-1.png" width="1521" height="358" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-optimization-snapshots-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>VI does not try every possible Gaussian. It starts from an initial guess and iteratively improves, adjusting <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\sigma\)</span> to better match the posterior at each step. <strong>?@fig-optimization-snapshots</strong> shows four snapshots of this process: the Gaussian approximation starts as the prior (<span class="math inline">\(\mu = 12{,}000, \sigma = 2{,}000\)</span>) and converges to the posterior in just a few optimizer steps.</p>
 </section>
 <section id="running-vi-on-the-beam" class="level2">
 <h2 class="anchored" data-anchor-id="running-vi-on-the-beam">Running VI on the Beam</h2>
@@ -1256,73 +1206,65 @@ Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its 
 <li><strong>Build the objective</strong>: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.</li>
 <li><strong>Optimize</strong>: adjust the parameters to improve the fit.</li>
 </ol>
-<div id="196b54df" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood.gaussian <span class="im">import</span> (</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    MultiExperimentLogLikelihood,</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.elbo <span class="im">import</span> make_single_problem_elbo</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.fitter <span class="im">import</span> VariationalFitter</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Variational distribution q(z) = N(mu_z, sigma_z^2)</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># We work in standardized space z = (E - mu_prior) / sigma_prior</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co"># so the prior is N(0, 1) and all parameters are order-1.</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>mean_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)      <span class="co"># mu_z starts at 0</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>log_stdev_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)  <span class="co"># log(sigma_z)=0 -&gt; sigma_z=1</span></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>cond_gaussian <span class="op">=</span> ConditionalGaussian(mean_func, log_stdev_func, bkd)</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>var_dist <span class="op">=</span> ConditionalIndependentJoint([cond_gaussian], bkd)</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior in standardized space</span></span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>vi_prior <span class="op">=</span> IndependentJoint([GaussianMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)], bkd)</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: Build the objective</span></span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>base_lik <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>multi_lik <span class="op">=</span> MultiExperimentLogLikelihood(</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    base_lik, bkd.asarray([[y_obs]]), bkd,</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_likelihood_fn(z):</span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Log-likelihood: how well does z explain the observation?"""</span></span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_lik.logpdf(std_tip_model(z))</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Base samples: random draws used to approximate expectations</span></span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">1000</span></span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>base_samples <span class="op">=</span> bkd.asarray(np.random.normal(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">1</span>, nsamples)))</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.full((<span class="dv">1</span>, nsamples), <span class="fl">1.0</span> <span class="op">/</span> nsamples)</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>elbo <span class="op">=</span> make_single_problem_elbo(</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    var_dist, log_likelihood_fn, vi_prior,</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    base_samples, weights, bkd,</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variational parameters to optimize: </span><span class="sc">{</span>elbo<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Variational parameters to optimize: 2</code></pre>
+<div id="a65d1bb2" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood.gaussian <span class="im">import</span> (</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    MultiExperimentLogLikelihood,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.elbo <span class="im">import</span> make_single_problem_elbo</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.fitter <span class="im">import</span> VariationalFitter</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Variational distribution q(z) = N(mu_z, sigma_z^2)</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co"># We work in standardized space z = (E - mu_prior) / sigma_prior</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># so the prior is N(0, 1) and all parameters are order-1.</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>mean_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)      <span class="co"># mu_z starts at 0</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>log_stdev_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)  <span class="co"># log(sigma_z)=0 -&gt; sigma_z=1</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>cond_gaussian <span class="op">=</span> ConditionalGaussian(mean_func, log_stdev_func, bkd)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>var_dist <span class="op">=</span> ConditionalIndependentJoint([cond_gaussian], bkd)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior in standardized space</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>vi_prior <span class="op">=</span> IndependentJoint([GaussianMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)], bkd)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: Build the objective</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>base_lik <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>multi_lik <span class="op">=</span> MultiExperimentLogLikelihood(</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    base_lik, bkd.asarray([[y_obs]]), bkd,</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_likelihood_fn(z):</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Log-likelihood: how well does z explain the observation?"""</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_lik.logpdf(std_tip_model(z))</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Base samples: random draws used to approximate expectations</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>base_samples <span class="op">=</span> bkd.asarray(np.random.normal(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">1</span>, nsamples)))</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.full((<span class="dv">1</span>, nsamples), <span class="fl">1.0</span> <span class="op">/</span> nsamples)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>elbo <span class="op">=</span> make_single_problem_elbo(</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    var_dist, log_likelihood_fn, vi_prior,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    base_samples, weights, bkd,</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variational parameters to optimize: </span><span class="sc">{</span>elbo<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-</div>
-<div id="36d60125" class="cell" data-execution_count="8">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract fitted parameters and transform back to physical E space</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>dummy_x <span class="op">=</span> bkd.zeros((cond_gaussian.nvars(), <span class="dv">1</span>))</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>z_mean <span class="op">=</span> <span class="bu">float</span>(cond_gaussian._mean_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>z_stdev <span class="op">=</span> math.exp(<span class="bu">float</span>(cond_gaussian._log_stdev_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>vi_mean <span class="op">=</span> mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z_mean</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>vi_stdev <span class="op">=</span> sigma_prior <span class="op">*</span> z_stdev</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"VI result:       N(</span><span class="sc">{</span>vi_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>vi_stdev<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Exact posterior: N(</span><span class="sc">{</span>exact_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>exact_std<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>VI result:       N(10186, 930^2)
-Exact posterior: N(10206, 953^2)
-VIFitResult(neg_elbo=1.3944, success=True)</code></pre>
-</div>
+<div id="0aa02696" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract fitted parameters and transform back to physical E space</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>dummy_x <span class="op">=</span> bkd.zeros((cond_gaussian.nvars(), <span class="dv">1</span>))</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>z_mean <span class="op">=</span> <span class="bu">float</span>(cond_gaussian._mean_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>z_stdev <span class="op">=</span> math.exp(<span class="bu">float</span>(cond_gaussian._log_stdev_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>vi_mean <span class="op">=</span> mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z_mean</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>vi_stdev <span class="op">=</span> sigma_prior <span class="op">*</span> z_stdev</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"VI result:       N(</span><span class="sc">{</span>vi_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>vi_stdev<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Exact posterior: N(</span><span class="sc">{</span>exact_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>exact_std<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1340,58 +1282,16 @@ VIFitResult(neg_elbo=1.3944, success=True)</code></pre>
 </section>
 <section id="vi-recovers-the-posterior" class="level2">
 <h2 class="anchored" data-anchor-id="vi-recovers-the-posterior">VI Recovers the Posterior</h2>
-<p><a href="#fig-vi-result" class="quarto-xref">Figure&nbsp;4</a> overlays the VI approximation on the exact grid posterior. Because the true posterior is nearly Gaussian in this problem, the fit is excellent. It is not <em>exactly</em> Gaussian, however: the beam model <span class="math inline">\(\delta_{\text{tip}} \propto 1/E\)</span> is nonlinear, so the posterior inherits a slight skew (as the <a href="./forward_uq.html">forward UQ tutorial</a> demonstrated for the push-forward distribution). The Gaussian VI approximation captures the mean and width accurately but cannot represent this asymmetry — a fundamental limitation of the variational family, not the optimizer.</p>
-<div id="cell-fig-vi-result" class="cell" data-execution_count="9">
-<div class="cell-output cell-output-display">
-<div id="fig-vi-result" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-vi-result-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-vi-result-output-1.png" width="855" height="421" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-vi-result-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-vi-result</strong> overlays the VI approximation on the exact grid posterior. Because the true posterior is nearly Gaussian in this problem, the fit is excellent. It is not <em>exactly</em> Gaussian, however: the beam model <span class="math inline">\(\delta_{\text{tip}} \propto 1/E\)</span> is nonlinear, so the posterior inherits a slight skew (as the <a href="./forward_uq.html">forward UQ tutorial</a> demonstrated for the push-forward distribution). The Gaussian VI approximation captures the mean and width accurately but cannot represent this asymmetry — a fundamental limitation of the variational family, not the optimizer.</p>
 </section>
 <section id="comparing-vi-and-mcmc" class="level2">
 <h2 class="anchored" data-anchor-id="comparing-vi-and-mcmc">Comparing VI and MCMC</h2>
-<p>Both MCMC and VI should produce the same answer on this problem. <a href="#fig-vi-vs-mcmc" class="quarto-xref">Figure&nbsp;5</a> puts all three representations on the same axes: the exact grid posterior, the MCMC histogram, and the VI curve. They agree — confirming that VI is working correctly.</p>
-<div id="cell-fig-vi-vs-mcmc" class="cell" data-execution_count="10">
-<div class="cell-output cell-output-display">
-<div id="fig-vi-vs-mcmc" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-vi-vs-mcmc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-vi-vs-mcmc-output-1.png" width="855" height="421" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-vi-vs-mcmc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5: Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>Both MCMC and VI should produce the same answer on this problem. <strong>?@fig-vi-vs-mcmc</strong> puts all three representations on the same axes: the exact grid posterior, the MCMC histogram, and the VI curve. They agree — confirming that VI is working correctly.</p>
 <p>The two methods produce consistent results, but notice the difference in what they return. MCMC gives a collection of samples — useful for computing any summary statistic, but noisy. VI gives a smooth, parametric density — easy to evaluate, store, and differentiate, but limited to the shapes the chosen family can represent.</p>
 </section>
 <section id="when-vi-struggles" class="level2">
 <h2 class="anchored" data-anchor-id="when-vi-struggles">When VI Struggles</h2>
-<p>A Gaussian can approximate any unimodal, roughly symmetric posterior. But what if the posterior has two well-separated modes? <a href="#fig-bimodal" class="quarto-xref">Figure&nbsp;6</a> shows a bimodal posterior: the best Gaussian has to compromise, placing mass in the gap between the modes where the true posterior has almost no density.</p>
-<div id="cell-fig-bimodal" class="cell" data-execution_count="11">
-<div class="cell-output cell-output-display">
-<div id="fig-bimodal" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-bimodal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="vi_intro_files/figure-html/fig-bimodal-output-1.png" width="1143" height="422" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-bimodal-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>A Gaussian can approximate any unimodal, roughly symmetric posterior. But what if the posterior has two well-separated modes? <strong>?@fig-bimodal</strong> shows a bimodal posterior: the best Gaussian has to compromise, placing mass in the gap between the modes where the true posterior has almost no density.</p>
 <p>Neither option is satisfactory. Option A places mass between the modes. Option B captures one mode but ignores the other entirely. In practice, VI with a unimodal Gaussian tends toward Option B — it locks onto a single mode. This is not a failure of the optimizer; it is a fundamental limitation of the variational family. MCMC, by contrast, can explore both modes given enough time.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1900,383 +1800,383 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Approximating the Posterior: Introduction to Variational Inference"</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Turning Bayesian inference into an optimization problem by fitting a simple distribution to the posterior."</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> beginner</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 60</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian_inference_intro</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - beam</span></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian-inference</span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - variational-inference</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/vi_intro.ipynb)</span></span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain the idea behind variational inference: approximate the posterior by finding the closest simple distribution</span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Visualize how VI searches over candidate distributions to find the best fit</span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Run VI on a 1D problem and verify it recovers the exact posterior</span>
-<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare VI and MCMC results on the same problem</span>
-<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Recognize when a simple variational family is insufficient</span>
-<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">From Data to Parameters: Introduction to Bayesian Inference</span><span class="co">](bayesian_inference_intro.qmd)</span> before this tutorial.</span>
-<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## A Different Strategy</span></span>
-<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span> computed the posterior exactly on a grid. The <span class="co">[</span><span class="ot">MCMC tutorials</span><span class="co">](mcmc_sampling.qmd)</span> generated samples from the posterior via a random walk. Both approaches answer the same question --- what is the posterior? --- but in different ways.</span>
-<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>Variational inference (VI) takes a third approach. Instead of evaluating the posterior everywhere (grid) or wandering through it (MCMC), we **pick a simple family of distributions** --- say, all possible Gaussians --- and find the one that best matches the true posterior. @fig-two-strategies contrasts this with MCMC.</span>
-<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve."</span></span>
-<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-strategies</span></span>
-<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_two_strategies</span>
-<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
-<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>plot_two_strategies(ax1, ax2)</span>
-<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a>The idea is simple: if we can parameterize a family of distributions (e.g., all Gaussians are parameterized by their mean $\mu$ and standard deviation $\sigma$), then finding the best approximation is an **optimization problem** --- search over $(\mu, \sigma)$ to minimize the mismatch with the true posterior. This is the core insight of variational inference.</span>
-<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Problem</span></span>
-<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a>We return to the cantilever beam from the <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span>: tip deflection under a linearly increasing load with an uncertain Young's modulus $E$. The analytical formula is:</span>
-<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>\delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}</span>
-<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>We place a Gaussian prior on $E$ and observe tip deflection with Gaussian noise.</span>
-<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> _grid_integrate, _beam_exact_posterior</span>
-<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
-<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
-<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
-<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
-<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
-<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
-<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a><span class="co"># Beam parameters (matching Bayesian inference tutorial)</span></span>
-<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a>L, H, q0 <span class="op">=</span> <span class="fl">100.0</span>, <span class="fl">30.0</span>, <span class="fl">10.0</span></span>
-<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a>beam_model <span class="op">=</span> HomogeneousBeam1DAnalytical(</span>
-<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>    length<span class="op">=</span>L, height<span class="op">=</span>H, q0<span class="op">=</span>q0, bkd<span class="op">=</span>bkd,</span>
-<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior on Young's modulus</span></span>
-<span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
-<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a>mu_prior <span class="op">=</span> <span class="dv">12_000</span></span>
-<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a>sigma_prior <span class="op">=</span> <span class="dv">2_000</span></span>
-<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> GaussianMarginal(mean<span class="op">=</span>mu_prior, stdev<span class="op">=</span>sigma_prior, bkd<span class="op">=</span>bkd)</span>
-<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a><span class="co"># Wrap beam model to output only tip deflection (1 QoI out of 3)</span></span>
-<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a>tip_model <span class="op">=</span> FunctionFromCallable(</span>
-<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
-<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> E: beam_model(E)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
-<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a><span class="co"># Standardized model: work in z = (E - mu_prior) / sigma_prior so the</span></span>
-<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a><span class="co"># prior becomes N(0, 1) and all variational parameters are order-1.</span></span>
-<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>std_tip_model <span class="op">=</span> FunctionFromCallable(</span>
-<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
-<span id="cb7-135"><a href="#cb7-135" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> z: tip_model(mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z),</span>
-<span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a><span class="co"># True parameter and synthetic observation</span></span>
-<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>E_true <span class="op">=</span> <span class="dv">10_000</span></span>
-<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>delta_true <span class="op">=</span> <span class="bu">float</span>(tip_model(bkd.asarray([[E_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>sigma_noise <span class="op">=</span> <span class="fl">0.4</span></span>
-<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.asarray([sigma_noise<span class="op">**</span><span class="dv">2</span>])</span>
-<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a>noise_likelihood <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
-<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>model_likelihood <span class="op">=</span> ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)</span>
-<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a>y_obs <span class="op">=</span> <span class="bu">float</span>(model_likelihood.rvs(bkd.asarray([[E_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a>noise_likelihood.set_observations(bkd.asarray([[y_obs]]))</span>
-<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True E:         </span><span class="sc">{</span>E_true<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed y:     </span><span class="sc">{</span>y_obs<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std:      </span><span class="sc">{</span>sigma_noise<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a>We also compute the exact posterior on a grid (as in the <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span>) so we can check our work.</span>
-<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact posterior on a grid via Gauss-Hermite quadrature</span></span>
-<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a>exact_mean, exact_std, E_grid, post_exact <span class="op">=</span> _beam_exact_posterior(</span>
-<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, mu_prior, sigma_prior, y_obs, sigma_noise,</span>
-<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a><span class="fu">## Some Gaussians Fit Better Than Others</span></span>
-<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a>The posterior is a curve. A Gaussian is also a curve, controlled by two knobs: the mean $\mu$ (where it is centered) and the standard deviation $\sigma$ (how wide it is). Different settings of $(\mu, \sigma)$ give different approximations, and some are clearly better than others.</span>
-<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-173"><a href="#cb7-173" aria-hidden="true" tabindex="-1"></a>@fig-candidate-gallery shows five candidate Gaussians overlaid on the exact posterior. The worst candidates are centered in the wrong place or have the wrong width. The best one --- the one VI would find --- closely tracks the true posterior.</span>
-<span id="cb7-174"><a href="#cb7-174" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically."</span></span>
-<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-candidate-gallery</span></span>
-<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_candidate_gallery</span>
-<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
-<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a>plot_candidate_gallery(E_grid, post_exact, exact_mean, exact_std, E_true, ax)</span>
-<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-189"><a href="#cb7-189" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-190"><a href="#cb7-190" aria-hidden="true" tabindex="-1"></a><span class="fu">## Watching VI Search</span></span>
-<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a>VI does not try every possible Gaussian. It starts from an initial guess and iteratively improves, adjusting $\mu$ and $\sigma$ to better match the posterior at each step. @fig-optimization-snapshots shows four snapshots of this process: the Gaussian approximation starts as the prior ($\mu = 12{,}000, \sigma = 2{,}000$) and converges to the posterior in just a few optimizer steps.</span>
-<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged."</span></span>
-<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-optimization-snapshots</span></span>
-<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
-<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_optimization_snapshots, _make_degree0_expansion</span>
-<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="dv">16</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a>plot_optimization_snapshots(</span>
-<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, std_tip_model, noise_variances, y_obs,</span>
-<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a>    mu_prior, sigma_prior, E_grid, post_exact, axes,</span>
-<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a>fig.legend([<span class="st">"Exact posterior"</span>, <span class="st">""</span>, <span class="st">"VI approximation"</span>],</span>
-<span id="cb7-209"><a href="#cb7-209" aria-hidden="true" tabindex="-1"></a>           fontsize<span class="op">=</span><span class="dv">9</span>, loc<span class="op">=</span><span class="st">"upper center"</span>, ncol<span class="op">=</span><span class="dv">2</span>,</span>
-<span id="cb7-210"><a href="#cb7-210" aria-hidden="true" tabindex="-1"></a>           bbox_to_anchor<span class="op">=</span>(<span class="fl">0.5</span>, <span class="fl">1.07</span>))</span>
-<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a><span class="fu">## Running VI on the Beam</span></span>
-<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a>The code to run VI in PyApprox has three steps:</span>
-<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Define the variational distribution**: a Gaussian whose mean and standard deviation are tunable parameters.</span>
-<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Build the objective**: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.</span>
-<span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Optimize**: adjust the parameters to improve the fit.</span>
-<span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
-<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
-<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
-<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood.gaussian <span class="im">import</span> (</span>
-<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a>    MultiExperimentLogLikelihood,</span>
-<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.elbo <span class="im">import</span> make_single_problem_elbo</span>
-<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.fitter <span class="im">import</span> VariationalFitter</span>
-<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Variational distribution q(z) = N(mu_z, sigma_z^2)</span></span>
-<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a><span class="co"># We work in standardized space z = (E - mu_prior) / sigma_prior</span></span>
-<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a><span class="co"># so the prior is N(0, 1) and all parameters are order-1.</span></span>
-<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a>mean_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)      <span class="co"># mu_z starts at 0</span></span>
-<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a>log_stdev_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)  <span class="co"># log(sigma_z)=0 -&gt; sigma_z=1</span></span>
-<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a>cond_gaussian <span class="op">=</span> ConditionalGaussian(mean_func, log_stdev_func, bkd)</span>
-<span id="cb7-242"><a href="#cb7-242" aria-hidden="true" tabindex="-1"></a>var_dist <span class="op">=</span> ConditionalIndependentJoint([cond_gaussian], bkd)</span>
-<span id="cb7-243"><a href="#cb7-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior in standardized space</span></span>
-<span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a>vi_prior <span class="op">=</span> IndependentJoint([GaussianMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)], bkd)</span>
-<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: Build the objective</span></span>
-<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>base_lik <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
-<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a>multi_lik <span class="op">=</span> MultiExperimentLogLikelihood(</span>
-<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a>    base_lik, bkd.asarray([[y_obs]]), bkd,</span>
-<span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_likelihood_fn(z):</span>
-<span id="cb7-254"><a href="#cb7-254" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Log-likelihood: how well does z explain the observation?"""</span></span>
-<span id="cb7-255"><a href="#cb7-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_lik.logpdf(std_tip_model(z))</span>
-<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a><span class="co"># Base samples: random draws used to approximate expectations</span></span>
-<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">1000</span></span>
-<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a>base_samples <span class="op">=</span> bkd.asarray(np.random.normal(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">1</span>, nsamples)))</span>
-<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.full((<span class="dv">1</span>, nsamples), <span class="fl">1.0</span> <span class="op">/</span> nsamples)</span>
-<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a>elbo <span class="op">=</span> make_single_problem_elbo(</span>
-<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a>    var_dist, log_likelihood_fn, vi_prior,</span>
-<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a>    base_samples, weights, bkd,</span>
-<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variational parameters to optimize: </span><span class="sc">{</span>elbo<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
-<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
-<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
-<span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract fitted parameters and transform back to physical E space</span></span>
-<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a>dummy_x <span class="op">=</span> bkd.zeros((cond_gaussian.nvars(), <span class="dv">1</span>))</span>
-<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a>z_mean <span class="op">=</span> <span class="bu">float</span>(cond_gaussian._mean_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>z_stdev <span class="op">=</span> math.exp(<span class="bu">float</span>(cond_gaussian._log_stdev_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
-<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>vi_mean <span class="op">=</span> mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z_mean</span>
-<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a>vi_stdev <span class="op">=</span> sigma_prior <span class="op">*</span> z_stdev</span>
-<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"VI result:       N(</span><span class="sc">{</span>vi_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>vi_stdev<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
-<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Exact posterior: N(</span><span class="sc">{</span>exact_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>exact_std<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
-<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span>
-<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a><span class="fu">## What is the optimizer actually minimizing?</span></span>
-<span id="cb7-292"><a href="#cb7-292" aria-hidden="true" tabindex="-1"></a>The objective function (called the **ELBO**) measures how well the variational distribution balances two goals: explaining the data and staying close to the prior. The <span class="co">[</span><span class="ot">next tutorial</span><span class="co">](vi_objective.qmd)</span> derives this objective in detail. For now, the important thing is that minimizing it finds the best Gaussian fit to the posterior.</span>
-<span id="cb7-293"><a href="#cb7-293" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a><span class="fu">## VI Recovers the Posterior</span></span>
-<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a>@fig-vi-result overlays the VI approximation on the exact grid posterior. Because the true posterior is nearly Gaussian in this problem, the fit is excellent. It is not *exactly* Gaussian, however: the beam model $\delta_{\text{tip}} \propto 1/E$ is nonlinear, so the posterior inherits a slight skew (as the <span class="co">[</span><span class="ot">forward UQ tutorial</span><span class="co">](forward_uq.qmd)</span> demonstrated for the push-forward distribution). The Gaussian VI approximation captures the mean and width accurately but cannot represent this asymmetry --- a fundamental limitation of the variational family, not the optimizer.</span>
-<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width."</span></span>
-<span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-result</span></span>
-<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_result</span>
-<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
-<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a>plot_vi_result(E_grid, post_exact, vi_mean, vi_stdev, E_true, ax)</span>
-<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing VI and MCMC</span></span>
-<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-317"><a href="#cb7-317" aria-hidden="true" tabindex="-1"></a>Both MCMC and VI should produce the same answer on this problem. @fig-vi-vs-mcmc puts all three representations on the same axes: the exact grid posterior, the MCMC histogram, and the VI curve. They agree --- confirming that VI is working correctly.</span>
-<span id="cb7-318"><a href="#cb7-318" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-321"><a href="#cb7-321" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve."</span></span>
-<span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-vs-mcmc</span></span>
-<span id="cb7-325"><a href="#cb7-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_vs_mcmc</span>
-<span id="cb7-326"><a href="#cb7-326" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
-<span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a>plot_vi_vs_mcmc(</span>
-<span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, noise_likelihood, prior,</span>
-<span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a>    E_grid, post_exact, vi_mean, vi_stdev, E_true, mu_prior, ax,</span>
-<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-335"><a href="#cb7-335" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-336"><a href="#cb7-336" aria-hidden="true" tabindex="-1"></a>The two methods produce consistent results, but notice the difference in what they return. MCMC gives a collection of samples --- useful for computing any summary statistic, but noisy. VI gives a smooth, parametric density --- easy to evaluate, store, and differentiate, but limited to the shapes the chosen family can represent.</span>
-<span id="cb7-337"><a href="#cb7-337" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-338"><a href="#cb7-338" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-339"><a href="#cb7-339" aria-hidden="true" tabindex="-1"></a><span class="fu">## When VI Struggles</span></span>
-<span id="cb7-340"><a href="#cb7-340" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-341"><a href="#cb7-341" aria-hidden="true" tabindex="-1"></a>A Gaussian can approximate any unimodal, roughly symmetric posterior. But what if the posterior has two well-separated modes? @fig-bimodal shows a bimodal posterior: the best Gaussian has to compromise, placing mass in the gap between the modes where the true posterior has almost no density.</span>
-<span id="cb7-342"><a href="#cb7-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-345"><a href="#cb7-345" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb7-346"><a href="#cb7-346" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb7-347"><a href="#cb7-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory."</span></span>
-<span id="cb7-348"><a href="#cb7-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bimodal</span></span>
-<span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_bimodal</span>
-<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
-<span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a>plot_bimodal(ax1, ax2)</span>
-<span id="cb7-353"><a href="#cb7-353" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb7-354"><a href="#cb7-354" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb7-355"><a href="#cb7-355" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb7-356"><a href="#cb7-356" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-357"><a href="#cb7-357" aria-hidden="true" tabindex="-1"></a>Neither option is satisfactory. Option A places mass between the modes. Option B captures one mode but ignores the other entirely. In practice, VI with a unimodal Gaussian tends toward Option B --- it locks onto a single mode. This is not a failure of the optimizer; it is a fundamental limitation of the variational family. MCMC, by contrast, can explore both modes given enough time.</span>
-<span id="cb7-358"><a href="#cb7-358" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-359"><a href="#cb7-359" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
-<span id="cb7-360"><a href="#cb7-360" aria-hidden="true" tabindex="-1"></a><span class="fu">## When does this matter in practice?</span></span>
-<span id="cb7-361"><a href="#cb7-361" aria-hidden="true" tabindex="-1"></a>Many engineering posteriors (including the beam problems in this tutorial series) are unimodal and approximately Gaussian, so this limitation rarely bites. Multimodality tends to arise with discrete model choices, symmetry-breaking, or wildly non-informative priors. If you suspect multimodality, MCMC is the safer choice.</span>
-<span id="cb7-362"><a href="#cb7-362" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb7-363"><a href="#cb7-363" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-364"><a href="#cb7-364" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-365"><a href="#cb7-365" aria-hidden="true" tabindex="-1"></a><span class="fu">## What We Defer</span></span>
-<span id="cb7-366"><a href="#cb7-366" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-367"><a href="#cb7-367" aria-hidden="true" tabindex="-1"></a>This tutorial showed **what** VI does --- find the best simple distribution --- but not **how** the optimizer measures "best" or computes gradients. The subsequent tutorials fill in the details:</span>
-<span id="cb7-368"><a href="#cb7-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-369"><a href="#cb7-369" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">What Variational Inference Optimizes</span><span class="co">](vi_objective.qmd)</span> derives the KL divergence and the ELBO --- the objective function that VI minimizes.</span>
-<span id="cb7-370"><a href="#cb7-370" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Optimizing the ELBO</span><span class="co">](vi_optimization.qmd)</span> introduces the reparameterization trick that makes gradient-based optimization possible.</span>
-<span id="cb7-371"><a href="#cb7-371" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Choosing the Variational Family</span><span class="co">](vi_families.qmd)</span> addresses the limitations we saw: families that capture correlations, handle bounded parameters, and scale to higher dimensions.</span>
-<span id="cb7-372"><a href="#cb7-372" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Amortized Variational Inference</span><span class="co">](vi_amortized.qmd)</span> shows how to learn a single model that maps any dataset to its approximate posterior.</span>
-<span id="cb7-373"><a href="#cb7-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-374"><a href="#cb7-374" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-375"><a href="#cb7-375" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb7-376"><a href="#cb7-376" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-377"><a href="#cb7-377" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Variational inference** approximates the posterior by searching over a family of simple distributions and finding the closest one</span>
-<span id="cb7-378"><a href="#cb7-378" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The search is an **optimization problem**: adjust the distribution's parameters to improve the fit</span>
-<span id="cb7-379"><a href="#cb7-379" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For **unimodal, near-Gaussian** posteriors (like the beam problem), a Gaussian VI approximation recovers the posterior accurately</span>
-<span id="cb7-380"><a href="#cb7-380" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>VI gives an **analytical density** (easy to evaluate and store), while MCMC gives **samples** (more flexible but noisier)</span>
-<span id="cb7-381"><a href="#cb7-381" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A unimodal variational family **cannot represent multimodal posteriors** --- this is the main limitation of standard VI</span>
-<span id="cb7-382"><a href="#cb7-382" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-383"><a href="#cb7-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-384"><a href="#cb7-384" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb7-385"><a href="#cb7-385" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-386"><a href="#cb7-386" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Change the true parameter to $E_{\text{true}} = 8{,}000$ (further from the prior mean). Does VI still recover the posterior? Compare to the grid posterior.</span>
-<span id="cb7-387"><a href="#cb7-387" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-388"><a href="#cb7-388" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Increase the noise standard deviation to $\sigma_{\text{noise}} = 2.0$ (5x larger). How does the VI result change? Is the posterior wider? Does VI or MCMC require more work?</span>
-<span id="cb7-389"><a href="#cb7-389" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-390"><a href="#cb7-390" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Initialize the variational mean at $\mu = 18{,}000$ (far from the true value). Does the optimizer still find the correct posterior?</span>
-<span id="cb7-391"><a href="#cb7-391" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-392"><a href="#cb7-392" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Replace the single Young's modulus with a composite beam using <span class="in">`CantileverBeam1DAnalytical`</span> (2 moduli: $E_1, E_2$). Use a diagonal Gaussian for VI. Compare the 2D marginal posteriors from VI and MCMC. Where do they agree? Where do they disagree? (Hint: look at the correlation between $E_1$ and $E_2$.)</span>
-<span id="cb7-393"><a href="#cb7-393" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-394"><a href="#cb7-394" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-395"><a href="#cb7-395" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb7-396"><a href="#cb7-396" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-397"><a href="#cb7-397" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb7-398"><a href="#cb7-398" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-399"><a href="#cb7-399" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">What Variational Inference Optimizes</span><span class="co">](vi_objective.qmd)</span> --- The KL divergence, the evidence problem, and the ELBO</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Approximating the Posterior: Introduction to Variational Inference"</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Turning Bayesian inference into an optimization problem by fitting a simple distribution to the posterior."</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> beginner</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 60</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian_inference_intro</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - beam</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian-inference</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - variational-inference</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/vi_intro.ipynb)</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain the idea behind variational inference: approximate the posterior by finding the closest simple distribution</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Visualize how VI searches over candidate distributions to find the best fit</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Run VI on a 1D problem and verify it recovers the exact posterior</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare VI and MCMC results on the same problem</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Recognize when a simple variational family is insufficient</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">From Data to Parameters: Introduction to Bayesian Inference</span><span class="co">](bayesian_inference_intro.qmd)</span> before this tutorial.</span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## A Different Strategy</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span> computed the posterior exactly on a grid. The <span class="co">[</span><span class="ot">MCMC tutorials</span><span class="co">](mcmc_sampling.qmd)</span> generated samples from the posterior via a random walk. Both approaches answer the same question --- what is the posterior? --- but in different ways.</span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>Variational inference (VI) takes a third approach. Instead of evaluating the posterior everywhere (grid) or wandering through it (MCMC), we **pick a simple family of distributions** --- say, all possible Gaussians --- and find the one that best matches the true posterior. @fig-two-strategies contrasts this with MCMC.</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve."</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-strategies</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_two_strategies</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>plot_two_strategies(ax1, ax2)</span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>The idea is simple: if we can parameterize a family of distributions (e.g., all Gaussians are parameterized by their mean $\mu$ and standard deviation $\sigma$), then finding the best approximation is an **optimization problem** --- search over $(\mu, \sigma)$ to minimize the mismatch with the true posterior. This is the core insight of variational inference.</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup: The Beam Problem</span></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>We return to the cantilever beam from the <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span>: tip deflection under a linearly increasing load with an uncertain Young's modulus $E$. The analytical formula is:</span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>\delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}</span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>We place a Gaussian prior on $E$ and observe tip deflection with Gaussian noise.</span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> _grid_integrate, _beam_exact_posterior</span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a><span class="co"># Beam parameters (matching Bayesian inference tutorial)</span></span>
+<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a>L, H, q0 <span class="op">=</span> <span class="fl">100.0</span>, <span class="fl">30.0</span>, <span class="fl">10.0</span></span>
+<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a>beam_model <span class="op">=</span> HomogeneousBeam1DAnalytical(</span>
+<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>    length<span class="op">=</span>L, height<span class="op">=</span>H, q0<span class="op">=</span>q0, bkd<span class="op">=</span>bkd,</span>
+<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior on Young's modulus</span></span>
+<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
+<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a>mu_prior <span class="op">=</span> <span class="dv">12_000</span></span>
+<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a>sigma_prior <span class="op">=</span> <span class="dv">2_000</span></span>
+<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> GaussianMarginal(mean<span class="op">=</span>mu_prior, stdev<span class="op">=</span>sigma_prior, bkd<span class="op">=</span>bkd)</span>
+<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a><span class="co"># Wrap beam model to output only tip deflection (1 QoI out of 3)</span></span>
+<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a>tip_model <span class="op">=</span> FunctionFromCallable(</span>
+<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> E: beam_model(E)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
+<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
+<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a><span class="co"># Standardized model: work in z = (E - mu_prior) / sigma_prior so the</span></span>
+<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a><span class="co"># prior becomes N(0, 1) and all variational parameters are order-1.</span></span>
+<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a>std_tip_model <span class="op">=</span> FunctionFromCallable(</span>
+<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> z: tip_model(mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z),</span>
+<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
+<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a><span class="co"># True parameter and synthetic observation</span></span>
+<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a>E_true <span class="op">=</span> <span class="dv">10_000</span></span>
+<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a>delta_true <span class="op">=</span> <span class="bu">float</span>(tip_model(bkd.asarray([[E_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a>sigma_noise <span class="op">=</span> <span class="fl">0.4</span></span>
+<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.asarray([sigma_noise<span class="op">**</span><span class="dv">2</span>])</span>
+<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a>noise_likelihood <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
+<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a>model_likelihood <span class="op">=</span> ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)</span>
+<span id="cb4-146"><a href="#cb4-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-147"><a href="#cb4-147" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb4-148"><a href="#cb4-148" aria-hidden="true" tabindex="-1"></a>y_obs <span class="op">=</span> <span class="bu">float</span>(model_likelihood.rvs(bkd.asarray([[E_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-149"><a href="#cb4-149" aria-hidden="true" tabindex="-1"></a>noise_likelihood.set_observations(bkd.asarray([[y_obs]]))</span>
+<span id="cb4-150"><a href="#cb4-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-151"><a href="#cb4-151" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True E:         </span><span class="sc">{</span>E_true<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-152"><a href="#cb4-152" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed y:     </span><span class="sc">{</span>y_obs<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb4-153"><a href="#cb4-153" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std:      </span><span class="sc">{</span>sigma_noise<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-154"><a href="#cb4-154" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-155"><a href="#cb4-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-156"><a href="#cb4-156" aria-hidden="true" tabindex="-1"></a>We also compute the exact posterior on a grid (as in the <span class="co">[</span><span class="ot">Bayesian inference tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span>) so we can check our work.</span>
+<span id="cb4-157"><a href="#cb4-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-160"><a href="#cb4-160" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-161"><a href="#cb4-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-162"><a href="#cb4-162" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact posterior on a grid via Gauss-Hermite quadrature</span></span>
+<span id="cb4-163"><a href="#cb4-163" aria-hidden="true" tabindex="-1"></a>exact_mean, exact_std, E_grid, post_exact <span class="op">=</span> _beam_exact_posterior(</span>
+<span id="cb4-164"><a href="#cb4-164" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, mu_prior, sigma_prior, y_obs, sigma_noise,</span>
+<span id="cb4-165"><a href="#cb4-165" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-166"><a href="#cb4-166" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-167"><a href="#cb4-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-168"><a href="#cb4-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-169"><a href="#cb4-169" aria-hidden="true" tabindex="-1"></a><span class="fu">## Some Gaussians Fit Better Than Others</span></span>
+<span id="cb4-170"><a href="#cb4-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-171"><a href="#cb4-171" aria-hidden="true" tabindex="-1"></a>The posterior is a curve. A Gaussian is also a curve, controlled by two knobs: the mean $\mu$ (where it is centered) and the standard deviation $\sigma$ (how wide it is). Different settings of $(\mu, \sigma)$ give different approximations, and some are clearly better than others.</span>
+<span id="cb4-172"><a href="#cb4-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-173"><a href="#cb4-173" aria-hidden="true" tabindex="-1"></a>@fig-candidate-gallery shows five candidate Gaussians overlaid on the exact posterior. The worst candidates are centered in the wrong place or have the wrong width. The best one --- the one VI would find --- closely tracks the true posterior.</span>
+<span id="cb4-174"><a href="#cb4-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-177"><a href="#cb4-177" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-178"><a href="#cb4-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-179"><a href="#cb4-179" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically."</span></span>
+<span id="cb4-180"><a href="#cb4-180" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-candidate-gallery</span></span>
+<span id="cb4-181"><a href="#cb4-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_candidate_gallery</span>
+<span id="cb4-182"><a href="#cb4-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-183"><a href="#cb4-183" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb4-184"><a href="#cb4-184" aria-hidden="true" tabindex="-1"></a>plot_candidate_gallery(E_grid, post_exact, exact_mean, exact_std, E_true, ax)</span>
+<span id="cb4-185"><a href="#cb4-185" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-186"><a href="#cb4-186" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-187"><a href="#cb4-187" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-188"><a href="#cb4-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-189"><a href="#cb4-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-190"><a href="#cb4-190" aria-hidden="true" tabindex="-1"></a><span class="fu">## Watching VI Search</span></span>
+<span id="cb4-191"><a href="#cb4-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-192"><a href="#cb4-192" aria-hidden="true" tabindex="-1"></a>VI does not try every possible Gaussian. It starts from an initial guess and iteratively improves, adjusting $\mu$ and $\sigma$ to better match the posterior at each step. @fig-optimization-snapshots shows four snapshots of this process: the Gaussian approximation starts as the prior ($\mu = 12{,}000, \sigma = 2{,}000$) and converges to the posterior in just a few optimizer steps.</span>
+<span id="cb4-193"><a href="#cb4-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-196"><a href="#cb4-196" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-197"><a href="#cb4-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-198"><a href="#cb4-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged."</span></span>
+<span id="cb4-199"><a href="#cb4-199" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-optimization-snapshots</span></span>
+<span id="cb4-200"><a href="#cb4-200" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb4-201"><a href="#cb4-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_optimization_snapshots, _make_degree0_expansion</span>
+<span id="cb4-202"><a href="#cb4-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-203"><a href="#cb4-203" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="dv">16</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb4-204"><a href="#cb4-204" aria-hidden="true" tabindex="-1"></a>plot_optimization_snapshots(</span>
+<span id="cb4-205"><a href="#cb4-205" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, std_tip_model, noise_variances, y_obs,</span>
+<span id="cb4-206"><a href="#cb4-206" aria-hidden="true" tabindex="-1"></a>    mu_prior, sigma_prior, E_grid, post_exact, axes,</span>
+<span id="cb4-207"><a href="#cb4-207" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-208"><a href="#cb4-208" aria-hidden="true" tabindex="-1"></a>fig.legend([<span class="st">"Exact posterior"</span>, <span class="st">""</span>, <span class="st">"VI approximation"</span>],</span>
+<span id="cb4-209"><a href="#cb4-209" aria-hidden="true" tabindex="-1"></a>           fontsize<span class="op">=</span><span class="dv">9</span>, loc<span class="op">=</span><span class="st">"upper center"</span>, ncol<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb4-210"><a href="#cb4-210" aria-hidden="true" tabindex="-1"></a>           bbox_to_anchor<span class="op">=</span>(<span class="fl">0.5</span>, <span class="fl">1.07</span>))</span>
+<span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-215"><a href="#cb4-215" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a><span class="fu">## Running VI on the Beam</span></span>
+<span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-218"><a href="#cb4-218" aria-hidden="true" tabindex="-1"></a>The code to run VI in PyApprox has three steps:</span>
+<span id="cb4-219"><a href="#cb4-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-220"><a href="#cb4-220" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Define the variational distribution**: a Gaussian whose mean and standard deviation are tunable parameters.</span>
+<span id="cb4-221"><a href="#cb4-221" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Build the objective**: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.</span>
+<span id="cb4-222"><a href="#cb4-222" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Optimize**: adjust the parameters to improve the fit.</span>
+<span id="cb4-223"><a href="#cb4-223" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-226"><a href="#cb4-226" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-227"><a href="#cb4-227" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
+<span id="cb4-228"><a href="#cb4-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
+<span id="cb4-229"><a href="#cb4-229" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
+<span id="cb4-230"><a href="#cb4-230" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood.gaussian <span class="im">import</span> (</span>
+<span id="cb4-231"><a href="#cb4-231" aria-hidden="true" tabindex="-1"></a>    MultiExperimentLogLikelihood,</span>
+<span id="cb4-232"><a href="#cb4-232" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-233"><a href="#cb4-233" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.elbo <span class="im">import</span> make_single_problem_elbo</span>
+<span id="cb4-234"><a href="#cb4-234" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.variational.fitter <span class="im">import</span> VariationalFitter</span>
+<span id="cb4-235"><a href="#cb4-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-236"><a href="#cb4-236" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: Variational distribution q(z) = N(mu_z, sigma_z^2)</span></span>
+<span id="cb4-237"><a href="#cb4-237" aria-hidden="true" tabindex="-1"></a><span class="co"># We work in standardized space z = (E - mu_prior) / sigma_prior</span></span>
+<span id="cb4-238"><a href="#cb4-238" aria-hidden="true" tabindex="-1"></a><span class="co"># so the prior is N(0, 1) and all parameters are order-1.</span></span>
+<span id="cb4-239"><a href="#cb4-239" aria-hidden="true" tabindex="-1"></a>mean_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)      <span class="co"># mu_z starts at 0</span></span>
+<span id="cb4-240"><a href="#cb4-240" aria-hidden="true" tabindex="-1"></a>log_stdev_func <span class="op">=</span> _make_degree0_expansion(bkd, coeff<span class="op">=</span><span class="fl">0.0</span>)  <span class="co"># log(sigma_z)=0 -&gt; sigma_z=1</span></span>
+<span id="cb4-241"><a href="#cb4-241" aria-hidden="true" tabindex="-1"></a>cond_gaussian <span class="op">=</span> ConditionalGaussian(mean_func, log_stdev_func, bkd)</span>
+<span id="cb4-242"><a href="#cb4-242" aria-hidden="true" tabindex="-1"></a>var_dist <span class="op">=</span> ConditionalIndependentJoint([cond_gaussian], bkd)</span>
+<span id="cb4-243"><a href="#cb4-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-244"><a href="#cb4-244" aria-hidden="true" tabindex="-1"></a><span class="co"># Prior in standardized space</span></span>
+<span id="cb4-245"><a href="#cb4-245" aria-hidden="true" tabindex="-1"></a>vi_prior <span class="op">=</span> IndependentJoint([GaussianMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)], bkd)</span>
+<span id="cb4-246"><a href="#cb4-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-247"><a href="#cb4-247" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: Build the objective</span></span>
+<span id="cb4-248"><a href="#cb4-248" aria-hidden="true" tabindex="-1"></a>base_lik <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
+<span id="cb4-249"><a href="#cb4-249" aria-hidden="true" tabindex="-1"></a>multi_lik <span class="op">=</span> MultiExperimentLogLikelihood(</span>
+<span id="cb4-250"><a href="#cb4-250" aria-hidden="true" tabindex="-1"></a>    base_lik, bkd.asarray([[y_obs]]), bkd,</span>
+<span id="cb4-251"><a href="#cb4-251" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-252"><a href="#cb4-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-253"><a href="#cb4-253" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_likelihood_fn(z):</span>
+<span id="cb4-254"><a href="#cb4-254" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Log-likelihood: how well does z explain the observation?"""</span></span>
+<span id="cb4-255"><a href="#cb4-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> multi_lik.logpdf(std_tip_model(z))</span>
+<span id="cb4-256"><a href="#cb4-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-257"><a href="#cb4-257" aria-hidden="true" tabindex="-1"></a><span class="co"># Base samples: random draws used to approximate expectations</span></span>
+<span id="cb4-258"><a href="#cb4-258" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb4-259"><a href="#cb4-259" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb4-260"><a href="#cb4-260" aria-hidden="true" tabindex="-1"></a>base_samples <span class="op">=</span> bkd.asarray(np.random.normal(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">1</span>, nsamples)))</span>
+<span id="cb4-261"><a href="#cb4-261" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.full((<span class="dv">1</span>, nsamples), <span class="fl">1.0</span> <span class="op">/</span> nsamples)</span>
+<span id="cb4-262"><a href="#cb4-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-263"><a href="#cb4-263" aria-hidden="true" tabindex="-1"></a>elbo <span class="op">=</span> make_single_problem_elbo(</span>
+<span id="cb4-264"><a href="#cb4-264" aria-hidden="true" tabindex="-1"></a>    var_dist, log_likelihood_fn, vi_prior,</span>
+<span id="cb4-265"><a href="#cb4-265" aria-hidden="true" tabindex="-1"></a>    base_samples, weights, bkd,</span>
+<span id="cb4-266"><a href="#cb4-266" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-267"><a href="#cb4-267" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-268"><a href="#cb4-268" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Variational parameters to optimize: </span><span class="sc">{</span>elbo<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-269"><a href="#cb4-269" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-270"><a href="#cb4-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-273"><a href="#cb4-273" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-274"><a href="#cb4-274" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
+<span id="cb4-275"><a href="#cb4-275" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
+<span id="cb4-276"><a href="#cb4-276" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
+<span id="cb4-277"><a href="#cb4-277" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-278"><a href="#cb4-278" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract fitted parameters and transform back to physical E space</span></span>
+<span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a>dummy_x <span class="op">=</span> bkd.zeros((cond_gaussian.nvars(), <span class="dv">1</span>))</span>
+<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a>z_mean <span class="op">=</span> <span class="bu">float</span>(cond_gaussian._mean_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a>z_stdev <span class="op">=</span> math.exp(<span class="bu">float</span>(cond_gaussian._log_stdev_func(dummy_x)[<span class="dv">0</span>, <span class="dv">0</span>]))</span>
+<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a>vi_mean <span class="op">=</span> mu_prior <span class="op">+</span> sigma_prior <span class="op">*</span> z_mean</span>
+<span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a>vi_stdev <span class="op">=</span> sigma_prior <span class="op">*</span> z_stdev</span>
+<span id="cb4-284"><a href="#cb4-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-285"><a href="#cb4-285" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"VI result:       N(</span><span class="sc">{</span>vi_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>vi_stdev<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
+<span id="cb4-286"><a href="#cb4-286" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Exact posterior: N(</span><span class="sc">{</span>exact_mean<span class="sc">:.0f}</span><span class="ss">, </span><span class="sc">{</span>exact_std<span class="sc">:.0f}</span><span class="ss">^2)"</span>)</span>
+<span id="cb4-287"><a href="#cb4-287" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span>
+<span id="cb4-288"><a href="#cb4-288" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-289"><a href="#cb4-289" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-290"><a href="#cb4-290" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb4-291"><a href="#cb4-291" aria-hidden="true" tabindex="-1"></a><span class="fu">## What is the optimizer actually minimizing?</span></span>
+<span id="cb4-292"><a href="#cb4-292" aria-hidden="true" tabindex="-1"></a>The objective function (called the **ELBO**) measures how well the variational distribution balances two goals: explaining the data and staying close to the prior. The <span class="co">[</span><span class="ot">next tutorial</span><span class="co">](vi_objective.qmd)</span> derives this objective in detail. For now, the important thing is that minimizing it finds the best Gaussian fit to the posterior.</span>
+<span id="cb4-293"><a href="#cb4-293" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-294"><a href="#cb4-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-295"><a href="#cb4-295" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-296"><a href="#cb4-296" aria-hidden="true" tabindex="-1"></a><span class="fu">## VI Recovers the Posterior</span></span>
+<span id="cb4-297"><a href="#cb4-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-298"><a href="#cb4-298" aria-hidden="true" tabindex="-1"></a>@fig-vi-result overlays the VI approximation on the exact grid posterior. Because the true posterior is nearly Gaussian in this problem, the fit is excellent. It is not *exactly* Gaussian, however: the beam model $\delta_{\text{tip}} \propto 1/E$ is nonlinear, so the posterior inherits a slight skew (as the <span class="co">[</span><span class="ot">forward UQ tutorial</span><span class="co">](forward_uq.qmd)</span> demonstrated for the push-forward distribution). The Gaussian VI approximation captures the mean and width accurately but cannot represent this asymmetry --- a fundamental limitation of the variational family, not the optimizer.</span>
+<span id="cb4-299"><a href="#cb4-299" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-302"><a href="#cb4-302" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-303"><a href="#cb4-303" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-304"><a href="#cb4-304" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width."</span></span>
+<span id="cb4-305"><a href="#cb4-305" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-result</span></span>
+<span id="cb4-306"><a href="#cb4-306" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_result</span>
+<span id="cb4-307"><a href="#cb4-307" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-308"><a href="#cb4-308" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
+<span id="cb4-309"><a href="#cb4-309" aria-hidden="true" tabindex="-1"></a>plot_vi_result(E_grid, post_exact, vi_mean, vi_stdev, E_true, ax)</span>
+<span id="cb4-310"><a href="#cb4-310" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-311"><a href="#cb4-311" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-312"><a href="#cb4-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-313"><a href="#cb4-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-314"><a href="#cb4-314" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-315"><a href="#cb4-315" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing VI and MCMC</span></span>
+<span id="cb4-316"><a href="#cb4-316" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-317"><a href="#cb4-317" aria-hidden="true" tabindex="-1"></a>Both MCMC and VI should produce the same answer on this problem. @fig-vi-vs-mcmc puts all three representations on the same axes: the exact grid posterior, the MCMC histogram, and the VI curve. They agree --- confirming that VI is working correctly.</span>
+<span id="cb4-318"><a href="#cb4-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-321"><a href="#cb4-321" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-322"><a href="#cb4-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-323"><a href="#cb4-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve."</span></span>
+<span id="cb4-324"><a href="#cb4-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-vs-mcmc</span></span>
+<span id="cb4-325"><a href="#cb4-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_vs_mcmc</span>
+<span id="cb4-326"><a href="#cb4-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-327"><a href="#cb4-327" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
+<span id="cb4-328"><a href="#cb4-328" aria-hidden="true" tabindex="-1"></a>plot_vi_vs_mcmc(</span>
+<span id="cb4-329"><a href="#cb4-329" aria-hidden="true" tabindex="-1"></a>    bkd, tip_model, noise_likelihood, prior,</span>
+<span id="cb4-330"><a href="#cb4-330" aria-hidden="true" tabindex="-1"></a>    E_grid, post_exact, vi_mean, vi_stdev, E_true, mu_prior, ax,</span>
+<span id="cb4-331"><a href="#cb4-331" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-332"><a href="#cb4-332" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-333"><a href="#cb4-333" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-334"><a href="#cb4-334" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-335"><a href="#cb4-335" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-336"><a href="#cb4-336" aria-hidden="true" tabindex="-1"></a>The two methods produce consistent results, but notice the difference in what they return. MCMC gives a collection of samples --- useful for computing any summary statistic, but noisy. VI gives a smooth, parametric density --- easy to evaluate, store, and differentiate, but limited to the shapes the chosen family can represent.</span>
+<span id="cb4-337"><a href="#cb4-337" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-338"><a href="#cb4-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-339"><a href="#cb4-339" aria-hidden="true" tabindex="-1"></a><span class="fu">## When VI Struggles</span></span>
+<span id="cb4-340"><a href="#cb4-340" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-341"><a href="#cb4-341" aria-hidden="true" tabindex="-1"></a>A Gaussian can approximate any unimodal, roughly symmetric posterior. But what if the posterior has two well-separated modes? @fig-bimodal shows a bimodal posterior: the best Gaussian has to compromise, placing mass in the gap between the modes where the true posterior has almost no density.</span>
+<span id="cb4-342"><a href="#cb4-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-345"><a href="#cb4-345" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb4-346"><a href="#cb4-346" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb4-347"><a href="#cb4-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory."</span></span>
+<span id="cb4-348"><a href="#cb4-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bimodal</span></span>
+<span id="cb4-349"><a href="#cb4-349" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_bimodal</span>
+<span id="cb4-350"><a href="#cb4-350" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-351"><a href="#cb4-351" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
+<span id="cb4-352"><a href="#cb4-352" aria-hidden="true" tabindex="-1"></a>plot_bimodal(ax1, ax2)</span>
+<span id="cb4-353"><a href="#cb4-353" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb4-354"><a href="#cb4-354" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-355"><a href="#cb4-355" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-356"><a href="#cb4-356" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-357"><a href="#cb4-357" aria-hidden="true" tabindex="-1"></a>Neither option is satisfactory. Option A places mass between the modes. Option B captures one mode but ignores the other entirely. In practice, VI with a unimodal Gaussian tends toward Option B --- it locks onto a single mode. This is not a failure of the optimizer; it is a fundamental limitation of the variational family. MCMC, by contrast, can explore both modes given enough time.</span>
+<span id="cb4-358"><a href="#cb4-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-359"><a href="#cb4-359" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
+<span id="cb4-360"><a href="#cb4-360" aria-hidden="true" tabindex="-1"></a><span class="fu">## When does this matter in practice?</span></span>
+<span id="cb4-361"><a href="#cb4-361" aria-hidden="true" tabindex="-1"></a>Many engineering posteriors (including the beam problems in this tutorial series) are unimodal and approximately Gaussian, so this limitation rarely bites. Multimodality tends to arise with discrete model choices, symmetry-breaking, or wildly non-informative priors. If you suspect multimodality, MCMC is the safer choice.</span>
+<span id="cb4-362"><a href="#cb4-362" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb4-363"><a href="#cb4-363" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-364"><a href="#cb4-364" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-365"><a href="#cb4-365" aria-hidden="true" tabindex="-1"></a><span class="fu">## What We Defer</span></span>
+<span id="cb4-366"><a href="#cb4-366" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-367"><a href="#cb4-367" aria-hidden="true" tabindex="-1"></a>This tutorial showed **what** VI does --- find the best simple distribution --- but not **how** the optimizer measures "best" or computes gradients. The subsequent tutorials fill in the details:</span>
+<span id="cb4-368"><a href="#cb4-368" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-369"><a href="#cb4-369" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">What Variational Inference Optimizes</span><span class="co">](vi_objective.qmd)</span> derives the KL divergence and the ELBO --- the objective function that VI minimizes.</span>
+<span id="cb4-370"><a href="#cb4-370" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Optimizing the ELBO</span><span class="co">](vi_optimization.qmd)</span> introduces the reparameterization trick that makes gradient-based optimization possible.</span>
+<span id="cb4-371"><a href="#cb4-371" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Choosing the Variational Family</span><span class="co">](vi_families.qmd)</span> addresses the limitations we saw: families that capture correlations, handle bounded parameters, and scale to higher dimensions.</span>
+<span id="cb4-372"><a href="#cb4-372" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Amortized Variational Inference</span><span class="co">](vi_amortized.qmd)</span> shows how to learn a single model that maps any dataset to its approximate posterior.</span>
+<span id="cb4-373"><a href="#cb4-373" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-374"><a href="#cb4-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-375"><a href="#cb4-375" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb4-376"><a href="#cb4-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-377"><a href="#cb4-377" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Variational inference** approximates the posterior by searching over a family of simple distributions and finding the closest one</span>
+<span id="cb4-378"><a href="#cb4-378" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The search is an **optimization problem**: adjust the distribution's parameters to improve the fit</span>
+<span id="cb4-379"><a href="#cb4-379" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For **unimodal, near-Gaussian** posteriors (like the beam problem), a Gaussian VI approximation recovers the posterior accurately</span>
+<span id="cb4-380"><a href="#cb4-380" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>VI gives an **analytical density** (easy to evaluate and store), while MCMC gives **samples** (more flexible but noisier)</span>
+<span id="cb4-381"><a href="#cb4-381" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A unimodal variational family **cannot represent multimodal posteriors** --- this is the main limitation of standard VI</span>
+<span id="cb4-382"><a href="#cb4-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-383"><a href="#cb4-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-384"><a href="#cb4-384" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb4-385"><a href="#cb4-385" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-386"><a href="#cb4-386" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Change the true parameter to $E_{\text{true}} = 8{,}000$ (further from the prior mean). Does VI still recover the posterior? Compare to the grid posterior.</span>
+<span id="cb4-387"><a href="#cb4-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-388"><a href="#cb4-388" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Increase the noise standard deviation to $\sigma_{\text{noise}} = 2.0$ (5x larger). How does the VI result change? Is the posterior wider? Does VI or MCMC require more work?</span>
+<span id="cb4-389"><a href="#cb4-389" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-390"><a href="#cb4-390" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Initialize the variational mean at $\mu = 18{,}000$ (far from the true value). Does the optimizer still find the correct posterior?</span>
+<span id="cb4-391"><a href="#cb4-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-392"><a href="#cb4-392" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Replace the single Young's modulus with a composite beam using <span class="in">`CantileverBeam1DAnalytical`</span> (2 moduli: $E_1, E_2$). Use a diagonal Gaussian for VI. Compare the 2D marginal posteriors from VI and MCMC. Where do they agree? Where do they disagree? (Hint: look at the correlation between $E_1$ and $E_2$.)</span>
+<span id="cb4-393"><a href="#cb4-393" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-394"><a href="#cb4-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-395"><a href="#cb4-395" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb4-396"><a href="#cb4-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-397"><a href="#cb4-397" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb4-398"><a href="#cb4-398" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-399"><a href="#cb4-399" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">What Variational Inference Optimizes</span><span class="co">](vi_objective.qmd)</span> --- The KL divergence, the evidence problem, and the ELBO</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

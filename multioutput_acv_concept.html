@@ -220,10 +220,7 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Output Approximate Control Variates – PyApprox">
 <meta property="og:description" content="Why estimating several quantities of interest jointly with multi-fidelity corrections improves each individual estimate — the key non-obvious insight of multi-output ACV.">
-<meta property="og:image" content="https://sandialabs.github.io/pyapprox/multioutput_acv_concept_files/figure-html/fig-moacv-soacv-output-1.png">
 <meta property="og:site_name" content="PyApprox">
-<meta property="og:image:height" content="834">
-<meta property="og:image:width" content="1515">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1129,21 +1126,7 @@ window.Quarto = {
 </section>
 <section id="moacv-vs-soacv-the-key-figure" class="level2">
 <h2 class="anchored" data-anchor-id="moacv-vs-soacv-the-key-figure">MOACV vs SOACV: The Key Figure</h2>
-<p><a href="#fig-moacv-soacv" class="quarto-xref">Figure&nbsp;1</a> shows the estimator variance for QoI 0 under MOACV, SOACV, and plain MC across a range of target costs, using the three-model two-QoI benchmark. SOACV runs a separate scalar ACV for QoI 0, ignoring the information in QoI 1. MOACV estimates both QoIs jointly and is uniformly better for QoI 0.</p>
-<div id="cell-fig-moacv-soacv" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-moacv-soacv" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-moacv-soacv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="multioutput_acv_concept_files/figure-html/fig-moacv-soacv-output-1.png" width="758" height="417" class="figure-img">
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-moacv-soacv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Estimator variance for QoI 0 vs target cost, comparing MOACV (joint estimation of both QoIs), SOACV (independent scalar ACV for each QoI), and plain MC. All three decay with increasing budget; MOACV is uniformly lowest because the QoI 1 corrections carry additional signal for QoI 0.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p><strong>?@fig-moacv-soacv</strong> shows the estimator variance for QoI 0 under MOACV, SOACV, and plain MC across a range of target costs, using the three-model two-QoI benchmark. SOACV runs a separate scalar ACV for QoI 0, ignoring the information in QoI 1. MOACV estimates both QoIs jointly and is uniformly better for QoI 0.</p>
 <p>The MOACV curve is uniformly below the SOACV curve. At any budget, estimating QoI 0 alongside QoI 1 is strictly better for QoI 0 than estimating QoI 0 alone.</p>
 </section>
 <section id="when-does-moacv-win-most" class="level2">
@@ -1196,7 +1179,7 @@ Figure&nbsp;1: Estimator variance for QoI 0 vs target cost, comparing MOACV (joi
 <ol type="1">
 <li><p>Suppose you have two perfectly correlated QoIs: <span class="math inline">\(f_{0,2} = f_{0,1}\)</span> and <span class="math inline">\(f_{1,2} = f_{1,1}\)</span>. Does MOACV give any gain over SOACV? Explain using the cross-QoI covariance structure.</p></li>
 <li><p>Suppose the two QoIs are perfectly <strong>anti-correlated</strong>: <span class="math inline">\(f_{0,2} = -f_{0,1}\)</span> and similarly for <span class="math inline">\(f_1\)</span>. Does MOACV gain over SOACV? Sketch the structure of <span class="math inline">\(\mathbf{H}^*\)</span>.</p></li>
-<li><p>From <a href="#fig-moacv-soacv" class="quarto-xref">Figure&nbsp;1</a>, estimate the percentage improvement in QoI 0 variance at cost <span class="math inline">\(P = 100\)</span>. Does the relative improvement grow or shrink as budget increases?</p></li>
+<li><p>From <strong>?@fig-moacv-soacv</strong>, estimate the percentage improvement in QoI 0 variance at cost <span class="math inline">\(P = 100\)</span>. Does the relative improvement grow or shrink as budget increases?</p></li>
 </ol>
 </section>
 <section id="next-steps" class="level2">
