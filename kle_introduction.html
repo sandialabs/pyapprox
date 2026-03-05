@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="KLE I: Random Fields and the Karhunen-Loève Expansion – PyApprox">
 <meta property="og:description" content="Understand random fields, their covariance structure, and how the KLE decomposes them into deterministic spatial modes.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/kle_introduction_files/figure-html/fig-cov-matrices-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="665">
+<meta property="og:image:width" content="2022">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1103,7 +1106,7 @@ window.Quarto = {
 <li>Assess truncation error using eigenvalue decay and pointwise variance</li>
 </ul>
 <p>A <strong>random field</strong> assigns a random variable to every point in space. The Karhunen-Loeve Expansion (KLE) decomposes it into deterministic spatial modes weighted by uncorrelated random scalars – a PCA for functions.</p>
-<div id="f41acbe1" class="cell">
+<div id="45c3ebc6" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1124,9 +1127,7 @@ window.Quarto = {
 <section id="the-covariance-kernel-controls-spatial-correlation" class="level2">
 <h2 class="anchored" data-anchor-id="the-covariance-kernel-controls-spatial-correlation">The covariance kernel controls spatial correlation</h2>
 <p>The covariance <span class="math inline">\(C(x, x') = \sigma^2 k(x, x')\)</span> determines how similar the field is at nearby points. The correlation length <span class="math inline">\(\ell\)</span> controls the spatial scale.</p>
-<div id="fig-cov-matrices" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-cov-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-cov-matrices" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_cov_matrices</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>kernel_factory <span class="op">=</span> <span class="kw">lambda</span> ell: ExponentialKernel(bkd.array([ell]), (<span class="fl">0.01</span>, <span class="fl">10.0</span>), <span class="dv">1</span>, bkd)</span>
@@ -1137,11 +1138,18 @@ window.Quarto = {
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">13</span>)</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-cov-matrices" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cov-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-cov-matrices-output-1.png" width="1011" height="333" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-cov-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cov-matrices-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Covariance matrix <span class="math inline">\(C(x,x')\)</span> of the exponential kernel for three correlation lengths. Larger <span class="math inline">\(\ell\)</span> concentrates the covariance along the diagonal over a wider band, encoding longer-range spatial dependence.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>Larger <span class="math inline">\(\ell\)</span> produces smoother fields with long-range dependence.</p>
 </section>
@@ -1151,9 +1159,7 @@ Figure&nbsp;1
 <p><span class="math display">\[\int_D C(x, x')\,\phi_k(x')\,dx' = \lambda_k\,\phi_k(x)\]</span></p>
 <p>gives eigenfunctions <span class="math inline">\(\phi_k\)</span> (deterministic shapes) and eigenvalues <span class="math inline">\(\lambda_k\)</span> (variance explained by each mode).</p>
 <p><code>MeshKLE</code> discretizes this integral using quadrature weights <span class="math inline">\(w_i\)</span> and solves the weighted eigenproblem <span class="math inline">\(W^{1/2}\,C\,W^{1/2}\,\hat\phi = \lambda\,\hat\phi\)</span>.</p>
-<div id="fig-eigenvalues-eigenfunctions" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-eigenvalues-eigenfunctions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-eigenvalues-eigenfunctions" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_eigenvalues_eigenfunctions</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Trapezoid quadrature weights</span></span>
@@ -1177,11 +1183,18 @@ Figure&nbsp;1
 <span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>plot_eigenvalues_eigenfunctions(x, lam, phi, nterms, axes[<span class="dv">0</span>], axes[<span class="dv">1</span>])</span>
 <span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-eigenvalues-eigenfunctions" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eigenvalues-eigenfunctions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-eigenvalues-eigenfunctions-output-1.png" width="1140" height="373" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-eigenvalues-eigenfunctions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eigenvalues-eigenfunctions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Left: eigenvalue decay showing the variance captured by each mode. Right: the first four eigenfunctions <span class="math inline">\(\phi_k(x)\)</span>, which are orthogonal spatial oscillations matched to the exponential covariance structure.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>Eigenvalues decay – the field’s energy concentrates in the first few modes. The eigenfunctions are orthogonal spatial oscillations (analogous to Fourier modes but matched to the covariance structure).</p>
 </section>
@@ -1190,9 +1203,7 @@ Figure&nbsp;2
 <p><span class="math display">\[f(x) = \mu(x) + \sum_{k=1}^{K} \sqrt{\lambda_k}\,\phi_k(x)\,z_k,
 \qquad z_k \sim \mathcal{N}(0,1)\]</span></p>
 <p>Each draw of <span class="math inline">\(z_1, \ldots, z_K\)</span> gives one realization of the random field. <code>MeshKLE.__call__</code> evaluates this expansion: pass a <code>(nterms, nsamples)</code> coefficient array and get back <code>(ncoords, nsamples)</code> field values.</p>
-<div id="fig-sample-paths" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sample-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-sample-paths" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_sample_paths</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>K_list <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>]</span>
@@ -1214,11 +1225,18 @@ Figure&nbsp;2
 <span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>             <span class="vs">r"</span><span class="kw">(</span><span class="dv">$</span><span class="er">\</span><span class="vs">ell=0</span><span class="dv">.</span><span class="vs">5</span><span class="dv">$</span><span class="vs">, same </span><span class="dv">$</span><span class="vs">z_k</span><span class="dv">$</span><span class="vs"> draws</span><span class="kw">)</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
 <span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-sample-paths" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sample-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-sample-paths-output-1.png" width="1333" height="362" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sample-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sample-paths-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Sample paths from the KLE using <span class="math inline">\(K = 1, 2, 4, 6\)</span> terms with the same random coefficients <span class="math inline">\(z_k\)</span>. More terms add finer spatial detail; by <span class="math inline">\(K = 6\)</span> essentially all variance is captured for <span class="math inline">\(\ell = 0.5\)</span>.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>More terms produce rougher, more detailed realizations. With <span class="math inline">\(K = 6\)</span> terms we have captured essentially all the variance for <span class="math inline">\(\ell = 0.5\)</span>.</p>
 </section>
@@ -1226,9 +1244,7 @@ Figure&nbsp;3
 <h2 class="anchored" data-anchor-id="truncation-error-how-many-terms-do-you-need">Truncation error: how many terms do you need?</h2>
 <p>The fraction of variance explained by <span class="math inline">\(K\)</span> terms is:</p>
 <p><span class="math display">\[\frac{\sum_{k=1}^K \lambda_k}{\sum_{k=1}^{\infty} \lambda_k}\]</span></p>
-<div id="fig-truncation-error" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-truncation-error" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_kle_truncation_error</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>nterms_full <span class="op">=</span> <span class="dv">100</span></span>
@@ -1251,19 +1267,24 @@ Figure&nbsp;3
 <span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-truncation-error" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-truncation-error-output-1.png" width="1143" height="373" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Left: cumulative variance explained as a function of the number of KLE terms <span class="math inline">\(K\)</span>, showing the thresholds at 90%, 95%, and 99%. Right: normalised eigenvalue decay for three correlation lengths on a log scale. Larger <span class="math inline">\(\ell\)</span> produces faster decay, meaning fewer terms are needed.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p><strong>Key insight</strong>: larger <span class="math inline">\(\ell\)</span> produces faster eigenvalue decay and fewer terms are needed. Smooth fields are cheap to represent; rough fields require many modes.</p>
 </section>
 <section id="pointwise-variance-how-much-does-truncation-miss" class="level2">
 <h2 class="anchored" data-anchor-id="pointwise-variance-how-much-does-truncation-miss">Pointwise variance: how much does truncation miss?</h2>
-<div id="fig-pointwise-variance" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pointwise-variance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-pointwise-variance" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_pointwise_variance</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>K_vals <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">6</span>, <span class="dv">20</span>]</span>
@@ -1286,20 +1307,25 @@ Figure&nbsp;4
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>plot_pointwise_variance(x, true_var, K_vals, approx_vars, axes[<span class="dv">0</span>], axes[<span class="dv">1</span>])</span>
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-pointwise-variance" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pointwise-variance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-pointwise-variance-output-1.png" width="1143" height="375" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-pointwise-variance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pointwise-variance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Left: pointwise variance recovered by the truncated KLE for <span class="math inline">\(K = 1, 3, 6, 20\)</span> terms compared with the exact diagonal of <span class="math inline">\(C\)</span>. Right: relative error in pointwise variance on a log scale. Boundary nodes converge more slowly – a systematic effect in all mesh-based KLE methods.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The boundary nodes recover more slowly – a systematic effect present in all mesh-based KLE methods (and worsened by boundary conditions in the SPDE approach).</p>
 </section>
 <section id="validation-against-the-analytical-solution" class="level2">
 <h2 class="anchored" data-anchor-id="validation-against-the-analytical-solution">Validation against the analytical solution</h2>
 <p>The exponential kernel on <span class="math inline">\([0, L]\)</span> has known eigenvalues and eigenfunctions. <code>AnalyticalExponentialKLE1D</code> computes these analytically, providing a ground truth to validate the numerical <code>MeshKLE</code> solution.</p>
-<div id="fig-analytical-validation" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-analytical-validation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-analytical-validation" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kle <span class="im">import</span> AnalyticalExponentialKLE1D</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._kle <span class="im">import</span> plot_analytical_validation</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1313,11 +1339,18 @@ Figure&nbsp;5
 <span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>plot_analytical_validation(lam, lam_exact, nterms, npts, axes[<span class="dv">0</span>], axes[<span class="dv">1</span>])</span>
 <span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-analytical-validation" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-analytical-validation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="kle_introduction_files/figure-html/fig-analytical-validation-output-1.png" width="1140" height="374" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-analytical-validation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;6
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-analytical-validation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Left: eigenvalues from the numerical <code>MeshKLE</code> (blue) vs the analytical solution (orange) for the exponential kernel on <span class="math inline">\([0, 2]\)</span>. Right: relative eigenvalue error on a log scale, showing the numerical discretisation error decreases with mesh refinement.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The numerical eigenvalues from <code>MeshKLE</code> agree with the analytical solution to high accuracy. The error is controlled by the quadrature resolution – more mesh points would reduce it further.</p>
 <hr>

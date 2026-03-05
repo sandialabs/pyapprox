@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials – PyApprox">
 <meta property="og:description" content="Construct Gauss quadrature from orthogonal polynomials, derive the error estimate, and demonstrate exponential convergence for smooth functions.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/gauss_quadrature_files/figure-html/fig-gauss-nodes-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="553">
+<meta property="og:image:width" content="1898">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1123,7 +1126,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="b75587e1" class="cell">
+<div id="79285834" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1170,7 +1173,7 @@ window.Quarto = {
 <section id="using-gaussquadraturerule" class="level2">
 <h2 class="anchored" data-anchor-id="using-gaussquadraturerule">Using <code>GaussQuadratureRule</code></h2>
 <p><code>GaussQuadratureRule</code> constructs the quadrature rule from any orthonormal polynomial family. Pass the polynomial object and call with the desired number of points.</p>
-<div id="fbe89dd0" class="cell">
+<div id="705c20e7" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create Legendre polynomial and Gauss quadrature rule</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>poly <span class="op">=</span> LegendrePolynomial1D(bkd)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>poly.set_nterms(<span class="dv">20</span>)  <span class="co"># Pre-allocate recurrence coefficients</span></span>
@@ -1180,23 +1183,28 @@ window.Quarto = {
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>nodes, weights <span class="op">=</span> gauss_rule(M)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-gauss-nodes" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-gauss-nodes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-gauss-nodes" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">3</span>))</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>plot_gauss_nodes(ax, gauss_rule, bkd)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-gauss-nodes" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gauss-nodes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="gauss_quadrature_files/figure-html/fig-gauss-nodes-output-1.png" width="949" height="277" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-gauss-nodes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gauss-nodes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Gauss-Legendre nodes for M = 3, 5, 9 points on [-1, 1]. Nodes cluster toward the boundary, which is critical for exponential convergence.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <section id="verifying-polynomial-exactness" class="level3">
 <h3 class="anchored" data-anchor-id="verifying-polynomial-exactness">Verifying Polynomial Exactness</h3>
 <p>An <span class="math inline">\(M\)</span>-point Gauss rule integrates all polynomials up to degree <span class="math inline">\(2M-1\)</span> exactly. PyApprox’s Legendre quadrature uses the <strong>probability measure</strong> <span class="math inline">\(w(x) = 1/2\)</span> on <span class="math inline">\([-1,1]\)</span>, so the weights sum to 1 and compute expectations <span class="math inline">\(\mathbb{E}[f]\)</span> rather than raw integrals <span class="math inline">\(\int f\,dx\)</span>.</p>
-<div id="d3fdd411" class="cell">
+<div id="e5b5a8f6" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>nodes, weights <span class="op">=</span> gauss_rule(M)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1276,9 +1284,7 @@ E_M[f] = \frac{f^{(2M)}(\xi)}{(2M)!}\, \|p_M\|_w^2,
 <section id="gauss-vs.-composite-exponential-convergence-in-practice" class="level2">
 <h2 class="anchored" data-anchor-id="gauss-vs.-composite-exponential-convergence-in-practice">Gauss vs.&nbsp;Composite: Exponential Convergence in Practice</h2>
 <p>For functions with bounded derivatives of all orders (analytic functions), Gauss quadrature converges <strong>exponentially</strong>: the error decays roughly as <span class="math inline">\(e^{-cM}\)</span> for some constant <span class="math inline">\(c &gt; 0\)</span> that depends on the function’s complex singularity structure. Composite rules are always limited to <strong>algebraic</strong> convergence regardless of function smoothness.</p>
-<div id="fig-convergence-comparison" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-convergence-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-convergence-comparison" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_analytic(x):</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Analytic function: large but finite bandwidth."""</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="fl">16.0</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span>)</span>
@@ -1325,11 +1331,18 @@ E_M[f] = \frac{f^{(2M)}(\xi)}{(2M)!}\, \|p_M\|_w^2,
 <span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-convergence-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="gauss_quadrature_files/figure-html/fig-convergence-comparison-output-1.png" width="1238" height="468" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-convergence-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence of Gauss-Legendre vs.&nbsp;piecewise linear (trapezoid) quadrature on an analytic function (left) and a rough function (right). Gauss dominates for smooth functions; for rough functions both methods converge algebraically.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>For <span class="math inline">\(1/(1+16x^2)\)</span>, the Gauss error steadily decreases from <span class="math inline">\(\sim 10^{-1}\)</span> at <span class="math inline">\(M = 3\)</span> to <span class="math inline">\(\sim 10^{-8}\)</span> at <span class="math inline">\(M = 35\)</span> — a clear exponential trend on the semi-log plot, though the rate is modest (<span class="math inline">\(\rho \approx 1.28\)</span>) because the poles at <span class="math inline">\(\pm i/4\)</span> sit close to <span class="math inline">\([-1,1]\)</span>. The trapezoid rule, limited to algebraic <span class="math inline">\(O(M^{-2})\)</span> convergence, stalls around <span class="math inline">\(10^{-4}\)</span> over the same range. For the rough function both methods converge algebraically, confirming that exponential Gauss convergence depends on function smoothness.</p>
 <div class="callout callout-style-default callout-note callout-titled">
@@ -1355,9 +1368,7 @@ Figure&nbsp;2
 \]</span></p>
 <p>where <span class="math inline">\(p(\theta)\)</span> is a probability density function (PDF). Rewriting this as a standard Legendre integral requires a change of variables; a cleaner approach is to directly use a <strong>Gauss rule matched to <span class="math inline">\(p\)</span></strong>.</p>
 <p>For <span class="math inline">\(\theta \sim \mathcal{N}(0, 1)\)</span>, the natural weight is the standard Gaussian <span class="math inline">\(w(\theta) = e^{-\theta^2/2}/\sqrt{2\pi}\)</span>, and the corresponding orthogonal polynomials are the <strong>Hermite polynomials</strong>. The resulting <strong>Gauss-Hermite</strong> rule integrates <span class="math inline">\(f(\theta) p(\theta)\)</span> exactly for polynomials <span class="math inline">\(f\)</span> up to degree <span class="math inline">\(2M-1\)</span>.</p>
-<div id="fig-gauss-hermite" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-gauss-hermite-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-gauss-hermite" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Gauss-Hermite rule via HermitePolynomial1D</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>hermite_poly <span class="op">=</span> HermitePolynomial1D(bkd)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>hermite_poly.set_nterms(<span class="dv">30</span>)</span>
@@ -1385,31 +1396,43 @@ Figure&nbsp;2
 <span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>plot_gauss_hermite(ax, Ms, gh_errors)</span>
 <span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-gauss-hermite" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gauss-hermite-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="gauss_quadrature_files/figure-html/fig-gauss-hermite-output-1.png" width="756" height="466" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-gauss-hermite-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gauss-hermite-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Gauss-Hermite convergence for a smooth QoI with a standard normal input. The error drops to machine precision by about <span class="math inline">\(M = 8\)</span>.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="gauss-lobatto-rules" class="level2">
 <h2 class="anchored" data-anchor-id="gauss-lobatto-rules">Gauss-Lobatto Rules</h2>
 <p>The standard Gauss rule places nodes strictly in the interior of <span class="math inline">\([a, b]\)</span>. When building <strong>nested quadrature hierarchies</strong> (required by sparse grid methods) it is useful to <strong>include the endpoints</strong> as fixed nodes and optimize the remaining interior nodes. This gives the <strong>Gauss-Lobatto</strong> rule.</p>
 <p>A Gauss-Lobatto rule with <span class="math inline">\(M\)</span> points achieves exactness degree <span class="math inline">\(2M-3\)</span> (two degrees less than Gauss, since two nodes are fixed). The trade-off is <strong>nestedness</strong>: the <span class="math inline">\(M\)</span>-point and <span class="math inline">\((2M-1)\)</span>-point Lobatto grids share nodes, so function evaluations can be reused when increasing the level.</p>
-<div id="fig-lobatto" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-lobatto-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-lobatto" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>lobatto_rule <span class="op">=</span> GaussLobattoQuadratureRule(LegendrePolynomial1D(bkd))</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="fl">3.5</span>))</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plot_lobatto(ax, gauss_rule, lobatto_rule, bkd)</span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-lobatto" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-lobatto-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="gauss_quadrature_files/figure-html/fig-lobatto-output-1.png" width="950" height="327" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-lobatto-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-lobatto-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Gauss vs.&nbsp;Gauss-Lobatto nodes. Lobatto rules always include the endpoints, enabling nested hierarchies for sparse grids.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">

@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Overfitting and Cross-Validation – PyApprox">
 <meta property="og:description" content="Choose the polynomial degree using LOO cross-validation.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/practical_pce_fitting_files/figure-html/fig-truncation-error-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="838">
+<meta property="og:image:width" content="1316">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1122,7 +1125,7 @@ window.Quarto = {
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1).
 \]</span></p>
 <p>The <span class="math inline">\(x_3^4 \sin(x_1)\)</span> interaction term makes this function challenging for polynomial approximation — it requires high-degree cross-terms to resolve.</p>
-<div id="4f1fde92" class="cell">
+<div id="a0e06711" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1152,7 +1155,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1).
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We generate a fixed test set for evaluating all surrogates built in this tutorial:</p>
-<div id="aa011d1c" class="cell">
+<div id="4b8bdd5a" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
@@ -1167,21 +1170,33 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1).
 f(\boldsymbol{\theta}) = \underbrace{\sum_{j \in \Lambda_p} c_j\, \Psi_j(\boldsymbol{\theta})}_{\text{PCE approximation}} + \underbrace{\sum_{j \notin \Lambda_p} c_j\, \Psi_j(\boldsymbol{\theta})}_{\text{truncation error}}
 \]</span></p>
 <p>A higher degree <span class="math inline">\(p\)</span> includes more basis terms and reduces the truncation error, but increases the number of coefficients that must be estimated — requiring more training data to avoid overfitting.</p>
-<p><strong>?@fig-truncation-error</strong> demonstrates this trade-off. We fit PCEs at degrees 4, 6, and 8, each with increasing numbers of training samples, and plot the test-set <span class="math inline">\(L_2\)</span> error. For each configuration, we repeat the experiment with different random training sets.</p>
+<p><a href="#fig-truncation-error" class="quarto-xref">Figure&nbsp;1</a> demonstrates this trade-off. We fit PCEs at degrees 4, 6, and 8, each with increasing numbers of training samples, and plot the test-set <span class="math inline">\(L_2\)</span> error. For each configuration, we repeat the experiment with different random training sets.</p>
+<div id="cell-fig-truncation-error" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-truncation-error" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="practical_pce_fitting_files/figure-html/fig-truncation-error-output-1.png" width="658" height="419" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-truncation-error-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Truncation error. Each curve shows the test-set <span class="math inline">\(L_2\)</span> error vs.&nbsp;number of training samples for a fixed total-degree. The error plateaus at a floor determined by the truncation error — higher degrees reach lower floors but need more data. Bands show min/max over repetitions; lines show the mean.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key observation: <strong>each degree-<span class="math inline">\(p\)</span> curve flattens at a floor</strong> that shrinks as <span class="math inline">\(p\)</span> increases. Below the floor, adding more training data does not help — the limitation is the truncation error, not the fitting error. Above the floor (small <span class="math inline">\(N\)</span>), the dominant error is from having too few samples to estimate the coefficients reliably.</p>
 <p>But this raises a practical question: <strong>how do we choose the right degree?</strong> We need a method that works without a test set.</p>
 </section>
 <section id="train-test-and-cv-error-vs.-degree" class="level2">
 <h2 class="anchored" data-anchor-id="train-test-and-cv-error-vs.-degree">Train, Test, and CV Error vs.&nbsp;Degree</h2>
 <p>The key insight of <strong>cross-validation</strong> is that it can estimate the test error <em>without</em> a held-out test set. We sweep through total-degree index sets and evaluate three error measures for each degree.</p>
-<p>We average each configuration over 10 random training sets. <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;1</a> shows two error measures vs.&nbsp;polynomial degree for <span class="math inline">\(N = 75\)</span>:</p>
+<p>We average each configuration over 10 random training sets. <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;2</a> shows two error measures vs.&nbsp;polynomial degree for <span class="math inline">\(N = 75\)</span>:</p>
 <ul>
 <li><strong>Test error</strong> (red): generalization error evaluated on a held-out test set (mean line with min/max envelope).</li>
 <li><strong>CV score</strong> (orange): the 5-fold cross-validation estimate of generalization error (mean line with min/max envelope).</li>
 </ul>
-<div id="fig-train-test-cv" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-train-test-cv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-train-test-cv" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_train_test_cv</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>degrees_sweep <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">9</span>))</span>
@@ -1199,11 +1214,18 @@ f(\boldsymbol{\theta}) = \underbrace{\sum_{j \in \Lambda_p} c_j\, \Psi_j(\boldsy
 <span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>plot_train_test_cv(res, nterms_list, N_train<span class="op">=</span><span class="dv">75</span>, axes<span class="op">=</span>[ax, ax_cond])</span>
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-train-test-cv" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-train-test-cv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="practical_pce_fitting_files/figure-html/fig-train-test-cv-output-1.png" width="680" height="597" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-train-test-cv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-train-test-cv-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Test error and 5-fold CV score vs.&nbsp;total polynomial degree for N = 75. Lines show the mean over 10 random training sets; bands show min/max. Test error has a U-shape: it decreases as more terms reduce truncation error, then rises as the oversampling ratio <span class="math inline">\(N/P\)</span> shrinks. The CV score tracks the test error and correctly identifies the optimal degree without a held-out test set. The condition number (bottom) tracks the error rise.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>Two patterns are visible:</p>
 <ol type="1">
@@ -1233,15 +1255,13 @@ Figure&nbsp;1
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>In <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;1</a> the CV score is only plotted where each <span class="math inline">\(k\)</span>-fold training partition is still overdetermined. Even when CV <em>can</em> be computed, its accuracy degrades when the per-fold oversampling ratio is itself small, because the CV formula involves inverting an ill-conditioned sub-matrix. In practice, restrict CV candidate degrees to those with a comfortable oversampling ratio.</p>
+<p>In <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;2</a> the CV score is only plotted where each <span class="math inline">\(k\)</span>-fold training partition is still overdetermined. Even when CV <em>can</em> be computed, its accuracy degrades when the per-fold oversampling ratio is itself small, because the CV formula involves inverting an ill-conditioned sub-matrix. In practice, restrict CV candidate degrees to those with a comfortable oversampling ratio.</p>
 </div>
 </div>
 <section id="how-the-optimal-degree-shifts-with-data" class="level3">
 <h3 class="anchored" data-anchor-id="how-the-optimal-degree-shifts-with-data">How the Optimal Degree Shifts with Data</h3>
-<p>With more training samples, we can afford higher-degree polynomials before the oversampling ratio becomes too small. <a href="#fig-train-test-cv-2panel" class="quarto-xref">Figure&nbsp;2</a> shows the same sweep for <span class="math inline">\(N = 75\)</span> and <span class="math inline">\(N = 200\)</span>:</p>
-<div id="fig-train-test-cv-2panel" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-train-test-cv-2panel-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<p>With more training samples, we can afford higher-degree polynomials before the oversampling ratio becomes too small. <a href="#fig-train-test-cv-2panel" class="quarto-xref">Figure&nbsp;3</a> shows the same sweep for <span class="math inline">\(N = 75\)</span> and <span class="math inline">\(N = 200\)</span>:</p>
+<div id="cell-fig-train-test-cv-2panel" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_train_test_cv_2panel</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>res_75 <span class="op">=</span> sweep_train_test_cv(</span>
@@ -1259,11 +1279,18 @@ Figure&nbsp;1
 <span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>                          N_left<span class="op">=</span><span class="dv">75</span>, N_right<span class="op">=</span><span class="dv">200</span>, axes<span class="op">=</span>[ax1, ax2])</span>
 <span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-train-test-cv-2panel" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-train-test-cv-2panel-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="practical_pce_fitting_files/figure-html/fig-train-test-cv-2panel-output-1.png" width="1230" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-train-test-cv-2panel-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-train-test-cv-2panel-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Test error and 5-fold CV score vs.&nbsp;total polynomial degree for N = 75 (left) and N = 200 (right), each averaged over 10 random training sets. With more data the error minimum shifts to a higher degree and a lower error floor.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The left panel (<span class="math inline">\(N = 75\)</span>) shows the CV score bottoming out around degree 3–4 and then rising while the system is still overdetermined; the right panel (<span class="math inline">\(N = 200\)</span>) can exploit higher degrees before overfitting begins, reaching a much lower error floor. This illustrates the fundamental interplay: <strong>more data enables more model complexity and a lower accuracy floor</strong>.</p>
 </section>
@@ -1272,7 +1299,7 @@ Figure&nbsp;2
 <h2 class="anchored" data-anchor-id="automated-degree-selection-with-pcedegreeselectionfitter">Automated Degree Selection with <code>PCEDegreeSelectionFitter</code></h2>
 <p>Manually sweeping degrees is instructive but tedious. The <code>PCEDegreeSelectionFitter</code> automates this: it evaluates the CV score for each candidate level and returns the surrogate fitted at the best level.</p>
 <p>The fitter takes an <code>IndexSequenceProtocol</code> object that maps an integer level to a multi-index set. Here we use <code>HyperbolicIndexSequence</code> with <span class="math inline">\(p\)</span>-norm = 1 (total degree):</p>
-<div id="3c7ad095" class="cell">
+<div id="11f7af41" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.pce_cv <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    PCEDegreeSelectionFitter,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1305,7 +1332,7 @@ Figure&nbsp;2
 <span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>best_level <span class="op">=</span> cv_result.best_label()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>We can verify that the selected degree matches the visual minimum and check the test-set error:</p>
-<div id="e48aaa34" class="cell">
+<div id="2124eecf" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>best_pce <span class="op">=</span> cv_result.surrogate()</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>preds_cv <span class="op">=</span> bkd.to_numpy(best_pce(samples_test))</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1315,7 +1342,7 @@ Figure&nbsp;2
 <section id="loo-vs.-k-fold-cv" class="level3">
 <h3 class="anchored" data-anchor-id="loo-vs.-k-fold-cv">LOO vs.&nbsp;K-Fold CV</h3>
 <p>LOO cross-validation uses all but one sample for fitting, maximizing the effective training size, but requires the system to be overdetermined (<code>N &gt; P + 2</code>). K-fold CV is more flexible — it can handle higher degrees — and is faster for large datasets. You can switch to LOO by setting <code>nfolds=None</code>:</p>
-<div id="5ed9174b" class="cell">
+<div id="dd0dc498" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>fitter_loo <span class="op">=</span> PCEDegreeSelectionFitter(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    bkd,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    levels<span class="op">=</span><span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">8</span>)),</span>
@@ -1341,8 +1368,8 @@ Figure&nbsp;2
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>Run the truncation error experiment (<strong>?@fig-truncation-error</strong>) with degree 10. How many training samples are needed before the error curve flattens?</p></li>
-<li><p>In <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;1</a>, change the training set to <span class="math inline">\(N = 100\)</span> samples. How does the CV-selected degree change? At what degree does the test error start rising?</p></li>
+<li><p>Run the truncation error experiment (<a href="#fig-truncation-error" class="quarto-xref">Figure&nbsp;1</a>) with degree 10. How many training samples are needed before the error curve flattens?</p></li>
+<li><p>In <a href="#fig-train-test-cv" class="quarto-xref">Figure&nbsp;2</a>, change the training set to <span class="math inline">\(N = 100\)</span> samples. How does the CV-selected degree change? At what degree does the test error start rising?</p></li>
 <li><p>Switch the <code>PCEDegreeSelectionFitter</code> to LOO (<code>nfolds=None</code>). Does the selected degree change? Is the fit quality similar?</p></li>
 </ol>
 </section>

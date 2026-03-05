@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Tensor Product Interpolation: Multivariate Approximation and Its Limits – PyApprox">
 <meta property="og:description" content="Build multivariate interpolants as tensor products of 1D bases, quantify the curse of dimensionality, and compare Lagrange vs.&nbsp;piecewise convergence in 2D.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/tensor_product_interpolation_files/figure-html/fig-tp-2d-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="940">
+<meta property="og:image:width" content="2845">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1113,7 +1116,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="de885dc2" class="cell">
+<div id="bacb634f" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1149,7 +1152,7 @@ f_\beta(\mathbf{z}) = \sum_{j_1=1}^{M_1} \sum_{j_2=1}^{M_2} f\!\left(z_1^{(j_1)}
 <section id="constructing-a-tensorproductinterpolant" class="level2">
 <h2 class="anchored" data-anchor-id="constructing-a-tensorproductinterpolant">Constructing a <code>TensorProductInterpolant</code></h2>
 <p><code>TensorProductInterpolant</code> takes a backend, a list of 1D basis objects, and the number of terms per dimension. We demonstrate with <span class="math inline">\(f(z_1, z_2) = \cos(\pi z_1)\cos(\pi z_2 / 2)\)</span> on <span class="math inline">\([-1,1]^2\)</span>.</p>
-<div id="1653b5b9" class="cell">
+<div id="eec2b3fc" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_2d(zz):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Test function: shape (2, N) → (1, N)"""</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.cos(np.pi <span class="op">*</span> zz[<span class="dv">0</span>:<span class="dv">1</span>]) <span class="op">*</span> np.cos(np.pi <span class="op">*</span> zz[<span class="dv">1</span>:<span class="dv">2</span>] <span class="op">/</span> <span class="fl">2.0</span>)</span>
@@ -1181,9 +1184,7 @@ f_\beta(\mathbf{z}) = \sum_{j_1=1}^{M_1} \sum_{j_2=1}^{M_2} f\!\left(z_1^{(j_1)}
 <span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>tp_vals <span class="op">=</span> bkd.to_numpy(tp(eval_pts))              <span class="co"># (1, nfine^2)</span></span>
 <span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>true_vals <span class="op">=</span> fun_2d(np.vstack([z1g.ravel(), z2g.ravel()]))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-tp-2d" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-tp-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-tp-2d" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_tp_2d</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>grid_np <span class="op">=</span> bkd.to_numpy(grid)</span>
@@ -1194,19 +1195,24 @@ f_\beta(\mathbf{z}) = \sum_{j_1=1}^{M_1} \sum_{j_2=1}^{M_2} f\!\left(z_1^{(j_1)}
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>plot_tp_2d(Z_true, Z_interp, grid_np, M, nfine, axs)</span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-tp-2d" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-tp-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="tensor_product_interpolation_files/figure-html/fig-tp-2d-output-1.png" width="1423" height="470" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-tp-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-tp-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: True function, tensor product interpolant, and pointwise error for f(z1,z2) = cos(pi<em>z1)</em>cos(pi*z2/2). Interpolant is indistinguishable from truth at M=5 per dimension.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="the-curse-of-dimensionality" class="level2">
 <h2 class="anchored" data-anchor-id="the-curse-of-dimensionality">The Curse of Dimensionality</h2>
 <p>The fundamental problem with tensor products is captured in the point-count table below. For <span class="math inline">\(M\)</span> nodes per dimension and <span class="math inline">\(D\)</span> dimensions, the grid has <span class="math inline">\(M^D\)</span> points. Even at <span class="math inline">\(M = 3\)</span> nodes per dimension, the count explodes past <span class="math inline">\(10^4\)</span> for <span class="math inline">\(D = 9\)</span>.</p>
-<div id="fig-curse" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-curse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-curse" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_curse_of_dimensionality</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>dims  <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">10</span>]</span>
@@ -1216,11 +1222,18 @@ Figure&nbsp;1
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>plot_curse_of_dimensionality(levels, dims, ax)</span>
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-curse" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-curse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="tensor_product_interpolation_files/figure-html/fig-curse-output-1.png" width="851" height="469" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-curse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-curse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Number of tensor product grid points vs.&nbsp;refinement level for several dimensions. Log scale reveals exponential growth.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="tensor-product-quadrature" class="level2">
@@ -1230,7 +1243,7 @@ Figure&nbsp;2
 \mathbb{E}[f(\mathbf{z})] \approx \sum_{j_1=1}^{M} \cdots \sum_{j_D=1}^{M} f\!\left(z_1^{(j_1)}, \ldots, z_D^{(j_D)}\right) \prod_{i=1}^{D} w_i^{(j_i)}.
 \]</span></p>
 <p>This is equivalent to applying the 1D quadrature rule in each dimension independently.</p>
-<div id="de565cda" class="cell">
+<div id="d522b6da" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build TP interpolant on CC nodes and compute E[f] via quadrature</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>M_q <span class="op">=</span> <span class="dv">9</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>bases_q <span class="op">=</span> [LagrangeBasis1D(bkd, cc_rule) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
@@ -1256,9 +1269,7 @@ Figure&nbsp;2
 <section id="convergence-lagrange-vs.-piecewise-in-2d" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-lagrange-vs.-piecewise-in-2d">Convergence: Lagrange vs.&nbsp;Piecewise in 2D</h2>
 <p>We compare the convergence of tensor product interpolants based on Clenshaw-Curtis (Lagrange) and piecewise-linear bases for a smooth and a non-smooth 2D function.</p>
-<div id="fig-2d-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-2d-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-2d-convergence" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.univariate <span class="im">import</span> PiecewiseLinear</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_2d_convergence</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1331,11 +1342,18 @@ Figure&nbsp;2
 <span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"2D tensor product convergence"</span>, fontsize<span class="op">=</span><span class="dv">13</span>, y<span class="op">=</span><span class="fl">1.01</span>)</span>
 <span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-2d-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-2d-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="tensor_product_interpolation_files/figure-html/fig-2d-convergence-output-1.png" width="1238" height="488" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-2d-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-2d-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: 2D interpolation convergence: CC/Lagrange achieves exponential convergence for analytic functions; piecewise linear is algebraic but robust for non-smooth functions.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>For the analytic function CC converges exponentially until machine precision; for the non-smooth function both methods converge algebraically, with piecewise linear slightly worse in maximum norm but without the spurious oscillations that a high-<span class="math inline">\(M\)</span> Lagrange basis would produce.</p>
 </section>

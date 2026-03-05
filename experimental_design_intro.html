@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Not All Experiments Are Equal: Introduction to Experimental Design – PyApprox">
 <meta property="og:description" content="How sensor placement affects what we learn about uncertain parameters.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/experimental_design_intro_files/figure-html/fig-beam-setup-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="844">
+<meta property="og:image:width" content="1609">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1121,13 +1124,41 @@ window.Quarto = {
 t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 \]</span></p>
 <p>where <span class="math inline">\(\theta_1\)</span> is the constant component and <span class="math inline">\(\theta_2\)</span> controls the slope. We want to learn <span class="math inline">\((\theta_1, \theta_2)\)</span> from deflection measurements. The question is: <strong>where on the beam should we place a sensor?</strong></p>
-<p><strong>?@fig-beam-setup</strong> shows the physical setup: the composite beam clamped at the left, with the uncertain distributed load on top and two candidate sensor locations.</p>
+<p><a href="#fig-beam-setup" class="quarto-xref">Figure&nbsp;1</a> shows the physical setup: the composite beam clamped at the left, with the uncertain distributed load on top and two candidate sensor locations.</p>
+<div id="cell-fig-beam-setup" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-beam-setup" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-beam-setup-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-beam-setup-output-1.png" width="805" height="422" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-beam-setup-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Composite cantilever beam with uncertain loading <span class="math inline">\(t_y(x) = -(\theta_1 + \theta_2\, x/L)\)</span>. The beam has stiff skins (blue) and a compliant core (orange) with five circular holes. Two candidate sensor locations are marked: tip (green) and midpoint (purple). Both measure the vertical deflection at their location.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="same-budget-different-answers" class="level2">
 <h2 class="anchored" data-anchor-id="same-budget-different-answers">Same Budget, Different Answers</h2>
 <p>Suppose we have budget for exactly one deflection measurement. We can place the sensor at the <strong>tip</strong> or at the <strong>midpoint</strong>. Both cost the same. Both produce a single number. But they lead to different conclusions about <span class="math inline">\((\theta_1, \theta_2)\)</span>.</p>
 <p>To see this, we set up the problem and compute the exact posterior for each sensor placement.</p>
-<p><strong>?@fig-two-posteriors</strong> shows the result. The prior is the same broad ellipse in both cases, but the two sensors produce posteriors that are elongated in <strong>different directions</strong>.</p>
+<p><a href="#fig-two-posteriors" class="quarto-xref">Figure&nbsp;2</a> shows the result. The prior is the same broad ellipse in both cases, but the two sensors produce posteriors that are elongated in <strong>different directions</strong>.</p>
+<div id="cell-fig-two-posteriors" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-two-posteriors" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-two-posteriors-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-two-posteriors-output-1.png" width="430" height="660" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-two-posteriors-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Same prior, same budget, different posteriors. The tip sensor (green) and midpoint sensor (purple) each constrain a different combination of <span class="math inline">\((\theta_1, \theta_2)\)</span>. The posterior ellipses are elongated in different directions — each sensor leaves a different parameter combination unresolved.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This is the key observation: <strong>the same data budget produces different posteriors depending on where we measure.</strong> Each sensor constrains a different combination of <span class="math inline">\(\theta_1\)</span> and <span class="math inline">\(\theta_2\)</span>, leaving a different direction unresolved. The choice of experiment determines what we learn.</p>
 </section>
 <section id="why-are-they-different" class="level2">
@@ -1136,7 +1167,21 @@ t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 <p><span class="math display">\[
 \delta(x_s) = a_1(x_s)\, \theta_1 + a_2(x_s)\, \theta_2
 \]</span></p>
-<p>The coefficients <span class="math inline">\(a_1\)</span> and <span class="math inline">\(a_2\)</span> encode how strongly the measurement at <span class="math inline">\(x_s\)</span> responds to each parameter. <strong>?@fig-response-surfaces</strong> shows the deflection as a function of <span class="math inline">\((\theta_1, \theta_2)\)</span> for the two sensor locations. The <strong>contour orientation</strong> determines which parameter direction the measurement constrains.</p>
+<p>The coefficients <span class="math inline">\(a_1\)</span> and <span class="math inline">\(a_2\)</span> encode how strongly the measurement at <span class="math inline">\(x_s\)</span> responds to each parameter. <a href="#fig-response-surfaces" class="quarto-xref">Figure&nbsp;3</a> shows the deflection as a function of <span class="math inline">\((\theta_1, \theta_2)\)</span> for the two sensor locations. The <strong>contour orientation</strong> determines which parameter direction the measurement constrains.</p>
+<div id="cell-fig-response-surfaces" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-response-surfaces" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-response-surfaces-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-response-surfaces-output-1.png" width="1128" height="467" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-response-surfaces-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Response surfaces for the two sensor locations. Contours show deflection as a function of <span class="math inline">\((\theta_1, \theta_2)\)</span>. The contour orientation differs — the tip (left) and midpoint (right) have different sensitivity to the two load parameters. The bold black curve marks the observed-value level set: the data constrains <span class="math inline">\(\boldsymbol{\theta}\)</span> to lie near this curve. The red X marks the true parameter values.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The contours are straight lines (the model is linear), but they have different slopes at the two locations. This means the two sensors provide constraints along different directions in parameter space — exactly what we saw in the posterior ellipses.</p>
 </section>
 <section id="the-observation-matrix" class="level2">
@@ -1146,12 +1191,12 @@ t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 \delta(x_s) = \underbrace{[a_1(x_s),\; a_2(x_s)]}_{\mathbf{a}(x_s)^\top} \begin{bmatrix} \theta_1 \\ \theta_2 \end{bmatrix}
 \]</span></p>
 <p>We compute the sensitivity vector <span class="math inline">\(\mathbf{a}(x_s)\)</span> by <strong>superposition</strong>: solve the FEM once with a unit constant load (<span class="math inline">\(\theta_1 = 1\)</span>, <span class="math inline">\(\theta_2 = 0\)</span>) and once with a unit slope load (<span class="math inline">\(\theta_1 = 0\)</span>, <span class="math inline">\(\theta_2 = 1\)</span>). The deflections from these two solves give <span class="math inline">\(a_1(x_s)\)</span> and <span class="math inline">\(a_2(x_s)\)</span> directly.</p>
-<p>The ratio <span class="math inline">\(a_2 / a_1\)</span> determines the contour slope in <strong>?@fig-response-surfaces</strong>. Different ratios mean different constraint directions, which is why the posteriors differ.</p>
+<p>The ratio <span class="math inline">\(a_2 / a_1\)</span> determines the contour slope in <a href="#fig-response-surfaces" class="quarto-xref">Figure&nbsp;3</a>. Different ratios mean different constraint directions, which is why the posteriors differ.</p>
 </section>
 <section id="which-sensor-learned-more" class="level2">
 <h2 class="anchored" data-anchor-id="which-sensor-learned-more">Which Sensor Learned More?</h2>
 <p>Both sensors reduced the posterior uncertainty compared to the prior, but by different amounts. We quantify this by comparing the <strong>posterior covariance</strong>. A smaller covariance means the experiment was more informative.</p>
-<div id="1356d7f7" class="cell">
+<div id="6bf6a19a" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cov_det(gaussian):</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.to_float(bkd.det(gaussian.covariance()))</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1170,7 +1215,21 @@ t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 \begin{bmatrix} \theta_1 \\ \theta_2 \end{bmatrix}
 + \begin{bmatrix} \varepsilon_1 \\ \varepsilon_2 \end{bmatrix}
 \]</span></p>
-<p><strong>?@fig-combined-experiments</strong> compares three configurations: two sensors at the tip, two at the midpoint, and one at each.</p>
+<p><a href="#fig-combined-experiments" class="quarto-xref">Figure&nbsp;4</a> compares three configurations: two sensors at the tip, two at the midpoint, and one at each.</p>
+<div id="cell-fig-combined-experiments" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-combined-experiments" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-combined-experiments-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-combined-experiments-output-1.png" width="1370" height="467" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-combined-experiments-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Combining sensors. Left: two sensors at the tip — the strong signal from both measurements reduces noise effectively. Center: one at the tip plus one at the midpoint — diversity adds some new information, but the midpoint’s weaker signal limits the gain. Right: posterior covariance determinant for all three configurations.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The result may be surprising: <strong>two sensors at the tip beat the mixed placement</strong>. Why? For this beam, the sensitivity directions at the tip and midpoint are nearly identical — both sensors constrain almost the same parameter combination. The midpoint simply has a weaker signal (smaller deflection). The repeated tip measurement averages out observation noise, extracting more information from the strong signal. Replacing one strong tip measurement with a weaker midpoint measurement trades noise-averaging ability for negligible diversity.</p>
 <p>The determinants confirm the bar chart: Tip+Tip produces the tightest posterior. This illustrates an important nuance: <strong>diversification only helps when the sensors provide genuinely complementary information</strong> — that is, when their sensitivity directions differ substantially. When all candidate locations “see” the parameters through nearly the same linear combination, placing sensors where the signal is strongest wins. The two-sensor EIG heatmap below confirms this.</p>
 </section>
@@ -1183,7 +1242,7 @@ t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 \]</span></p>
 <p>The KL divergence measures how much the posterior differs from the prior — how much the experiment “taught” us. The expectation averages over all possible data <span class="math inline">\(y\)</span> we might observe. Higher EIG means the design is expected to be more informative, regardless of what data actually arrives.</p>
 <p>For our linear Gaussian problem, the EIG has a closed form that we can compute using <code>DenseGaussianConjugatePosterior</code>:</p>
-<div id="f0330d1d" class="cell">
+<div id="624e0295" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_eig(A_design):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Expected Information Gain for linear Gaussian model."""</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    nobs <span class="op">=</span> A_design.shape[<span class="dv">0</span>]</span>
@@ -1219,11 +1278,39 @@ t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
 </section>
 <section id="sensor-placement-sweep" class="level2">
 <h2 class="anchored" data-anchor-id="sensor-placement-sweep">Sensor Placement Sweep</h2>
-<p>With EIG as our design criterion, we can systematically search over all candidate sensor locations. <strong>?@fig-eig-sweep</strong> shows the EIG as a function of sensor position along the beam.</p>
+<p>With EIG as our design criterion, we can systematically search over all candidate sensor locations. <a href="#fig-eig-sweep" class="quarto-xref">Figure&nbsp;5</a> shows the EIG as a function of sensor position along the beam.</p>
+<div id="cell-fig-eig-sweep" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<div id="fig-eig-sweep" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eig-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-eig-sweep-output-1.png" width="855" height="420" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eig-sweep-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Expected Information Gain vs.&nbsp;sensor position along the beam. The tip region is most informative because deflection is largest there, giving the best signal-to-noise ratio. The clamped end provides almost no information (near-zero deflection regardless of parameters).
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="two-sensor-optimization" class="level2">
 <h2 class="anchored" data-anchor-id="two-sensor-optimization">Two-Sensor Optimization</h2>
-<p>For two sensors, we search over all pairs <span class="math inline">\((x_1, x_2)\)</span>. <strong>?@fig-eig-2sensor-heatmap</strong> shows the EIG as a heatmap. The off-diagonal maxima confirm the complementarity principle: the best pair places sensors at different locations.</p>
+<p>For two sensors, we search over all pairs <span class="math inline">\((x_1, x_2)\)</span>. <a href="#fig-eig-2sensor-heatmap" class="quarto-xref">Figure&nbsp;6</a> shows the EIG as a heatmap. The off-diagonal maxima confirm the complementarity principle: the best pair places sensors at different locations.</p>
+<div id="cell-fig-eig-2sensor-heatmap" class="cell" data-execution_count="10">
+<div class="cell-output cell-output-display">
+<div id="fig-eig-2sensor-heatmap" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eig-2sensor-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="experimental_design_intro_files/figure-html/fig-eig-2sensor-heatmap-output-1.png" width="642" height="551" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eig-2sensor-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: EIG heatmap for two-sensor designs. Each pixel shows the EIG for the sensor pair <span class="math inline">\((x_1, x_2)\)</span>. The diagonal corresponds to placing both sensors at the same location. The star marks the optimal pair.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>

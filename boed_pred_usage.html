@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Goal-Oriented OED: Convergence Verification – PyApprox">
 <meta property="og:description" content="Using PredictionOEDDiagnostics to verify that numerical risk-aware utility estimates converge to analytical values, and comparing MC vs.&nbsp;Halton convergence rates.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_pred_usage_files/figure-html/fig-pred-mse-mc-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="968">
+<meta property="og:image:width" content="2280">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1121,7 +1124,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="11a25fdd" class="cell">
+<div id="5e913208" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1134,7 +1137,7 @@ U_\mathrm{std}(\mathbf{w})
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="f54494b5" class="cell">
+<div id="c82d2c4f" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.5</span></span>
@@ -1152,11 +1155,11 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="analytical-reference-value" class="level2">
 <h2 class="anchored" data-anchor-id="analytical-reference-value">Analytical Reference Value</h2>
-<div id="33362a90" class="cell">
+<div id="d80e273f" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> diagnostics.exact_utility(weights)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>A single numerical estimate:</p>
-<div id="60054296" class="cell">
+<div id="c37e7fe9" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">500</span>,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">1000</span>,</span>
@@ -1167,7 +1170,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="mse-decomposition" class="level2">
 <h2 class="anchored" data-anchor-id="mse-decomposition">MSE Decomposition</h2>
-<div id="7d3d1023" class="cell">
+<div id="5ba0427f" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> diagnostics.compute_mse(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">100</span>,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">500</span>,</span>
@@ -1192,7 +1195,7 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="mse-vs.-inner-sample-count-mc" class="level2">
 <h2 class="anchored" data-anchor-id="mse-vs.-inner-sample-count-mc">MSE vs.&nbsp;Inner Sample Count (MC)</h2>
-<div id="9e695dc8" class="cell">
+<div id="a41c9893" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1204,7 +1207,21 @@ U_\mathrm{std}(\mathbf{w})
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    base_seed<span class="op">=</span><span class="dv">0</span>,</span>
 <span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="0bed7322" class="cell">
+<div id="cell-fig-pred-mse-mc" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-pred-mse-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pred-mse-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_pred_usage_files/figure-html/fig-pred-mse-mc-output-1.png" width="1140" height="484" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pred-mse-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: MSE of the goal-oriented utility estimator vs.&nbsp;number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="603085e3" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
@@ -1215,7 +1232,7 @@ U_\mathrm{std}(\mathbf{w})
 <section id="avar-deviation-variant" class="level2">
 <h2 class="anchored" data-anchor-id="avar-deviation-variant">AVaR Deviation Variant</h2>
 <p>Switching to AVaR deviation requires only changing the utility type in the <code>create_prediction_oed_diagnostics</code> call.</p>
-<div id="5439704d" class="cell">
+<div id="b57dd8ca" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    benchmark, <span class="st">"linear_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>

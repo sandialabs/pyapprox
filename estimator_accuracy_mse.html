@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Estimator Accuracy and Mean Squared Error – PyApprox">
 <meta property="og:description" content="Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/estimator_accuracy_mse_files/figure-html/fig-mean-mse-convergence-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="835">
+<meta property="og:image:width" content="1319">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1176,7 +1179,21 @@ window.Quarto = {
 \]</span></p>
 </div>
 </div>
-<p><strong>?@fig-mean-mse-convergence</strong> verifies this empirically. At each sample size <span class="math inline">\(M\)</span>, we run 500 independent MC experiments and compute the empirical variance of the resulting mean estimates. The points follow the theoretical <span class="math inline">\(\sigma^2/M\)</span> line.</p>
+<p><a href="#fig-mean-mse-convergence" class="quarto-xref">Figure&nbsp;1</a> verifies this empirically. At each sample size <span class="math inline">\(M\)</span>, we run 500 independent MC experiments and compute the empirical variance of the resulting mean estimates. The points follow the theoretical <span class="math inline">\(\sigma^2/M\)</span> line.</p>
+<div id="cell-fig-mean-mse-convergence" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-mean-mse-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mean-mse-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-mean-mse-convergence-output-1.png" width="660" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mean-mse-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Convergence of the MC mean estimator. Empirical variance of <span class="math inline">\(\hat{\mu}_M\)</span> (dots) versus sample size <span class="math inline">\(M\)</span>, compared with the theoretical rate <span class="math inline">\(\sigma^2/M\)</span> (dashed line). The true variance <span class="math inline">\(\sigma^2\)</span> is computed via Gaussian quadrature.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="mse-of-the-variance-estimator" class="level2">
 <h2 class="anchored" data-anchor-id="mse-of-the-variance-estimator">MSE of the Variance Estimator</h2>
@@ -1193,7 +1210,21 @@ window.Quarto = {
 \text{Var}[\hat{\sigma}^2_M] \approx \frac{\kappa_4 - \sigma^4}{M}
 \]</span></p>
 <p>The key observation: <strong>the variance estimator also converges at rate <span class="math inline">\(1/M\)</span></strong>, but the constant <span class="math inline">\(\kappa_4 - \sigma^4\)</span> is typically much larger than <span class="math inline">\(\sigma^2\)</span>. This is why the variance histogram was wider than the mean histogram in the previous tutorial.</p>
-<p><strong>?@fig-mean-vs-var-convergence</strong> confirms this: both estimators converge at rate <span class="math inline">\(1/M\)</span> on the log-log plot (parallel lines), but the variance estimator curve sits higher.</p>
+<p><a href="#fig-mean-vs-var-convergence" class="quarto-xref">Figure&nbsp;2</a> confirms this: both estimators converge at rate <span class="math inline">\(1/M\)</span> on the log-log plot (parallel lines), but the variance estimator curve sits higher.</p>
+<div id="cell-fig-mean-vs-var-convergence" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-mean-vs-var-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mean-vs-var-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-mean-vs-var-convergence-output-1.png" width="662" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mean-vs-var-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence comparison: MC mean estimator vs.&nbsp;MC variance estimator. Both converge at rate <span class="math inline">\(1/M\)</span> (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="vector-valued-statistics" class="level2">
 <h2 class="anchored" data-anchor-id="vector-valued-statistics">Vector-Valued Statistics</h2>
@@ -1309,8 +1340,36 @@ window.Quarto = {
 </section>
 <section id="empirical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="empirical-verification">Empirical Verification</h2>
-<p><strong>?@fig-estimator-covariance-empirical</strong> verifies the block structure empirically. We run 500 independent MC experiments with <span class="math inline">\(M = 100\)</span> samples each, compute <span class="math inline">\(\hat{\mathbf{Q}}_M\)</span> for each, and estimate the covariance of the resulting 500 estimates. The left panel shows this empirical estimator covariance; the right panel shows the theoretical prediction from the formulas above.</p>
-<p><strong>?@fig-diagonal-variances</strong> extracts the diagonal entries — the individual estimator variances — and shows them as a bar chart. The variance-of-covariance entries are substantially larger than the variance-of-mean entries, confirming the pattern we observed in the <a href="./monte_carlo_sampling.html">previous tutorial</a>.</p>
+<p><a href="#fig-estimator-covariance-empirical" class="quarto-xref">Figure&nbsp;3</a> verifies the block structure empirically. We run 500 independent MC experiments with <span class="math inline">\(M = 100\)</span> samples each, compute <span class="math inline">\(\hat{\mathbf{Q}}_M\)</span> for each, and estimate the covariance of the resulting 500 estimates. The left panel shows this empirical estimator covariance; the right panel shows the theoretical prediction from the formulas above.</p>
+<div id="cell-fig-estimator-covariance-empirical" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-estimator-covariance-empirical" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-estimator-covariance-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-estimator-covariance-empirical-output-1.png" width="1316" height="559" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-estimator-covariance-empirical-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Estimator covariance matrix for simultaneous mean and covariance estimation (<span class="math inline">\(K = 3\)</span> QoIs, <span class="math inline">\(M = 100\)</span>). Left: empirical covariance from 500 independent MC experiments. Right: theoretical prediction. The block structure — mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right) — is clearly visible.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><a href="#fig-diagonal-variances" class="quarto-xref">Figure&nbsp;4</a> extracts the diagonal entries — the individual estimator variances — and shows them as a bar chart. The variance-of-covariance entries are substantially larger than the variance-of-mean entries, confirming the pattern we observed in the <a href="./monte_carlo_sampling.html">previous tutorial</a>.</p>
+<div id="cell-fig-diagonal-variances" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-diagonal-variances" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-diagonal-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="estimator_accuracy_mse_files/figure-html/fig-diagonal-variances-output-1.png" width="1143" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-diagonal-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries (<span class="math inline">\(\hat{\Sigma}_{jk}\)</span>) have much larger estimator variance than the mean entries (<span class="math inline">\(\hat{\mu}_k\)</span>), confirming that higher-order statistics are harder to estimate.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="scalar-mse-for-vector-valued-statistics" class="level2">
 <h2 class="anchored" data-anchor-id="scalar-mse-for-vector-valued-statistics">Scalar MSE for Vector-Valued Statistics</h2>
@@ -1366,7 +1425,7 @@ window.Quarto = {
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>Use the empirical data from <strong>?@fig-mean-mse-convergence</strong> to estimate the slope of the log-log convergence plot. Verify that it is <span class="math inline">\(-1\)</span> (corresponding to the <span class="math inline">\(1/M\)</span> rate).</p></li>
+<li><p>Use the empirical data from <a href="#fig-mean-mse-convergence" class="quarto-xref">Figure&nbsp;1</a> to estimate the slope of the log-log convergence plot. Verify that it is <span class="math inline">\(-1\)</span> (corresponding to the <span class="math inline">\(1/M\)</span> rate).</p></li>
 <li><p>In the scalar case, show algebraically that <span class="math inline">\(\text{Var}[\hat{\sigma}^2_M] \to (\kappa_4 - \sigma^4)/M\)</span> as <span class="math inline">\(M \to \infty\)</span> starting from <a href="#eq-var-var" class="quarto-xref">Equation&nbsp;2</a>.</p></li>
 <li><p>For the model’s three QoIs, examine <span class="math inline">\(\text{Cov}[\hat{\mu}_1, \hat{\mu}_3]\)</span> from the empirical estimator covariance matrix. Is it positive or negative? What does its sign imply about the off-diagonal of <span class="math inline">\(\boldsymbol{\Sigma}\)</span>?</p></li>
 <li><p><strong>(Challenge)</strong> If the QoI distribution is symmetric (zero skewness), what happens to the <span class="math inline">\(\mathbf{B}\)</span> matrix? What does this imply about the correlation between the mean and variance estimators? Verify empirically using a model with a symmetric output distribution.</p></li>

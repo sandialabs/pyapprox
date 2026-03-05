@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Design Under Uncertainty – PyApprox">
 <meta property="og:description" content="Optimize a cantilever beam’s cross-section under uncertain loads using deterministic and robust formulations.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/design_under_uncertainty_files/figure-html/fig-beam-schematic-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="526">
+<meta property="og:image:width" content="1823">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1112,6 +1115,20 @@ window.Quarto = {
 </section>
 <section id="problem-setup" class="level2">
 <h2 class="anchored" data-anchor-id="problem-setup">Problem Setup</h2>
+<div id="cell-fig-beam-schematic" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-beam-schematic" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-beam-schematic-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="design_under_uncertainty_files/figure-html/fig-beam-schematic-output-1.png" width="912" height="263" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-beam-schematic-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Cantilever beam with rectangular cross-section <span class="math inline">\(w \times t\)</span>, fixed at the left wall. Uncertain tip loads <span class="math inline">\(X\)</span> (horizontal) and <span class="math inline">\(Y\)</span> (vertical) act at the free end. The design variables are the width <span class="math inline">\(w\)</span> and depth <span class="math inline">\(t\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>We design the cross-section of a cantilever beam of length <span class="math inline">\(L = 100\)</span> subject to uncertain tip loads <span class="math inline">\(X\)</span> (horizontal) and <span class="math inline">\(Y\)</span> (vertical). The beam has Young’s modulus <span class="math inline">\(E\)</span> and yield stress <span class="math inline">\(R\)</span>, both uncertain. The <strong>design variables</strong> are the beam width <span class="math inline">\(w\)</span> and depth <span class="math inline">\(t\)</span>.</p>
 <p>The beam model returns two quantities of interest:</p>
 <p><span class="math display">\[
@@ -1124,7 +1141,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 1 - \frac{D}{D_0} \geq 0
 \]</span></p>
 <p>The <strong>objective</strong> is to minimize the cross-sectional area <span class="math inline">\(w \cdot t\)</span>.</p>
-<div id="264c3034" class="cell">
+<div id="489137fa" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1135,7 +1152,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 <section id="the-beam-model" class="level2">
 <h2 class="anchored" data-anchor-id="the-beam-model">The Beam Model</h2>
 <p>We use <code>CantileverBeam2DConstraints</code> for the safety margin constraints and <code>CantileverBeam2DObjective</code> for the area objective. Both accept 6 input variables (X, Y, E, R, w, t) and provide analytical Jacobians.</p>
-<div id="10a4832c" class="cell">
+<div id="ef4fde91" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d <span class="im">import</span> (</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    CantileverBeam2DAnalytical,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    CantileverBeam2DConstraints,</span>
@@ -1151,7 +1168,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 <h2 class="anchored" data-anchor-id="deterministic-optimization">Deterministic Optimization</h2>
 <p>First we solve a <strong>deterministic</strong> version: fix the uncertain variables at their nominal values and optimize <span class="math inline">\(w\)</span> and <span class="math inline">\(t\)</span> to minimize area subject to the safety constraints.</p>
 <p><code>ActiveSetFunction</code> fixes the non-design variables at nominal values and exposes only <span class="math inline">\(w\)</span> and <span class="math inline">\(t\)</span> to the optimizer. It dynamically propagates the Jacobian from the wrapped model, so the optimizer can use gradient information.</p>
-<div id="5586f7d5" class="cell">
+<div id="adf6d144" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.marginalize <span class="im">import</span> ActiveSetFunction</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>nominal_values <span class="op">=</span> bkd.asarray([<span class="fl">500.0</span>, <span class="fl">1000.0</span>, <span class="fl">2.9e7</span>, <span class="fl">40000.0</span>, <span class="fl">2.5</span>, <span class="fl">3.0</span>])</span>
@@ -1161,7 +1178,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>det_constraints <span class="op">=</span> ActiveSetFunction(constraints_model, nominal_values, design_indices, bkd)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now set up and solve the optimization problem. The constraints must be <span class="math inline">\(\geq 0\)</span> (feasibility), so we set lower bounds to 0 and upper bounds to <span class="math inline">\(\infty\)</span>.</p>
-<div id="a9b111df" class="cell">
+<div id="41541b02" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.scipy.trust_constr <span class="im">import</span> (</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    ScipyTrustConstrOptimizer,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1247,7 +1264,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 </tr>
 </tbody>
 </table>
-<div id="b54b1ff1" class="cell">
+<div id="4163d486" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.gaussian <span class="im">import</span> GaussianMarginal</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1276,9 +1293,7 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 <span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>disp_failures <span class="op">=</span> np.<span class="bu">sum</span>(constraint_values[<span class="dv">1</span>, :] <span class="op">&lt;</span> <span class="dv">0</span>)</span>
 <span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>any_failure <span class="op">=</span> np.<span class="bu">sum</span>(np.<span class="bu">any</span>(constraint_values <span class="op">&lt;</span> <span class="dv">0</span>, axis<span class="op">=</span><span class="dv">0</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-det-constraints" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-det-constraints-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-det-constraints" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="st">"Stress constraint"</span>, <span class="st">"Displacement constraint"</span>]</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ii, ax <span class="kw">in</span> <span class="bu">enumerate</span>(axes):</span>
@@ -1294,11 +1309,18 @@ D = \frac{4L^3}{Ewt}\sqrt{\frac{X^2}{w^4} + \frac{Y^2}{t^4}}
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-det-constraints" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-det-constraints-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="design_under_uncertainty_files/figure-html/fig-det-constraints-output-1.png" width="1142" height="374" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-det-constraints-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-det-constraints-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Constraint value distributions at the deterministic optimum. Values below zero (dashed red line) indicate constraint violation. A significant fraction of samples violate the constraints because the deterministic design ignores uncertainty.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The deterministic design has a high failure rate because it was optimized assuming fixed (nominal) values for the uncertain variables. We need a <strong>robust</strong> formulation that accounts for uncertainty.</p>
 <div class="callout callout-style-default callout-important callout-titled">
@@ -1323,7 +1345,7 @@ Figure&nbsp;1
 \]</span></p>
 <p>where the expectation and standard deviation are over the random variables <span class="math inline">\((X, Y, E, R)\)</span>, and <span class="math inline">\(k\)</span> is a safety factor. This is equivalent to requiring <span class="math inline">\(\mu + k\sigma\)</span> of the constraint <em>violation</em> to be non-positive, which ensures that the design remains feasible with high probability.</p>
 <p>We compute the expectation using Gauss quadrature over the random variables. The <code>SampleAverageConstraint</code> class combines the model, quadrature rule, and statistical measure into a single constraint object.</p>
-<div id="2dcb7838" class="cell">
+<div id="be3338d3" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature.probability_measure_factory <span class="im">import</span> (</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    ProbabilityMeasureQuadratureFactory,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1337,7 +1359,7 @@ Figure&nbsp;1
 <span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>n_quad <span class="op">=</span> quad_samples.shape[<span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="7cbe40bf" class="cell">
+<div id="1efc6316" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.optimization.minimize.constraints.sample_average <span class="im">import</span> (</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    SampleAverageConstraint,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1362,7 +1384,7 @@ Figure&nbsp;1
 <span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Now solve the robust optimization problem. The objective is the same (minimize area), but we use <code>ActiveSetFunction</code> to reduce the objective to design variables only, and the <code>SampleAverageConstraint</code> enforces statistical feasibility.</p>
-<div id="42588723" class="cell">
+<div id="5c744729" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>robust_optimizer <span class="op">=</span> ScipyTrustConstrOptimizer(maxiter<span class="op">=</span><span class="dv">200</span>, gtol<span class="op">=</span><span class="fl">1e-10</span>)</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>robust_optimizer.bind(det_objective, bounds, constraints<span class="op">=</span>[robust_constraint])</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>robust_result <span class="op">=</span> robust_optimizer.minimize(init_guess)</span>
@@ -1374,7 +1396,7 @@ Figure&nbsp;1
 </section>
 <section id="comparing-the-two-designs" class="level2">
 <h2 class="anchored" data-anchor-id="comparing-the-two-designs">Comparing the Two Designs</h2>
-<div id="06b13b7e" class="cell">
+<div id="c4b11665" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Propagate uncertainty at the robust optimum</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>design_rob <span class="op">=</span> bkd.asarray([[w_rob], [t_rob]])</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>design_rob_tiled <span class="op">=</span> bkd.repeat(design_rob, N_mc, axis<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1383,20 +1405,25 @@ Figure&nbsp;1
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>constraint_values_rob <span class="op">=</span> bkd.to_numpy(constraints_model(full_samples_rob))</span>
 <span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>any_failure_rob <span class="op">=</span> np.<span class="bu">sum</span>(np.<span class="bu">any</span>(constraint_values_rob <span class="op">&lt;</span> <span class="dv">0</span>, axis<span class="op">=</span><span class="dv">0</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-comparison" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-comparison" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_duu_comparison</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>plot_duu_comparison(constraint_values, constraint_values_rob, axes)</span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-comparison" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="design_under_uncertainty_files/figure-html/fig-comparison-output-1.png" width="1142" height="374" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-comparison-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Constraint value distributions at the deterministic (blue) and robust (orange) optima. The robust design shifts the distributions away from the failure boundary, dramatically reducing constraint violations at the cost of a modest increase in cross-sectional area.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The robust design increases the cross-sectional area (cost) but dramatically reduces the failure probability by building in a safety margin against uncertainty.</p>
 </section>

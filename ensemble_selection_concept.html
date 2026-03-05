@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Model Ensemble Selection – PyApprox">
 <meta property="og:description" content="Why adding a poorly-correlated low-fidelity model can increase estimator variance relative to using fewer models, and how to automatically identify the best model subset from pilot data alone.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/ensemble_selection_concept_files/figure-html/fig-bad-model-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="837">
+<meta property="og:image:width" content="1709">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1112,7 +1115,21 @@ window.Quarto = {
 <section id="the-surprising-cost-of-useless-models" class="level2">
 <h2 class="anchored" data-anchor-id="the-surprising-cost-of-useless-models">The Surprising Cost of Useless Models</h2>
 <p>Adding a cheap LF model seems like it should always help — more data, lower cost, nothing to lose. This intuition is wrong. Consider a three-model ensemble <span class="math inline">\(\{f_0, f_1, f_2\}\)</span> where <span class="math inline">\(f_1\)</span> is only weakly correlated with <span class="math inline">\(f_0\)</span>. The ACV estimator must estimate control variate coefficients and allocate budget across all models. When a model contributes little variance reduction it absorbs samples that would have been better spent on the remaining models, pushing the estimator covariance <em>above</em> the two-model <span class="math inline">\(\{f_0, f_2\}\)</span>.</p>
-<p><strong>?@fig-bad-model</strong> shows the crossover: when <span class="math inline">\(\rho_{01}\)</span> is small the three-model estimator is worse than the best two-model subset. As <span class="math inline">\(\rho_{01}\)</span> increases the three-model estimator eventually overtakes the two-model one.</p>
+<div id="cell-fig-bad-model" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-bad-model" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-bad-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ensemble_selection_concept_files/figure-html/fig-bad-model-output-1.png" width="855" height="419" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-bad-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Predicted ACVMF variance (relative to single-fidelity MC) as a function of the HF–LF1 correlation <span class="math inline">\(\rho_{01}\)</span>, controlled by the parameter <span class="math inline">\(\theta_1\)</span> of the tunable benchmark. When <span class="math inline">\(\rho_{01}\)</span> is small, the three-model estimator (blue) is <em>worse</em> than the best two-model subset (orange dashed). The shaded region marks where using all three models hurts.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><a href="#fig-bad-model" class="quarto-xref">Figure&nbsp;1</a> shows the crossover: when <span class="math inline">\(\rho_{01}\)</span> is small the three-model estimator is worse than the best two-model subset. As <span class="math inline">\(\rho_{01}\)</span> increases the three-model estimator eventually overtakes the two-model one.</p>
 <p>This is not a corner case. In practice, large model libraries routinely include models that are only weakly predictive of the HF output, and naive inclusion degrades performance.</p>
 </section>
 <section id="the-ensemble-selection-problem" class="level2">
@@ -1132,13 +1149,41 @@ window.Quarto = {
 </section>
 <section id="the-correlation-heatmap" class="level2">
 <h2 class="anchored" data-anchor-id="the-correlation-heatmap">The Correlation Heatmap</h2>
-<p>The joint pilot covariance (or its normalised form, the correlation matrix) is the primary diagnostic for ensemble design. <strong>?@fig-heatmap</strong> shows the correlation matrices for two different configurations of the tunable benchmark, demonstrating how the correlation structure controls which models are worth including.</p>
-<p>From <strong>?@fig-heatmap</strong>, the left panel shows a configuration where both LF models are useful (<span class="math inline">\(\rho_{01} = 0.96\)</span>, <span class="math inline">\(\rho_{02} = 0.41\)</span>), while the right panel shows a case where only <span class="math inline">\(f_2\)</span> provides meaningful correlation. Whether to include one or both LF models cannot be answered from the heatmap alone — the optimal decision also depends on model costs and the available budget.</p>
+<p>The joint pilot covariance (or its normalised form, the correlation matrix) is the primary diagnostic for ensemble design. <a href="#fig-heatmap" class="quarto-xref">Figure&nbsp;2</a> shows the correlation matrices for two different configurations of the tunable benchmark, demonstrating how the correlation structure controls which models are worth including.</p>
+<div id="cell-fig-heatmap" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-heatmap" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ensemble_selection_concept_files/figure-html/fig-heatmap-output-1.png" width="804" height="350" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Correlation matrices for two configurations of the tunable benchmark. Left (<span class="math inline">\(\theta_1 = 1.4\)</span>): <span class="math inline">\(f_1\)</span> is strongly correlated with <span class="math inline">\(f_0\)</span> (<span class="math inline">\(\rho_{01} = 0.96\)</span>) — both LF models help. Right (<span class="math inline">\(\theta_1 = 0.6\)</span>): <span class="math inline">\(f_1\)</span> is weakly correlated (<span class="math inline">\(\rho_{01} = 0.55\)</span>) — only <span class="math inline">\(f_2\)</span> contributes meaningful variance reduction.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>From <a href="#fig-heatmap" class="quarto-xref">Figure&nbsp;2</a>, the left panel shows a configuration where both LF models are useful (<span class="math inline">\(\rho_{01} = 0.96\)</span>, <span class="math inline">\(\rho_{02} = 0.41\)</span>), while the right panel shows a case where only <span class="math inline">\(f_2\)</span> provides meaningful correlation. Whether to include one or both LF models cannot be answered from the heatmap alone — the optimal decision also depends on model costs and the available budget.</p>
 </section>
 <section id="how-many-models-is-enough" class="level2">
 <h2 class="anchored" data-anchor-id="how-many-models-is-enough">How Many Models Is Enough?</h2>
-<p><strong>?@fig-nmodels</strong> shows the ACVMF variance ratio (relative to MC) for the best one-LF and two-LF subsets across a range of <span class="math inline">\(\rho_{01}\)</span> values. The winner depends on the correlation structure: at low <span class="math inline">\(\rho_{01}\)</span>, using only <span class="math inline">\(f_2\)</span> is best; at high <span class="math inline">\(\rho_{01}\)</span>, the full three-model ensemble wins.</p>
-<p>In <strong>?@fig-nmodels</strong>, at low <span class="math inline">\(\rho_{01}\)</span> the best strategy is to exclude <span class="math inline">\(f_1\)</span> and use only <span class="math inline">\(\{f_0, f_2\}\)</span>. As <span class="math inline">\(\rho_{01}\)</span> increases, <span class="math inline">\(f_1\)</span> becomes valuable and the three-model ensemble dominates. The crossover point identifies the correlation threshold below which <span class="math inline">\(f_1\)</span> should be dropped from the ensemble.</p>
+<p><a href="#fig-nmodels" class="quarto-xref">Figure&nbsp;3</a> shows the ACVMF variance ratio (relative to MC) for the best one-LF and two-LF subsets across a range of <span class="math inline">\(\rho_{01}\)</span> values. The winner depends on the correlation structure: at low <span class="math inline">\(\rho_{01}\)</span>, using only <span class="math inline">\(f_2\)</span> is best; at high <span class="math inline">\(\rho_{01}\)</span>, the full three-model ensemble wins.</p>
+<div id="cell-fig-nmodels" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-nmodels" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-nmodels-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ensemble_selection_concept_files/figure-html/fig-nmodels-output-1.png" width="853" height="419" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-nmodels-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: ACVMF variance ratio for the best one-LF subset (orange) and the two-LF ensemble (blue) across different HF–LF1 correlation strengths. At low <span class="math inline">\(\rho_{01}\)</span> the single-model subset <span class="math inline">\(\{f_0, f_2\}\)</span> outperforms the full ensemble; at high <span class="math inline">\(\rho_{01}\)</span> the three-model estimator is clearly better. The crossover identifies the correlation threshold below which <span class="math inline">\(f_1\)</span> should be excluded.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>In <a href="#fig-nmodels" class="quarto-xref">Figure&nbsp;3</a>, at low <span class="math inline">\(\rho_{01}\)</span> the best strategy is to exclude <span class="math inline">\(f_1\)</span> and use only <span class="math inline">\(\{f_0, f_2\}\)</span>. As <span class="math inline">\(\rho_{01}\)</span> increases, <span class="math inline">\(f_1\)</span> becomes valuable and the three-model ensemble dominates. The crossover point identifies the correlation threshold below which <span class="math inline">\(f_1\)</span> should be dropped from the ensemble.</p>
 </section>
 <section id="why-this-matters-in-practice" class="level2">
 <h2 class="anchored" data-anchor-id="why-this-matters-in-practice">Why This Matters in Practice</h2>
@@ -1147,19 +1192,19 @@ window.Quarto = {
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
 <ul>
-<li>Adding a weakly-correlated LF model can <em>increase</em> estimator variance relative to using a smaller ensemble (<strong>?@fig-bad-model</strong>)</li>
+<li>Adding a weakly-correlated LF model can <em>increase</em> estimator variance relative to using a smaller ensemble (<a href="#fig-bad-model" class="quarto-xref">Figure&nbsp;1</a>)</li>
 <li>The ensemble selection problem is: find the best subset of <span class="math inline">\(\leq k\)</span> LF models given the pilot covariance and a target budget</li>
-<li>The pilot correlation heatmap (<strong>?@fig-heatmap</strong>) is the primary visual diagnostic but is not sufficient alone — cost ratios and budget also drive the decision</li>
-<li>The optimal ensemble size depends on the correlation structure: stronger correlations favour larger ensembles (<strong>?@fig-nmodels</strong>)</li>
+<li>The pilot correlation heatmap (<a href="#fig-heatmap" class="quarto-xref">Figure&nbsp;2</a>) is the primary visual diagnostic but is not sufficient alone — cost ratios and budget also drive the decision</li>
+<li>The optimal ensemble size depends on the correlation structure: stronger correlations favour larger ensembles (<a href="#fig-nmodels" class="quarto-xref">Figure&nbsp;3</a>)</li>
 <li>Enumeration over subsets is cheap: no additional model evaluations are required beyond the pilot</li>
 </ul>
 </section>
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>From <strong>?@fig-bad-model</strong>, at what approximate <span class="math inline">\(\rho_{01}\)</span> does the three-model estimator break even with the best two-model subset? How does this answer depend on the budget <span class="math inline">\(P\)</span>?</p></li>
-<li><p>From <strong>?@fig-heatmap</strong>, in each configuration, which single LF model would you include first, and why? Would your answer change if model costs were equal?</p></li>
-<li><p>From <strong>?@fig-nmodels</strong>, at <span class="math inline">\(\rho_{01} \approx 0.7\)</span>, the best one-LF and two-LF ensembles have similar variance. What practical consideration might break the tie in favour of fewer models?</p></li>
+<li><p>From <a href="#fig-bad-model" class="quarto-xref">Figure&nbsp;1</a>, at what approximate <span class="math inline">\(\rho_{01}\)</span> does the three-model estimator break even with the best two-model subset? How does this answer depend on the budget <span class="math inline">\(P\)</span>?</p></li>
+<li><p>From <a href="#fig-heatmap" class="quarto-xref">Figure&nbsp;2</a>, in each configuration, which single LF model would you include first, and why? Would your answer change if model costs were equal?</p></li>
+<li><p>From <a href="#fig-nmodels" class="quarto-xref">Figure&nbsp;3</a>, at <span class="math inline">\(\rho_{01} \approx 0.7\)</span>, the best one-LF and two-LF ensembles have similar variance. What practical consideration might break the tie in favour of fewer models?</p></li>
 </ol>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">

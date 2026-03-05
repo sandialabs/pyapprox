@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="PCE-Based Sensitivity Analysis – PyApprox">
 <meta property="og:description" content="Computing Sobol indices analytically from polynomial chaos expansion coefficients.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/pce_sensitivity_files/figure-html/fig-pce-sobol-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="844">
+<meta property="og:image:width" content="2728">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1125,7 +1128,7 @@ window.Quarto = {
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 \]</span></p>
 <p>The Ishigami function has notable features: <span class="math inline">\(x_2\)</span> has the largest main effect, <span class="math inline">\(x_3\)</span> has zero main effect but a strong interaction with <span class="math inline">\(x_1\)</span>, and <span class="math inline">\(x_1\)</span> participates in both direct and interaction effects.</p>
-<div id="953d4c34" class="cell">
+<div id="478fb8f1" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1151,7 +1154,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
 <span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="02789f2c" class="cell">
+<div id="8d2b5ec7" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit a PCE to the Ishigami function</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
@@ -1166,7 +1169,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="basic-usage" class="level2">
 <h2 class="anchored" data-anchor-id="basic-usage">Basic Usage</h2>
 <p>The <code>PolynomialChaosSensitivityAnalysis</code> class wraps a fitted PCE and provides Sobol index computation.</p>
-<div id="4a22e7ab" class="cell">
+<div id="6f1762a5" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> PolynomialChaosSensitivityAnalysis</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> PolynomialChaosSensitivityAnalysis(pce)</span>
@@ -1182,7 +1185,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="interaction-terms" class="level2">
 <h2 class="anchored" data-anchor-id="interaction-terms">Interaction Terms</h2>
 <p>To compute higher-order Sobol indices (e.g., <span class="math inline">\(\Sobol{13}\)</span>), specify the interaction terms of interest. Each column of the interaction matrix is a binary indicator of which variables are active.</p>
-<div id="7343c442" class="cell">
+<div id="7f912a14" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define interaction terms: main effects + all pairwise + triple</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># x_1 active</span></span>
@@ -1198,9 +1201,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="visualization" class="level2">
 <h2 class="anchored" data-anchor-id="visualization">Visualization</h2>
 <p>The <code>sensitivity.plots</code> module provides built-in plotting functions.</p>
-<div id="fig-pce-sobol" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pce-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-pce-sobol" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.plots <span class="im">import</span> (</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    plot_main_effects,</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    plot_total_effects,</span>
@@ -1224,16 +1225,37 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-pce-sobol" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pce-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pce_sensitivity_files/figure-html/fig-pce-sobol-output-1.png" width="1364" height="422" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-pce-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-sobol-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: PCE-based Sobol indices for the Ishigami function. Left: main effect pie chart showing <span class="math inline">\(x_2\)</span> dominates. Center: total-order bar chart—<span class="math inline">\(x_3\)</span> has zero main effect but nonzero total effect due to its interaction with <span class="math inline">\(x_1\)</span>. Right: full Sobol decomposition showing the <span class="math inline">\(S_{13}\)</span> interaction.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="convergence-with-pce-degree" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-with-pce-degree">Convergence with PCE Degree</h2>
 <p>The accuracy of PCE-based Sobol indices depends on how well the surrogate approximates the true function. Higher polynomial degree generally gives better indices, but requires more training data.</p>
+<div id="cell-fig-convergence" class="cell" data-execution_count="6">
+<div class="cell-output cell-output-display">
+<div id="fig-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pce_sensitivity_files/figure-html/fig-convergence-output-1.png" width="1138" height="421" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence of PCE-based Sobol indices with polynomial degree. As the degree increases, the estimates approach the analytical ground truth (dashed lines). The x_1-x_3 interaction requires higher degree to resolve because it involves a degree-4 polynomial in x_3.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The <span class="math inline">\(x_3\)</span> total effect converges slowly because it requires capturing the <span class="math inline">\(x_3^4\)</span> term, which needs at least polynomial degree 4.</p>
 </section>
 <section id="key-takeaways" class="level2">

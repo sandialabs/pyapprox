@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Fidelity Gaussian Processes – PyApprox">
 <meta property="og:description" content="Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/multioutput_gp_files/figure-html/fig-forrester-functions-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="749">
+<meta property="og:image:width" content="1512">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1116,7 +1119,7 @@ window.Quarto = {
 <section id="setup-the-forrester-benchmark" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-forrester-benchmark">Setup: The Forrester Benchmark</h2>
 <p>We use the Forrester multi-fidelity benchmark — a pair of 1D functions sharing the same oscillatory structure but differing in scale and offset. The high-fidelity function <span class="math inline">\(f_h(x) = (6x - 2)^2 \sin(12x - 4)\)</span> is expensive; the low-fidelity approximation <span class="math inline">\(f_l(x) = 0.5\, f_h(x) + 10(x - 0.5) - 5\)</span> is cheap but biased.</p>
-<div id="d83a9916" class="cell">
+<div id="28fadf2c" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
@@ -1139,6 +1142,20 @@ window.Quarto = {
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>level_names <span class="op">=</span> [<span class="st">"Low fidelity"</span>, <span class="st">"High fidelity"</span>]</span>
 <span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>costs_per_eval <span class="op">=</span> [<span class="fl">0.05</span>, <span class="fl">1.0</span>]     <span class="co"># seconds per evaluation</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+<div id="cell-fig-forrester-functions" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-forrester-functions" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-forrester-functions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-forrester-functions-output-1.png" width="756" height="375" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-forrester-functions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: The Forrester multi-fidelity benchmark. The high-fidelity function (black) is expensive; the low-fidelity approximation (orange dashed) is cheap but biased. Both share the same oscillatory structure — the MFGP can exploit this correlation.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="the-kennedyohagan-auto-regressive-model" class="level2">
 <h2 class="anchored" data-anchor-id="the-kennedyohagan-auto-regressive-model">The Kennedy–O’Hagan Auto-Regressive Model</h2>
@@ -1153,7 +1170,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 </section>
 <section id="building-the-multilevelkernel" class="level2">
 <h2 class="anchored" data-anchor-id="building-the-multilevelkernel">Building the MultiLevelKernel</h2>
-<div id="59994c63" class="cell">
+<div id="74dff615" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> SquaredExponentialKernel</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.multioutput.multilevel <span class="im">import</span> MultiLevelKernel</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.scalings <span class="im">import</span> PolynomialScaling</span>
@@ -1195,7 +1212,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 <section id="training-data" class="level2">
 <h2 class="anchored" data-anchor-id="training-data">Training Data</h2>
 <p>We allocate 100 cheap low-fidelity evaluations and only 4 expensive high-fidelity evaluations. The total cost is <span class="math inline">\(100 \times 0.05 + 4 \times 1.0 = 9\)</span> seconds — equivalent to 9 high-fidelity evaluations.</p>
-<div id="dc0a15e6" class="cell">
+<div id="807ccd9b" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>n_lf, n_hf <span class="op">=</span> <span class="dv">100</span>, <span class="dv">4</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>X_lf <span class="op">=</span> prior.rvs(n_lf)</span>
@@ -1211,7 +1228,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 </section>
 <section id="fitting-and-predicting" class="level2">
 <h2 class="anchored" data-anchor-id="fitting-and-predicting">Fitting and Predicting</h2>
-<div id="6e04333f" class="cell">
+<div id="95155059" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fit() optimises all active hyperparameters (length scales) via MLL</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mf_gp.fit(samples_list, y_train_list)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1230,7 +1247,7 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 <section id="hf-only-baseline" class="level2">
 <h2 class="anchored" data-anchor-id="hf-only-baseline">HF-Only Baseline</h2>
 <p>For a fair comparison, we build a single-fidelity GP using the same total computational budget spent entirely on high-fidelity evaluations.</p>
-<div id="3eb74896" class="cell">
+<div id="6f4a65fa" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
@@ -1264,10 +1281,38 @@ f_k = \rho_{k-1}\,f_{k-1} + \delta_k,
 </section>
 <section id="comparison-predictions-and-uncertainty" class="level2">
 <h2 class="anchored" data-anchor-id="comparison-predictions-and-uncertainty">Comparison: Predictions and Uncertainty</h2>
+<div id="cell-fig-predictions-uncertainty" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-predictions-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-predictions-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-predictions-uncertainty-output-1.png" width="852" height="1046" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-predictions-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Three GP surrogates compared. <strong>Top</strong>: multi-fidelity GP using 100 LF + 4 HF samples. <strong>Middle</strong>: HF-only GP at equal budget. <strong>Bottom</strong>: HF-only GP using only the same 4 HF samples as the MF model — the wide uncertainty bands show how much information the 100 cheap LF evaluations contribute. Shaded bands show <span class="math inline">\(\pm 2\sigma\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="the-block-kernel-matrix" class="level2">
 <h2 class="anchored" data-anchor-id="the-block-kernel-matrix">The Block Kernel Matrix</h2>
 <p>The <code>MultiLevelKernel</code> assembles a joint covariance across all fidelity levels. Off-diagonal blocks encode the cross-level correlations implied by the KO recursion: large values mean a low-fidelity evaluation carries information about the high-fidelity level.</p>
+<div id="cell-fig-kernel-matrix" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<div id="fig-kernel-matrix" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-kernel-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="multioutput_gp_files/figure-html/fig-kernel-matrix-output-1.png" width="567" height="469" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kernel-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Joint prior kernel matrix across 30 sorted test points for both fidelity levels. The off-diagonal block (LF–HF) shows strong cross-level covariance — this is the inter-level information that the multi-fidelity GP exploits.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">

@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Pilot Studies: Analysis – PyApprox">
 <meta property="og:description" content="Decomposing the MSE of a pilot-based ACV estimator into allocation error and budget depletion, deriving the optimal pilot fraction, and quantifying sensitivity to pilot size as a function of model correlation and total budget.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/pilot_studies_analysis_files/figure-html/fig-mse-decomp-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="836">
+<meta property="og:image:width" content="1706">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1110,7 +1113,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="569d68fe" class="cell">
+<div id="e33b25f8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1145,9 +1148,7 @@ window.Quarto = {
 <p><strong>Estimator variance</strong> is the variance of <span class="math inline">\(\hat{\mu}_0\)</span> at the allocation determined by <span class="math inline">\(\hat{\boldsymbol{\Sigma}}\)</span>. When <span class="math inline">\(\hat{\boldsymbol{\Sigma}} \approx \boldsymbol{\Sigma}\)</span>, this is close to the oracle variance. When <span class="math inline">\(\hat{\boldsymbol{\Sigma}}\)</span> is noisy, the chosen allocation is suboptimal and the variance is higher.</p>
 <p><strong>Bias</strong> arises because the control variate coefficient <span class="math inline">\(\hat{\alpha} = -\hat{\sigma}_{0,1}/\hat{\sigma}_{1,1}\)</span> is a ratio of random variables. For finite <span class="math inline">\(N_p\)</span>, <span class="math inline">\(\mathbb{E}[\hat{\alpha}] \neq \alpha^*\)</span>, introducing a small residual bias. The bias vanishes as <span class="math inline">\(N_p \to \infty\)</span>.</p>
 <p>In practice, the bias contribution is small compared to the variance contribution unless <span class="math inline">\(N_p\)</span> is very small (<span class="math inline">\(&lt; M+2\)</span>). The dominant effect is the allocation error from a noisy <span class="math inline">\(\hat{\boldsymbol{\Sigma}}\)</span>.</p>
-<div id="fig-mse-decomp" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-mse-decomp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-mse-decomp" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>P_total   <span class="op">=</span> <span class="fl">100.0</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>ntrials   <span class="op">=</span> <span class="dv">600</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>npilot_list <span class="op">=</span> [<span class="dv">5</span>, <span class="dv">8</span>, <span class="dv">12</span>, <span class="dv">20</span>, <span class="dv">35</span>, <span class="dv">60</span>, <span class="dv">80</span>]</span>
@@ -1209,19 +1210,24 @@ window.Quarto = {
 <span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(bottom<span class="op">=</span><span class="dv">0</span>)</span>
 <span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-mse-decomp" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mse-decomp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pilot_studies_analysis_files/figure-html/fig-mse-decomp-output-1.png" width="853" height="418" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-mse-decomp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mse-decomp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Empirical MSE, variance, and bias² for pilot-based MFMC as functions of <span class="math inline">\(N_p\)</span> at <span class="math inline">\(P=100\)</span> (pilot cost deducted). The total MSE is dominated by variance; the bias² contribution is negligible except for extremely small <span class="math inline">\(N_p\)</span>. The oracle ACV variance (dashed) is the minimum achievable with perfect covariance knowledge.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="sensitivity-to-total-budget" class="level2">
 <h2 class="anchored" data-anchor-id="sensitivity-to-total-budget">Sensitivity to Total Budget</h2>
 <p>The optimal pilot fraction <span class="math inline">\(f^* = N_p^* \sum_\alpha C_\alpha / P\)</span> is not fixed — it depends on the total budget <span class="math inline">\(P\)</span>. At small <span class="math inline">\(P\)</span>, covariance estimation matters less (the estimator is dominated by HF sample count), so a smaller fraction is optimal. At large <span class="math inline">\(P\)</span>, a precise covariance estimate is worth more.</p>
-<div id="fig-budget-sensitivity" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-budget-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-budget-sensitivity" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>budgets   <span class="op">=</span> [<span class="fl">100.0</span>, <span class="fl">300.0</span>, <span class="fl">500.0</span>]</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>cols      <span class="op">=</span> [<span class="st">"#8E44AD"</span>, <span class="st">"#2C7FB8"</span>, <span class="st">"#27AE60"</span>]</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>npilot_grids <span class="op">=</span> {</span>
@@ -1262,19 +1268,24 @@ Figure&nbsp;1
 <span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
 <span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-budget-sensitivity" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-budget-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pilot_studies_analysis_files/figure-html/fig-budget-sensitivity-output-1.png" width="949" height="418" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-budget-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-budget-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: MSE vs pilot size <span class="math inline">\(N_p\)</span> for three total budgets <span class="math inline">\(P \in \{100, 300, 500\}\)</span>. The optimal pilot size <span class="math inline">\(N_p^*\)</span> (marked with ★) increases with <span class="math inline">\(P\)</span>; the relative pilot fraction <span class="math inline">\(N_p^* / P\)</span> stays approximately constant or grows slowly. Dotted horizontal lines show the oracle ACV variance (known <span class="math inline">\(\boldsymbol{\Sigma}\)</span>, full budget) for each <span class="math inline">\(P\)</span>.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="sensitivity-to-model-correlation" class="level2">
 <h2 class="anchored" data-anchor-id="sensitivity-to-model-correlation">Sensitivity to Model Correlation</h2>
 <p>Weakly-correlated models require larger pilot studies because the relevant off-diagonal covariance entries are harder to estimate from finite samples.</p>
-<div id="fig-corr-sensitivity" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-corr-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-corr-sensitivity" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> tunable_ensemble_3model</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># theta1 controls rho_01: larger theta1 → higher correlation</span></span>
@@ -1348,11 +1359,18 @@ Figure&nbsp;2
 <span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
 <span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-corr-sensitivity" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-corr-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pilot_studies_analysis_files/figure-html/fig-corr-sensitivity-output-1.png" width="853" height="418" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-corr-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-corr-sensitivity-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: MSE vs pilot size for three HF–MF correlation levels controlled by <span class="math inline">\(\theta_1\)</span> in the tunable ensemble, at fixed <span class="math inline">\(P=100\)</span>. Dotted lines show the oracle ACV variance for each correlation level.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p><a href="#fig-corr-sensitivity" class="quarto-xref">Figure&nbsp;3</a> uses the <code>tunable_ensemble_3model</code> benchmark with three values of <span class="math inline">\(\theta_1\)</span> to produce different HF–MF correlations.</p>
 </section>

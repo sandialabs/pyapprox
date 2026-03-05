@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="From Models to Decisions Under Uncertainty – PyApprox">
 <meta property="og:description" content="Opening tutorial: why computational models need uncertainty quantification, grounded in a composite cantilever beam.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/models_decisions_uncertainty_files/figure-html/fig-beam-geometry-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="748">
+<meta property="og:image:width" content="1771">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1108,7 +1111,21 @@ window.Quarto = {
 </section>
 <section id="models-predict-complex-physical-phenomena" class="level2">
 <h2 class="anchored" data-anchor-id="models-predict-complex-physical-phenomena">Models Predict Complex Physical Phenomena</h2>
-<p>Engineers and scientists routinely use computational models to predict the behavior of systems that are too complex, too expensive, or too dangerous to test exhaustively in the lab. These models underpin critical decisions—from certifying that a structure is safe, to optimizing the design of a new one. But a prediction is only useful if we understand how much to trust it. Uncertainty quantification (UQ) provides the mathematical framework for answering that question. This tutorial is the first in a series introducing core UQ concepts and the PyApprox tools that implement them. We begin with a concrete model problem: a composite cantilever beam with stiff outer skins, a compliant inner core containing circular holes, clamped at one end and loaded on top (<strong>?@fig-beam-geometry</strong>).</p>
+<p>Engineers and scientists routinely use computational models to predict the behavior of systems that are too complex, too expensive, or too dangerous to test exhaustively in the lab. These models underpin critical decisions—from certifying that a structure is safe, to optimizing the design of a new one. But a prediction is only useful if we understand how much to trust it. Uncertainty quantification (UQ) provides the mathematical framework for answering that question. This tutorial is the first in a series introducing core UQ concepts and the PyApprox tools that implement them. We begin with a concrete model problem: a composite cantilever beam with stiff outer skins, a compliant inner core containing circular holes, clamped at one end and loaded on top (<a href="#fig-beam-geometry" class="quarto-xref">Figure&nbsp;1</a>).</p>
+<div id="cell-fig-beam-geometry" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-beam-geometry" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-beam-geometry-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="models_decisions_uncertainty_files/figure-html/fig-beam-geometry-output-1.png" width="886" height="374" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-beam-geometry-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Composite cantilever beam: three material layers with five circular holes. Clamped at the left edge, linearly increasing traction on the top surface.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The beam has three subdomains: stiff skins on the top and bottom (<span class="math inline">\(E_1, \nu_1\)</span>) and a compliant core with circular holes of radius <span class="math inline">\(r\)</span> (<span class="math inline">\(E_2, \nu_2\)</span>). The governing physics is linear elasticity. In each material layer, the stress-strain relationship follows Hooke’s law:</p>
 <p><span id="eq-hooke"><span class="math display">\[
 \sigma_{ij} = \lambda \, \varepsilon_{kk} \, \delta_{ij} + 2\mu \, \varepsilon_{ij}
@@ -1120,11 +1137,25 @@ window.Quarto = {
 \boldsymbol{\sigma} \cdot \vc{n} = \vc{t} \;\text{on}\; \Gamma_N
 \tag{2}\]</span></span></p>
 <p>where <span class="math inline">\(\vc{t} = (0,\, -q_0 x/L)^T\)</span> is the linearly increasing traction on the top surface.</p>
-<p>Solving this PDE with a finite element method produces a rich, high-dimensional output: displacement and stress fields over the entire domain. <strong>?@fig-reference-solution</strong> shows the result at fixed (nominal) material properties.</p>
+<p>Solving this PDE with a finite element method produces a rich, high-dimensional output: displacement and stress fields over the entire domain. <a href="#fig-reference-solution" class="quarto-xref">Figure&nbsp;2</a> shows the result at fixed (nominal) material properties.</p>
+<div id="cell-fig-reference-solution" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-reference-solution" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-reference-solution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="models_decisions_uncertainty_files/figure-html/fig-reference-solution-output-1.png" width="878" height="315" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-reference-solution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Von Mises stress on the deformed mesh (magnified) with undeformed outline. Stress concentrations appear at the holes near the clamped end.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="from-full-solutions-to-quantities-of-interest" class="level2">
 <h2 class="anchored" data-anchor-id="from-full-solutions-to-quantities-of-interest">From Full Solutions to Quantities of Interest</h2>
-<p>The simulation in <strong>?@fig-reference-solution</strong> produces displacement and stress values at thousands of mesh nodes. But an engineer rarely needs the entire field. Instead, they need to answer specific questions that drive decisions:</p>
+<p>The simulation in <a href="#fig-reference-solution" class="quarto-xref">Figure&nbsp;2</a> produces displacement and stress values at thousands of mesh nodes. But an engineer rarely needs the entire field. Instead, they need to answer specific questions that drive decisions:</p>
 <ul>
 <li><strong>Does the beam deflect too much?</strong> → Measure the vertical tip displacement <span class="math inline">\(\delta_{\text{tip}} = u_y(L, H/2)\)</span>.</li>
 <li><strong>Will the material yield?</strong> → Check the total von Mises stress integrated over the domain, <span class="math inline">\(\sigma_{\text{tot}} = \int_\Omega \sigma_{\text{vm}}\, dA\)</span>.</li>
@@ -1140,10 +1171,58 @@ q_1 = \delta_{\text{tip}} = u_y(L,\, H/2), \qquad q_2 = \sigma_{\text{tot}} = \i
 <h2 class="anchored" data-anchor-id="models-are-subject-to-uncertainties">Models Are Subject to Uncertainties</h2>
 <p>So far, we solved the beam at fixed, nominal material properties. But in practice, the inputs to a model are <strong>uncertain</strong>:</p>
 <ul>
-<li><p><strong>Parameter uncertainty.</strong> The Young’s moduli (<span class="math inline">\(E_1\)</span>, <span class="math inline">\(E_2\)</span>) and Poisson ratios (<span class="math inline">\(\nu_1\)</span>, <span class="math inline">\(\nu_2\)</span>) are not known exactly. Manufacturing tolerances, batch-to-batch variability, and limited test data all introduce uncertainty. <strong>?@fig-parameter-uncertainty</strong> shows how changing the material stiffness changes the beam’s response: halving the moduli roughly doubles the deflection.</p></li>
-<li><p><strong>Model-form uncertainty.</strong> The governing equations themselves are approximations. Linear elasticity (<a href="#eq-hooke" class="quarto-xref">Equation&nbsp;1</a>) assumes small deformations, but under heavy loading the geometry changes enough to stiffen the response. A <strong>Neo-Hookean</strong> hyperelastic model captures this geometric nonlinearity. <strong>?@fig-model-form-uncertainty</strong> shows both models at the same (increased) load: the linear model over-predicts deflection by about 58% because it ignores the stiffening effect of large rotations.</p></li>
-<li><p><strong>Numerical uncertainty.</strong> The finite element solution depends on the mesh: a coarser mesh is cheaper but less accurate. <strong>?@fig-numerical-uncertainty</strong> compares solutions on two meshes; the coarse mesh under-predicts tip deflection by about 6%.</p></li>
-<li><p><strong>Data uncertainty.</strong> If we calibrate the model against experimental measurements (e.g., measured tip deflection from a lab test), those measurements carry their own noise and systematic errors.</p></li>
+<li><strong>Parameter uncertainty.</strong> The Young’s moduli (<span class="math inline">\(E_1\)</span>, <span class="math inline">\(E_2\)</span>) and Poisson ratios (<span class="math inline">\(\nu_1\)</span>, <span class="math inline">\(\nu_2\)</span>) are not known exactly. Manufacturing tolerances, batch-to-batch variability, and limited test data all introduce uncertainty. <a href="#fig-parameter-uncertainty" class="quarto-xref">Figure&nbsp;3</a> shows how changing the material stiffness changes the beam’s response: halving the moduli roughly doubles the deflection.</li>
+</ul>
+<div id="cell-fig-parameter-uncertainty" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-parameter-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-parameter-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="models_decisions_uncertainty_files/figure-html/fig-parameter-uncertainty-output-1.png" width="822" height="226" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-parameter-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Effect of parameter uncertainty. Left: stiff materials (<span class="math inline">\(E_1 = 2.5{\times}10^4\)</span>, <span class="math inline">\(E_2 = 6{\times}10^3\)</span>). Right: soft materials (<span class="math inline">\(E_1 = 1.2{\times}10^4\)</span>, <span class="math inline">\(E_2 = 3{\times}10^3\)</span>). The same load produces roughly twice the deflection in the softer beam.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Model-form uncertainty.</strong> The governing equations themselves are approximations. Linear elasticity (<a href="#eq-hooke" class="quarto-xref">Equation&nbsp;1</a>) assumes small deformations, but under heavy loading the geometry changes enough to stiffen the response. A <strong>Neo-Hookean</strong> hyperelastic model captures this geometric nonlinearity. <a href="#fig-model-form-uncertainty" class="quarto-xref">Figure&nbsp;4</a> shows both models at the same (increased) load: the linear model over-predicts deflection by about 58% because it ignores the stiffening effect of large rotations.</li>
+</ul>
+<div id="cell-fig-model-form-uncertainty" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-model-form-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-model-form-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="models_decisions_uncertainty_files/figure-html/fig-model-form-uncertainty-output-1.png" width="830" height="226" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-model-form-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Model-form uncertainty. Left: linear elasticity. Right: Neo-Hookean hyperelasticity. At higher load (<span class="math inline">\(q_0 = 120\)</span>), the linear model over-predicts deflection by 58% because it neglects geometric stiffening.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Numerical uncertainty.</strong> The finite element solution depends on the mesh: a coarser mesh is cheaper but less accurate. <a href="#fig-numerical-uncertainty" class="quarto-xref">Figure&nbsp;5</a> compares solutions on two meshes; the coarse mesh under-predicts tip deflection by about 6%.</li>
+</ul>
+<div id="cell-fig-numerical-uncertainty" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-numerical-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-numerical-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="models_decisions_uncertainty_files/figure-html/fig-numerical-uncertainty-output-1.png" width="822" height="226" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-numerical-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Numerical uncertainty. Left: coarse mesh (<span class="math inline">\(h = 4\)</span>, 199 nodes). Right: fine mesh (<span class="math inline">\(h = 2\)</span>, 746 nodes). The coarse mesh under-predicts tip deflection by about 6%.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Data uncertainty.</strong> If we calibrate the model against experimental measurements (e.g., measured tip deflection from a lab test), those measurements carry their own noise and systematic errors.</li>
 </ul>
 </section>
 <section id="quantifying-the-impact-of-uncertainty-on-the-qoi" class="level2">

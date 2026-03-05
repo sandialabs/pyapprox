@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Multi-Level Monte Carlo – PyApprox">
 <meta property="og:description" content="Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mlmc_concept_files/figure-html/fig-level-variances-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="834">
+<meta property="og:image:width" content="1691">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1129,7 +1132,21 @@ window.Quarto = {
 <section id="why-differences-have-small-variance" class="level2">
 <h2 class="anchored" data-anchor-id="why-differences-have-small-variance">Why Differences Have Small Variance</h2>
 <p>The variance of a correction <span class="math inline">\(f_\ell - f_{\ell+1}\)</span> is small whenever <span class="math inline">\(f_\ell \approx f_{\ell+1}\)</span> — that is, whenever consecutive models in the hierarchy are similar to each other. This is exactly what we expect from a well-designed model sequence: a fine mesh and the next-finer mesh produce nearly identical outputs, so their difference varies little across samples.</p>
-<p><strong>?@fig-level-variances</strong> makes this concrete for a five-level polynomial hierarchy <span class="math inline">\(f_\ell(z) = z^{5-\ell}\)</span>, <span class="math inline">\(z \sim \mathcal{U}[0,1]\)</span>. The variance of each level’s correction <span class="math inline">\(Y_\ell = f_\ell - f_{\ell+1}\)</span> decreases rapidly as <span class="math inline">\(\ell\)</span> increases (moving toward cheaper models), while the cost per sample also decreases. The cheap levels concentrate most of the correction work at negligible expense.</p>
+<p><a href="#fig-level-variances" class="quarto-xref">Figure&nbsp;1</a> makes this concrete for a five-level polynomial hierarchy <span class="math inline">\(f_\ell(z) = z^{5-\ell}\)</span>, <span class="math inline">\(z \sim \mathcal{U}[0,1]\)</span>. The variance of each level’s correction <span class="math inline">\(Y_\ell = f_\ell - f_{\ell+1}\)</span> decreases rapidly as <span class="math inline">\(\ell\)</span> increases (moving toward cheaper models), while the cost per sample also decreases. The cheap levels concentrate most of the correction work at negligible expense.</p>
+<div id="cell-fig-level-variances" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-level-variances" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-level-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlmc_concept_files/figure-html/fig-level-variances-output-1.png" width="846" height="417" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-level-variances-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Variance of the level corrections <span class="math inline">\(Y_\ell = f_\ell - f_{\ell+1}\)</span> (blue bars, left axis) and cost per sample (red line, right axis) for the five-level polynomial hierarchy. The variance of each correction is much smaller than the variance of the corresponding model, and it decreases rapidly toward cheaper levels.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="the-mlmc-estimator" class="level2">
 <h2 class="anchored" data-anchor-id="the-mlmc-estimator">The MLMC Estimator</h2>
@@ -1147,7 +1164,21 @@ window.Quarto = {
 </section>
 <section id="what-mlmc-looks-like-in-practice" class="level2">
 <h2 class="anchored" data-anchor-id="what-mlmc-looks-like-in-practice">What MLMC Looks Like in Practice</h2>
-<p><strong>?@fig-mlmc-vs-mc</strong> shows histograms of MC and MLMC mean estimates at equal total cost for the five-level polynomial hierarchy. MLMC is dramatically more concentrated around the true mean: the same budget buys far more accuracy by spreading samples intelligently across the hierarchy.</p>
+<p><a href="#fig-mlmc-vs-mc" class="quarto-xref">Figure&nbsp;2</a> shows histograms of MC and MLMC mean estimates at equal total cost for the five-level polynomial hierarchy. MLMC is dramatically more concentrated around the true mean: the same budget buys far more accuracy by spreading samples intelligently across the hierarchy.</p>
+<div id="cell-fig-mlmc-vs-mc" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-mlmc-vs-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mlmc-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlmc_concept_files/figure-html/fig-mlmc-vs-mc-output-1.png" width="1141" height="378" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mlmc-vs-mc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Distribution of 1000 MC and MLMC estimates of <span class="math inline">\(\mathbb{E}[f_0]\)</span> at equal total cost. MLMC concentrates its budget where each level correction is cheapest to estimate, producing a much narrower distribution.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="mlmc-vs-acv-same-idea-different-structure" class="level2">
 <h2 class="anchored" data-anchor-id="mlmc-vs-acv-same-idea-different-structure">MLMC vs ACV: Same Idea, Different Structure</h2>

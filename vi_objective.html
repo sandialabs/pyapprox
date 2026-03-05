@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="What Variational Inference Optimizes – PyApprox">
 <meta property="og:description" content="The KL divergence, the evidence problem, and the ELBO — the objective function behind VI.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/vi_objective_files/figure-html/fig-overlap-intuition-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="742">
+<meta property="og:image:width" content="2848">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1118,7 +1121,21 @@ window.Quarto = {
 </section>
 <section id="measuring-mismatch-visually" class="level2">
 <h2 class="anchored" data-anchor-id="measuring-mismatch-visually">Measuring Mismatch Visually</h2>
-<p>Before writing any formulas, consider what “closeness” should mean. <strong>?@fig-overlap-intuition</strong> shows three candidate Gaussians overlaid on the exact beam posterior. The shaded regions highlight where each candidate disagrees with the posterior: the candidate places mass where the posterior is low, or misses mass where the posterior is high.</p>
+<p>Before writing any formulas, consider what “closeness” should mean. <a href="#fig-overlap-intuition" class="quarto-xref">Figure&nbsp;1</a> shows three candidate Gaussians overlaid on the exact beam posterior. The shaded regions highlight where each candidate disagrees with the posterior: the candidate places mass where the posterior is low, or misses mass where the posterior is high.</p>
+<div id="cell-fig-overlap-intuition" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-overlap-intuition" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-overlap-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="vi_objective_files/figure-html/fig-overlap-intuition-output-1.png" width="1424" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-overlap-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Three Gaussian candidates and their mismatch with the exact posterior. Shaded pink regions show where candidate and posterior disagree. Left: shifted too far left — large mismatch on the right. Center: too wide — wastes mass in the tails. Right: well-fit — minimal mismatch.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>A good approximation places mass where the posterior has mass, and avoids placing mass where it does not. We need a single number that captures this.</p>
 </section>
 <section id="the-kl-divergence" class="level2">
@@ -1131,9 +1148,23 @@ window.Quarto = {
 <ul>
 <li>It is always <span class="math inline">\(\geq 0\)</span>.</li>
 <li>It equals zero only when <span class="math inline">\(q\)</span> and <span class="math inline">\(p\)</span> match exactly.</li>
-<li>It penalizes <span class="math inline">\(q\)</span> for placing mass where <span class="math inline">\(p(\theta \mid y)\)</span> is small — exactly the pink-shaded mismatch in <strong>?@fig-overlap-intuition</strong>.</li>
+<li>It penalizes <span class="math inline">\(q\)</span> for placing mass where <span class="math inline">\(p(\theta \mid y)\)</span> is small — exactly the pink-shaded mismatch in <a href="#fig-overlap-intuition" class="quarto-xref">Figure&nbsp;1</a>.</li>
 </ul>
-<p>To make this concrete, <strong>?@fig-kl-landscape</strong> evaluates the KL divergence for every possible Gaussian <span class="math inline">\(q_{\mu, \sigma}\)</span> on the 1D beam problem. The result is a surface over <span class="math inline">\((\mu, \sigma)\)</span>, and VI is searching for its minimum.</p>
+<p>To make this concrete, <a href="#fig-kl-landscape" class="quarto-xref">Figure&nbsp;2</a> evaluates the KL divergence for every possible Gaussian <span class="math inline">\(q_{\mu, \sigma}\)</span> on the 1D beam problem. The result is a surface over <span class="math inline">\((\mu, \sigma)\)</span>, and VI is searching for its minimum.</p>
+<div id="cell-fig-kl-landscape" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-kl-landscape" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-kl-landscape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="vi_objective_files/figure-html/fig-kl-landscape-output-1.png" width="808" height="565" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kl-landscape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: The KL divergence between <span class="math inline">\(q = \mathcal{N}(\mu, \sigma^2)\)</span> and the exact beam posterior, evaluated over a grid of <span class="math inline">\((\mu, \sigma)\)</span>. Dark red means high mismatch; dark blue means low. The white star marks the minimum — the best Gaussian approximation. Labeled circles show candidates: poorly-fit candidates sit high on the surface; the best sits at the bottom.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The poorly-fit candidates sit high on the KL surface. The optimal Gaussian sits at the bottom. VI’s optimizer descends this surface to find the minimum.</p>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1175,7 +1206,21 @@ p(\theta \mid y) = \frac{\mathcal{L}(\theta)\, p(\theta)}{p(y)}, \qquad p(y) = \
 <li>The <strong>expected log-likelihood</strong> pushes <span class="math inline">\(q\)</span> toward regions where the model predictions match the observations. On its own, this would collapse <span class="math inline">\(q\)</span> onto the maximum likelihood estimate.</li>
 <li>The <strong>KL from prior</strong> penalizes <span class="math inline">\(q\)</span> for straying from the prior. On its own, this would keep <span class="math inline">\(q\)</span> equal to the prior regardless of the data.</li>
 </ul>
-<p>The ELBO balances these forces — just as Bayes’ theorem balances the likelihood and the prior. <strong>?@fig-elbo-two-terms</strong> shows each term separately, and their combination, as a function of the variational mean <span class="math inline">\(\mu\)</span>.</p>
+<p>The ELBO balances these forces — just as Bayes’ theorem balances the likelihood and the prior. <a href="#fig-elbo-two-terms" class="quarto-xref">Figure&nbsp;3</a> shows each term separately, and their combination, as a function of the variational mean <span class="math inline">\(\mu\)</span>.</p>
+<div id="cell-fig-elbo-two-terms" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-elbo-two-terms" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-elbo-two-terms-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="vi_objective_files/figure-html/fig-elbo-two-terms-output-1.png" width="1426" height="373" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-elbo-two-terms-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: The two terms of the ELBO, evaluated as functions of <span class="math inline">\(\mu\)</span> (with <span class="math inline">\(\sigma\)</span> fixed at the optimal value). Left: the expected log-likelihood peaks near the data-consistent region. Center: the KL penalty from the prior is a bowl centered at the prior mean (<span class="math inline">\(\mu = 12{,}000\)</span>). Right: the negative ELBO (their combination) has a single minimum between the prior mean and the MLE — exactly where the posterior sits.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The ELBO optimum sits between the prior mean and the MLE — right where we expect the posterior to be. This is not a coincidence: the ELBO is a direct expression of the same prior-versus-data compromise that defines the posterior.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1208,8 +1253,8 @@ p(\theta \mid y) = \frac{\mathcal{L}(\theta)\, p(\theta)}{p(y)}, \qquad p(y) = \
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>In <strong>?@fig-kl-landscape</strong>, the KL surface appears to have a single minimum. Why must this be the case when the posterior is unimodal and the variational family is Gaussian? <em>Hint:</em> think about when <span class="math inline">\(\mathrm{KL}(q \| p) = 0\)</span>.</p></li>
-<li><p>In <strong>?@fig-elbo-two-terms</strong>, increase the noise standard deviation to <span class="math inline">\(5 \times\)</span> its current value (making the data less informative). How does the expected log-likelihood curve change? Does the ELBO optimum move closer to the prior mean or the MLE?</p></li>
+<li><p>In <a href="#fig-kl-landscape" class="quarto-xref">Figure&nbsp;2</a>, the KL surface appears to have a single minimum. Why must this be the case when the posterior is unimodal and the variational family is Gaussian? <em>Hint:</em> think about when <span class="math inline">\(\mathrm{KL}(q \| p) = 0\)</span>.</p></li>
+<li><p>In <a href="#fig-elbo-two-terms" class="quarto-xref">Figure&nbsp;3</a>, increase the noise standard deviation to <span class="math inline">\(5 \times\)</span> its current value (making the data less informative). How does the expected log-likelihood curve change? Does the ELBO optimum move closer to the prior mean or the MLE?</p></li>
 <li><p>Decrease the prior standard deviation to <span class="math inline">\(500\)</span> (a very informative prior). How does the KL-from-prior term change? What happens to the ELBO optimum when the prior is much more confident than the data?</p></li>
 <li><p><strong>(Challenge)</strong> For the special case where both the prior and the likelihood are Gaussian (so the true posterior is also Gaussian), derive the ELBO in closed form as a function of <span class="math inline">\((\mu, \sigma)\)</span> using the known expression for the KL divergence between two Gaussians. Verify that the optimal <span class="math inline">\((\mu, \sigma)\)</span> match the exact posterior parameters.</p></li>
 </ol>

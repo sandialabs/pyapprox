@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Adaptive Sampling for Gaussian Processes – PyApprox">
 <meta property="og:description" content="Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies, and compare against space-filling Sobol.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/adaptive_gp_sampling_files/figure-html/fig-sample-designs-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="742">
+<meta property="og:image:width" content="2278">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1126,7 +1129,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="792eea36" class="cell">
+<div id="96d90ca2" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1149,7 +1152,7 @@ window.Quarto = {
 <section id="candidate-pool" class="level3">
 <h3 class="anchored" data-anchor-id="candidate-pool">Candidate Pool</h3>
 <p>Each sampler selects points from a finite <strong>candidate pool</strong> drawn in advance from the input distribution. Using a large candidate pool (e.g., 2000 points) ensures good coverage while keeping the greedy search tractable.</p>
-<div id="310c1a7d" class="cell">
+<div id="3dbc389f" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>N_candidates <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> prior.rvs(N_candidates)    <span class="co"># (nvars, N_candidates); the pool</span></span>
@@ -1178,7 +1181,7 @@ window.Quarto = {
 \mathbf{x}_{n+1} = \argmax_{\mathbf{x} \in \mathcal{C}} \left[k(\mathbf{x}, \mathbf{x}) - \mathbf{k}_n(\mathbf{x})^\top L_n^{-\top} L_n^{-1} \mathbf{k}_n(\mathbf{x})\right]
 \]</span></p>
 <p>where <span class="math inline">\(L_n\)</span> is the current Cholesky factor. The residual diagonal is the posterior variance of the GP <em>before</em> conditioning on any output values — this means the Cholesky sampler requires no function evaluations to select points.</p>
-<div id="0b7f6b30" class="cell">
+<div id="89443c8f" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.cholesky_sampler <span class="im">import</span> (</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    CholeskySampler,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1205,7 +1208,7 @@ window.Quarto = {
 <p>When hyperparameters are refined on a new training batch, call <code>sampler.set_kernel(updated_kernel)</code> before requesting more samples. The sampler replays the existing pivots with the new kernel and then continues greedy selection. This lets you interleave surrogate fitting and adaptive sampling in an active learning loop.</p>
 </div>
 </div>
-<div id="b2b2cfb5" class="cell">
+<div id="1808fd51" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Warm-start: update kernel hyperparameters, then add 10 more points</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>updated_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(updated_kernel)</span>
@@ -1219,7 +1222,7 @@ window.Quarto = {
 P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(j)}) \rho(\boldsymbol{\xi})\,d\boldsymbol{\xi}
 \]</span></p>
 <p>We approximate the P matrix with Monte Carlo quadrature using samples from the prior.</p>
-<div id="1cd2b0f1" class="cell">
+<div id="7feec17a" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.ivar_sampler <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    IVARSampler,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1244,7 +1247,7 @@ P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \b
 <section id="sobol-sampler-baseline" class="level2">
 <h2 class="anchored" data-anchor-id="sobol-sampler-baseline">Sobol Sampler (Baseline)</h2>
 <p>The <code>SobolAdaptiveSampler</code> generates a low-discrepancy Sobol sequence mapped to the input bounds. It implements the same protocol but ignores the kernel entirely. We use it as a strong space-filling baseline.</p>
-<div id="396141f9" class="cell">
+<div id="fd75fed4" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler <span class="im">import</span> (</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    SobolAdaptiveSampler,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1266,9 +1269,7 @@ P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \b
 <section id="visualising-the-sample-designs" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-the-sample-designs">Visualising the Sample Designs</h2>
 <p>For 2D projections, we can see how the three strategies distribute their points.</p>
-<div id="fig-sample-designs" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sample-designs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-sample-designs" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_sample_designs</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>strategies <span class="op">=</span> [</span>
@@ -1281,11 +1282,18 @@ P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \b
 <span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>plot_sample_designs(axes, strategies)</span>
 <span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-sample-designs" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sample-designs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="adaptive_gp_sampling_files/figure-html/fig-sample-designs-output-1.png" width="1139" height="371" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sample-designs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sample-designs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Sample designs for 30 training points. Each panel shows the projection onto dimensions 1 and 2. Cholesky and IVAR tend to spread points more evenly across the input space than Sobol, which can exhibit clustering in projections.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="convergence-experiment" class="level2">
@@ -1298,7 +1306,7 @@ Figure&nbsp;1
 <li>Compute the relative <span class="math inline">\(L_2\)</span> error on the test set</li>
 </ol>
 <p>Because the greedy samplers are deterministic, each budget is simply an extension of the previous one — no re-evaluation is needed.</p>
-<div id="dbc36103" class="cell">
+<div id="bc4d0236" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1357,27 +1365,32 @@ Figure&nbsp;1
 <span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    vals     <span class="op">=</span> model(pts)[:<span class="dv">1</span>, :]</span>
 <span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    sobol_errors.append(_fit_and_evaluate(pts, vals, ref_kernel))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-convergence" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_sampling_convergence</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)</span>
 <span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="adaptive_gp_sampling_files/figure-html/fig-convergence-output-1.png" width="658" height="419" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Relative L₂ error vs.&nbsp;number of training samples for Cholesky-greedy, IVAR, and Sobol designs. Adaptive strategies typically achieve lower error at every budget.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The adaptive strategies typically achieve the same accuracy as Sobol with significantly fewer model evaluations. The exact gap depends on the smoothness of the model and the dimension of the input space; for higher-dimensional problems the advantage of adaptive strategies grows.</p>
 </section>
 <section id="active-learning-loop" class="level2">
 <h2 class="anchored" data-anchor-id="active-learning-loop">Active Learning Loop</h2>
 <p>In practice, hyperparameters are not known in advance. A standard workflow is to interleave adaptive sampling with hyperparameter re-fitting in batches:</p>
-<div id="2e591c8f" class="cell">
+<div id="d5103617" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>)</span>

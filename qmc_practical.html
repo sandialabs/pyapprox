@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Practical QMC: Scrambling, Error Bars, and High Dimensions – PyApprox">
 <meta property="og:description" content="Owen scrambling for error estimation, star discrepancy as a measure of uniformity, and how the QMC advantage depends on dimension.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/qmc_practical_files/figure-html/fig-rqmc-histogram-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="742">
+<meta property="og:image:width" content="2279">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1116,7 +1119,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We continue with the beam model and QMC samplers from the <a href="./quasi_monte_carlo_sampling.html">previous tutorial</a>.</p>
-<div id="fe9f0b7c" class="cell">
+<div id="ac37289f" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1148,7 +1151,7 @@ window.Quarto = {
 <li>Compute the integral estimate from each replicate.</li>
 <li>Average the estimates and use their sample standard deviation to form a standard error.</li>
 </ol>
-<div id="ad0c9e0e" class="cell">
+<div id="088f340e" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>R <span class="op">=</span> <span class="dv">30</span>     <span class="co"># number of scrambled replicates</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">256</span>    <span class="co"># samples per replicate</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1169,12 +1172,31 @@ window.Quarto = {
 <span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC estimate:       </span><span class="sc">{</span>rqmc_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
 <span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC standard error: </span><span class="sc">{</span>rqmc_se<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
 <span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True mean:           </span><span class="sc">{</span>true_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>RQMC estimate:       4.259103
+RQMC standard error: 0.000023
+True mean:           4.259102</code></pre>
+</div>
 </div>
 <p>The standard error is a practical error bar: a 95% confidence interval is approximately <span class="math inline">\(\hat{\mu}_{\text{RQMC}} \pm 1.96 \cdot \text{SE}\)</span>.</p>
 </section>
 <section id="rqmc-vs.-mc-variability" class="level2">
 <h2 class="anchored" data-anchor-id="rqmc-vs.-mc-variability">RQMC vs.&nbsp;MC Variability</h2>
-<p><strong>?@fig-rqmc-histogram</strong> compares the variability of MC and RQMC estimates side-by-side, using the same format as the histogram experiments in the <a href="./monte_carlo_sampling.html">MC tutorial</a>. Each method runs 200 independent experiments with <span class="math inline">\(N = 256\)</span> samples per experiment.</p>
+<p><a href="#fig-rqmc-histogram" class="quarto-xref">Figure&nbsp;1</a> compares the variability of MC and RQMC estimates side-by-side, using the same format as the histogram experiments in the <a href="./monte_carlo_sampling.html">MC tutorial</a>. Each method runs 200 independent experiments with <span class="math inline">\(N = 256\)</span> samples per experiment.</p>
+<div id="cell-fig-rqmc-histogram" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-rqmc-histogram" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-rqmc-histogram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="qmc_practical_files/figure-html/fig-rqmc-histogram-output-1.png" width="1140" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-rqmc-histogram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Variability of mean estimates from 200 independent experiments, each using <span class="math inline">\(N = 256\)</span> samples. Left: pseudorandom MC. Right: scrambled Sobol (RQMC). The RQMC histogram is much narrower, confirming that QMC’s faster convergence is preserved under scrambling. The spread of the RQMC estimates enables standard error computation.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="why-qmc-works-star-discrepancy-and-koksmahlawka" class="level2">
 <h2 class="anchored" data-anchor-id="why-qmc-works-star-discrepancy-and-koksmahlawka">Why QMC Works: Star Discrepancy and Koksma–Hlawka</h2>
@@ -1213,7 +1235,21 @@ D_N^* = O\!\left(\frac{(\log N)^d}{N}\right)
 </section>
 <section id="visualizing-discrepancy" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-discrepancy">Visualizing Discrepancy</h2>
-<p><strong>?@fig-discrepancy-visual</strong> makes star discrepancy concrete. For a small point set (<span class="math inline">\(N = 32\)</span>), we find the axis-aligned box <span class="math inline">\([\mathbf{0}, \mathbf{u}^*]\)</span> where the discrepancy is largest and overlay it on the point set. The random sample has a much larger worst-case deviation than the Sobol sequence.</p>
+<p><a href="#fig-discrepancy-visual" class="quarto-xref">Figure&nbsp;2</a> makes star discrepancy concrete. For a small point set (<span class="math inline">\(N = 32\)</span>), we find the axis-aligned box <span class="math inline">\([\mathbf{0}, \mathbf{u}^*]\)</span> where the discrepancy is largest and overlay it on the point set. The random sample has a much larger worst-case deviation than the Sobol sequence.</p>
+<div id="cell-fig-discrepancy-visual" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-discrepancy-visual" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-discrepancy-visual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="qmc_practical_files/figure-html/fig-discrepancy-visual-output-1.png" width="986" height="469" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-discrepancy-visual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Star discrepancy illustrated for <span class="math inline">\(N = 32\)</span> points. The shaded box <span class="math inline">\([0, u_1] \times [0, u_2]\)</span> is the axis-aligned region anchored at the origin where the fraction of points inside deviates most from the box’s area. Left: pseudorandom (<span class="math inline">\(D_N^*\)</span> is large). Right: Sobol (<span class="math inline">\(D_N^*\)</span> is small). Lower discrepancy corresponds to a tighter integration error bound.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="effect-of-dimension" class="level2">
 <h2 class="anchored" data-anchor-id="effect-of-dimension">Effect of Dimension</h2>
@@ -1224,27 +1260,41 @@ D_N^* = O\!\left(\frac{(\log N)^d}{N}\right)
 f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in [0,1]^d
 \]</span></p>
 <p>Each factor integrates to 1, so <span class="math inline">\(\int f\,d\mathbf{x} = 1\)</span> for all <span class="math inline">\(d\)</span>.</p>
-<div id="c99d3e4c" class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> product_integrand(x):</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Separable product integrand with known integral = 1.</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">    x : ndarray, shape (d, N)</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">        Points in [0, 1]^d.</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">    ndarray, shape (N,)</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co">        Function values.</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.prod((<span class="dv">3</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>true_integral <span class="op">=</span> <span class="fl">1.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="16ac01dc" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> product_integrand(x):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Separable product integrand with known integral = 1.</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co">    x : ndarray, shape (d, N)</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">        Points in [0, 1]^d.</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co">    ndarray, shape (N,)</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">        Function values.</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.prod((<span class="dv">3</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>true_integral <span class="op">=</span> <span class="fl">1.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p><strong>?@fig-dimension-effect</strong> shows convergence for <span class="math inline">\(d = 2, 5, 10, 20\)</span>. The MC error is dimension-independent (all solid curves overlap), while the QMC error increases with <span class="math inline">\(d\)</span> but remains below MC for all dimensions tested.</p>
+<p><a href="#fig-dimension-effect" class="quarto-xref">Figure&nbsp;3</a> shows convergence for <span class="math inline">\(d = 2, 5, 10, 20\)</span>. The MC error is dimension-independent (all solid curves overlap), while the QMC error increases with <span class="math inline">\(d\)</span> but remains below MC for all dimensions tested.</p>
+<div id="cell-fig-dimension-effect" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-dimension-effect" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-dimension-effect-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="qmc_practical_files/figure-html/fig-dimension-effect-output-1.png" width="854" height="514" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-dimension-effect-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Integration error vs.&nbsp;<span class="math inline">\(N\)</span> for a smooth product integrand in <span class="math inline">\(d = 2, 5, 10, 20\)</span> dimensions. MC error (solid lines) is independent of <span class="math inline">\(d\)</span> and follows <span class="math inline">\(O(N^{-1/2})\)</span>. Sobol error (dashed lines) increases with <span class="math inline">\(d\)</span> but remains below MC for all dimensions shown. The QMC advantage is largest in low dimensions and erodes gradually.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="practical-decision-guide" class="level2">
 <h2 class="anchored" data-anchor-id="practical-decision-guide">Practical Decision Guide</h2>
@@ -1314,8 +1364,8 @@ f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in [0,1]^
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>Compute the star discrepancy (brute-force grid search as in <strong>?@fig-discrepancy-visual</strong>) for Halton and Sobol at <span class="math inline">\(N = 64, 256, 1024\)</span>. Plot <span class="math inline">\(D_N^*\)</span> vs.&nbsp;<span class="math inline">\(N\)</span> on a log-log axis. What convergence rate do you observe?</p></li>
-<li><p>In <strong>?@fig-dimension-effect</strong>, replace the smooth product integrand with a “corner peak”: <span class="math inline">\(f(\mathbf{x}) = (1 + \sum_j x_j)^{-(d+1)}\)</span>. Does the QMC advantage change? (This function is smooth but has most of its mass in one corner of the hypercube.)</p></li>
+<li><p>Compute the star discrepancy (brute-force grid search as in <a href="#fig-discrepancy-visual" class="quarto-xref">Figure&nbsp;2</a>) for Halton and Sobol at <span class="math inline">\(N = 64, 256, 1024\)</span>. Plot <span class="math inline">\(D_N^*\)</span> vs.&nbsp;<span class="math inline">\(N\)</span> on a log-log axis. What convergence rate do you observe?</p></li>
+<li><p>In <a href="#fig-dimension-effect" class="quarto-xref">Figure&nbsp;3</a>, replace the smooth product integrand with a “corner peak”: <span class="math inline">\(f(\mathbf{x}) = (1 + \sum_j x_j)^{-(d+1)}\)</span>. Does the QMC advantage change? (This function is smooth but has most of its mass in one corner of the hypercube.)</p></li>
 <li><p>Using scrambled Sobol, construct a 95% confidence interval for the beam model’s mean tip deflection at <span class="math inline">\(N = 512\)</span> with <span class="math inline">\(R = 30\)</span> replicates. Compare the interval width to a MC confidence interval based on the same total budget of <span class="math inline">\(30 \times 512 = 15360\)</span> samples. How many MC samples would be needed to match the RQMC interval width?</p></li>
 <li><p><strong>(Challenge)</strong> The <code>SobolSampler</code> returns equal weights <span class="math inline">\(w_i = 1/N\)</span>. Investigate whether using the QMC samples as nodes in a <strong>weighted least-squares</strong> regression (polynomial chaos) further improves convergence compared to using random samples as regression nodes.</p></li>
 </ol>
@@ -1785,471 +1835,471 @@ f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in [0,1]^
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Practical QMC: Scrambling, Error Bars, and High Dimensions"</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Owen scrambling for error estimation, star discrepancy as a measure of uniformity, and how the QMC advantage depends on dimension."</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 30</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi_monte_carlo_sampling</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi-monte-carlo</span></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - scrambling</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - discrepancy</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - rqmc</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - koksma-hlawka</span></span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/qmc_practical.ipynb)</span></span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why deterministic QMC provides no built-in error estimate</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use Owen scrambling to create randomized QMC replicates for error bars</span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Define star discrepancy and state the Koksma--Hlawka inequality as the theoretical basis for QMC</span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Quantify empirically how the QMC advantage depends on dimension</span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Make practical decisions about when to prefer QMC vs. MC</span>
-<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Quasi--Monte Carlo Sampling</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span> before this tutorial.</span>
-<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
-<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>We continue with the beam model and QMC samplers from the <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span>.</span>
-<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.analytic.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d_analytical,</span>
-<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.halton <span class="im">import</span> HaltonSampler</span>
-<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.sobol <span class="im">import</span> SobolSampler</span>
-<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d_analytical(bkd)</span>
-<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
-<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature <span class="im">import</span> (</span>
-<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>    TensorProductQuadratureRule,</span>
-<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>    gauss_quadrature_rule,</span>
-<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>nquad <span class="op">=</span> <span class="dv">20</span></span>
-<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> variable.marginals()</span>
-<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a>quad_rules <span class="op">=</span> [<span class="kw">lambda</span> n, m<span class="op">=</span>m: gauss_quadrature_rule(m, n, bkd) <span class="cf">for</span> m <span class="kw">in</span> marginals]</span>
-<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>quad_rule <span class="op">=</span> TensorProductQuadratureRule(bkd, quad_rules, [nquad] <span class="op">*</span> <span class="bu">len</span>(marginals))</span>
-<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>quad_pts, quad_wts <span class="op">=</span> quad_rule()</span>
-<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>qoi_quad <span class="op">=</span> model(quad_pts)[<span class="dv">0</span>]</span>
-<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_float(bkd.dot(quad_wts, qoi_quad))</span>
-<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Error Bar Problem</span></span>
-<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span> showed that Halton and Sobol sequences converge faster than MC. But there is a catch: deterministic QMC gives the **same answer every time**. Run it again with the same parameters, and you get the identical estimate --- there is no built-in notion of variability and therefore no standard error.</span>
-<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>In contrast, MC's randomness is a *feature* for error estimation: repeat the experiment with a different random seed and you get a different estimate; the spread of estimates gives a variance.</span>
-<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>We need a way to introduce just enough randomness into QMC to enable error estimation, without destroying the low-discrepancy structure that makes it converge fast.</span>
-<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a><span class="fu">## Owen Scrambling: Randomized QMC</span></span>
-<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a>**Owen scrambling** solves this problem. It randomly permutes the digits in the radical-inverse representation of each QMC point. Crucially, the permutations preserve the equidistribution properties of the sequence --- each scrambled replicate is itself a valid low-discrepancy point set --- while introducing enough randomness that independent replicates give different estimates.</span>
-<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>The resulting method is called **randomized quasi--Monte Carlo (RQMC)**. The workflow is:</span>
-<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Generate $R$ independent scrambled replicates (different <span class="in">`seed`</span> values).</span>
-<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute the integral estimate from each replicate.</span>
-<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Average the estimates and use their sample standard deviation to form a standard error.</span>
-<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a>R <span class="op">=</span> <span class="dv">30</span>     <span class="co"># number of scrambled replicates</span></span>
-<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">256</span>    <span class="co"># samples per replicate</span></span>
-<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a>replicate_means <span class="op">=</span> []</span>
-<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(R):</span>
-<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> SobolSampler(</span>
-<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a>        model.nvars(), bkd, distribution<span class="op">=</span>variable,</span>
-<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a>        scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>seed,</span>
-<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a>    samples, weights <span class="op">=</span> sampler.sample(N)</span>
-<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a>    qoi <span class="op">=</span> model(samples)[<span class="dv">0</span>]</span>
-<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a>    replicate_means.append(bkd.to_float(bkd.dot(weights, qoi)))</span>
-<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a>replicate_means <span class="op">=</span> np.array(replicate_means)</span>
-<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a>rqmc_mean <span class="op">=</span> np.mean(replicate_means)</span>
-<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a>rqmc_se <span class="op">=</span> np.std(replicate_means, ddof<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> np.sqrt(R)</span>
-<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC estimate:       </span><span class="sc">{</span>rqmc_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC standard error: </span><span class="sc">{</span>rqmc_se<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True mean:           </span><span class="sc">{</span>true_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a>The standard error is a practical error bar: a 95% confidence interval is approximately $\hat{\mu}_{\text{RQMC}} \pm 1.96 \cdot \text{SE}$.</span>
-<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a><span class="fu">## RQMC vs. MC Variability</span></span>
-<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a>@fig-rqmc-histogram compares the variability of MC and RQMC estimates side-by-side, using the same format as the histogram experiments in the <span class="co">[</span><span class="ot">MC tutorial</span><span class="co">](monte_carlo_sampling.qmd)</span>. Each method runs 200 independent experiments with $N = 256$ samples per experiment.</span>
-<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-148"><a href="#cb4-148" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-149"><a href="#cb4-149" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-150"><a href="#cb4-150" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variability of mean estimates from 200 independent experiments, each using $N = 256$ samples. Left: pseudorandom MC. Right: scrambled Sobol (RQMC). The RQMC histogram is much narrower, confirming that QMC's faster convergence is preserved under scrambling. The spread of the RQMC estimates enables standard error computation."</span></span>
-<span id="cb4-151"><a href="#cb4-151" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-rqmc-histogram</span></span>
-<span id="cb4-152"><a href="#cb4-152" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-153"><a href="#cb4-153" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">200</span></span>
-<span id="cb4-154"><a href="#cb4-154" aria-hidden="true" tabindex="-1"></a>N_hist <span class="op">=</span> <span class="dv">256</span></span>
-<span id="cb4-155"><a href="#cb4-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-156"><a href="#cb4-156" aria-hidden="true" tabindex="-1"></a><span class="co"># MC replicates</span></span>
-<span id="cb4-157"><a href="#cb4-157" aria-hidden="true" tabindex="-1"></a>mc_means <span class="op">=</span> np.empty(n_reps)</span>
-<span id="cb4-158"><a href="#cb4-158" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
-<span id="cb4-159"><a href="#cb4-159" aria-hidden="true" tabindex="-1"></a>    np.random.seed(i)</span>
-<span id="cb4-160"><a href="#cb4-160" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> variable.rvs(N_hist)</span>
-<span id="cb4-161"><a href="#cb4-161" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
-<span id="cb4-162"><a href="#cb4-162" aria-hidden="true" tabindex="-1"></a>    mc_means[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
-<span id="cb4-163"><a href="#cb4-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-164"><a href="#cb4-164" aria-hidden="true" tabindex="-1"></a><span class="co"># RQMC replicates (scrambled Sobol)</span></span>
-<span id="cb4-165"><a href="#cb4-165" aria-hidden="true" tabindex="-1"></a>rqmc_means <span class="op">=</span> np.empty(n_reps)</span>
-<span id="cb4-166"><a href="#cb4-166" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
-<span id="cb4-167"><a href="#cb4-167" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> SobolSampler(</span>
-<span id="cb4-168"><a href="#cb4-168" aria-hidden="true" tabindex="-1"></a>        model.nvars(), bkd, distribution<span class="op">=</span>variable,</span>
-<span id="cb4-169"><a href="#cb4-169" aria-hidden="true" tabindex="-1"></a>        scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>i,</span>
-<span id="cb4-170"><a href="#cb4-170" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-171"><a href="#cb4-171" aria-hidden="true" tabindex="-1"></a>    s, w <span class="op">=</span> sampler.sample(N_hist)</span>
-<span id="cb4-172"><a href="#cb4-172" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
-<span id="cb4-173"><a href="#cb4-173" aria-hidden="true" tabindex="-1"></a>    rqmc_means[i] <span class="op">=</span> bkd.to_float(bkd.dot(w, q))</span>
-<span id="cb4-174"><a href="#cb4-174" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-175"><a href="#cb4-175" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb4-176"><a href="#cb4-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-177"><a href="#cb4-177" aria-hidden="true" tabindex="-1"></a><span class="co"># Shared bin range</span></span>
-<span id="cb4-178"><a href="#cb4-178" aria-hidden="true" tabindex="-1"></a>combined <span class="op">=</span> np.concatenate([mc_means, rqmc_means])</span>
-<span id="cb4-179"><a href="#cb4-179" aria-hidden="true" tabindex="-1"></a>bin_lo <span class="op">=</span> <span class="bu">min</span>(combined) <span class="op">-</span> <span class="fl">0.1</span> <span class="op">*</span> np.ptp(combined)</span>
-<span id="cb4-180"><a href="#cb4-180" aria-hidden="true" tabindex="-1"></a>bin_hi <span class="op">=</span> <span class="bu">max</span>(combined) <span class="op">+</span> <span class="fl">0.1</span> <span class="op">*</span> np.ptp(combined)</span>
-<span id="cb4-181"><a href="#cb4-181" aria-hidden="true" tabindex="-1"></a>bins <span class="op">=</span> np.linspace(bin_lo, bin_hi, <span class="dv">35</span>)</span>
-<span id="cb4-182"><a href="#cb4-182" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-183"><a href="#cb4-183" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, data, title, color <span class="kw">in</span> [</span>
-<span id="cb4-184"><a href="#cb4-184" aria-hidden="true" tabindex="-1"></a>    (ax1, mc_means, <span class="ss">f"MC ($N = </span><span class="sc">{</span>N_hist<span class="sc">}</span><span class="ss">$)"</span>, <span class="st">"steelblue"</span>),</span>
-<span id="cb4-185"><a href="#cb4-185" aria-hidden="true" tabindex="-1"></a>    (ax2, rqmc_means, <span class="ss">f"Scrambled Sobol ($N = </span><span class="sc">{</span>N_hist<span class="sc">}</span><span class="ss">$)"</span>, <span class="st">"seagreen"</span>),</span>
-<span id="cb4-186"><a href="#cb4-186" aria-hidden="true" tabindex="-1"></a>]:</span>
-<span id="cb4-187"><a href="#cb4-187" aria-hidden="true" tabindex="-1"></a>    ax.hist(data, bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.7</span>,</span>
-<span id="cb4-188"><a href="#cb4-188" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>color, edgecolor<span class="op">=</span><span class="st">"white"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>)</span>
-<span id="cb4-189"><a href="#cb4-189" aria-hidden="true" tabindex="-1"></a>    ax.axvline(true_mean, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>,</span>
-<span id="cb4-190"><a href="#cb4-190" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"True mean"</span>)</span>
-<span id="cb4-191"><a href="#cb4-191" aria-hidden="true" tabindex="-1"></a>    ax.axvline(np.mean(data), color<span class="op">=</span><span class="st">"green"</span>, linestyle<span class="op">=</span><span class="st">"-"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>,</span>
-<span id="cb4-192"><a href="#cb4-192" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"Mean of estimates"</span>)</span>
-<span id="cb4-193"><a href="#cb4-193" aria-hidden="true" tabindex="-1"></a>    ax.set_title(title, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
-<span id="cb4-194"><a href="#cb4-194" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat{</span><span class="dv">\m</span><span class="vs">u}_N</span><span class="dv">$</span><span class="vs">"</span>)</span>
-<span id="cb4-195"><a href="#cb4-195" aria-hidden="true" tabindex="-1"></a>    ax.legend(fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb4-196"><a href="#cb4-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-197"><a href="#cb4-197" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">"Density"</span>)</span>
-<span id="cb4-198"><a href="#cb4-198" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-199"><a href="#cb4-199" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-200"><a href="#cb4-200" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-201"><a href="#cb4-201" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-202"><a href="#cb4-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-203"><a href="#cb4-203" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why QMC Works: Star Discrepancy and Koksma--Hlawka</span></span>
-<span id="cb4-204"><a href="#cb4-204" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-205"><a href="#cb4-205" aria-hidden="true" tabindex="-1"></a>The convergence advantage of QMC has a precise theoretical basis. To state it, we need one definition.</span>
-<span id="cb4-206"><a href="#cb4-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-207"><a href="#cb4-207" aria-hidden="true" tabindex="-1"></a>**Star discrepancy** $D_N^*$ measures how uniformly a point set $<span class="sc">\{</span>x_1, \ldots, x_N<span class="sc">\}</span> \subset <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d$ fills the unit hypercube. For every axis-aligned box $<span class="co">[</span><span class="ot">0, u_1</span><span class="co">]</span> \times \cdots \times <span class="co">[</span><span class="ot">0, u_d</span><span class="co">]</span>$ anchored at the origin, we compare the fraction of points inside the box to the box's volume:</span>
-<span id="cb4-208"><a href="#cb4-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-209"><a href="#cb4-209" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-210"><a href="#cb4-210" aria-hidden="true" tabindex="-1"></a>D_N^* = \sup_{\mathbf{u} \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d} \left| \frac{<span class="sc">\#\{</span>x_i \in <span class="co">[</span><span class="ot">\mathbf{0}, \mathbf{u}</span><span class="co">]</span><span class="sc">\}</span>}{N} - \prod_{j=1}^d u_j \right|</span>
-<span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a>A small $D_N^*$ means the empirical distribution of the points closely matches the uniform distribution. For pseudorandom samples, $D_N^* = O(N^{-1/2})$ (by the DKW inequality). Halton and Sobol sequences achieve:</span>
-<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-215"><a href="#cb4-215" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a>D_N^* = O<span class="sc">\!</span>\left(\frac{(\log N)^d}{N}\right)</span>
-<span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-218"><a href="#cb4-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-219"><a href="#cb4-219" aria-hidden="true" tabindex="-1"></a>which is asymptotically much faster for moderate $d$.</span>
-<span id="cb4-220"><a href="#cb4-220" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-221"><a href="#cb4-221" aria-hidden="true" tabindex="-1"></a>The **Koksma--Hlawka inequality** connects discrepancy to integration error:</span>
-<span id="cb4-222"><a href="#cb4-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-223"><a href="#cb4-223" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-224"><a href="#cb4-224" aria-hidden="true" tabindex="-1"></a>\left|\frac{1}{N}\sum_{i=1}^N f(\mathbf{x}_i) - \int_{[0,1]^d} f(\mathbf{x})\,d\mathbf{x}\right| \le V_{\mathrm{HK}}(f) \cdot D_N^*</span>
-<span id="cb4-225"><a href="#cb4-225" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-226"><a href="#cb4-226" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-227"><a href="#cb4-227" aria-hidden="true" tabindex="-1"></a>where $V_{\mathrm{HK}}(f)$ is the **variation of $f$ in the sense of Hardy--Krause** --- a measure of how "wiggly" the integrand is. The bound says: *integration error is at most the integrand's roughness times the point set's non-uniformity.* QMC reduces the second factor.</span>
-<span id="cb4-228"><a href="#cb4-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-229"><a href="#cb4-229" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb4-230"><a href="#cb4-230" aria-hidden="true" tabindex="-1"></a><span class="fu">## Two levers for integration accuracy</span></span>
-<span id="cb4-231"><a href="#cb4-231" aria-hidden="true" tabindex="-1"></a>The Koksma--Hlawka bound identifies two independent levers:</span>
-<span id="cb4-232"><a href="#cb4-232" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-233"><a href="#cb4-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Reduce $D_N^*$** by using a better point set (QMC instead of MC) --- this is what this tutorial series is about.</span>
-<span id="cb4-234"><a href="#cb4-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Reduce $V_{\mathrm{HK}}(f)$** by smoothing or transforming the integrand --- this is the idea behind importance sampling and control variates, covered in later tutorials.</span>
-<span id="cb4-235"><a href="#cb4-235" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb4-236"><a href="#cb4-236" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-237"><a href="#cb4-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-238"><a href="#cb4-238" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing Discrepancy</span></span>
-<span id="cb4-239"><a href="#cb4-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-240"><a href="#cb4-240" aria-hidden="true" tabindex="-1"></a>@fig-discrepancy-visual makes star discrepancy concrete. For a small point set ($N = 32$), we find the axis-aligned box $<span class="co">[</span><span class="ot">\mathbf{0}, \mathbf{u}^*</span><span class="co">]</span>$ where the discrepancy is largest and overlay it on the point set. The random sample has a much larger worst-case deviation than the Sobol sequence.</span>
-<span id="cb4-241"><a href="#cb4-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-244"><a href="#cb4-244" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-245"><a href="#cb4-245" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-246"><a href="#cb4-246" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Star discrepancy illustrated for $N = 32$ points. The shaded box $[0, u_1] \\times [0, u_2]$ is the axis-aligned region anchored at the origin where the fraction of points inside deviates most from the box's area. Left: pseudorandom ($D_N^*$ is large). Right: Sobol ($D_N^*$ is small). Lower discrepancy corresponds to a tighter integration error bound."</span></span>
-<span id="cb4-247"><a href="#cb4-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-discrepancy-visual</span></span>
-<span id="cb4-248"><a href="#cb4-248" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-249"><a href="#cb4-249" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_star_discrepancy_2d(points, grid_res<span class="op">=</span><span class="dv">200</span>):</span>
-<span id="cb4-250"><a href="#cb4-250" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
-<span id="cb4-251"><a href="#cb4-251" aria-hidden="true" tabindex="-1"></a><span class="co">    Brute-force star discrepancy for 2D point sets.</span></span>
-<span id="cb4-252"><a href="#cb4-252" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-253"><a href="#cb4-253" aria-hidden="true" tabindex="-1"></a><span class="co">    Searches over a grid of box corners (u1, u2) in [0,1]^2 to find</span></span>
-<span id="cb4-254"><a href="#cb4-254" aria-hidden="true" tabindex="-1"></a><span class="co">    the box [0, u1] x [0, u2] that maximizes</span></span>
-<span id="cb4-255"><a href="#cb4-255" aria-hidden="true" tabindex="-1"></a><span class="co">    |fraction_of_points_inside - u1 * u2|.</span></span>
-<span id="cb4-256"><a href="#cb4-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-257"><a href="#cb4-257" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
-<span id="cb4-258"><a href="#cb4-258" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
-<span id="cb4-259"><a href="#cb4-259" aria-hidden="true" tabindex="-1"></a><span class="co">    points : ndarray, shape (2, N)</span></span>
-<span id="cb4-260"><a href="#cb4-260" aria-hidden="true" tabindex="-1"></a><span class="co">        Point set in [0, 1]^2.</span></span>
-<span id="cb4-261"><a href="#cb4-261" aria-hidden="true" tabindex="-1"></a><span class="co">    grid_res : int</span></span>
-<span id="cb4-262"><a href="#cb4-262" aria-hidden="true" tabindex="-1"></a><span class="co">        Resolution of the search grid.</span></span>
-<span id="cb4-263"><a href="#cb4-263" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-264"><a href="#cb4-264" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
-<span id="cb4-265"><a href="#cb4-265" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
-<span id="cb4-266"><a href="#cb4-266" aria-hidden="true" tabindex="-1"></a><span class="co">    d_star : float</span></span>
-<span id="cb4-267"><a href="#cb4-267" aria-hidden="true" tabindex="-1"></a><span class="co">        Estimated star discrepancy.</span></span>
-<span id="cb4-268"><a href="#cb4-268" aria-hidden="true" tabindex="-1"></a><span class="co">    worst_u : tuple (u1, u2)</span></span>
-<span id="cb4-269"><a href="#cb4-269" aria-hidden="true" tabindex="-1"></a><span class="co">        Corner of the worst-case box.</span></span>
-<span id="cb4-270"><a href="#cb4-270" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
-<span id="cb4-271"><a href="#cb4-271" aria-hidden="true" tabindex="-1"></a>    N <span class="op">=</span> points.shape[<span class="dv">1</span>]</span>
-<span id="cb4-272"><a href="#cb4-272" aria-hidden="true" tabindex="-1"></a>    u_vals <span class="op">=</span> np.linspace(<span class="fl">0.01</span>, <span class="fl">1.0</span>, grid_res)</span>
-<span id="cb4-273"><a href="#cb4-273" aria-hidden="true" tabindex="-1"></a>    best_disc <span class="op">=</span> <span class="fl">0.0</span></span>
-<span id="cb4-274"><a href="#cb4-274" aria-hidden="true" tabindex="-1"></a>    worst_u <span class="op">=</span> (<span class="fl">0.5</span>, <span class="fl">0.5</span>)</span>
-<span id="cb4-275"><a href="#cb4-275" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> u1 <span class="kw">in</span> u_vals:</span>
-<span id="cb4-276"><a href="#cb4-276" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> u2 <span class="kw">in</span> u_vals:</span>
-<span id="cb4-277"><a href="#cb4-277" aria-hidden="true" tabindex="-1"></a>            inside <span class="op">=</span> np.<span class="bu">sum</span>((points[<span class="dv">0</span>] <span class="op">&lt;=</span> u1) <span class="op">&amp;</span> (points[<span class="dv">1</span>] <span class="op">&lt;=</span> u2))</span>
-<span id="cb4-278"><a href="#cb4-278" aria-hidden="true" tabindex="-1"></a>            disc <span class="op">=</span> <span class="bu">abs</span>(inside <span class="op">/</span> N <span class="op">-</span> u1 <span class="op">*</span> u2)</span>
-<span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> disc <span class="op">&gt;</span> best_disc:</span>
-<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a>                best_disc <span class="op">=</span> disc</span>
-<span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a>                worst_u <span class="op">=</span> (u1, u2)</span>
-<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> best_disc, worst_u</span>
-<span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-284"><a href="#cb4-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-285"><a href="#cb4-285" aria-hidden="true" tabindex="-1"></a>N_disc <span class="op">=</span> <span class="dv">32</span></span>
-<span id="cb4-286"><a href="#cb4-286" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
-<span id="cb4-287"><a href="#cb4-287" aria-hidden="true" tabindex="-1"></a>pts_rand <span class="op">=</span> np.random.rand(<span class="dv">2</span>, N_disc)</span>
-<span id="cb4-288"><a href="#cb4-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-289"><a href="#cb4-289" aria-hidden="true" tabindex="-1"></a>sobol_disc <span class="op">=</span> SobolSampler(<span class="dv">2</span>, bkd, scramble<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb4-290"><a href="#cb4-290" aria-hidden="true" tabindex="-1"></a>pts_sobol <span class="op">=</span> bkd.to_numpy(sobol_disc.sample(N_disc)[<span class="dv">0</span>])</span>
-<span id="cb4-291"><a href="#cb4-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-292"><a href="#cb4-292" aria-hidden="true" tabindex="-1"></a>d_rand, u_rand <span class="op">=</span> compute_star_discrepancy_2d(pts_rand)</span>
-<span id="cb4-293"><a href="#cb4-293" aria-hidden="true" tabindex="-1"></a>d_sobol, u_sobol <span class="op">=</span> compute_star_discrepancy_2d(pts_sobol)</span>
-<span id="cb4-294"><a href="#cb4-294" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-295"><a href="#cb4-295" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
-<span id="cb4-296"><a href="#cb4-296" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-297"><a href="#cb4-297" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, pts, d_star, u_star, title, color <span class="kw">in</span> [</span>
-<span id="cb4-298"><a href="#cb4-298" aria-hidden="true" tabindex="-1"></a>    (ax1, pts_rand, d_rand, u_rand, <span class="st">"Pseudorandom"</span>, <span class="st">"steelblue"</span>),</span>
-<span id="cb4-299"><a href="#cb4-299" aria-hidden="true" tabindex="-1"></a>    (ax2, pts_sobol, d_sobol, u_sobol, <span class="st">"Sobol"</span>, <span class="st">"seagreen"</span>),</span>
-<span id="cb4-300"><a href="#cb4-300" aria-hidden="true" tabindex="-1"></a>]:</span>
-<span id="cb4-301"><a href="#cb4-301" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shaded worst box</span></span>
-<span id="cb4-302"><a href="#cb4-302" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> matplotlib.patches <span class="im">import</span> Rectangle</span>
-<span id="cb4-303"><a href="#cb4-303" aria-hidden="true" tabindex="-1"></a>    rect <span class="op">=</span> Rectangle((<span class="dv">0</span>, <span class="dv">0</span>), u_star[<span class="dv">0</span>], u_star[<span class="dv">1</span>],</span>
-<span id="cb4-304"><a href="#cb4-304" aria-hidden="true" tabindex="-1"></a>                      facecolor<span class="op">=</span>color, alpha<span class="op">=</span><span class="fl">0.15</span>, edgecolor<span class="op">=</span>color,</span>
-<span id="cb4-305"><a href="#cb4-305" aria-hidden="true" tabindex="-1"></a>                      linewidth<span class="op">=</span><span class="dv">2</span>, linestyle<span class="op">=</span><span class="st">"--"</span>)</span>
-<span id="cb4-306"><a href="#cb4-306" aria-hidden="true" tabindex="-1"></a>    ax.add_patch(rect)</span>
-<span id="cb4-307"><a href="#cb4-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-308"><a href="#cb4-308" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Points</span></span>
-<span id="cb4-309"><a href="#cb4-309" aria-hidden="true" tabindex="-1"></a>    inside <span class="op">=</span> (pts[<span class="dv">0</span>] <span class="op">&lt;=</span> u_star[<span class="dv">0</span>]) <span class="op">&amp;</span> (pts[<span class="dv">1</span>] <span class="op">&lt;=</span> u_star[<span class="dv">1</span>])</span>
-<span id="cb4-310"><a href="#cb4-310" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts[<span class="dv">0</span>, <span class="op">~</span>inside], pts[<span class="dv">1</span>, <span class="op">~</span>inside], s<span class="op">=</span><span class="dv">25</span>, color<span class="op">=</span><span class="st">"gray"</span>,</span>
-<span id="cb4-311"><a href="#cb4-311" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
-<span id="cb4-312"><a href="#cb4-312" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts[<span class="dv">0</span>, inside], pts[<span class="dv">1</span>, inside], s<span class="op">=</span><span class="dv">35</span>, color<span class="op">=</span>color,</span>
-<span id="cb4-313"><a href="#cb4-313" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
-<span id="cb4-314"><a href="#cb4-314" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-315"><a href="#cb4-315" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Annotation</span></span>
-<span id="cb4-316"><a href="#cb4-316" aria-hidden="true" tabindex="-1"></a>    n_inside <span class="op">=</span> np.<span class="bu">sum</span>(inside)</span>
-<span id="cb4-317"><a href="#cb4-317" aria-hidden="true" tabindex="-1"></a>    area <span class="op">=</span> u_star[<span class="dv">0</span>] <span class="op">*</span> u_star[<span class="dv">1</span>]</span>
-<span id="cb4-318"><a href="#cb4-318" aria-hidden="true" tabindex="-1"></a>    ax.annotate(</span>
-<span id="cb4-319"><a href="#cb4-319" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"$D_N^* </span><span class="ch">\\</span><span class="ss">approx </span><span class="sc">{</span>d_star<span class="sc">:.3f}</span><span class="ss">$</span><span class="ch">\n</span><span class="ss">"</span></span>
-<span id="cb4-320"><a href="#cb4-320" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Box area = </span><span class="sc">{</span>area<span class="sc">:.2f}</span><span class="ch">\n</span><span class="ss">"</span></span>
-<span id="cb4-321"><a href="#cb4-321" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Fraction inside = </span><span class="sc">{</span>n_inside<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>N_disc<span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>n_inside<span class="op">/</span>N_disc<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
-<span id="cb4-322"><a href="#cb4-322" aria-hidden="true" tabindex="-1"></a>        xy<span class="op">=</span>(<span class="fl">0.98</span>, <span class="fl">0.98</span>), xycoords<span class="op">=</span><span class="st">"axes fraction"</span>,</span>
-<span id="cb4-323"><a href="#cb4-323" aria-hidden="true" tabindex="-1"></a>        ha<span class="op">=</span><span class="st">"right"</span>, va<span class="op">=</span><span class="st">"top"</span>, fontsize<span class="op">=</span><span class="dv">9</span>,</span>
-<span id="cb4-324"><a href="#cb4-324" aria-hidden="true" tabindex="-1"></a>        bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">"round,pad=0.3"</span>, facecolor<span class="op">=</span><span class="st">"white"</span>, alpha<span class="op">=</span><span class="fl">0.8</span>),</span>
-<span id="cb4-325"><a href="#cb4-325" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-326"><a href="#cb4-326" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-327"><a href="#cb4-327" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
-<span id="cb4-328"><a href="#cb4-328" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
-<span id="cb4-329"><a href="#cb4-329" aria-hidden="true" tabindex="-1"></a>    ax.set_aspect(<span class="st">"equal"</span>)</span>
-<span id="cb4-330"><a href="#cb4-330" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"</span><span class="sc">{</span>title<span class="sc">}</span><span class="ss"> ($N = </span><span class="sc">{</span>N_disc<span class="sc">}</span><span class="ss">$)"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
-<span id="cb4-331"><a href="#cb4-331" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="vs">x_1</span><span class="dv">$</span><span class="vs">"</span>)</span>
-<span id="cb4-332"><a href="#cb4-332" aria-hidden="true" tabindex="-1"></a>    ax.set_ylabel(<span class="vs">r"</span><span class="dv">$</span><span class="vs">x_2</span><span class="dv">$</span><span class="vs">"</span>)</span>
-<span id="cb4-333"><a href="#cb4-333" aria-hidden="true" tabindex="-1"></a>    ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
-<span id="cb4-334"><a href="#cb4-334" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-335"><a href="#cb4-335" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-336"><a href="#cb4-336" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-337"><a href="#cb4-337" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-338"><a href="#cb4-338" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-339"><a href="#cb4-339" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-340"><a href="#cb4-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## Effect of Dimension</span></span>
-<span id="cb4-341"><a href="#cb4-341" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-342"><a href="#cb4-342" aria-hidden="true" tabindex="-1"></a>The Koksma--Hlawka bound includes the factor $(\log N)^d$, which grows rapidly with dimension $d$. Does this mean QMC is useless in high dimensions?</span>
-<span id="cb4-343"><a href="#cb4-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-344"><a href="#cb4-344" aria-hidden="true" tabindex="-1"></a>Not necessarily. The bound is often pessimistic because many real-world functions have low **effective dimension** --- they depend primarily on a few coordinates, even if the nominal dimension is large. Still, the QMC advantage does erode as $d$ grows, and it is important to quantify this empirically.</span>
-<span id="cb4-345"><a href="#cb4-345" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-346"><a href="#cb4-346" aria-hidden="true" tabindex="-1"></a>We test with a smooth, separable integrand whose true integral is known analytically:</span>
-<span id="cb4-347"><a href="#cb4-347" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-348"><a href="#cb4-348" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-349"><a href="#cb4-349" aria-hidden="true" tabindex="-1"></a>f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d</span>
-<span id="cb4-350"><a href="#cb4-350" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-351"><a href="#cb4-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-352"><a href="#cb4-352" aria-hidden="true" tabindex="-1"></a>Each factor integrates to 1, so $\int f\,d\mathbf{x} = 1$ for all $d$.</span>
-<span id="cb4-353"><a href="#cb4-353" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-356"><a href="#cb4-356" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-357"><a href="#cb4-357" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> product_integrand(x):</span>
-<span id="cb4-358"><a href="#cb4-358" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
-<span id="cb4-359"><a href="#cb4-359" aria-hidden="true" tabindex="-1"></a><span class="co">    Separable product integrand with known integral = 1.</span></span>
-<span id="cb4-360"><a href="#cb4-360" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-361"><a href="#cb4-361" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
-<span id="cb4-362"><a href="#cb4-362" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
-<span id="cb4-363"><a href="#cb4-363" aria-hidden="true" tabindex="-1"></a><span class="co">    x : ndarray, shape (d, N)</span></span>
-<span id="cb4-364"><a href="#cb4-364" aria-hidden="true" tabindex="-1"></a><span class="co">        Points in [0, 1]^d.</span></span>
-<span id="cb4-365"><a href="#cb4-365" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-366"><a href="#cb4-366" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
-<span id="cb4-367"><a href="#cb4-367" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
-<span id="cb4-368"><a href="#cb4-368" aria-hidden="true" tabindex="-1"></a><span class="co">    ndarray, shape (N,)</span></span>
-<span id="cb4-369"><a href="#cb4-369" aria-hidden="true" tabindex="-1"></a><span class="co">        Function values.</span></span>
-<span id="cb4-370"><a href="#cb4-370" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
-<span id="cb4-371"><a href="#cb4-371" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.prod((<span class="dv">3</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb4-372"><a href="#cb4-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-373"><a href="#cb4-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-374"><a href="#cb4-374" aria-hidden="true" tabindex="-1"></a>true_integral <span class="op">=</span> <span class="fl">1.0</span></span>
-<span id="cb4-375"><a href="#cb4-375" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-376"><a href="#cb4-376" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-377"><a href="#cb4-377" aria-hidden="true" tabindex="-1"></a>@fig-dimension-effect shows convergence for $d = 2, 5, 10, 20$. The MC error is dimension-independent (all solid curves overlap), while the QMC error increases with $d$ but remains below MC for all dimensions tested.</span>
-<span id="cb4-378"><a href="#cb4-378" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-381"><a href="#cb4-381" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-382"><a href="#cb4-382" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-383"><a href="#cb4-383" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Integration error vs. $N$ for a smooth product integrand in $d = 2, 5, 10, 20$ dimensions. MC error (solid lines) is independent of $d$ and follows $O(N^{-1/2})$. Sobol error (dashed lines) increases with $d$ but remains below MC for all dimensions shown. The QMC advantage is largest in low dimensions and erodes gradually."</span></span>
-<span id="cb4-384"><a href="#cb4-384" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-dimension-effect</span></span>
-<span id="cb4-385"><a href="#cb4-385" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-386"><a href="#cb4-386" aria-hidden="true" tabindex="-1"></a>dims <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]</span>
-<span id="cb4-387"><a href="#cb4-387" aria-hidden="true" tabindex="-1"></a>N_values_dim <span class="op">=</span> [<span class="dv">2</span><span class="op">**</span>k <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">6</span>, <span class="dv">15</span>)]</span>
-<span id="cb4-388"><a href="#cb4-388" aria-hidden="true" tabindex="-1"></a>n_mc_reps <span class="op">=</span> <span class="dv">30</span></span>
-<span id="cb4-389"><a href="#cb4-389" aria-hidden="true" tabindex="-1"></a>colors_dim <span class="op">=</span> [<span class="st">"#1f77b4"</span>, <span class="st">"#ff7f0e"</span>, <span class="st">"#2ca02c"</span>, <span class="st">"#d62728"</span>]</span>
-<span id="cb4-390"><a href="#cb4-390" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-391"><a href="#cb4-391" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">5.5</span>))</span>
-<span id="cb4-392"><a href="#cb4-392" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-393"><a href="#cb4-393" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d, color <span class="kw">in</span> <span class="bu">zip</span>(dims, colors_dim):</span>
-<span id="cb4-394"><a href="#cb4-394" aria-hidden="true" tabindex="-1"></a>    errors_mc_d <span class="op">=</span> []</span>
-<span id="cb4-395"><a href="#cb4-395" aria-hidden="true" tabindex="-1"></a>    errors_sobol_d <span class="op">=</span> []</span>
-<span id="cb4-396"><a href="#cb4-396" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-397"><a href="#cb4-397" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> N <span class="kw">in</span> N_values_dim:</span>
-<span id="cb4-398"><a href="#cb4-398" aria-hidden="true" tabindex="-1"></a>        <span class="co"># MC: average absolute error</span></span>
-<span id="cb4-399"><a href="#cb4-399" aria-hidden="true" tabindex="-1"></a>        mc_errs <span class="op">=</span> []</span>
-<span id="cb4-400"><a href="#cb4-400" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> rep <span class="kw">in</span> <span class="bu">range</span>(n_mc_reps):</span>
-<span id="cb4-401"><a href="#cb4-401" aria-hidden="true" tabindex="-1"></a>            np.random.seed(rep <span class="op">+</span> d <span class="op">*</span> <span class="dv">10000</span>)</span>
-<span id="cb4-402"><a href="#cb4-402" aria-hidden="true" tabindex="-1"></a>            x <span class="op">=</span> np.random.rand(d, N)</span>
-<span id="cb4-403"><a href="#cb4-403" aria-hidden="true" tabindex="-1"></a>            mc_errs.append(<span class="bu">abs</span>(np.mean(product_integrand(x)) <span class="op">-</span> true_integral))</span>
-<span id="cb4-404"><a href="#cb4-404" aria-hidden="true" tabindex="-1"></a>        errors_mc_d.append(np.mean(mc_errs))</span>
-<span id="cb4-405"><a href="#cb4-405" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-406"><a href="#cb4-406" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Sobol (deterministic)</span></span>
-<span id="cb4-407"><a href="#cb4-407" aria-hidden="true" tabindex="-1"></a>        sb <span class="op">=</span> SobolSampler(d, bkd, scramble<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb4-408"><a href="#cb4-408" aria-hidden="true" tabindex="-1"></a>        xs, ws <span class="op">=</span> sb.sample(N)</span>
-<span id="cb4-409"><a href="#cb4-409" aria-hidden="true" tabindex="-1"></a>        xs_np <span class="op">=</span> bkd.to_numpy(xs)</span>
-<span id="cb4-410"><a href="#cb4-410" aria-hidden="true" tabindex="-1"></a>        ws_np <span class="op">=</span> bkd.to_numpy(ws)</span>
-<span id="cb4-411"><a href="#cb4-411" aria-hidden="true" tabindex="-1"></a>        fvals <span class="op">=</span> product_integrand(xs_np)</span>
-<span id="cb4-412"><a href="#cb4-412" aria-hidden="true" tabindex="-1"></a>        errors_sobol_d.append(<span class="bu">abs</span>(np.dot(ws_np, fvals) <span class="op">-</span> true_integral))</span>
-<span id="cb4-413"><a href="#cb4-413" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-414"><a href="#cb4-414" aria-hidden="true" tabindex="-1"></a>    ax.loglog(N_values_dim, errors_mc_d, <span class="st">"o-"</span>, color<span class="op">=</span>color, alpha<span class="op">=</span><span class="fl">0.4</span>,</span>
-<span id="cb4-415"><a href="#cb4-415" aria-hidden="true" tabindex="-1"></a>              markersize<span class="op">=</span><span class="dv">4</span>, linewidth<span class="op">=</span><span class="fl">1.2</span>, label<span class="op">=</span><span class="ss">f"MC  $d=</span><span class="sc">{</span>d<span class="sc">}</span><span class="ss">$"</span>)</span>
-<span id="cb4-416"><a href="#cb4-416" aria-hidden="true" tabindex="-1"></a>    ax.loglog(N_values_dim, errors_sobol_d, <span class="st">"s--"</span>, color<span class="op">=</span>color,</span>
-<span id="cb4-417"><a href="#cb4-417" aria-hidden="true" tabindex="-1"></a>              markersize<span class="op">=</span><span class="dv">4</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>, label<span class="op">=</span><span class="ss">f"Sobol $d=</span><span class="sc">{</span>d<span class="sc">}</span><span class="ss">$"</span>)</span>
-<span id="cb4-418"><a href="#cb4-418" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-419"><a href="#cb4-419" aria-hidden="true" tabindex="-1"></a><span class="co"># Reference slopes</span></span>
-<span id="cb4-420"><a href="#cb4-420" aria-hidden="true" tabindex="-1"></a>N_ref <span class="op">=</span> np.array(N_values_dim, dtype<span class="op">=</span><span class="bu">float</span>)</span>
-<span id="cb4-421"><a href="#cb4-421" aria-hidden="true" tabindex="-1"></a>c05 <span class="op">=</span> <span class="fl">0.3</span> <span class="op">*</span> N_ref[<span class="dv">0</span>]<span class="op">**</span><span class="fl">0.5</span></span>
-<span id="cb4-422"><a href="#cb4-422" aria-hidden="true" tabindex="-1"></a>ax.loglog(N_ref, c05 <span class="op">*</span> N_ref<span class="op">**</span>(<span class="op">-</span><span class="fl">0.5</span>), <span class="st">":"</span>, color<span class="op">=</span><span class="st">"gray"</span>, linewidth<span class="op">=</span><span class="dv">1</span>,</span>
-<span id="cb4-423"><a href="#cb4-423" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="vs">r"</span><span class="dv">$</span><span class="vs">O</span><span class="kw">(</span><span class="vs">N</span><span class="dv">^</span><span class="vs">{-1/2}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span>)</span>
-<span id="cb4-424"><a href="#cb4-424" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-425"><a href="#cb4-425" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of samples $N$"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb4-426"><a href="#cb4-426" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Absolute integration error"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb4-427"><a href="#cb4-427" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"QMC Advantage vs. Dimension"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
-<span id="cb4-428"><a href="#cb4-428" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">8</span>, ncol<span class="op">=</span><span class="dv">3</span>, loc<span class="op">=</span><span class="st">"lower left"</span>)</span>
-<span id="cb4-429"><a href="#cb4-429" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, which<span class="op">=</span><span class="st">"both"</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
-<span id="cb4-430"><a href="#cb4-430" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-431"><a href="#cb4-431" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-432"><a href="#cb4-432" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-433"><a href="#cb4-433" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-434"><a href="#cb4-434" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-435"><a href="#cb4-435" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Decision Guide</span></span>
-<span id="cb4-436"><a href="#cb4-436" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-437"><a href="#cb4-437" aria-hidden="true" tabindex="-1"></a>The following table summarizes when to use QMC vs. MC:</span>
-<span id="cb4-438"><a href="#cb4-438" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-439"><a href="#cb4-439" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Situation <span class="pp">|</span> Recommendation <span class="pp">|</span></span>
-<span id="cb4-440"><a href="#cb4-440" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|---------------|</span></span>
-<span id="cb4-441"><a href="#cb4-441" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d \le 10$, smooth integrand <span class="pp">|</span> QMC (Sobol preferred) <span class="pp">|</span></span>
-<span id="cb4-442"><a href="#cb4-442" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d \le 10$, discontinuous integrand <span class="pp">|</span> MC or RQMC with many replicates <span class="pp">|</span></span>
-<span id="cb4-443"><a href="#cb4-443" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $10 &lt; d \le 50$, smooth <span class="pp">|</span> Try RQMC; compare to MC empirically <span class="pp">|</span></span>
-<span id="cb4-444"><a href="#cb4-444" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d &gt; 50$ or rough integrand <span class="pp">|</span> MC (dimension-free convergence rate) <span class="pp">|</span></span>
-<span id="cb4-445"><a href="#cb4-445" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Need error bars <span class="pp">|</span> Always use scrambled RQMC <span class="pp">|</span></span>
-<span id="cb4-446"><a href="#cb4-446" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Need reproducibility <span class="pp">|</span> Deterministic QMC with fixed seed <span class="pp">|</span></span>
-<span id="cb4-447"><a href="#cb4-447" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-448"><a href="#cb4-448" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
-<span id="cb4-449"><a href="#cb4-449" aria-hidden="true" tabindex="-1"></a><span class="fu">## Rule of thumb</span></span>
-<span id="cb4-450"><a href="#cb4-450" aria-hidden="true" tabindex="-1"></a>When in doubt, try scrambled Sobol first. It is never *worse* than MC (both are unbiased with the same weights), and it is often dramatically better. If your problem is high-dimensional or has discontinuities, you can always fall back to MC.</span>
-<span id="cb4-451"><a href="#cb4-451" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb4-452"><a href="#cb4-452" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-453"><a href="#cb4-453" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-454"><a href="#cb4-454" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb4-455"><a href="#cb4-455" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-456"><a href="#cb4-456" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Scrambling** (Owen) turns deterministic QMC into randomized QMC (RQMC): it preserves the low-discrepancy structure and fast convergence while enabling standard error estimation via independent replicates</span>
-<span id="cb4-457"><a href="#cb4-457" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Star discrepancy** $D_N^*$ measures how uniformly a point set fills the domain; QMC sequences achieve $D_N^* = O((\log N)^d / N)$ vs. MC's $O(N^{-1/2})$</span>
-<span id="cb4-458"><a href="#cb4-458" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **Koksma--Hlawka inequality** bounds integration error as $V_{\mathrm{HK}}(f) \cdot D_N^*$ --- the product of integrand roughness and point set non-uniformity</span>
-<span id="cb4-459"><a href="#cb4-459" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Dimension matters:** the QMC advantage is largest for smooth, low-dimensional problems and erodes with $d$, though effective dimension often keeps QMC competitive even in moderately high dimensions</span>
-<span id="cb4-460"><a href="#cb4-460" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>In practice, **always try RQMC** and compare empirically --- it is never worse than MC and is often orders of magnitude better</span>
-<span id="cb4-461"><a href="#cb4-461" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-462"><a href="#cb4-462" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-463"><a href="#cb4-463" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb4-464"><a href="#cb4-464" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-465"><a href="#cb4-465" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute the star discrepancy (brute-force grid search as in @fig-discrepancy-visual) for Halton and Sobol at $N = 64, 256, 1024$. Plot $D_N^*$ vs. $N$ on a log-log axis. What convergence rate do you observe?</span>
-<span id="cb4-466"><a href="#cb4-466" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-467"><a href="#cb4-467" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In @fig-dimension-effect, replace the smooth product integrand with a "corner peak": $f(\mathbf{x}) = (1 + \sum_j x_j)^{-(d+1)}$. Does the QMC advantage change? (This function is smooth but has most of its mass in one corner of the hypercube.)</span>
-<span id="cb4-468"><a href="#cb4-468" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-469"><a href="#cb4-469" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Using scrambled Sobol, construct a 95% confidence interval for the beam model's mean tip deflection at $N = 512$ with $R = 30$ replicates. Compare the interval width to a MC confidence interval based on the same total budget of $30 \times 512 = 15360$ samples. How many MC samples would be needed to match the RQMC interval width?</span>
-<span id="cb4-470"><a href="#cb4-470" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-471"><a href="#cb4-471" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** The `SobolSampler` returns equal weights $w_i = 1/N$. Investigate whether using the QMC samples as nodes in a **weighted least-squares** regression (polynomial chaos) further improves convergence compared to using random samples as regression nodes.</span>
-<span id="cb4-472"><a href="#cb4-472" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-473"><a href="#cb4-473" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-474"><a href="#cb4-474" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb4-475"><a href="#cb4-475" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-476"><a href="#cb4-476" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb4-477"><a href="#cb4-477" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-478"><a href="#cb4-478" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Monte Carlo Budget Estimation</span><span class="co">](mc_budget_estimation.qmd)</span> --- Predicting the sample budget for a target accuracy</span>
-<span id="cb4-479"><a href="#cb4-479" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Multi-Fidelity Monte Carlo</span><span class="co">](control_variate_concept.qmd)</span> --- Using cheap surrogate models to reduce the constant in the $1/M$ convergence rate</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Practical QMC: Scrambling, Error Bars, and High Dimensions"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Owen scrambling for error estimation, star discrepancy as a measure of uniformity, and how the QMC advantage depends on dimension."</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 30</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi_monte_carlo_sampling</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi-monte-carlo</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - scrambling</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - discrepancy</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - rqmc</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - koksma-hlawka</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/qmc_practical.ipynb)</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why deterministic QMC provides no built-in error estimate</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use Owen scrambling to create randomized QMC replicates for error bars</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Define star discrepancy and state the Koksma--Hlawka inequality as the theoretical basis for QMC</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Quantify empirically how the QMC advantage depends on dimension</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Make practical decisions about when to prefer QMC vs. MC</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">Quasi--Monte Carlo Sampling</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span> before this tutorial.</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>We continue with the beam model and QMC samplers from the <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span>.</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.analytic.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d_analytical,</span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.halton <span class="im">import</span> HaltonSampler</span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.sobol <span class="im">import</span> SobolSampler</span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d_analytical(bkd)</span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.quadrature <span class="im">import</span> (</span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a>    TensorProductQuadratureRule,</span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a>    gauss_quadrature_rule,</span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>nquad <span class="op">=</span> <span class="dv">20</span></span>
+<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> variable.marginals()</span>
+<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>quad_rules <span class="op">=</span> [<span class="kw">lambda</span> n, m<span class="op">=</span>m: gauss_quadrature_rule(m, n, bkd) <span class="cf">for</span> m <span class="kw">in</span> marginals]</span>
+<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>quad_rule <span class="op">=</span> TensorProductQuadratureRule(bkd, quad_rules, [nquad] <span class="op">*</span> <span class="bu">len</span>(marginals))</span>
+<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a>quad_pts, quad_wts <span class="op">=</span> quad_rule()</span>
+<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>qoi_quad <span class="op">=</span> model(quad_pts)[<span class="dv">0</span>]</span>
+<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_float(bkd.dot(quad_wts, qoi_quad))</span>
+<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Error Bar Problem</span></span>
+<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](quasi_monte_carlo_sampling.qmd)</span> showed that Halton and Sobol sequences converge faster than MC. But there is a catch: deterministic QMC gives the **same answer every time**. Run it again with the same parameters, and you get the identical estimate --- there is no built-in notion of variability and therefore no standard error.</span>
+<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a>In contrast, MC's randomness is a *feature* for error estimation: repeat the experiment with a different random seed and you get a different estimate; the spread of estimates gives a variance.</span>
+<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a>We need a way to introduce just enough randomness into QMC to enable error estimation, without destroying the low-discrepancy structure that makes it converge fast.</span>
+<span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a><span class="fu">## Owen Scrambling: Randomized QMC</span></span>
+<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a>**Owen scrambling** solves this problem. It randomly permutes the digits in the radical-inverse representation of each QMC point. Crucially, the permutations preserve the equidistribution properties of the sequence --- each scrambled replicate is itself a valid low-discrepancy point set --- while introducing enough randomness that independent replicates give different estimates.</span>
+<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a>The resulting method is called **randomized quasi--Monte Carlo (RQMC)**. The workflow is:</span>
+<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Generate $R$ independent scrambled replicates (different <span class="in">`seed`</span> values).</span>
+<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Compute the integral estimate from each replicate.</span>
+<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Average the estimates and use their sample standard deviation to form a standard error.</span>
+<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a>R <span class="op">=</span> <span class="dv">30</span>     <span class="co"># number of scrambled replicates</span></span>
+<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">256</span>    <span class="co"># samples per replicate</span></span>
+<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>replicate_means <span class="op">=</span> []</span>
+<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(R):</span>
+<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> SobolSampler(</span>
+<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a>        model.nvars(), bkd, distribution<span class="op">=</span>variable,</span>
+<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a>        scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>seed,</span>
+<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a>    samples, weights <span class="op">=</span> sampler.sample(N)</span>
+<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>    qoi <span class="op">=</span> model(samples)[<span class="dv">0</span>]</span>
+<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a>    replicate_means.append(bkd.to_float(bkd.dot(weights, qoi)))</span>
+<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a>replicate_means <span class="op">=</span> np.array(replicate_means)</span>
+<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a>rqmc_mean <span class="op">=</span> np.mean(replicate_means)</span>
+<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>rqmc_se <span class="op">=</span> np.std(replicate_means, ddof<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> np.sqrt(R)</span>
+<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC estimate:       </span><span class="sc">{</span>rqmc_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"RQMC standard error: </span><span class="sc">{</span>rqmc_se<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True mean:           </span><span class="sc">{</span>true_mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a>The standard error is a practical error bar: a 95% confidence interval is approximately $\hat{\mu}_{\text{RQMC}} \pm 1.96 \cdot \text{SE}$.</span>
+<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a><span class="fu">## RQMC vs. MC Variability</span></span>
+<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a>@fig-rqmc-histogram compares the variability of MC and RQMC estimates side-by-side, using the same format as the histogram experiments in the <span class="co">[</span><span class="ot">MC tutorial</span><span class="co">](monte_carlo_sampling.qmd)</span>. Each method runs 200 independent experiments with $N = 256$ samples per experiment.</span>
+<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variability of mean estimates from 200 independent experiments, each using $N = 256$ samples. Left: pseudorandom MC. Right: scrambled Sobol (RQMC). The RQMC histogram is much narrower, confirming that QMC's faster convergence is preserved under scrambling. The spread of the RQMC estimates enables standard error computation."</span></span>
+<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-rqmc-histogram</span></span>
+<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>N_hist <span class="op">=</span> <span class="dv">256</span></span>
+<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a><span class="co"># MC replicates</span></span>
+<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a>mc_means <span class="op">=</span> np.empty(n_reps)</span>
+<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
+<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a>    np.random.seed(i)</span>
+<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> variable.rvs(N_hist)</span>
+<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
+<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a>    mc_means[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
+<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a><span class="co"># RQMC replicates (scrambled Sobol)</span></span>
+<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a>rqmc_means <span class="op">=</span> np.empty(n_reps)</span>
+<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
+<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>    sampler <span class="op">=</span> SobolSampler(</span>
+<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>        model.nvars(), bkd, distribution<span class="op">=</span>variable,</span>
+<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a>        scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>i,</span>
+<span id="cb5-170"><a href="#cb5-170" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a>    s, w <span class="op">=</span> sampler.sample(N_hist)</span>
+<span id="cb5-172"><a href="#cb5-172" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
+<span id="cb5-173"><a href="#cb5-173" aria-hidden="true" tabindex="-1"></a>    rqmc_means[i] <span class="op">=</span> bkd.to_float(bkd.dot(w, q))</span>
+<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a><span class="co"># Shared bin range</span></span>
+<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a>combined <span class="op">=</span> np.concatenate([mc_means, rqmc_means])</span>
+<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a>bin_lo <span class="op">=</span> <span class="bu">min</span>(combined) <span class="op">-</span> <span class="fl">0.1</span> <span class="op">*</span> np.ptp(combined)</span>
+<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a>bin_hi <span class="op">=</span> <span class="bu">max</span>(combined) <span class="op">+</span> <span class="fl">0.1</span> <span class="op">*</span> np.ptp(combined)</span>
+<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a>bins <span class="op">=</span> np.linspace(bin_lo, bin_hi, <span class="dv">35</span>)</span>
+<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-183"><a href="#cb5-183" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, data, title, color <span class="kw">in</span> [</span>
+<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a>    (ax1, mc_means, <span class="ss">f"MC ($N = </span><span class="sc">{</span>N_hist<span class="sc">}</span><span class="ss">$)"</span>, <span class="st">"steelblue"</span>),</span>
+<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a>    (ax2, rqmc_means, <span class="ss">f"Scrambled Sobol ($N = </span><span class="sc">{</span>N_hist<span class="sc">}</span><span class="ss">$)"</span>, <span class="st">"seagreen"</span>),</span>
+<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a>    ax.hist(data, bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.7</span>,</span>
+<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>color, edgecolor<span class="op">=</span><span class="st">"white"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a>    ax.axvline(true_mean, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>,</span>
+<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"True mean"</span>)</span>
+<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a>    ax.axvline(np.mean(data), color<span class="op">=</span><span class="st">"green"</span>, linestyle<span class="op">=</span><span class="st">"-"</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>,</span>
+<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a>               label<span class="op">=</span><span class="st">"Mean of estimates"</span>)</span>
+<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a>    ax.set_title(title, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat{</span><span class="dv">\m</span><span class="vs">u}_N</span><span class="dv">$</span><span class="vs">"</span>)</span>
+<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a>    ax.legend(fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">"Density"</span>)</span>
+<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why QMC Works: Star Discrepancy and Koksma--Hlawka</span></span>
+<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a>The convergence advantage of QMC has a precise theoretical basis. To state it, we need one definition.</span>
+<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a>**Star discrepancy** $D_N^*$ measures how uniformly a point set $<span class="sc">\{</span>x_1, \ldots, x_N<span class="sc">\}</span> \subset <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d$ fills the unit hypercube. For every axis-aligned box $<span class="co">[</span><span class="ot">0, u_1</span><span class="co">]</span> \times \cdots \times <span class="co">[</span><span class="ot">0, u_d</span><span class="co">]</span>$ anchored at the origin, we compare the fraction of points inside the box to the box's volume:</span>
+<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a>D_N^* = \sup_{\mathbf{u} \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d} \left| \frac{<span class="sc">\#\{</span>x_i \in <span class="co">[</span><span class="ot">\mathbf{0}, \mathbf{u}</span><span class="co">]</span><span class="sc">\}</span>}{N} - \prod_{j=1}^d u_j \right|</span>
+<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a>A small $D_N^*$ means the empirical distribution of the points closely matches the uniform distribution. For pseudorandom samples, $D_N^* = O(N^{-1/2})$ (by the DKW inequality). Halton and Sobol sequences achieve:</span>
+<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a>D_N^* = O<span class="sc">\!</span>\left(\frac{(\log N)^d}{N}\right)</span>
+<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a>which is asymptotically much faster for moderate $d$.</span>
+<span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a>The **Koksma--Hlawka inequality** connects discrepancy to integration error:</span>
+<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-223"><a href="#cb5-223" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-224"><a href="#cb5-224" aria-hidden="true" tabindex="-1"></a>\left|\frac{1}{N}\sum_{i=1}^N f(\mathbf{x}_i) - \int_{[0,1]^d} f(\mathbf{x})\,d\mathbf{x}\right| \le V_{\mathrm{HK}}(f) \cdot D_N^*</span>
+<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a>where $V_{\mathrm{HK}}(f)$ is the **variation of $f$ in the sense of Hardy--Krause** --- a measure of how "wiggly" the integrand is. The bound says: *integration error is at most the integrand's roughness times the point set's non-uniformity.* QMC reduces the second factor.</span>
+<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a><span class="fu">## Two levers for integration accuracy</span></span>
+<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a>The Koksma--Hlawka bound identifies two independent levers:</span>
+<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Reduce $D_N^*$** by using a better point set (QMC instead of MC) --- this is what this tutorial series is about.</span>
+<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Reduce $V_{\mathrm{HK}}(f)$** by smoothing or transforming the integrand --- this is the idea behind importance sampling and control variates, covered in later tutorials.</span>
+<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing Discrepancy</span></span>
+<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a>@fig-discrepancy-visual makes star discrepancy concrete. For a small point set ($N = 32$), we find the axis-aligned box $<span class="co">[</span><span class="ot">\mathbf{0}, \mathbf{u}^*</span><span class="co">]</span>$ where the discrepancy is largest and overlay it on the point set. The random sample has a much larger worst-case deviation than the Sobol sequence.</span>
+<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Star discrepancy illustrated for $N = 32$ points. The shaded box $[0, u_1] \\times [0, u_2]$ is the axis-aligned region anchored at the origin where the fraction of points inside deviates most from the box's area. Left: pseudorandom ($D_N^*$ is large). Right: Sobol ($D_N^*$ is small). Lower discrepancy corresponds to a tighter integration error bound."</span></span>
+<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-discrepancy-visual</span></span>
+<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_star_discrepancy_2d(points, grid_res<span class="op">=</span><span class="dv">200</span>):</span>
+<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a><span class="co">    Brute-force star discrepancy for 2D point sets.</span></span>
+<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a><span class="co">    Searches over a grid of box corners (u1, u2) in [0,1]^2 to find</span></span>
+<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a><span class="co">    the box [0, u1] x [0, u2] that maximizes</span></span>
+<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a><span class="co">    |fraction_of_points_inside - u1 * u2|.</span></span>
+<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
+<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
+<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a><span class="co">    points : ndarray, shape (2, N)</span></span>
+<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a><span class="co">        Point set in [0, 1]^2.</span></span>
+<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a><span class="co">    grid_res : int</span></span>
+<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a><span class="co">        Resolution of the search grid.</span></span>
+<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
+<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
+<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a><span class="co">    d_star : float</span></span>
+<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a><span class="co">        Estimated star discrepancy.</span></span>
+<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a><span class="co">    worst_u : tuple (u1, u2)</span></span>
+<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a><span class="co">        Corner of the worst-case box.</span></span>
+<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a>    N <span class="op">=</span> points.shape[<span class="dv">1</span>]</span>
+<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a>    u_vals <span class="op">=</span> np.linspace(<span class="fl">0.01</span>, <span class="fl">1.0</span>, grid_res)</span>
+<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a>    best_disc <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb5-274"><a href="#cb5-274" aria-hidden="true" tabindex="-1"></a>    worst_u <span class="op">=</span> (<span class="fl">0.5</span>, <span class="fl">0.5</span>)</span>
+<span id="cb5-275"><a href="#cb5-275" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> u1 <span class="kw">in</span> u_vals:</span>
+<span id="cb5-276"><a href="#cb5-276" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> u2 <span class="kw">in</span> u_vals:</span>
+<span id="cb5-277"><a href="#cb5-277" aria-hidden="true" tabindex="-1"></a>            inside <span class="op">=</span> np.<span class="bu">sum</span>((points[<span class="dv">0</span>] <span class="op">&lt;=</span> u1) <span class="op">&amp;</span> (points[<span class="dv">1</span>] <span class="op">&lt;=</span> u2))</span>
+<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a>            disc <span class="op">=</span> <span class="bu">abs</span>(inside <span class="op">/</span> N <span class="op">-</span> u1 <span class="op">*</span> u2)</span>
+<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> disc <span class="op">&gt;</span> best_disc:</span>
+<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a>                best_disc <span class="op">=</span> disc</span>
+<span id="cb5-281"><a href="#cb5-281" aria-hidden="true" tabindex="-1"></a>                worst_u <span class="op">=</span> (u1, u2)</span>
+<span id="cb5-282"><a href="#cb5-282" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> best_disc, worst_u</span>
+<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a>N_disc <span class="op">=</span> <span class="dv">32</span></span>
+<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
+<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a>pts_rand <span class="op">=</span> np.random.rand(<span class="dv">2</span>, N_disc)</span>
+<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a>sobol_disc <span class="op">=</span> SobolSampler(<span class="dv">2</span>, bkd, scramble<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a>pts_sobol <span class="op">=</span> bkd.to_numpy(sobol_disc.sample(N_disc)[<span class="dv">0</span>])</span>
+<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a>d_rand, u_rand <span class="op">=</span> compute_star_discrepancy_2d(pts_rand)</span>
+<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>d_sobol, u_sobol <span class="op">=</span> compute_star_discrepancy_2d(pts_sobol)</span>
+<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">5</span>))</span>
+<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, pts, d_star, u_star, title, color <span class="kw">in</span> [</span>
+<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a>    (ax1, pts_rand, d_rand, u_rand, <span class="st">"Pseudorandom"</span>, <span class="st">"steelblue"</span>),</span>
+<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a>    (ax2, pts_sobol, d_sobol, u_sobol, <span class="st">"Sobol"</span>, <span class="st">"seagreen"</span>),</span>
+<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shaded worst box</span></span>
+<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> matplotlib.patches <span class="im">import</span> Rectangle</span>
+<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a>    rect <span class="op">=</span> Rectangle((<span class="dv">0</span>, <span class="dv">0</span>), u_star[<span class="dv">0</span>], u_star[<span class="dv">1</span>],</span>
+<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a>                      facecolor<span class="op">=</span>color, alpha<span class="op">=</span><span class="fl">0.15</span>, edgecolor<span class="op">=</span>color,</span>
+<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a>                      linewidth<span class="op">=</span><span class="dv">2</span>, linestyle<span class="op">=</span><span class="st">"--"</span>)</span>
+<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a>    ax.add_patch(rect)</span>
+<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-308"><a href="#cb5-308" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Points</span></span>
+<span id="cb5-309"><a href="#cb5-309" aria-hidden="true" tabindex="-1"></a>    inside <span class="op">=</span> (pts[<span class="dv">0</span>] <span class="op">&lt;=</span> u_star[<span class="dv">0</span>]) <span class="op">&amp;</span> (pts[<span class="dv">1</span>] <span class="op">&lt;=</span> u_star[<span class="dv">1</span>])</span>
+<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts[<span class="dv">0</span>, <span class="op">~</span>inside], pts[<span class="dv">1</span>, <span class="op">~</span>inside], s<span class="op">=</span><span class="dv">25</span>, color<span class="op">=</span><span class="st">"gray"</span>,</span>
+<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts[<span class="dv">0</span>, inside], pts[<span class="dv">1</span>, inside], s<span class="op">=</span><span class="dv">35</span>, color<span class="op">=</span>color,</span>
+<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a>               edgecolors<span class="op">=</span><span class="st">"black"</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Annotation</span></span>
+<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a>    n_inside <span class="op">=</span> np.<span class="bu">sum</span>(inside)</span>
+<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a>    area <span class="op">=</span> u_star[<span class="dv">0</span>] <span class="op">*</span> u_star[<span class="dv">1</span>]</span>
+<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a>    ax.annotate(</span>
+<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"$D_N^* </span><span class="ch">\\</span><span class="ss">approx </span><span class="sc">{</span>d_star<span class="sc">:.3f}</span><span class="ss">$</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Box area = </span><span class="sc">{</span>area<span class="sc">:.2f}</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Fraction inside = </span><span class="sc">{</span>n_inside<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>N_disc<span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>n_inside<span class="op">/</span>N_disc<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
+<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a>        xy<span class="op">=</span>(<span class="fl">0.98</span>, <span class="fl">0.98</span>), xycoords<span class="op">=</span><span class="st">"axes fraction"</span>,</span>
+<span id="cb5-323"><a href="#cb5-323" aria-hidden="true" tabindex="-1"></a>        ha<span class="op">=</span><span class="st">"right"</span>, va<span class="op">=</span><span class="st">"top"</span>, fontsize<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb5-324"><a href="#cb5-324" aria-hidden="true" tabindex="-1"></a>        bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">"round,pad=0.3"</span>, facecolor<span class="op">=</span><span class="st">"white"</span>, alpha<span class="op">=</span><span class="fl">0.8</span>),</span>
+<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a>    ax.set_aspect(<span class="st">"equal"</span>)</span>
+<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"</span><span class="sc">{</span>title<span class="sc">}</span><span class="ss"> ($N = </span><span class="sc">{</span>N_disc<span class="sc">}</span><span class="ss">$)"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="vs">x_1</span><span class="dv">$</span><span class="vs">"</span>)</span>
+<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a>    ax.set_ylabel(<span class="vs">r"</span><span class="dv">$</span><span class="vs">x_2</span><span class="dv">$</span><span class="vs">"</span>)</span>
+<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a>    ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-339"><a href="#cb5-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-340"><a href="#cb5-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## Effect of Dimension</span></span>
+<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a>The Koksma--Hlawka bound includes the factor $(\log N)^d$, which grows rapidly with dimension $d$. Does this mean QMC is useless in high dimensions?</span>
+<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a>Not necessarily. The bound is often pessimistic because many real-world functions have low **effective dimension** --- they depend primarily on a few coordinates, even if the nominal dimension is large. Still, the QMC advantage does erode as $d$ grows, and it is important to quantify this empirically.</span>
+<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a>We test with a smooth, separable integrand whose true integral is known analytically:</span>
+<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a>f(\mathbf{x}) = \prod_{j=1}^d \frac{3x_j^2 + 1}{2}, \qquad \mathbf{x} \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^d</span>
+<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a>Each factor integrates to 1, so $\int f\,d\mathbf{x} = 1$ for all $d$.</span>
+<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> product_integrand(x):</span>
+<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a><span class="co">    Separable product integrand with known integral = 1.</span></span>
+<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
+<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
+<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a><span class="co">    x : ndarray, shape (d, N)</span></span>
+<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a><span class="co">        Points in [0, 1]^d.</span></span>
+<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
+<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
+<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a><span class="co">    ndarray, shape (N,)</span></span>
+<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a><span class="co">        Function values.</span></span>
+<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.prod((<span class="dv">3</span> <span class="op">*</span> x<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-373"><a href="#cb5-373" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-374"><a href="#cb5-374" aria-hidden="true" tabindex="-1"></a>true_integral <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb5-375"><a href="#cb5-375" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-376"><a href="#cb5-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-377"><a href="#cb5-377" aria-hidden="true" tabindex="-1"></a>@fig-dimension-effect shows convergence for $d = 2, 5, 10, 20$. The MC error is dimension-independent (all solid curves overlap), while the QMC error increases with $d$ but remains below MC for all dimensions tested.</span>
+<span id="cb5-378"><a href="#cb5-378" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-381"><a href="#cb5-381" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb5-382"><a href="#cb5-382" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb5-383"><a href="#cb5-383" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Integration error vs. $N$ for a smooth product integrand in $d = 2, 5, 10, 20$ dimensions. MC error (solid lines) is independent of $d$ and follows $O(N^{-1/2})$. Sobol error (dashed lines) increases with $d$ but remains below MC for all dimensions shown. The QMC advantage is largest in low dimensions and erodes gradually."</span></span>
+<span id="cb5-384"><a href="#cb5-384" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-dimension-effect</span></span>
+<span id="cb5-385"><a href="#cb5-385" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-386"><a href="#cb5-386" aria-hidden="true" tabindex="-1"></a>dims <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]</span>
+<span id="cb5-387"><a href="#cb5-387" aria-hidden="true" tabindex="-1"></a>N_values_dim <span class="op">=</span> [<span class="dv">2</span><span class="op">**</span>k <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">6</span>, <span class="dv">15</span>)]</span>
+<span id="cb5-388"><a href="#cb5-388" aria-hidden="true" tabindex="-1"></a>n_mc_reps <span class="op">=</span> <span class="dv">30</span></span>
+<span id="cb5-389"><a href="#cb5-389" aria-hidden="true" tabindex="-1"></a>colors_dim <span class="op">=</span> [<span class="st">"#1f77b4"</span>, <span class="st">"#ff7f0e"</span>, <span class="st">"#2ca02c"</span>, <span class="st">"#d62728"</span>]</span>
+<span id="cb5-390"><a href="#cb5-390" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-391"><a href="#cb5-391" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">5.5</span>))</span>
+<span id="cb5-392"><a href="#cb5-392" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-393"><a href="#cb5-393" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d, color <span class="kw">in</span> <span class="bu">zip</span>(dims, colors_dim):</span>
+<span id="cb5-394"><a href="#cb5-394" aria-hidden="true" tabindex="-1"></a>    errors_mc_d <span class="op">=</span> []</span>
+<span id="cb5-395"><a href="#cb5-395" aria-hidden="true" tabindex="-1"></a>    errors_sobol_d <span class="op">=</span> []</span>
+<span id="cb5-396"><a href="#cb5-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-397"><a href="#cb5-397" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> N <span class="kw">in</span> N_values_dim:</span>
+<span id="cb5-398"><a href="#cb5-398" aria-hidden="true" tabindex="-1"></a>        <span class="co"># MC: average absolute error</span></span>
+<span id="cb5-399"><a href="#cb5-399" aria-hidden="true" tabindex="-1"></a>        mc_errs <span class="op">=</span> []</span>
+<span id="cb5-400"><a href="#cb5-400" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> rep <span class="kw">in</span> <span class="bu">range</span>(n_mc_reps):</span>
+<span id="cb5-401"><a href="#cb5-401" aria-hidden="true" tabindex="-1"></a>            np.random.seed(rep <span class="op">+</span> d <span class="op">*</span> <span class="dv">10000</span>)</span>
+<span id="cb5-402"><a href="#cb5-402" aria-hidden="true" tabindex="-1"></a>            x <span class="op">=</span> np.random.rand(d, N)</span>
+<span id="cb5-403"><a href="#cb5-403" aria-hidden="true" tabindex="-1"></a>            mc_errs.append(<span class="bu">abs</span>(np.mean(product_integrand(x)) <span class="op">-</span> true_integral))</span>
+<span id="cb5-404"><a href="#cb5-404" aria-hidden="true" tabindex="-1"></a>        errors_mc_d.append(np.mean(mc_errs))</span>
+<span id="cb5-405"><a href="#cb5-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-406"><a href="#cb5-406" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Sobol (deterministic)</span></span>
+<span id="cb5-407"><a href="#cb5-407" aria-hidden="true" tabindex="-1"></a>        sb <span class="op">=</span> SobolSampler(d, bkd, scramble<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb5-408"><a href="#cb5-408" aria-hidden="true" tabindex="-1"></a>        xs, ws <span class="op">=</span> sb.sample(N)</span>
+<span id="cb5-409"><a href="#cb5-409" aria-hidden="true" tabindex="-1"></a>        xs_np <span class="op">=</span> bkd.to_numpy(xs)</span>
+<span id="cb5-410"><a href="#cb5-410" aria-hidden="true" tabindex="-1"></a>        ws_np <span class="op">=</span> bkd.to_numpy(ws)</span>
+<span id="cb5-411"><a href="#cb5-411" aria-hidden="true" tabindex="-1"></a>        fvals <span class="op">=</span> product_integrand(xs_np)</span>
+<span id="cb5-412"><a href="#cb5-412" aria-hidden="true" tabindex="-1"></a>        errors_sobol_d.append(<span class="bu">abs</span>(np.dot(ws_np, fvals) <span class="op">-</span> true_integral))</span>
+<span id="cb5-413"><a href="#cb5-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-414"><a href="#cb5-414" aria-hidden="true" tabindex="-1"></a>    ax.loglog(N_values_dim, errors_mc_d, <span class="st">"o-"</span>, color<span class="op">=</span>color, alpha<span class="op">=</span><span class="fl">0.4</span>,</span>
+<span id="cb5-415"><a href="#cb5-415" aria-hidden="true" tabindex="-1"></a>              markersize<span class="op">=</span><span class="dv">4</span>, linewidth<span class="op">=</span><span class="fl">1.2</span>, label<span class="op">=</span><span class="ss">f"MC  $d=</span><span class="sc">{</span>d<span class="sc">}</span><span class="ss">$"</span>)</span>
+<span id="cb5-416"><a href="#cb5-416" aria-hidden="true" tabindex="-1"></a>    ax.loglog(N_values_dim, errors_sobol_d, <span class="st">"s--"</span>, color<span class="op">=</span>color,</span>
+<span id="cb5-417"><a href="#cb5-417" aria-hidden="true" tabindex="-1"></a>              markersize<span class="op">=</span><span class="dv">4</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>, label<span class="op">=</span><span class="ss">f"Sobol $d=</span><span class="sc">{</span>d<span class="sc">}</span><span class="ss">$"</span>)</span>
+<span id="cb5-418"><a href="#cb5-418" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-419"><a href="#cb5-419" aria-hidden="true" tabindex="-1"></a><span class="co"># Reference slopes</span></span>
+<span id="cb5-420"><a href="#cb5-420" aria-hidden="true" tabindex="-1"></a>N_ref <span class="op">=</span> np.array(N_values_dim, dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb5-421"><a href="#cb5-421" aria-hidden="true" tabindex="-1"></a>c05 <span class="op">=</span> <span class="fl">0.3</span> <span class="op">*</span> N_ref[<span class="dv">0</span>]<span class="op">**</span><span class="fl">0.5</span></span>
+<span id="cb5-422"><a href="#cb5-422" aria-hidden="true" tabindex="-1"></a>ax.loglog(N_ref, c05 <span class="op">*</span> N_ref<span class="op">**</span>(<span class="op">-</span><span class="fl">0.5</span>), <span class="st">":"</span>, color<span class="op">=</span><span class="st">"gray"</span>, linewidth<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb5-423"><a href="#cb5-423" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="vs">r"</span><span class="dv">$</span><span class="vs">O</span><span class="kw">(</span><span class="vs">N</span><span class="dv">^</span><span class="vs">{-1/2}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span>)</span>
+<span id="cb5-424"><a href="#cb5-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-425"><a href="#cb5-425" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of samples $N$"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb5-426"><a href="#cb5-426" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Absolute integration error"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb5-427"><a href="#cb5-427" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"QMC Advantage vs. Dimension"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb5-428"><a href="#cb5-428" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">8</span>, ncol<span class="op">=</span><span class="dv">3</span>, loc<span class="op">=</span><span class="st">"lower left"</span>)</span>
+<span id="cb5-429"><a href="#cb5-429" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, which<span class="op">=</span><span class="st">"both"</span>, alpha<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb5-430"><a href="#cb5-430" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-431"><a href="#cb5-431" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb5-432"><a href="#cb5-432" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb5-433"><a href="#cb5-433" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-434"><a href="#cb5-434" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-435"><a href="#cb5-435" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Decision Guide</span></span>
+<span id="cb5-436"><a href="#cb5-436" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-437"><a href="#cb5-437" aria-hidden="true" tabindex="-1"></a>The following table summarizes when to use QMC vs. MC:</span>
+<span id="cb5-438"><a href="#cb5-438" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-439"><a href="#cb5-439" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Situation <span class="pp">|</span> Recommendation <span class="pp">|</span></span>
+<span id="cb5-440"><a href="#cb5-440" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|---------------|</span></span>
+<span id="cb5-441"><a href="#cb5-441" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d \le 10$, smooth integrand <span class="pp">|</span> QMC (Sobol preferred) <span class="pp">|</span></span>
+<span id="cb5-442"><a href="#cb5-442" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d \le 10$, discontinuous integrand <span class="pp">|</span> MC or RQMC with many replicates <span class="pp">|</span></span>
+<span id="cb5-443"><a href="#cb5-443" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $10 &lt; d \le 50$, smooth <span class="pp">|</span> Try RQMC; compare to MC empirically <span class="pp">|</span></span>
+<span id="cb5-444"><a href="#cb5-444" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $d &gt; 50$ or rough integrand <span class="pp">|</span> MC (dimension-free convergence rate) <span class="pp">|</span></span>
+<span id="cb5-445"><a href="#cb5-445" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Need error bars <span class="pp">|</span> Always use scrambled RQMC <span class="pp">|</span></span>
+<span id="cb5-446"><a href="#cb5-446" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Need reproducibility <span class="pp">|</span> Deterministic QMC with fixed seed <span class="pp">|</span></span>
+<span id="cb5-447"><a href="#cb5-447" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-448"><a href="#cb5-448" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
+<span id="cb5-449"><a href="#cb5-449" aria-hidden="true" tabindex="-1"></a><span class="fu">## Rule of thumb</span></span>
+<span id="cb5-450"><a href="#cb5-450" aria-hidden="true" tabindex="-1"></a>When in doubt, try scrambled Sobol first. It is never *worse* than MC (both are unbiased with the same weights), and it is often dramatically better. If your problem is high-dimensional or has discontinuities, you can always fall back to MC.</span>
+<span id="cb5-451"><a href="#cb5-451" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb5-452"><a href="#cb5-452" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-453"><a href="#cb5-453" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-454"><a href="#cb5-454" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb5-455"><a href="#cb5-455" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-456"><a href="#cb5-456" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Scrambling** (Owen) turns deterministic QMC into randomized QMC (RQMC): it preserves the low-discrepancy structure and fast convergence while enabling standard error estimation via independent replicates</span>
+<span id="cb5-457"><a href="#cb5-457" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Star discrepancy** $D_N^*$ measures how uniformly a point set fills the domain; QMC sequences achieve $D_N^* = O((\log N)^d / N)$ vs. MC's $O(N^{-1/2})$</span>
+<span id="cb5-458"><a href="#cb5-458" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **Koksma--Hlawka inequality** bounds integration error as $V_{\mathrm{HK}}(f) \cdot D_N^*$ --- the product of integrand roughness and point set non-uniformity</span>
+<span id="cb5-459"><a href="#cb5-459" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Dimension matters:** the QMC advantage is largest for smooth, low-dimensional problems and erodes with $d$, though effective dimension often keeps QMC competitive even in moderately high dimensions</span>
+<span id="cb5-460"><a href="#cb5-460" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>In practice, **always try RQMC** and compare empirically --- it is never worse than MC and is often orders of magnitude better</span>
+<span id="cb5-461"><a href="#cb5-461" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-462"><a href="#cb5-462" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-463"><a href="#cb5-463" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb5-464"><a href="#cb5-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-465"><a href="#cb5-465" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Compute the star discrepancy (brute-force grid search as in @fig-discrepancy-visual) for Halton and Sobol at $N = 64, 256, 1024$. Plot $D_N^*$ vs. $N$ on a log-log axis. What convergence rate do you observe?</span>
+<span id="cb5-466"><a href="#cb5-466" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-467"><a href="#cb5-467" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In @fig-dimension-effect, replace the smooth product integrand with a "corner peak": $f(\mathbf{x}) = (1 + \sum_j x_j)^{-(d+1)}$. Does the QMC advantage change? (This function is smooth but has most of its mass in one corner of the hypercube.)</span>
+<span id="cb5-468"><a href="#cb5-468" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-469"><a href="#cb5-469" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Using scrambled Sobol, construct a 95% confidence interval for the beam model's mean tip deflection at $N = 512$ with $R = 30$ replicates. Compare the interval width to a MC confidence interval based on the same total budget of $30 \times 512 = 15360$ samples. How many MC samples would be needed to match the RQMC interval width?</span>
+<span id="cb5-470"><a href="#cb5-470" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-471"><a href="#cb5-471" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** The `SobolSampler` returns equal weights $w_i = 1/N$. Investigate whether using the QMC samples as nodes in a **weighted least-squares** regression (polynomial chaos) further improves convergence compared to using random samples as regression nodes.</span>
+<span id="cb5-472"><a href="#cb5-472" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-473"><a href="#cb5-473" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-474"><a href="#cb5-474" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb5-475"><a href="#cb5-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-476"><a href="#cb5-476" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb5-477"><a href="#cb5-477" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-478"><a href="#cb5-478" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Monte Carlo Budget Estimation</span><span class="co">](mc_budget_estimation.qmd)</span> --- Predicting the sample budget for a target accuracy</span>
+<span id="cb5-479"><a href="#cb5-479" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Multi-Fidelity Monte Carlo</span><span class="co">](control_variate_concept.qmd)</span> --- Using cheap surrogate models to reduce the constant in the $1/M$ convergence rate</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Sparse Polynomial Approximation – PyApprox">
 <meta property="og:description" content="OMP and BPDN/LASSO for high-dimensional polynomial chaos.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/sparse_pce_fitting_files/figure-html/fig-coefficient-decay-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="744">
+<meta property="og:image:width" content="1511">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1116,7 +1119,7 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We use the same 2D cantilever beam benchmark with <span class="math inline">\(d = 3\)</span> uncertain parameters. Because the sparse fitters currently support only a single QoI, we work with just the first QoI (tip deflection) throughout this tutorial.</p>
-<div id="e7821d73" class="cell">
+<div id="5684686d" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1144,7 +1147,7 @@ window.Quarto = {
 <span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="386b3be2" class="cell">
+<div id="d6e6989c" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Training data</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
@@ -1177,7 +1180,7 @@ window.Quarto = {
 <section id="why-sparsity-matters" class="level2">
 <h2 class="anchored" data-anchor-id="why-sparsity-matters">Why Sparsity Matters</h2>
 <p>For a total-degree polynomial basis in <span class="math inline">\(d\)</span> variables at degree <span class="math inline">\(p\)</span>, the number of terms grows as <span class="math inline">\(\binom{d + p}{p}\)</span>. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:</p>
-<div id="e718bb81" class="cell">
+<div id="1cd927bb" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]:</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>]:</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=</span> compute_hyperbolic_indices(d, p, <span class="fl">1.0</span>, bkd).shape[<span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1187,9 +1190,7 @@ window.Quarto = {
 <section id="coefficient-magnitudes-of-a-fitted-pce" class="level2">
 <h2 class="anchored" data-anchor-id="coefficient-magnitudes-of-a-fitted-pce">Coefficient Magnitudes of a Fitted PCE</h2>
 <p>To see sparsity in action, let’s fit a least-squares PCE at degree 5 and examine the coefficient magnitudes:</p>
-<div id="fig-coefficient-decay" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-coefficient-decay" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_coefficient_decay</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>degree_large <span class="op">=</span> <span class="dv">5</span></span>
@@ -1204,11 +1205,18 @@ window.Quarto = {
 <span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>plot_coefficient_decay(sorted_abs, degree_large, nterms_large, N_train, ax)</span>
 <span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-coefficient-decay" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_pce_fitting_files/figure-html/fig-coefficient-decay-output-1.png" width="756" height="372" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The rapid decay in coefficient magnitudes shows that only a handful of terms carry most of the information. This motivates sparse fitters that identify and retain only the important terms.</p>
 </section>
@@ -1221,7 +1229,7 @@ Figure&nbsp;1
 <li>Re-solve the least-squares problem restricted to the active set</li>
 <li>Repeat until the residual is small enough or the maximum number of terms is reached</li>
 </ol>
-<div id="33eae5c0" class="cell">
+<div id="f4788ba1" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.omp <span class="im">import</span> OMPFitter</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>pce_omp <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1230,9 +1238,7 @@ Figure&nbsp;1
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>omp_result <span class="op">=</span> omp_fitter.fit(pce_omp, samples_train, values_train)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>The residual history shows how the fit improves as terms are added:</p>
-<div id="fig-omp-residual" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-omp-residual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-omp-residual" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_omp_residual</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>res_hist <span class="op">=</span> bkd.to_numpy(omp_result.residual_history())</span>
@@ -1241,11 +1247,18 @@ Figure&nbsp;1
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>plot_omp_residual(res_hist, ax)</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-omp-residual" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-omp-residual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_pce_fitting_files/figure-html/fig-omp-residual-output-1.png" width="660" height="372" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-omp-residual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-omp-residual-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: OMP residual history. The residual norm decreases as each new basis term is added to the active set.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="why-does-l1-promote-sparsity" class="level2">
@@ -1258,6 +1271,20 @@ Figure&nbsp;2
 <li><p>The <span class="math inline">\(\ell_1\)</span> constraint <span class="math inline">\(|\theta_1| + |\theta_2| \leq t\)</span> is a <strong>diamond</strong> with sharp corners on the coordinate axes. As we expand the elliptical contours outward from <span class="math inline">\(\theta^*_{\mathrm{LS}}\)</span>, they almost always first touch the diamond at one of these corners — a point where one coordinate is exactly zero. The solution is <strong>sparse</strong>.</p></li>
 <li><p>The <span class="math inline">\(\ell_2\)</span> constraint <span class="math inline">\(\theta_1^2 + \theta_2^2 \leq t^2\)</span> is a <strong>circle</strong> with no corners. The contours touch the circle on its smooth boundary, generically at a point where both coordinates are nonzero. The solution <strong>shrinks</strong> coefficients but does not zero them out.</p></li>
 </ul>
+<div id="cell-fig-l1-vs-l2" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-l1-vs-l2" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-l1-vs-l2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_pce_fitting_files/figure-html/fig-l1-vs-l2-output-1.png" width="1140" height="545" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-l1-vs-l2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Why L₁ promotes sparsity. Left: the L₁ constraint region (diamond) has corners on the axes. The smallest objective contour touching the diamond hits a corner, forcing θ₂ = 0. Right: the L₂ constraint region (circle) is smooth, so the tangent point has both components nonzero. Both panels use the same objective with unconstrained optimum θ* = (2.5, 1.5) and budget t = 1.8.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This geometry extends to higher dimensions. In <span class="math inline">\(P\)</span>-dimensional coefficient space, the <span class="math inline">\(\ell_1\)</span> ball is a <strong>cross-polytope</strong> with <span class="math inline">\(2P\)</span> vertices, all on the coordinate axes. Every vertex has <span class="math inline">\(P - 1\)</span> coordinates exactly equal to zero. Edges, faces, and higher-dimensional facets also lie on coordinate subspaces. An ellipsoidal objective contour expanding outward from <span class="math inline">\(\theta^*_{\mathrm{LS}}\)</span> will generically first touch the polytope on a low-dimensional face, producing a solution with many zero components.</p>
 <p>For a PCE with hundreds or thousands of candidate terms, this means the BPDN/LASSO solution retains only the handful of basis functions that contribute most to explaining the training data — exactly the sparsity we want.</p>
 </section>
@@ -1268,7 +1295,7 @@ Figure&nbsp;2
 \hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}\|\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}\|_2^2 + \lambda \|\mathbf{c}\|_1
 \]</span></p>
 <p>The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength <span class="math inline">\(\lambda\)</span> controls the trade-off between fit quality and sparsity.</p>
-<div id="ec067d5b" class="cell">
+<div id="642f9d22" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.bpdn <span class="im">import</span> BPDNFitter</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>pce_bpdn <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1279,10 +1306,8 @@ Figure&nbsp;2
 </section>
 <section id="comparing-coefficient-sparsity" class="level2">
 <h2 class="anchored" data-anchor-id="comparing-coefficient-sparsity">Comparing Coefficient Sparsity</h2>
-<p><a href="#fig-sparse-coefficients" class="quarto-xref">Figure&nbsp;3</a> compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.</p>
-<div id="fig-sparse-coefficients" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<p><a href="#fig-sparse-coefficients" class="quarto-xref">Figure&nbsp;4</a> compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.</p>
+<div id="cell-fig-sparse-coefficients" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_sparse_coefficients</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>fitter_names <span class="op">=</span> [<span class="st">"Least Squares"</span>, <span class="st">"OMP"</span>, <span class="st">"BPDN"</span>]</span>
@@ -1292,27 +1317,32 @@ Figure&nbsp;2
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>plot_sparse_coefficients(results, fitter_names, bkd, axes)</span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-sparse-coefficients" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_pce_fitting_files/figure-html/fig-sparse-coefficients-output-1.png" width="1428" height="372" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="accuracy-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="accuracy-comparison">Accuracy Comparison</h2>
 <p>Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:</p>
-<div id="77cded3f" class="cell">
+<div id="c35fb860" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, result <span class="kw">in</span> <span class="bu">zip</span>(fitter_names, results):</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    preds <span class="op">=</span> bkd.to_numpy(result.surrogate()(samples_test))</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    l2_err <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :] <span class="op">-</span> preds[<span class="dv">0</span>, :])</span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    l2_ref <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :])</span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    n_nz <span class="op">=</span> np.<span class="bu">sum</span>(np.<span class="bu">abs</span>(bkd.to_numpy(result.params())[:, <span class="dv">0</span>]) <span class="op">&gt;</span> <span class="fl">1e-12</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. <a href="#fig-accuracy-vs-n" class="quarto-xref">Figure&nbsp;4</a> compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:</p>
-<div id="fig-accuracy-vs-n" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-accuracy-vs-n-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<p>The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. <a href="#fig-accuracy-vs-n" class="quarto-xref">Figure&nbsp;5</a> compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:</p>
+<div id="cell-fig-accuracy-vs-n" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_accuracy_vs_n</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">30</span>, <span class="dv">50</span>, <span class="dv">75</span>, <span class="dv">100</span>, <span class="dv">150</span>]</span>
@@ -1347,11 +1377,18 @@ Figure&nbsp;3
 <span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>plot_accuracy_vs_n(N_values, ls3_errors, omp5_errors, ax)</span>
 <span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-accuracy-vs-n" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-accuracy-vs-n-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_pce_fitting_files/figure-html/fig-accuracy-vs-n-output-1.png" width="659" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-accuracy-vs-n-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-accuracy-vs-n-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Test-set error vs.&nbsp;training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="key-takeaways" class="level2">

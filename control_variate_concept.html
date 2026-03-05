@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Control Variate Monte Carlo – PyApprox">
 <meta property="og:description" content="Reducing Monte Carlo estimator variance using a correlated low-fidelity model with a known statistic.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/control_variate_concept_files/figure-html/fig-model-surfaces-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="930">
+<meta property="og:image:width" content="1958">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1113,7 +1116,21 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="motivation">Motivation</h2>
 <p>The <a href="./estimator_accuracy_mse.html">Estimator Accuracy</a> tutorial showed that the variance of the MC mean estimator is <span class="math inline">\(\sigma^2_\alpha / N\)</span>, where <span class="math inline">\(\sigma^2_\alpha\)</span> is the variance of the high-fidelity model output <span class="math inline">\(f_\alpha\)</span> and <span class="math inline">\(N\)</span> is the number of samples. Reducing this variance requires either more samples — which is expensive — or a smarter estimator.</p>
 <p>Control Variate Monte Carlo (CVMC) is the simplest example of a smarter estimator. The idea: if we have access to a cheap model <span class="math inline">\(f_\kappa\)</span> that is <strong>correlated</strong> with <span class="math inline">\(f_\alpha\)</span> and whose mean <span class="math inline">\(\mu_\kappa = \mathbb{E}_\theta[f_\kappa(\boldsymbol{\theta})]\)</span> is <strong>known exactly</strong>, we can use the cheap model to cancel a large fraction of the MC error.</p>
-<p><strong>?@fig-model-surfaces</strong> illustrates this with two models of a 2D input. The surface plots show that <span class="math inline">\(f_\alpha\)</span> and <span class="math inline">\(f_\kappa\)</span> have similar shape — when one is large, so is the other. The scatter plot on the right confirms that model outputs are tightly correlated (<span class="math inline">\(\rho \approx 0.9\)</span>).</p>
+<p><a href="#fig-model-surfaces" class="quarto-xref">Figure&nbsp;1</a> illustrates this with two models of a 2D input. The surface plots show that <span class="math inline">\(f_\alpha\)</span> and <span class="math inline">\(f_\kappa\)</span> have similar shape — when one is large, so is the other. The scatter plot on the right confirms that model outputs are tightly correlated (<span class="math inline">\(\rho \approx 0.9\)</span>).</p>
+<div id="cell-fig-model-surfaces" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-model-surfaces" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-model-surfaces-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="control_variate_concept_files/figure-html/fig-model-surfaces-output-1.png" width="979" height="465" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-model-surfaces-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Left: overlaid response surfaces of <span class="math inline">\(f_\alpha\)</span> (blue) and <span class="math inline">\(f_\kappa\)</span> (orange) over <span class="math inline">\([-1,1]^2\)</span>, showing similar shape with a gap between them. Right: scatter plot of 100 random evaluations confirming tight output correlation <span class="math inline">\(\rho\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="the-cvmc-estimator" class="level2">
 <h2 class="anchored" data-anchor-id="the-cvmc-estimator">The CVMC Estimator</h2>
@@ -1135,11 +1152,39 @@ window.Quarto = {
 \mathbb{V}[\hat{\mu}_\alpha^{\text{CV}}] = \mathbb{V}[\hat{\mu}_\alpha] \left(1 - \rho^2_{\alpha\kappa}\right)
 \tag{2}\]</span></span></p>
 <p>where <span class="math inline">\(\rho_{\alpha\kappa} = \mathrm{Corr}(f_\alpha, f_\kappa)\)</span> is the correlation between the two model outputs. The factor <span class="math inline">\((1 - \rho^2_{\alpha\kappa})\)</span> is always between 0 and 1, so CVMC always reduces (or at worst equals) the MC variance.</p>
-<p><strong>?@fig-variance-reduction-vs-rho</strong> shows this relationship. Near-perfectly correlated models (<span class="math inline">\(|\rho| \approx 1\)</span>) can reduce variance by orders of magnitude; uncorrelated models (<span class="math inline">\(\rho \approx 0\)</span>) offer no benefit.</p>
+<p><a href="#fig-variance-reduction-vs-rho" class="quarto-xref">Figure&nbsp;2</a> shows this relationship. Near-perfectly correlated models (<span class="math inline">\(|\rho| \approx 1\)</span>) can reduce variance by orders of magnitude; uncorrelated models (<span class="math inline">\(\rho \approx 0\)</span>) offer no benefit.</p>
+<div id="cell-fig-variance-reduction-vs-rho" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-variance-reduction-vs-rho" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-variance-reduction-vs-rho-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="control_variate_concept_files/figure-html/fig-variance-reduction-vs-rho-output-1.png" width="660" height="372" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-reduction-vs-rho-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: CVMC variance reduction factor <span class="math inline">\((1 - \rho^2)\)</span> as a function of model correlation <span class="math inline">\(\rho\)</span>. A correlation of <span class="math inline">\(|\rho| = 0.9\)</span> reduces variance by <span class="math inline">\(81\%\)</span>; <span class="math inline">\(|\rho| = 0.99\)</span> reduces it by <span class="math inline">\(99\%\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="what-cvmc-looks-like-in-practice" class="level2">
 <h2 class="anchored" data-anchor-id="what-cvmc-looks-like-in-practice">What CVMC Looks Like in Practice</h2>
-<p><strong>?@fig-cvmc-histograms</strong> shows the distribution of 1000 independent MC and CVMC mean estimates for a pair of models with <span class="math inline">\(\rho \approx 0.9\)</span>. Both estimators are centered on the true mean, confirming that CVMC is unbiased. But the CVMC histogram is dramatically narrower.</p>
+<p><a href="#fig-cvmc-histograms" class="quarto-xref">Figure&nbsp;3</a> shows the distribution of 1000 independent MC and CVMC mean estimates for a pair of models with <span class="math inline">\(\rho \approx 0.9\)</span>. Both estimators are centered on the true mean, confirming that CVMC is unbiased. But the CVMC histogram is dramatically narrower.</p>
+<div id="cell-fig-cvmc-histograms" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-cvmc-histograms" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cvmc-histograms-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="control_variate_concept_files/figure-html/fig-cvmc-histograms-output-1.png" width="1128" height="378" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cvmc-histograms-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Distribution of 1000 independent MC and CVMC estimates of <span class="math inline">\(\mu_\alpha\)</span>. Both are centered on the true mean (black line), but CVMC has far smaller spread. The low-fidelity model has correlation <span class="math inline">\(\rho \approx 0.9\)</span> with the high-fidelity model.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="when-does-cvmc-help" class="level2">
 <h2 class="anchored" data-anchor-id="when-does-cvmc-help">When Does CVMC Help?</h2>

@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Sampling the Posterior with MCMC – PyApprox">
 <meta property="og:description" content="Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mcmc_sampling_files/figure-html/fig-random-walk-concept-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="1127">
+<meta property="og:image:width" content="1451">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1158,11 +1161,39 @@ window.Quarto = {
 <li><strong>Decides</strong> whether to accept the move or stay put</li>
 </ol>
 <p>If the walker always accepts moves to higher density and <em>sometimes</em> accepts moves to lower density, it will spend most of its time in the high-density regions of the posterior — which is exactly where we need samples.</p>
-<p><strong>?@fig-random-walk-concept</strong> shows this on a 2D posterior. The walker’s trajectory traces out the shape of the distribution: it lingers in the high-probability region and occasionally ventures into the tails.</p>
+<p><a href="#fig-random-walk-concept" class="quarto-xref">Figure&nbsp;1</a> shows this on a 2D posterior. The walker’s trajectory traces out the shape of the distribution: it lingers in the high-probability region and occasionally ventures into the tails.</p>
+<div id="cell-fig-random-walk-concept" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-random-walk-concept" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-random-walk-concept-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-random-walk-concept-output-1.png" width="726" height="564" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-random-walk-concept-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: A random walker exploring a 2D posterior distribution. The walker’s trajectory (connected points, colored by step number) traces the high-density region. It spends more time near the peak and occasionally ventures outward, naturally producing a sample that reflects the posterior.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="the-acceptreject-mechanism" class="level2">
 <h2 class="anchored" data-anchor-id="the-acceptreject-mechanism">The Accept/Reject Mechanism</h2>
-<p>The walker’s decision rule is the heart of MCMC. <strong>?@fig-mh-single-step</strong> walks through three scenarios for a single step, using a 1D beam posterior: a cantilever beam whose bending stiffness <span class="math inline">\(EI(x)\)</span> is parameterized by a single Karhunen-Lo`eve (KLE) coefficient <span class="math inline">\(\xi\)</span>, with prior <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>.</p>
+<p>The walker’s decision rule is the heart of MCMC. <a href="#fig-mh-single-step" class="quarto-xref">Figure&nbsp;2</a> walks through three scenarios for a single step, using a 1D beam posterior: a cantilever beam whose bending stiffness <span class="math inline">\(EI(x)\)</span> is parameterized by a single Karhunen-Lo`eve (KLE) coefficient <span class="math inline">\(\xi\)</span>, with prior <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>.</p>
+<div id="cell-fig-mh-single-step" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-mh-single-step" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mh-single-step-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-mh-single-step-output-1.png" width="854" height="853" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mh-single-step-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Three scenarios for a proposed move. Top: the proposal lands in a higher-density region — always accepted (<span class="math inline">\(\alpha = 1\)</span>). Middle: the proposal lands in a moderately lower region — accepted with probability <span class="math inline">\(\alpha &lt; 1\)</span>. Bottom: the proposal lands far in the tail — almost always rejected (<span class="math inline">\(\alpha \approx 0\)</span>). The walker naturally gravitates toward high-density regions.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The rule in words:</p>
 <ul>
 <li>If the proposed location has <strong>higher</strong> posterior density, <strong>always accept</strong> the move.</li>
@@ -1188,7 +1219,7 @@ window.Quarto = {
 <section id="running-mcmc-on-the-1d-beam" class="level2">
 <h2 class="anchored" data-anchor-id="running-mcmc-on-the-1d-beam">Running MCMC on the 1D Beam</h2>
 <p>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>. We observe the tip deflection with 10% Gaussian noise and want to infer <span class="math inline">\(\xi\)</span>. Rather than writing a manual Metropolis-Hastings loop, we use the <code>LogUnNormalizedPosterior</code> and <code>MetropolisHastingsSampler</code> classes from the typing API.</p>
-<div id="6f99577a" class="cell">
+<div id="d8be49ae" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1218,8 +1249,26 @@ window.Quarto = {
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> bkd.to_numpy(result.samples)[<span class="dv">0</span>, :]</span>
 <span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Chain length: </span><span class="sc">{</span>n_steps<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Chain length: 2000
+Acceptance rate: 51.3%</code></pre>
 </div>
-<p><strong>?@fig-trace-and-histogram</strong> shows the result. The trace plot (left) shows the walker bouncing around the high-density region. The histogram of chain samples (right, after discarding the first 200 steps as burn-in) closely matches the exact grid posterior.</p>
+</div>
+<p><a href="#fig-trace-and-histogram" class="quarto-xref">Figure&nbsp;3</a> shows the result. The trace plot (left) shows the walker bouncing around the high-density region. The histogram of chain samples (right, after discarding the first 200 steps as burn-in) closely matches the exact grid posterior.</p>
+<div id="cell-fig-trace-and-histogram" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-trace-and-histogram" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-trace-and-histogram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-trace-and-histogram-output-1.png" width="1141" height="372" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-trace-and-histogram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: MCMC output for the 1D beam problem. Left: trace plot showing the walker’s path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The histogram matches the exact posterior — the chain has done its job.</p>
 </section>
 <section id="extending-to-two-parameters" class="level2">
@@ -1229,67 +1278,118 @@ window.Quarto = {
 \log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i
 \]</span></p>
 <p>where <span class="math inline">\(\overline{EI}\)</span> is the mean stiffness, <span class="math inline">\((\lambda_i, \phi_i)\)</span> are the KLE eigenvalues and eigenfunctions, and <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</p>
-<div id="1e3e4145" class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>,</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_2d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># True KLE parameters and synthetic data</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>xi_true_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span>], [<span class="op">-</span><span class="fl">0.3</span>]])</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>delta_true_2d <span class="op">=</span> <span class="bu">float</span>(tip_model_2d(xi_true_2d)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>sigma_noise_2d <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true_2d)</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>noise_lik_2d <span class="op">=</span> DiagonalGaussianLogLikelihood(</span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    bkd.asarray([sigma_noise_2d<span class="op">**</span><span class="dv">2</span>]), bkd,</span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>model_lik_2d <span class="op">=</span> ModelBasedLogLikelihood(tip_model_2d, noise_lik_2d, bkd)</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>y_obs_2d <span class="op">=</span> <span class="bu">float</span>(model_lik_2d.rvs(xi_true_2d))</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>noise_lik_2d.set_observations(bkd.asarray([[y_obs_2d]]))</span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True KLE parameters:  xi = [</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">0</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">, "</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">1</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">]"</span>)</span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True tip deflection:  </span><span class="sc">{</span>delta_true_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed:             </span><span class="sc">{</span>y_obs_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std (10%):      </span><span class="sc">{</span>sigma_noise_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<div id="981a0704" class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<div id="2470b4d3" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>n_steps_2d <span class="op">=</span> <span class="dv">5000</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>proposal_cov_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>, <span class="fl">0.0</span>], [<span class="fl">0.0</span>, <span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>]])</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>sampler_2d <span class="op">=</span> MetropolisHastingsSampler(</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior_2d, nvars<span class="op">=</span><span class="dv">2</span>, bkd<span class="op">=</span>bkd,</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    proposal_cov<span class="op">=</span>proposal_cov_2d,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_2d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> sampler_2d.sample(</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps_2d, burn<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>], [<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>], [<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>chain_2d <span class="op">=</span> bkd.to_numpy(result_2d.samples).T  <span class="co"># (n_steps, 2) for plotting</span></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result_2d<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># True KLE parameters and synthetic data</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>xi_true_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span>], [<span class="op">-</span><span class="fl">0.3</span>]])</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>delta_true_2d <span class="op">=</span> <span class="bu">float</span>(tip_model_2d(xi_true_2d)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>sigma_noise_2d <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true_2d)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>noise_lik_2d <span class="op">=</span> DiagonalGaussianLogLikelihood(</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    bkd.asarray([sigma_noise_2d<span class="op">**</span><span class="dv">2</span>]), bkd,</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>model_lik_2d <span class="op">=</span> ModelBasedLogLikelihood(tip_model_2d, noise_lik_2d, bkd)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>y_obs_2d <span class="op">=</span> <span class="bu">float</span>(model_lik_2d.rvs(xi_true_2d))</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>noise_lik_2d.set_observations(bkd.asarray([[y_obs_2d]]))</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True KLE parameters:  xi = [</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">0</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">, "</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">1</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">]"</span>)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True tip deflection:  </span><span class="sc">{</span>delta_true_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed:             </span><span class="sc">{</span>y_obs_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std (10%):      </span><span class="sc">{</span>sigma_noise_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>True KLE parameters:  xi = [0.5, -0.3]
+True tip deflection:  8.656735
+Observed:             10.120178
+Noise std (10%):      0.865673</code></pre>
 </div>
-<p><strong>?@fig-2d-chain</strong> shows the chain exploring the 2D posterior. The trajectory starts at the prior mean (star) and migrates toward the data-consistent region, then settles into the stationary exploration pattern.</p>
-<p><strong>?@fig-2d-marginals</strong> extracts the marginal distributions of <span class="math inline">\(\xi_1\)</span> and <span class="math inline">\(\xi_2\)</span> from the chain and compares them to the exact marginals from the grid posterior.</p>
+</div>
+<div id="91040975" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>n_steps_2d <span class="op">=</span> <span class="dv">5000</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>proposal_cov_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>, <span class="fl">0.0</span>], [<span class="fl">0.0</span>, <span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>]])</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>sampler_2d <span class="op">=</span> MetropolisHastingsSampler(</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior_2d, nvars<span class="op">=</span><span class="dv">2</span>, bkd<span class="op">=</span>bkd,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    proposal_cov<span class="op">=</span>proposal_cov_2d,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> sampler_2d.sample(</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps_2d, burn<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>], [<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>], [<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>chain_2d <span class="op">=</span> bkd.to_numpy(result_2d.samples).T  <span class="co"># (n_steps, 2) for plotting</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result_2d<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Acceptance rate: 53.2%</code></pre>
+</div>
+</div>
+<p><a href="#fig-2d-chain" class="quarto-xref">Figure&nbsp;4</a> shows the chain exploring the 2D posterior. The trajectory starts at the prior mean (star) and migrates toward the data-consistent region, then settles into the stationary exploration pattern.</p>
+<div id="cell-fig-2d-chain" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-2d-chain" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-2d-chain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-2d-chain-output-1.png" width="757" height="564" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-2d-chain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between <span class="math inline">\(\xi_1\)</span> and <span class="math inline">\(\xi_2\)</span> imposed by the data.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><a href="#fig-2d-marginals" class="quarto-xref">Figure&nbsp;5</a> extracts the marginal distributions of <span class="math inline">\(\xi_1\)</span> and <span class="math inline">\(\xi_2\)</span> from the chain and compares them to the exact marginals from the grid posterior.</p>
+<div id="cell-fig-2d-marginals" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<div id="fig-2d-marginals" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-2d-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-2d-marginals-output-1.png" width="1143" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-2d-marginals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="posterior-predictive-check" class="level2">
 <h2 class="anchored" data-anchor-id="posterior-predictive-check">Posterior Predictive Check</h2>
 <p>As a final sanity check, we propagate every posterior sample through the model and compare the resulting distribution of predictions to the observed data. If the inference is correct, the observation should sit in the bulk of the <strong>posterior predictive distribution</strong>.</p>
+<div id="cell-fig-posterior-predictive" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<div id="fig-posterior-predictive" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-posterior-predictive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mcmc_sampling_files/figure-html/fig-posterior-predictive-output-1.png" width="759" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-posterior-predictive-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution — the inference is consistent with the data.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The observation sits right in the middle of the predictive distribution. The inference is working: the posterior parameters produce predictions consistent with the data.</p>
 </section>
 <section id="key-takeaways" class="level2">
@@ -1775,374 +1875,374 @@ window.Quarto = {
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Sampling the Posterior with MCMC"</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible."</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> beginner</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 38</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian_inference_intro</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - beam</span></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian-inference</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - mcmc</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/mcmc_sampling.ipynb)</span></span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why grid evaluation of the posterior fails in more than one or two dimensions</span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe the core idea of MCMC: a random walker that preferentially visits high-density regions</span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Trace through the propose-then-accept/reject mechanism on a simple example</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Run MCMC on a 1D problem and verify it recovers the exact posterior</span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Extend MCMC to a 2D problem and inspect the chain's trajectory</span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Perform a posterior predictive check to verify inference is consistent with the data</span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">From Data to Parameters: Introduction to Bayesian Inference</span><span class="co">](bayesian_inference_intro.qmd)</span> before this tutorial.</span>
-<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Grid Breaks Down</span></span>
-<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span> computed the posterior exactly by evaluating the prior $\times$ likelihood on a grid of 500 points. With one parameter, this required 500 model evaluations --- entirely feasible.</span>
-<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>But the cost of a grid grows exponentially with the number of parameters:</span>
-<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Parameters <span class="pp">|</span> Grid points ($500^d$) <span class="pp">|</span> Model evaluations <span class="pp">|</span></span>
-<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a><span class="pp">|:---:|---:|---:|</span></span>
-<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 1 <span class="pp">|</span> 500 <span class="pp">|</span> 500 <span class="pp">|</span></span>
-<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 2 <span class="pp">|</span> 250,000 <span class="pp">|</span> 250,000 <span class="pp">|</span></span>
-<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 3 <span class="pp">|</span> 125,000,000 <span class="pp">|</span> 125,000,000 <span class="pp">|</span></span>
-<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 5 <span class="pp">|</span> $3.1 \times 10^{13}$ <span class="pp">|</span> impossible <span class="pp">|</span></span>
-<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>Even for a 2-parameter beam, a grid requires 250,000 model solves. We need an approach that generates samples from the posterior *without* evaluating it everywhere.</span>
-<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Random Walk Idea</span></span>
-<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>Imagine placing a walker at some starting location in parameter space. At each step, the walker:</span>
-<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Proposes** a random move (e.g., a small step in a random direction)</span>
-<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Evaluates** whether the new location has higher or lower posterior density</span>
-<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Decides** whether to accept the move or stay put</span>
-<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>If the walker always accepts moves to higher density and *sometimes* accepts moves to lower density, it will spend most of its time in the high-density regions of the posterior --- which is exactly where we need samples.</span>
-<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>@fig-random-walk-concept shows this on a 2D posterior. The walker's trajectory traces out the shape of the distribution: it lingers in the high-probability region and occasionally ventures into the tails.</span>
-<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A random walker exploring a 2D posterior distribution. The walker's trajectory (connected points, colored by step number) traces the high-density region. It spends more time near the peak and occasionally ventures outward, naturally producing a sample that reflects the posterior."</span></span>
-<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-random-walk-concept</span></span>
-<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
-<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
-<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>plot_random_walk_concept(fig, ax)</span>
-<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Accept/Reject Mechanism</span></span>
-<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>The walker's decision rule is the heart of MCMC. @fig-mh-single-step walks through three scenarios for a single step, using a 1D beam posterior: a cantilever beam whose bending stiffness $EI(x)$ is parameterized by a single Karhunen-Lo<span class="sc">\`</span>eve (KLE) coefficient $\xi$, with prior $\xi \sim \mathcal{N}(0, 1)$.</span>
-<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three scenarios for a proposed move. Top: the proposal lands in a higher-density region --- always accepted ($\\alpha = 1$). Middle: the proposal lands in a moderately lower region --- accepted with probability $\\alpha &lt; 1$. Bottom: the proposal lands far in the tail --- almost always rejected ($\\alpha \\approx 0$). The walker naturally gravitates toward high-density regions."</span></span>
-<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mh-single-step</span></span>
-<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
-<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
-<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
-<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
-<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
-<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
-<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
-<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 1 KLE term for spatially varying EI(x)</span></span>
-<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a>benchmark_1d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> benchmark_1d.function()</span>
-<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark_1d.prior()</span>
-<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a>tip_model <span class="op">=</span> FunctionFromCallable(</span>
-<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
-<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_1d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
-<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a>xi_true <span class="op">=</span> <span class="fl">0.5</span></span>
-<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a>delta_true <span class="op">=</span> <span class="bu">float</span>(tip_model(bkd.asarray([[xi_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a>sigma_noise <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true)</span>
-<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.asarray([sigma_noise<span class="op">**</span><span class="dv">2</span>])</span>
-<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a>noise_likelihood <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
-<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a>model_likelihood <span class="op">=</span> ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)</span>
-<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a>y_obs <span class="op">=</span> <span class="bu">float</span>(model_likelihood.rvs(bkd.asarray([[xi_true]])))</span>
-<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a>noise_likelihood.set_observations(bkd.asarray([[y_obs]]))</span>
-<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact grid posterior for comparison plots</span></span>
-<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a>xi_grid <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>, <span class="dv">500</span>)</span>
-<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a>prior_vals <span class="op">=</span> norm.pdf(xi_grid, <span class="dv">0</span>, <span class="dv">1</span>)</span>
-<span id="cb4-146"><a href="#cb4-146" aria-hidden="true" tabindex="-1"></a>tip_preds <span class="op">=</span> bkd.to_numpy(tip_model(bkd.asarray(xi_grid[np.newaxis, :])))[<span class="dv">0</span>, :]</span>
-<span id="cb4-147"><a href="#cb4-147" aria-hidden="true" tabindex="-1"></a>lik_vals <span class="op">=</span> norm.pdf(y_obs, tip_preds, sigma_noise)</span>
-<span id="cb4-148"><a href="#cb4-148" aria-hidden="true" tabindex="-1"></a>post_vals <span class="op">=</span> lik_vals <span class="op">*</span> prior_vals</span>
-<span id="cb4-149"><a href="#cb4-149" aria-hidden="true" tabindex="-1"></a>post_vals <span class="op">=</span> post_vals <span class="op">/</span> np.trapz(post_vals, xi_grid)</span>
-<span id="cb4-150"><a href="#cb4-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-151"><a href="#cb4-151" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">9</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb4-152"><a href="#cb4-152" aria-hidden="true" tabindex="-1"></a>plot_mh_single_step(axes, <span class="va">None</span>, tip_model, noise_likelihood,</span>
-<span id="cb4-153"><a href="#cb4-153" aria-hidden="true" tabindex="-1"></a>                    y_obs, sigma_noise, bkd)</span>
-<span id="cb4-154"><a href="#cb4-154" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-155"><a href="#cb4-155" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-156"><a href="#cb4-156" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-157"><a href="#cb4-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-158"><a href="#cb4-158" aria-hidden="true" tabindex="-1"></a>The rule in words:</span>
-<span id="cb4-159"><a href="#cb4-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-160"><a href="#cb4-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location has **higher** posterior density, **always accept** the move.</span>
-<span id="cb4-161"><a href="#cb4-161" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location has **lower** posterior density, accept with probability equal to the ratio of densities: $\alpha = p(\theta^*) / p(\theta^{(t)})$.</span>
-<span id="cb4-162"><a href="#cb4-162" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location is way out in the tail, $\alpha \approx 0$ and the move is almost always rejected.</span>
-<span id="cb4-163"><a href="#cb4-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-164"><a href="#cb4-164" aria-hidden="true" tabindex="-1"></a>::: {.callout-important}</span>
-<span id="cb4-165"><a href="#cb4-165" aria-hidden="true" tabindex="-1"></a><span class="fu">## The normalizing constant cancels</span></span>
-<span id="cb4-166"><a href="#cb4-166" aria-hidden="true" tabindex="-1"></a>The acceptance ratio only needs the *ratio* of posterior densities:</span>
-<span id="cb4-167"><a href="#cb4-167" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-168"><a href="#cb4-168" aria-hidden="true" tabindex="-1"></a>\alpha = \min<span class="sc">\!</span>\left(1,\; \frac{p(\theta^* \mid y)}{p(\theta^{(t)} \mid y)}\right) = \min<span class="sc">\!</span>\left(1,\; \frac{\mathcal{L}(\theta^*)\, p(\theta^*)}{\mathcal{L}(\theta^{(t)})\, p(\theta^{(t)})}\right)</span>
-<span id="cb4-169"><a href="#cb4-169" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-170"><a href="#cb4-170" aria-hidden="true" tabindex="-1"></a>The evidence $p(y)$ appears in both numerator and denominator and cancels. This is why MCMC works: we never need the intractable normalizing constant.</span>
-<span id="cb4-171"><a href="#cb4-171" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb4-172"><a href="#cb4-172" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-173"><a href="#cb4-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-174"><a href="#cb4-174" aria-hidden="true" tabindex="-1"></a><span class="fu">## Running MCMC on the 1D Beam</span></span>
-<span id="cb4-175"><a href="#cb4-175" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-176"><a href="#cb4-176" aria-hidden="true" tabindex="-1"></a>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient $\xi \sim \mathcal{N}(0, 1)$. We observe the tip deflection with 10\% Gaussian noise and want to infer $\xi$. Rather than writing a manual Metropolis-Hastings loop, we use the <span class="in">`LogUnNormalizedPosterior`</span> and <span class="in">`MetropolisHastingsSampler`</span> classes from the typing API.</span>
-<span id="cb4-177"><a href="#cb4-177" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-180"><a href="#cb4-180" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-181"><a href="#cb4-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
-<span id="cb4-182"><a href="#cb4-182" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
-<span id="cb4-183"><a href="#cb4-183" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-184"><a href="#cb4-184" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.sampling.metropolis <span class="im">import</span> (</span>
-<span id="cb4-185"><a href="#cb4-185" aria-hidden="true" tabindex="-1"></a>    MetropolisHastingsSampler,</span>
-<span id="cb4-186"><a href="#cb4-186" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-187"><a href="#cb4-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-188"><a href="#cb4-188" aria-hidden="true" tabindex="-1"></a><span class="co"># Log-posterior = log-likelihood + log-prior</span></span>
-<span id="cb4-189"><a href="#cb4-189" aria-hidden="true" tabindex="-1"></a>posterior <span class="op">=</span> LogUnNormalizedPosterior(</span>
-<span id="cb4-190"><a href="#cb4-190" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model, likelihood<span class="op">=</span>noise_likelihood, prior<span class="op">=</span>prior, bkd<span class="op">=</span>bkd,</span>
-<span id="cb4-191"><a href="#cb4-191" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-192"><a href="#cb4-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-193"><a href="#cb4-193" aria-hidden="true" tabindex="-1"></a><span class="co"># MCMC</span></span>
-<span id="cb4-194"><a href="#cb4-194" aria-hidden="true" tabindex="-1"></a>n_steps <span class="op">=</span> <span class="dv">2000</span></span>
-<span id="cb4-195"><a href="#cb4-195" aria-hidden="true" tabindex="-1"></a>proposal_cov <span class="op">=</span> bkd.asarray([[<span class="fl">0.8</span><span class="op">**</span><span class="dv">2</span>]])</span>
-<span id="cb4-196"><a href="#cb4-196" aria-hidden="true" tabindex="-1"></a>sampler <span class="op">=</span> MetropolisHastingsSampler(</span>
-<span id="cb4-197"><a href="#cb4-197" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior, nvars<span class="op">=</span><span class="dv">1</span>, bkd<span class="op">=</span>bkd, proposal_cov<span class="op">=</span>proposal_cov,</span>
-<span id="cb4-198"><a href="#cb4-198" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-199"><a href="#cb4-199" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-200"><a href="#cb4-200" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
-<span id="cb4-201"><a href="#cb4-201" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> sampler.sample(</span>
-<span id="cb4-202"><a href="#cb4-202" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps, burn<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb4-203"><a href="#cb4-203" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
-<span id="cb4-204"><a href="#cb4-204" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
-<span id="cb4-205"><a href="#cb4-205" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-206"><a href="#cb4-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-207"><a href="#cb4-207" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> bkd.to_numpy(result.samples)[<span class="dv">0</span>, :]</span>
-<span id="cb4-208"><a href="#cb4-208" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Chain length: </span><span class="sc">{</span>n_steps<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-209"><a href="#cb4-209" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span>
-<span id="cb4-210"><a href="#cb4-210" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a>@fig-trace-and-histogram shows the result. The trace plot (left) shows the walker bouncing around the high-density region. The histogram of chain samples (right, after discarding the first 200 steps as burn-in) closely matches the exact grid posterior.</span>
-<span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-218"><a href="#cb4-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."</span></span>
-<span id="cb4-219"><a href="#cb4-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-trace-and-histogram</span></span>
-<span id="cb4-220"><a href="#cb4-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
-<span id="cb4-221"><a href="#cb4-221" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-222"><a href="#cb4-222" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
-<span id="cb4-223"><a href="#cb4-223" aria-hidden="true" tabindex="-1"></a>plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,</span>
-<span id="cb4-224"><a href="#cb4-224" aria-hidden="true" tabindex="-1"></a>                         xi_true, n_steps)</span>
-<span id="cb4-225"><a href="#cb4-225" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-226"><a href="#cb4-226" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-227"><a href="#cb4-227" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-228"><a href="#cb4-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-229"><a href="#cb4-229" aria-hidden="true" tabindex="-1"></a>The histogram matches the exact posterior --- the chain has done its job.</span>
-<span id="cb4-230"><a href="#cb4-230" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-231"><a href="#cb4-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-232"><a href="#cb4-232" aria-hidden="true" tabindex="-1"></a><span class="fu">## Extending to Two Parameters</span></span>
-<span id="cb4-233"><a href="#cb4-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-234"><a href="#cb4-234" aria-hidden="true" tabindex="-1"></a>Now consider a beam where the bending stiffness $EI(x)$ varies along its length, parameterized by a 2-term **Karhunen-Lo\`eve (KLE) expansion**:</span>
-<span id="cb4-235"><a href="#cb4-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-236"><a href="#cb4-236" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-237"><a href="#cb4-237" aria-hidden="true" tabindex="-1"></a>\log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i</span>
-<span id="cb4-238"><a href="#cb4-238" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb4-239"><a href="#cb4-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-240"><a href="#cb4-240" aria-hidden="true" tabindex="-1"></a>where $\overline{EI}$ is the mean stiffness, $(\lambda_i, \phi_i)$ are the KLE eigenvalues and eigenfunctions, and $\xi_1, \xi_2 \sim \mathcal{N}(0,1)$ are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</span>
-<span id="cb4-241"><a href="#cb4-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-244"><a href="#cb4-244" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-245"><a href="#cb4-245" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
-<span id="cb4-246"><a href="#cb4-246" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb4-247"><a href="#cb4-247" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
-<span id="cb4-248"><a href="#cb4-248" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
-<span id="cb4-249"><a href="#cb4-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-250"><a href="#cb4-250" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
-<span id="cb4-251"><a href="#cb4-251" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
-<span id="cb4-252"><a href="#cb4-252" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>,</span>
-<span id="cb4-253"><a href="#cb4-253" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_2d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
-<span id="cb4-254"><a href="#cb4-254" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb4-255"><a href="#cb4-255" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-256"><a href="#cb4-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-257"><a href="#cb4-257" aria-hidden="true" tabindex="-1"></a><span class="co"># True KLE parameters and synthetic data</span></span>
-<span id="cb4-258"><a href="#cb4-258" aria-hidden="true" tabindex="-1"></a>xi_true_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span>], [<span class="op">-</span><span class="fl">0.3</span>]])</span>
-<span id="cb4-259"><a href="#cb4-259" aria-hidden="true" tabindex="-1"></a>delta_true_2d <span class="op">=</span> <span class="bu">float</span>(tip_model_2d(xi_true_2d)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
-<span id="cb4-260"><a href="#cb4-260" aria-hidden="true" tabindex="-1"></a>sigma_noise_2d <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true_2d)</span>
-<span id="cb4-261"><a href="#cb4-261" aria-hidden="true" tabindex="-1"></a>noise_lik_2d <span class="op">=</span> DiagonalGaussianLogLikelihood(</span>
-<span id="cb4-262"><a href="#cb4-262" aria-hidden="true" tabindex="-1"></a>    bkd.asarray([sigma_noise_2d<span class="op">**</span><span class="dv">2</span>]), bkd,</span>
-<span id="cb4-263"><a href="#cb4-263" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-264"><a href="#cb4-264" aria-hidden="true" tabindex="-1"></a>model_lik_2d <span class="op">=</span> ModelBasedLogLikelihood(tip_model_2d, noise_lik_2d, bkd)</span>
-<span id="cb4-265"><a href="#cb4-265" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-266"><a href="#cb4-266" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
-<span id="cb4-267"><a href="#cb4-267" aria-hidden="true" tabindex="-1"></a>y_obs_2d <span class="op">=</span> <span class="bu">float</span>(model_lik_2d.rvs(xi_true_2d))</span>
-<span id="cb4-268"><a href="#cb4-268" aria-hidden="true" tabindex="-1"></a>noise_lik_2d.set_observations(bkd.asarray([[y_obs_2d]]))</span>
-<span id="cb4-269"><a href="#cb4-269" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-270"><a href="#cb4-270" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True KLE parameters:  xi = [</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">0</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">, "</span></span>
-<span id="cb4-271"><a href="#cb4-271" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">1</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">]"</span>)</span>
-<span id="cb4-272"><a href="#cb4-272" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True tip deflection:  </span><span class="sc">{</span>delta_true_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-273"><a href="#cb4-273" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed:             </span><span class="sc">{</span>y_obs_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-274"><a href="#cb4-274" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std (10%):      </span><span class="sc">{</span>sigma_noise_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-275"><a href="#cb4-275" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-276"><a href="#cb4-276" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-279"><a href="#cb4-279" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-280"><a href="#cb4-280" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
-<span id="cb4-281"><a href="#cb4-281" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
-<span id="cb4-282"><a href="#cb4-282" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
-<span id="cb4-283"><a href="#cb4-283" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-284"><a href="#cb4-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-285"><a href="#cb4-285" aria-hidden="true" tabindex="-1"></a>n_steps_2d <span class="op">=</span> <span class="dv">5000</span></span>
-<span id="cb4-286"><a href="#cb4-286" aria-hidden="true" tabindex="-1"></a>proposal_cov_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>, <span class="fl">0.0</span>], [<span class="fl">0.0</span>, <span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>]])</span>
-<span id="cb4-287"><a href="#cb4-287" aria-hidden="true" tabindex="-1"></a>sampler_2d <span class="op">=</span> MetropolisHastingsSampler(</span>
-<span id="cb4-288"><a href="#cb4-288" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior_2d, nvars<span class="op">=</span><span class="dv">2</span>, bkd<span class="op">=</span>bkd,</span>
-<span id="cb4-289"><a href="#cb4-289" aria-hidden="true" tabindex="-1"></a>    proposal_cov<span class="op">=</span>proposal_cov_2d,</span>
-<span id="cb4-290"><a href="#cb4-290" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-291"><a href="#cb4-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-292"><a href="#cb4-292" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb4-293"><a href="#cb4-293" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> sampler_2d.sample(</span>
-<span id="cb4-294"><a href="#cb4-294" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps_2d, burn<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb4-295"><a href="#cb4-295" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>], [<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
-<span id="cb4-296"><a href="#cb4-296" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>], [<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
-<span id="cb4-297"><a href="#cb4-297" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-298"><a href="#cb4-298" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-299"><a href="#cb4-299" aria-hidden="true" tabindex="-1"></a>chain_2d <span class="op">=</span> bkd.to_numpy(result_2d.samples).T  <span class="co"># (n_steps, 2) for plotting</span></span>
-<span id="cb4-300"><a href="#cb4-300" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result_2d<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span>
-<span id="cb4-301"><a href="#cb4-301" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-302"><a href="#cb4-302" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-303"><a href="#cb4-303" aria-hidden="true" tabindex="-1"></a>@fig-2d-chain shows the chain exploring the 2D posterior. The trajectory starts at the prior mean (star) and migrates toward the data-consistent region, then settles into the stationary exploration pattern.</span>
-<span id="cb4-304"><a href="#cb4-304" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-307"><a href="#cb4-307" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-308"><a href="#cb4-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-309"><a href="#cb4-309" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."</span></span>
-<span id="cb4-310"><a href="#cb4-310" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-chain</span></span>
-<span id="cb4-311"><a href="#cb4-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_chain</span>
-<span id="cb4-312"><a href="#cb4-312" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-313"><a href="#cb4-313" aria-hidden="true" tabindex="-1"></a>burnin_2d <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb4-314"><a href="#cb4-314" aria-hidden="true" tabindex="-1"></a>chain_2d_post <span class="op">=</span> chain_2d[burnin_2d:]</span>
-<span id="cb4-315"><a href="#cb4-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-316"><a href="#cb4-316" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
-<span id="cb4-317"><a href="#cb4-317" aria-hidden="true" tabindex="-1"></a>plot_2d_chain(ax, chain_2d, posterior_2d, xi_true_2d, bkd,</span>
-<span id="cb4-318"><a href="#cb4-318" aria-hidden="true" tabindex="-1"></a>              burnin_2d<span class="op">=</span>burnin_2d)</span>
-<span id="cb4-319"><a href="#cb4-319" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-320"><a href="#cb4-320" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-321"><a href="#cb4-321" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-322"><a href="#cb4-322" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-323"><a href="#cb4-323" aria-hidden="true" tabindex="-1"></a>@fig-2d-marginals extracts the marginal distributions of $\xi_1$ and $\xi_2$ from the chain and compares them to the exact marginals from the grid posterior.</span>
-<span id="cb4-324"><a href="#cb4-324" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-327"><a href="#cb4-327" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-328"><a href="#cb4-328" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-329"><a href="#cb4-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."</span></span>
-<span id="cb4-330"><a href="#cb4-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-marginals</span></span>
-<span id="cb4-331"><a href="#cb4-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
-<span id="cb4-332"><a href="#cb4-332" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-333"><a href="#cb4-333" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
-<span id="cb4-334"><a href="#cb4-334" aria-hidden="true" tabindex="-1"></a>plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)</span>
-<span id="cb4-335"><a href="#cb4-335" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-336"><a href="#cb4-336" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-337"><a href="#cb4-337" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-338"><a href="#cb4-338" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-339"><a href="#cb4-339" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-340"><a href="#cb4-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## Posterior Predictive Check</span></span>
-<span id="cb4-341"><a href="#cb4-341" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-342"><a href="#cb4-342" aria-hidden="true" tabindex="-1"></a>As a final sanity check, we propagate every posterior sample through the model and compare the resulting distribution of predictions to the observed data. If the inference is correct, the observation should sit in the bulk of the **posterior predictive distribution**.</span>
-<span id="cb4-343"><a href="#cb4-343" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-346"><a href="#cb4-346" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb4-347"><a href="#cb4-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb4-348"><a href="#cb4-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."</span></span>
-<span id="cb4-349"><a href="#cb4-349" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-posterior-predictive</span></span>
-<span id="cb4-350"><a href="#cb4-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
-<span id="cb4-351"><a href="#cb4-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-352"><a href="#cb4-352" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
-<span id="cb4-353"><a href="#cb4-353" aria-hidden="true" tabindex="-1"></a>plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,</span>
-<span id="cb4-354"><a href="#cb4-354" aria-hidden="true" tabindex="-1"></a>                          y_obs_2d, delta_true_2d, bkd)</span>
-<span id="cb4-355"><a href="#cb4-355" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb4-356"><a href="#cb4-356" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb4-357"><a href="#cb4-357" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb4-358"><a href="#cb4-358" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-359"><a href="#cb4-359" aria-hidden="true" tabindex="-1"></a>The observation sits right in the middle of the predictive distribution. The inference is working: the posterior parameters produce predictions consistent with the data.</span>
-<span id="cb4-360"><a href="#cb4-360" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-361"><a href="#cb4-361" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-362"><a href="#cb4-362" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb4-363"><a href="#cb4-363" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-364"><a href="#cb4-364" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**MCMC** generates posterior samples by running a random walker that preferentially visits high-density regions</span>
-<span id="cb4-365"><a href="#cb4-365" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **accept/reject** mechanism uses only the *ratio* of posterior densities, so the normalizing constant is never needed</span>
-<span id="cb4-366"><a href="#cb4-366" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The chain's histogram converges to the posterior distribution, which we verified against the exact grid solution in both 1D and 2D</span>
-<span id="cb4-367"><a href="#cb4-367" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **posterior predictive check** is a simple but powerful diagnostic: if the data is inconsistent with the posterior predictions, something is wrong</span>
-<span id="cb4-368"><a href="#cb4-368" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The chain's behavior depends on choices we haven't addressed: proposal size, burn-in length, number of steps --- these are the subject of the <span class="co">[</span><span class="ot">next tutorial</span><span class="co">](dram_mcmc.qmd)</span></span>
-<span id="cb4-369"><a href="#cb4-369" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-370"><a href="#cb4-370" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-371"><a href="#cb4-371" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb4-372"><a href="#cb4-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-373"><a href="#cb4-373" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Change the starting point to $\xi = -3$ (far from the posterior mode) in the 1D example. How many steps does the chain take to reach the high-density region? How does this affect the required burn-in?</span>
-<span id="cb4-374"><a href="#cb4-374" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-375"><a href="#cb4-375" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In the 2D example, double the noise standard deviation <span class="in">`sigma_noise_2d`</span>. How does the posterior change? Is it wider or narrower? Does the chain need more or fewer steps to converge?</span>
-<span id="cb4-376"><a href="#cb4-376" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-377"><a href="#cb4-377" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Add a second observation (second measurement of tip deflection, independent noise). Create a new <span class="in">`DiagonalGaussianLogLikelihood`</span> with two noise variances and two observations, and rerun the chain. Does the posterior narrow?</span>
-<span id="cb4-378"><a href="#cb4-378" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-379"><a href="#cb4-379" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Run the 2D chain with a very large proposal covariance (e.g., <span class="in">`proposal_cov_2d = bkd.asarray([[25.0, 0.0], [0.0, 25.0]])`</span>). What happens to the acceptance rate and the trace plot? Why?</span>
-<span id="cb4-380"><a href="#cb4-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-381"><a href="#cb4-381" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-382"><a href="#cb4-382" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb4-383"><a href="#cb4-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-384"><a href="#cb4-384" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb4-385"><a href="#cb4-385" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-386"><a href="#cb4-386" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Practical MCMC: Metropolis-Hastings and DRAM</span><span class="co">](dram_mcmc.qmd)</span> --- Tuning proposals, adaptive methods, and convergence diagnostics</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Sampling the Posterior with MCMC"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible."</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> concept</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> uncertainty_quantification</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> beginner</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 10</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 38</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian_inference_intro</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - uq</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - beam</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - bayesian-inference</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - mcmc</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/mcmc_sampling.ipynb)</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why grid evaluation of the posterior fails in more than one or two dimensions</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Describe the core idea of MCMC: a random walker that preferentially visits high-density regions</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Trace through the propose-then-accept/reject mechanism on a simple example</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Run MCMC on a 1D problem and verify it recovers the exact posterior</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Extend MCMC to a 2D problem and inspect the chain's trajectory</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Perform a posterior predictive check to verify inference is consistent with the data</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>Complete <span class="co">[</span><span class="ot">From Data to Parameters: Introduction to Bayesian Inference</span><span class="co">](bayesian_inference_intro.qmd)</span> before this tutorial.</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Grid Breaks Down</span></span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>The <span class="co">[</span><span class="ot">previous tutorial</span><span class="co">](bayesian_inference_intro.qmd)</span> computed the posterior exactly by evaluating the prior $\times$ likelihood on a grid of 500 points. With one parameter, this required 500 model evaluations --- entirely feasible.</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>But the cost of a grid grows exponentially with the number of parameters:</span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Parameters <span class="pp">|</span> Grid points ($500^d$) <span class="pp">|</span> Model evaluations <span class="pp">|</span></span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a><span class="pp">|:---:|---:|---:|</span></span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 1 <span class="pp">|</span> 500 <span class="pp">|</span> 500 <span class="pp">|</span></span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 2 <span class="pp">|</span> 250,000 <span class="pp">|</span> 250,000 <span class="pp">|</span></span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 3 <span class="pp">|</span> 125,000,000 <span class="pp">|</span> 125,000,000 <span class="pp">|</span></span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 5 <span class="pp">|</span> $3.1 \times 10^{13}$ <span class="pp">|</span> impossible <span class="pp">|</span></span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>Even for a 2-parameter beam, a grid requires 250,000 model solves. We need an approach that generates samples from the posterior *without* evaluating it everywhere.</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Random Walk Idea</span></span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>Imagine placing a walker at some starting location in parameter space. At each step, the walker:</span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Proposes** a random move (e.g., a small step in a random direction)</span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Evaluates** whether the new location has higher or lower posterior density</span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Decides** whether to accept the move or stay put</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>If the walker always accepts moves to higher density and *sometimes* accepts moves to lower density, it will spend most of its time in the high-density regions of the posterior --- which is exactly where we need samples.</span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a>@fig-random-walk-concept shows this on a 2D posterior. The walker's trajectory traces out the shape of the distribution: it lingers in the high-probability region and occasionally ventures into the tails.</span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A random walker exploring a 2D posterior distribution. The walker's trajectory (connected points, colored by step number) traces the high-density region. It spends more time near the peak and occasionally ventures outward, naturally producing a sample that reflects the posterior."</span></span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-random-walk-concept</span></span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>plot_random_walk_concept(fig, ax)</span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Accept/Reject Mechanism</span></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a>The walker's decision rule is the heart of MCMC. @fig-mh-single-step walks through three scenarios for a single step, using a 1D beam posterior: a cantilever beam whose bending stiffness $EI(x)$ is parameterized by a single Karhunen-Lo<span class="sc">\`</span>eve (KLE) coefficient $\xi$, with prior $\xi \sim \mathcal{N}(0, 1)$.</span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three scenarios for a proposed move. Top: the proposal lands in a higher-density region --- always accepted ($\\alpha = 1$). Middle: the proposal lands in a moderately lower region --- accepted with probability $\\alpha &lt; 1$. Bottom: the proposal lands far in the tail --- almost always rejected ($\\alpha \\approx 0$). The walker naturally gravitates toward high-density regions."</span></span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mh-single-step</span></span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
+<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
+<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a>    ModelBasedLogLikelihood,</span>
+<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
+<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
+<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
+<span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 1 KLE term for spatially varying EI(x)</span></span>
+<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a>benchmark_1d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> benchmark_1d.function()</span>
+<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark_1d.prior()</span>
+<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a>tip_model <span class="op">=</span> FunctionFromCallable(</span>
+<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_1d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
+<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
+<span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a>xi_true <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>delta_true <span class="op">=</span> <span class="bu">float</span>(tip_model(bkd.asarray([[xi_true]]))[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a>sigma_noise <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true)</span>
+<span id="cb7-135"><a href="#cb7-135" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.asarray([sigma_noise<span class="op">**</span><span class="dv">2</span>])</span>
+<span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a>noise_likelihood <span class="op">=</span> DiagonalGaussianLogLikelihood(noise_variances, bkd)</span>
+<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a>model_likelihood <span class="op">=</span> ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)</span>
+<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>y_obs <span class="op">=</span> <span class="bu">float</span>(model_likelihood.rvs(bkd.asarray([[xi_true]])))</span>
+<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>noise_likelihood.set_observations(bkd.asarray([[y_obs]]))</span>
+<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a><span class="co"># Exact grid posterior for comparison plots</span></span>
+<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a>xi_grid <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>, <span class="dv">500</span>)</span>
+<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>prior_vals <span class="op">=</span> norm.pdf(xi_grid, <span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a>tip_preds <span class="op">=</span> bkd.to_numpy(tip_model(bkd.asarray(xi_grid[np.newaxis, :])))[<span class="dv">0</span>, :]</span>
+<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a>lik_vals <span class="op">=</span> norm.pdf(y_obs, tip_preds, sigma_noise)</span>
+<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a>post_vals <span class="op">=</span> lik_vals <span class="op">*</span> prior_vals</span>
+<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a>post_vals <span class="op">=</span> post_vals <span class="op">/</span> np.trapz(post_vals, xi_grid)</span>
+<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">9</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a>plot_mh_single_step(axes, <span class="va">None</span>, tip_model, noise_likelihood,</span>
+<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a>                    y_obs, sigma_noise, bkd)</span>
+<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-158"><a href="#cb7-158" aria-hidden="true" tabindex="-1"></a>The rule in words:</span>
+<span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location has **higher** posterior density, **always accept** the move.</span>
+<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location has **lower** posterior density, accept with probability equal to the ratio of densities: $\alpha = p(\theta^*) / p(\theta^{(t)})$.</span>
+<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the proposed location is way out in the tail, $\alpha \approx 0$ and the move is almost always rejected.</span>
+<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>::: {.callout-important}</span>
+<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a><span class="fu">## The normalizing constant cancels</span></span>
+<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a>The acceptance ratio only needs the *ratio* of posterior densities:</span>
+<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>\alpha = \min<span class="sc">\!</span>\left(1,\; \frac{p(\theta^* \mid y)}{p(\theta^{(t)} \mid y)}\right) = \min<span class="sc">\!</span>\left(1,\; \frac{\mathcal{L}(\theta^*)\, p(\theta^*)}{\mathcal{L}(\theta^{(t)})\, p(\theta^{(t)})}\right)</span>
+<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>The evidence $p(y)$ appears in both numerator and denominator and cancels. This is why MCMC works: we never need the intractable normalizing constant.</span>
+<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-173"><a href="#cb7-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-174"><a href="#cb7-174" aria-hidden="true" tabindex="-1"></a><span class="fu">## Running MCMC on the 1D Beam</span></span>
+<span id="cb7-175"><a href="#cb7-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-176"><a href="#cb7-176" aria-hidden="true" tabindex="-1"></a>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient $\xi \sim \mathcal{N}(0, 1)$. We observe the tip deflection with 10\% Gaussian noise and want to infer $\xi$. Rather than writing a manual Metropolis-Hastings loop, we use the <span class="in">`LogUnNormalizedPosterior`</span> and <span class="in">`MetropolisHastingsSampler`</span> classes from the typing API.</span>
+<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
+<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
+<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.sampling.metropolis <span class="im">import</span> (</span>
+<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a>    MetropolisHastingsSampler,</span>
+<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a><span class="co"># Log-posterior = log-likelihood + log-prior</span></span>
+<span id="cb7-189"><a href="#cb7-189" aria-hidden="true" tabindex="-1"></a>posterior <span class="op">=</span> LogUnNormalizedPosterior(</span>
+<span id="cb7-190"><a href="#cb7-190" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model, likelihood<span class="op">=</span>noise_likelihood, prior<span class="op">=</span>prior, bkd<span class="op">=</span>bkd,</span>
+<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a><span class="co"># MCMC</span></span>
+<span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a>n_steps <span class="op">=</span> <span class="dv">2000</span></span>
+<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a>proposal_cov <span class="op">=</span> bkd.asarray([[<span class="fl">0.8</span><span class="op">**</span><span class="dv">2</span>]])</span>
+<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a>sampler <span class="op">=</span> MetropolisHastingsSampler(</span>
+<span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior, nvars<span class="op">=</span><span class="dv">1</span>, bkd<span class="op">=</span>bkd, proposal_cov<span class="op">=</span>proposal_cov,</span>
+<span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> sampler.sample(</span>
+<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps, burn<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
+<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
+<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> bkd.to_numpy(result.samples)[<span class="dv">0</span>, :]</span>
+<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Chain length: </span><span class="sc">{</span>n_steps<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb7-209"><a href="#cb7-209" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span>
+<span id="cb7-210"><a href="#cb7-210" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>@fig-trace-and-histogram shows the result. The trace plot (left) shows the walker bouncing around the high-density region. The histogram of chain samples (right, after discarding the first 200 steps as burn-in) closely matches the exact grid posterior.</span>
+<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."</span></span>
+<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-trace-and-histogram</span></span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
+<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,</span>
+<span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a>                         xi_true, n_steps)</span>
+<span id="cb7-225"><a href="#cb7-225" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a>The histogram matches the exact posterior --- the chain has done its job.</span>
+<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a><span class="fu">## Extending to Two Parameters</span></span>
+<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a>Now consider a beam where the bending stiffness $EI(x)$ varies along its length, parameterized by a 2-term **Karhunen-Lo\`eve (KLE) expansion**:</span>
+<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a>\log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i</span>
+<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a>where $\overline{EI}$ is the mean stiffness, $(\lambda_i, \phi_i)$ are the KLE eigenvalues and eigenfunctions, and $\xi_1, \xi_2 \sim \mathcal{N}(0,1)$ are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</span>
+<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
+<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
+<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
+<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
+<span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
+<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a>    fun<span class="op">=</span><span class="kw">lambda</span> xi: beam_2d(xi)[<span class="dv">0</span>:<span class="dv">1</span>, :],</span>
+<span id="cb7-254"><a href="#cb7-254" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
+<span id="cb7-255"><a href="#cb7-255" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a><span class="co"># True KLE parameters and synthetic data</span></span>
+<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a>xi_true_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span>], [<span class="op">-</span><span class="fl">0.3</span>]])</span>
+<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a>delta_true_2d <span class="op">=</span> <span class="bu">float</span>(tip_model_2d(xi_true_2d)[<span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a>sigma_noise_2d <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="bu">abs</span>(delta_true_2d)</span>
+<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>noise_lik_2d <span class="op">=</span> DiagonalGaussianLogLikelihood(</span>
+<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a>    bkd.asarray([sigma_noise_2d<span class="op">**</span><span class="dv">2</span>]), bkd,</span>
+<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a>model_lik_2d <span class="op">=</span> ModelBasedLogLikelihood(tip_model_2d, noise_lik_2d, bkd)</span>
+<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">7</span>)</span>
+<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a>y_obs_2d <span class="op">=</span> <span class="bu">float</span>(model_lik_2d.rvs(xi_true_2d))</span>
+<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a>noise_lik_2d.set_observations(bkd.asarray([[y_obs_2d]]))</span>
+<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True KLE parameters:  xi = [</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">0</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">, "</span></span>
+<span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="bu">float</span>(xi_true_2d[<span class="dv">1</span>, <span class="dv">0</span>])<span class="sc">}</span><span class="ss">]"</span>)</span>
+<span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"True tip deflection:  </span><span class="sc">{</span>delta_true_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Observed:             </span><span class="sc">{</span>y_obs_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Noise std (10%):      </span><span class="sc">{</span>sigma_noise_2d<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
+<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
+<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
+<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a>n_steps_2d <span class="op">=</span> <span class="dv">5000</span></span>
+<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a>proposal_cov_2d <span class="op">=</span> bkd.asarray([[<span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>, <span class="fl">0.0</span>], [<span class="fl">0.0</span>, <span class="fl">0.5</span><span class="op">**</span><span class="dv">2</span>]])</span>
+<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a>sampler_2d <span class="op">=</span> MetropolisHastingsSampler(</span>
+<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a>    log_posterior_fn<span class="op">=</span>posterior_2d, nvars<span class="op">=</span><span class="dv">2</span>, bkd<span class="op">=</span>bkd,</span>
+<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a>    proposal_cov<span class="op">=</span>proposal_cov_2d,</span>
+<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-292"><a href="#cb7-292" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb7-293"><a href="#cb7-293" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> sampler_2d.sample(</span>
+<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a>    nsamples<span class="op">=</span>n_steps_2d, burn<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a>    initial_state<span class="op">=</span>bkd.asarray([[<span class="fl">0.0</span>], [<span class="fl">0.0</span>]]),  <span class="co"># prior mean</span></span>
+<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a>    bounds<span class="op">=</span>bkd.asarray([[<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>], [<span class="op">-</span><span class="fl">4.0</span>, <span class="fl">4.0</span>]]),</span>
+<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a>chain_2d <span class="op">=</span> bkd.to_numpy(result_2d.samples).T  <span class="co"># (n_steps, 2) for plotting</span></span>
+<span id="cb7-300"><a href="#cb7-300" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Acceptance rate: </span><span class="sc">{</span>result_2d<span class="sc">.</span>acceptance_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span>
+<span id="cb7-301"><a href="#cb7-301" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a>@fig-2d-chain shows the chain exploring the 2D posterior. The trajectory starts at the prior mean (star) and migrates toward the data-consistent region, then settles into the stationary exploration pattern.</span>
+<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."</span></span>
+<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-chain</span></span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_chain</span>
+<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a>burnin_2d <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a>chain_2d_post <span class="op">=</span> chain_2d[burnin_2d:]</span>
+<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
+<span id="cb7-317"><a href="#cb7-317" aria-hidden="true" tabindex="-1"></a>plot_2d_chain(ax, chain_2d, posterior_2d, xi_true_2d, bkd,</span>
+<span id="cb7-318"><a href="#cb7-318" aria-hidden="true" tabindex="-1"></a>              burnin_2d<span class="op">=</span>burnin_2d)</span>
+<span id="cb7-319"><a href="#cb7-319" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-320"><a href="#cb7-320" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-321"><a href="#cb7-321" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a>@fig-2d-marginals extracts the marginal distributions of $\xi_1$ and $\xi_2$ from the chain and compares them to the exact marginals from the grid posterior.</span>
+<span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."</span></span>
+<span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-marginals</span></span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
+<span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a>plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)</span>
+<span id="cb7-335"><a href="#cb7-335" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-336"><a href="#cb7-336" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-337"><a href="#cb7-337" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-338"><a href="#cb7-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-339"><a href="#cb7-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-340"><a href="#cb7-340" aria-hidden="true" tabindex="-1"></a><span class="fu">## Posterior Predictive Check</span></span>
+<span id="cb7-341"><a href="#cb7-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-342"><a href="#cb7-342" aria-hidden="true" tabindex="-1"></a>As a final sanity check, we propagate every posterior sample through the model and compare the resulting distribution of predictions to the observed data. If the inference is correct, the observation should sit in the bulk of the **posterior predictive distribution**.</span>
+<span id="cb7-343"><a href="#cb7-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-346"><a href="#cb7-346" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-347"><a href="#cb7-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-348"><a href="#cb7-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."</span></span>
+<span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-posterior-predictive</span></span>
+<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
+<span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
+<span id="cb7-353"><a href="#cb7-353" aria-hidden="true" tabindex="-1"></a>plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,</span>
+<span id="cb7-354"><a href="#cb7-354" aria-hidden="true" tabindex="-1"></a>                          y_obs_2d, delta_true_2d, bkd)</span>
+<span id="cb7-355"><a href="#cb7-355" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-356"><a href="#cb7-356" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-357"><a href="#cb7-357" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-358"><a href="#cb7-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-359"><a href="#cb7-359" aria-hidden="true" tabindex="-1"></a>The observation sits right in the middle of the predictive distribution. The inference is working: the posterior parameters produce predictions consistent with the data.</span>
+<span id="cb7-360"><a href="#cb7-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-361"><a href="#cb7-361" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-362"><a href="#cb7-362" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb7-363"><a href="#cb7-363" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-364"><a href="#cb7-364" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**MCMC** generates posterior samples by running a random walker that preferentially visits high-density regions</span>
+<span id="cb7-365"><a href="#cb7-365" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **accept/reject** mechanism uses only the *ratio* of posterior densities, so the normalizing constant is never needed</span>
+<span id="cb7-366"><a href="#cb7-366" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The chain's histogram converges to the posterior distribution, which we verified against the exact grid solution in both 1D and 2D</span>
+<span id="cb7-367"><a href="#cb7-367" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The **posterior predictive check** is a simple but powerful diagnostic: if the data is inconsistent with the posterior predictions, something is wrong</span>
+<span id="cb7-368"><a href="#cb7-368" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The chain's behavior depends on choices we haven't addressed: proposal size, burn-in length, number of steps --- these are the subject of the <span class="co">[</span><span class="ot">next tutorial</span><span class="co">](dram_mcmc.qmd)</span></span>
+<span id="cb7-369"><a href="#cb7-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-370"><a href="#cb7-370" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-371"><a href="#cb7-371" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb7-372"><a href="#cb7-372" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-373"><a href="#cb7-373" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Change the starting point to $\xi = -3$ (far from the posterior mode) in the 1D example. How many steps does the chain take to reach the high-density region? How does this affect the required burn-in?</span>
+<span id="cb7-374"><a href="#cb7-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-375"><a href="#cb7-375" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>In the 2D example, double the noise standard deviation <span class="in">`sigma_noise_2d`</span>. How does the posterior change? Is it wider or narrower? Does the chain need more or fewer steps to converge?</span>
+<span id="cb7-376"><a href="#cb7-376" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-377"><a href="#cb7-377" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Add a second observation (second measurement of tip deflection, independent noise). Create a new <span class="in">`DiagonalGaussianLogLikelihood`</span> with two noise variances and two observations, and rerun the chain. Does the posterior narrow?</span>
+<span id="cb7-378"><a href="#cb7-378" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-379"><a href="#cb7-379" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Run the 2D chain with a very large proposal covariance (e.g., <span class="in">`proposal_cov_2d = bkd.asarray([[25.0, 0.0], [0.0, 25.0]])`</span>). What happens to the acceptance rate and the trace plot? Why?</span>
+<span id="cb7-380"><a href="#cb7-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-381"><a href="#cb7-381" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-382"><a href="#cb7-382" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb7-383"><a href="#cb7-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-384"><a href="#cb7-384" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb7-385"><a href="#cb7-385" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-386"><a href="#cb7-386" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Practical MCMC: Metropolis-Hastings and DRAM</span><span class="co">](dram_mcmc.qmd)</span> --- Tuning proposals, adaptive methods, and convergence diagnostics</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

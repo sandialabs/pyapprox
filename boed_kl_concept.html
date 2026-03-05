@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Learning from Experiments: Bayesian Optimal Experimental Design – PyApprox">
 <meta property="og:description" content="What Expected Information Gain measures and why it is the right objective for choosing experiments.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_kl_concept_files/figure-html/fig-kl-intuition-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="758">
+<meta property="og:image:width" content="1898">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1131,6 +1134,20 @@ window.Quarto = {
 <p>The KL divergence <span class="math inline">\(\mathrm{KL}(q \| p)\)</span> is zero when <span class="math inline">\(q = p\)</span> and grows as <span class="math inline">\(q\)</span> moves away from <span class="math inline">\(p\)</span>. So maximizing EIG drives us toward designs that, on average, produce posteriors as different from the prior as possible.</p>
 </div>
 </div>
+<div id="cell-fig-kl-intuition" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-kl-intuition" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-kl-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_kl_concept_files/figure-html/fig-kl-intuition-output-1.png" width="949" height="379" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kl-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: KL divergence measures how much a specific observation moved the posterior away from the prior. A weakly informative design (few sensors, similar to prior) produces a small KL; a strongly informative design narrows and shifts the posterior, giving a large KL. EIG averages this quantity over all observations the experiment might produce.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="an-equivalent-expression" class="level2">
 <h2 class="anchored" data-anchor-id="an-equivalent-expression">An Equivalent Expression</h2>
@@ -1152,12 +1169,54 @@ window.Quarto = {
     \right].
 \]</span></p>
 <p>This is the basis for the double-loop Monte Carlo estimator used in practice (see <a href="./boed_kl_estimator.html">Bayesian OED: The Double-Loop Estimator</a>).</p>
+<div id="cell-fig-eig-as-average" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-eig-as-average" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eig-as-average-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_kl_concept_files/figure-html/fig-eig-as-average-output-1.png" width="1045" height="398" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eig-as-average-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: EIG is not the KL for any single observation — it is the <em>average</em> KL over every outcome the experiment might produce. Left: each thin curve is the posterior you would obtain for one sampled observation y; the thick curve is the prior. Right: the KL divergence for each of those posteriors; the dashed line marks their mean, which is the EIG estimate.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="linear-gaussian-special-case" class="level2">
 <h2 class="anchored" data-anchor-id="linear-gaussian-special-case">Linear Gaussian Special Case</h2>
 <p>For linear Gaussian models the EIG has a closed form involving only the design matrix <span class="math inline">\(\mathbf{A}\)</span>, the prior covariance, and the noise covariance — no simulation required. This makes linear Gaussian benchmarks ideal for validating numerical implementations.</p>
+<div id="cell-fig-eig-vs-nobs" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-eig-vs-nobs" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eig-vs-nobs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_kl_concept_files/figure-html/fig-eig-vs-nobs-output-1.png" width="663" height="373" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eig-vs-nobs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: EIG increases with the number of observations (unit weights) for a linear Gaussian model with degree-2 polynomial basis, but with diminishing returns as the dominant uncertainty directions become constrained.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The figure confirms the intuitive result: more observations yield higher EIG, but with diminishing returns — each additional sensor contributes less once the dominant uncertainty directions are already well constrained. Here each sensor receives unit weight (fixed per-sensor precision); if instead a fixed total budget is split equally, spreading it too thinly can actually <em>decrease</em> EIG.</p>
 <p>But the <em>number</em> of observations is only part of the story: <strong>where</strong> the sensors are placed matters just as much. The next figure makes this concrete.</p>
+<div id="cell-fig-posterior-shrinkage" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-posterior-shrinkage" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-posterior-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_kl_concept_files/figure-html/fig-posterior-shrinkage-output-1.png" width="1235" height="397" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-posterior-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Posterior shrinkage depends on sensor placement, not just sensor count. Design A clusters sensors near x=0.5 (low Fisher information for the quadratic term); Design B spreads them across [0,1]. Left: posterior standard deviation of the quadratic coefficient θ₂ as sensors are added. Middle: posterior PDFs at K=5 sensors (marginalised over the other two coefficients). Right: EIG at each K, mirroring the shrinkage story.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>Design A sensors are all clustered near <span class="math inline">\(x = 0.5\)</span>, which gives little discriminating power for the quadratic coefficient <span class="math inline">\(\theta_2\)</span> — the polynomial basis functions <span class="math inline">\(1\)</span>, <span class="math inline">\(x\)</span>, and <span class="math inline">\(x^2\)</span> are nearly collinear over that narrow range. Design B spreads sensors across <span class="math inline">\([0, 1]\)</span>, breaking that near-collinearity and achieving far lower posterior variance at every <span class="math inline">\(K\)</span>. The EIG panel confirms the same story: identical sensor <em>counts</em> but very different information yields.</p>
 </section>
 <section id="eig-vs.-goal-oriented-oed" class="level2">

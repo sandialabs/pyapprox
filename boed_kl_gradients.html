@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Bayesian OED: Gradients and the Reparameterization Trick – PyApprox">
 <meta property="og:description" content="Why observations depend on design weights, how the reparameterization trick produces the correct C1+C2+C3 gradient, and what the corrected Hessian looks like.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_kl_gradients_files/figure-html/fig-eig-landscape-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="869">
+<meta property="og:image:width" content="2282">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1318,6 +1321,20 @@ window.Quarto = {
 \text{EIG}(w_1) = \tfrac{1}{2}\log\!\left(6 + 9w_1 - 9w_1^2\right),
 \]</span></p>
 <p>with maximum at <span class="math inline">\(w_1=0.5\)</span> by symmetry. The <strong>gradient used in optimisation</strong> is the total derivative along the simplex constraint: <span class="math inline">\(d\text{EIG}/dw_1 = \partial\text{EIG}/\partial w_1 - \partial\text{EIG}/\partial w_2\)</span>.</p>
+<div id="cell-fig-eig-landscape" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-eig-landscape" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eig-landscape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_kl_gradients_files/figure-html/fig-eig-landscape-output-1.png" width="1141" height="435" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eig-landscape-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Left: closed-form EIG(w₁) with arrows indicating the gradient direction toward the maximum. Right: gradient bar chart at five test points. The correct C1+C2+C3 estimator (green) closely tracks the analytic total derivative (blue); the incomplete C1+C2 estimator (orange) has the wrong sign at w₁=0.15, which would push optimisation away from the maximum.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The left panel shows the EIG is concave with a unique maximum at <span class="math inline">\(w_1=0.5\)</span>. The right panel confirms that C1+C2+C3 (green) closely tracks the analytic gradient at all five test points, while C1+C2 (orange) has the wrong sign at <span class="math inline">\(w_1=0.15\)</span> — an optimiser using it would step away from the maximum.</p>
 </section>
 <section id="key-takeaways" class="level2">

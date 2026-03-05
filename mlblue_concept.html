@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Multilevel Best Linear Unbiased Estimators – PyApprox">
 <meta property="og:description" content="How viewing multi-fidelity estimation as a generalized least-squares problem over flexible model subsets produces an estimator that reaches the multi-model CV ceiling — without requiring a hierarchical correction chain.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/mlblue_concept_files/figure-html/fig-subsets-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="940">
+<meta property="og:image:width" content="735">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1118,16 +1121,44 @@ window.Quarto = {
 </section>
 <section id="subsets-and-the-observation-vector" class="level2">
 <h2 class="anchored" data-anchor-id="subsets-and-the-observation-vector">Subsets and the Observation Vector</h2>
-<p><strong>?@fig-subsets</strong> shows the subset structure for a three-model example with four active subsets. Each column is one subset; stacked coloured blocks show which models are evaluated at the same <span class="math inline">\(m_k\)</span> sample points.</p>
-<p>Reading <strong>?@fig-subsets</strong>: the leftmost column co-evaluates three models (<span class="math inline">\(f_0, f_2, f_3\)</span>) and produces stacked observations <span class="math inline">\(Y_1, Y_2, Y_3\)</span>. The rightmost column at bottom is a cheap singleton (<span class="math inline">\(f_4\)</span>) that evaluates only the cheapest model alone — accumulating many inexpensive samples that still contribute useful information about the joint mean vector through the GLS system.</p>
+<p><a href="#fig-subsets" class="quarto-xref">Figure&nbsp;1</a> shows the subset structure for a three-model example with four active subsets. Each column is one subset; stacked coloured blocks show which models are evaluated at the same <span class="math inline">\(m_k\)</span> sample points.</p>
+<div id="cell-fig-subsets" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-subsets" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-subsets-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlblue_concept_files/figure-html/fig-subsets-output-1.png" width="368" height="470" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-subsets-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: <strong>MLBLUE sample allocation.</strong> Each column is an active subset <span class="math inline">\(S_k\)</span> with <span class="math inline">\(m_k\)</span> sample points. Colours identify individual models. A block present in column <span class="math inline">\(k\)</span> means that model is evaluated at all <span class="math inline">\(m_k\)</span> sample points of subset <span class="math inline">\(k\)</span>. The observation blocks <span class="math inline">\(Y_1, \ldots, Y_7\)</span> stack into the MLBLUE data vector <span class="math inline">\(\mathbf{Y}\)</span>. Unlike ACV’s allocation matrix, no nesting or hierarchy is required.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Reading <a href="#fig-subsets" class="quarto-xref">Figure&nbsp;1</a>: the leftmost column co-evaluates three models (<span class="math inline">\(f_0, f_2, f_3\)</span>) and produces stacked observations <span class="math inline">\(Y_1, Y_2, Y_3\)</span>. The rightmost column at bottom is a cheap singleton (<span class="math inline">\(f_4\)</span>) that evaluates only the cheapest model alone — accumulating many inexpensive samples that still contribute useful information about the joint mean vector through the GLS system.</p>
 </section>
 <section id="assembling-the-least-squares-system" class="level2">
 <h2 class="anchored" data-anchor-id="assembling-the-least-squares-system">Assembling the Least-Squares System</h2>
 <p>Each observation at a sample <span class="math inline">\(\boldsymbol{\theta}_k^{(i)}\)</span> within subset <span class="math inline">\(k\)</span> satisfies: <span class="math display">\[
 \mathbf{Y}_k^{(i)} = \mathbf{R}_k\,\mathbf{q} + \boldsymbol{\epsilon}_k^{(i)},
 \]</span> where <span class="math inline">\(\mathbf{q} = [Q_0, \ldots, Q_M]^\top\)</span> are all model means (the unknowns), <span class="math inline">\(\mathbf{R}_k \in \{0,1\}^{|S_k|\times(M+1)}\)</span> is the <strong>restriction operator</strong> whose row <span class="math inline">\(\ell\)</span> has a single 1 in the column of the <span class="math inline">\(\ell\)</span>-th model in <span class="math inline">\(S_k\)</span>, and <span class="math inline">\(\boldsymbol{\epsilon}_k^{(i)}\)</span> is zero-mean noise. Stacking all subsets and samples gives the full system <span class="math inline">\(\mathbf{Y} = \mathbf{H}\mathbf{q} + \boldsymbol{\epsilon}\)</span>.</p>
-<p><strong>?@fig-system</strong> shows this construction for three active subsets with small sample counts.</p>
-<p>Three things to notice in <strong>?@fig-system</strong>:</p>
+<p><a href="#fig-system" class="quarto-xref">Figure&nbsp;2</a> shows this construction for three active subsets with small sample counts.</p>
+<div id="cell-fig-system" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-system" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-system-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlblue_concept_files/figure-html/fig-system-output-1.png" width="1334" height="468" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-system-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: <strong>MLBLUE system construction</strong> for three active subsets: <span class="math inline">\(S_5 = \{f_2\}\)</span> (grey, 1 sample), <span class="math inline">\(S_2 = \{f_1, f_2\}\)</span> (red, 1 sample), <span class="math inline">\(S_3 = \{f_0, f_1\}\)</span> (green, 2 samples). <strong>Far left:</strong> active subset columns. <strong>Centre-left:</strong> the stacked observation vector <span class="math inline">\(\mathbf{Y}\)</span>, colour-coded by subset. <strong>Centre-right:</strong> the restriction matrix <span class="math inline">\(\mathbf{H}\)</span> — each row has a single 1 selecting the evaluated model’s mean (<span class="math inline">\(Q_0\)</span>, <span class="math inline">\(Q_1\)</span>, or <span class="math inline">\(Q_2\)</span>); the two-sample subset <span class="math inline">\(S_3\)</span> contributes two identical row blocks. <strong>Far right:</strong> the residual <span class="math inline">\(\mathbf{Y} - \mathbf{H}\mathbf{q}\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Three things to notice in <a href="#fig-system" class="quarto-xref">Figure&nbsp;2</a>:</p>
 <ol type="1">
 <li><strong>Row count equals total evaluations.</strong> <span class="math inline">\(\mathbf{H}\)</span> has one row per model evaluation across all subsets and all samples: <span class="math inline">\(\sum_k m_k |S_k|\)</span> rows total.</li>
 <li><strong>Column count equals number of model means.</strong> Three columns for three means (<span class="math inline">\(Q_0, Q_1, Q_2\)</span>).</li>
@@ -1140,7 +1171,21 @@ window.Quarto = {
 \mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}
 = \mathrm{BlockDiag}(G_1, \ldots, G_K), \qquad
 G_k = \mathrm{BlockDiag}(\underbrace{C_k, \ldots, C_k}_{m_k}),
-\]</span> where <span class="math inline">\(C_k = \mathbf{R}_k\,\boldsymbol{\Sigma}\,\mathbf{R}_k^\top\)</span> is the submatrix of the population covariance <span class="math inline">\(\boldsymbol{\Sigma}\)</span> for the models in <span class="math inline">\(S_k\)</span>, estimated from the pilot study. <strong>?@fig-cov</strong> shows this block structure for the same three-subset example.</p>
+\]</span> where <span class="math inline">\(C_k = \mathbf{R}_k\,\boldsymbol{\Sigma}\,\mathbf{R}_k^\top\)</span> is the submatrix of the population covariance <span class="math inline">\(\boldsymbol{\Sigma}\)</span> for the models in <span class="math inline">\(S_k\)</span>, estimated from the pilot study. <a href="#fig-cov" class="quarto-xref">Figure&nbsp;3</a> shows this block structure for the same three-subset example.</p>
+<div id="cell-fig-cov" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-cov" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cov-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlblue_concept_files/figure-html/fig-cov-output-1.png" width="649" height="519" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cov-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: <strong>Block-diagonal error covariance</strong> <span class="math inline">\(\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}\)</span> for the three-subset example. Each outlined box is a <span class="math inline">\(G_k\)</span> block. <span class="math inline">\(G_5\)</span> is <span class="math inline">\(1\times 1\)</span> (singleton <span class="math inline">\(\{f_2\}\)</span>, 1 sample); <span class="math inline">\(G_2\)</span> is <span class="math inline">\(2\times 2\)</span> (<span class="math inline">\(\{f_1,f_2\}\)</span>, 1 sample); <span class="math inline">\(G_3\)</span> is <span class="math inline">\(2\times 2\)</span> and appears <strong>twice</strong> (<span class="math inline">\(\{f_0,f_1\}\)</span>, 2 samples). Off-diagonal regions are exactly zero: samples from different subsets use independent random points.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>Because <span class="math inline">\(\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}\)</span> is block-diagonal, its inverse is also block-diagonal and the GLS problem reduces to the tractable normal equations <span class="math display">\[
 \boldsymbol{\Psi}\,\mathbf{q}^B = \mathbf{y}, \qquad
 \boldsymbol{\Psi} = \sum_{k=1}^K m_k\,\mathbf{R}_k^\top C_k^{-1} \mathbf{R}_k, \qquad
@@ -1150,27 +1195,41 @@ G_k = \mathrm{BlockDiag}(\underbrace{C_k, \ldots, C_k}_{m_k}),
 </section>
 <section id="convergence-to-the-multi-model-cv-ceiling" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-to-the-multi-model-cv-ceiling">Convergence to the Multi-Model CV Ceiling</h2>
-<p>Like ACVMF, MLBLUE converges to the multi-model CV ceiling as LF sample counts grow. MLMC and MFMC plateau at the CV-1 ceiling. <strong>?@fig-ceiling</strong> demonstrates this by fixing the HF sample count at <span class="math inline">\(N_0 = 1\)</span> and steadily increasing LF samples on the five-model polynomial benchmark.</p>
+<p>Like ACVMF, MLBLUE converges to the multi-model CV ceiling as LF sample counts grow. MLMC and MFMC plateau at the CV-1 ceiling. <a href="#fig-ceiling" class="quarto-xref">Figure&nbsp;4</a> demonstrates this by fixing the HF sample count at <span class="math inline">\(N_0 = 1\)</span> and steadily increasing LF samples on the five-model polynomial benchmark.</p>
+<div id="cell-fig-ceiling" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-ceiling" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="mlblue_concept_files/figure-html/fig-ceiling-output-1.png" width="660" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Variance relative to MC (<span class="math inline">\(N_0 = 1\)</span> HF sample fixed) as LF sample counts grow, for MLMC, MFMC, and MLBLUE on the five-model polynomial benchmark. MLMC and MFMC both plateau at the CV-1 limit (set by <span class="math inline">\(\rho_{0,1}^2\)</span> alone). MLBLUE, which aggregates all LF models through the GLS system, converges toward the much lower CV-4 limit. Dashed lines mark the four CV-<span class="math inline">\(k\)</span> limits.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The convergence is structural: <span class="math inline">\(\boldsymbol{\Psi}\)</span> aggregates information from every subset simultaneously. As LF sample counts grow, every LF mean <span class="math inline">\(Q_j\)</span> is estimated with negligible error, and the GLS estimator for <span class="math inline">\(Q_0\)</span> saturates at the CV-<span class="math inline">\(M\)</span> lower bound. MLMC and MFMC cannot achieve this because only the one-step correction <span class="math inline">\(\Delta_1\)</span> directly reduces variance for <span class="math inline">\(Q_0\)</span>.</p>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
 <ul>
 <li>MLBLUE estimates all model means jointly via GLS; the HF mean is extracted via <span class="math inline">\(Q^B_0 = \boldsymbol{e}_0^\top\mathbf{q}^B\)</span></li>
-<li>Subsets define co-evaluation groups; any non-empty subsets are valid — no chain or nesting required (<strong>?@fig-subsets</strong>)</li>
-<li>Three ingredients: restriction operator <span class="math inline">\(\mathbf{R}_k\)</span> (who is measured), per-subset error covariance <span class="math inline">\(C_k\)</span> (how correlated), block-diagonal <span class="math inline">\(\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}\)</span> (across all subsets and samples) (<strong>?@fig-system</strong>, <strong>?@fig-cov</strong>)</li>
-<li>Like ACVMF, MLBLUE converges to CV-<span class="math inline">\(M\)</span> and is not capped at CV-1 (<strong>?@fig-ceiling</strong>)</li>
+<li>Subsets define co-evaluation groups; any non-empty subsets are valid — no chain or nesting required (<a href="#fig-subsets" class="quarto-xref">Figure&nbsp;1</a>)</li>
+<li>Three ingredients: restriction operator <span class="math inline">\(\mathbf{R}_k\)</span> (who is measured), per-subset error covariance <span class="math inline">\(C_k\)</span> (how correlated), block-diagonal <span class="math inline">\(\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}\)</span> (across all subsets and samples) (<a href="#fig-system" class="quarto-xref">Figure&nbsp;2</a>, <a href="#fig-cov" class="quarto-xref">Figure&nbsp;3</a>)</li>
+<li>Like ACVMF, MLBLUE converges to CV-<span class="math inline">\(M\)</span> and is not capped at CV-1 (<a href="#fig-ceiling" class="quarto-xref">Figure&nbsp;4</a>)</li>
 <li>The subset design is most flexible when physically incompatible models prevent certain co-evaluations</li>
 </ul>
 </section>
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>In <strong>?@fig-subsets</strong>, how many evaluations does the leftmost subset contribute to <span class="math inline">\(\mathbf{Y}\)</span>? What is the total length of <span class="math inline">\(\mathbf{Y}\)</span> across all shown subsets (assume <span class="math inline">\(m_k = 1\)</span> for each)?</p></li>
-<li><p>From <strong>?@fig-system</strong>, how many rows does <span class="math inline">\(\mathbf{H}\)</span> have? How many columns? What does each column correspond to?</p></li>
-<li><p>From <strong>?@fig-cov</strong>, why is <span class="math inline">\(G_3\)</span> a <span class="math inline">\(2\times 2\)</span> matrix while <span class="math inline">\(G_5\)</span> is <span class="math inline">\(1\times 1\)</span>? Why does <span class="math inline">\(G_3\)</span> appear twice but <span class="math inline">\(G_2\)</span> appears once?</p></li>
+<li><p>In <a href="#fig-subsets" class="quarto-xref">Figure&nbsp;1</a>, how many evaluations does the leftmost subset contribute to <span class="math inline">\(\mathbf{Y}\)</span>? What is the total length of <span class="math inline">\(\mathbf{Y}\)</span> across all shown subsets (assume <span class="math inline">\(m_k = 1\)</span> for each)?</p></li>
+<li><p>From <a href="#fig-system" class="quarto-xref">Figure&nbsp;2</a>, how many rows does <span class="math inline">\(\mathbf{H}\)</span> have? How many columns? What does each column correspond to?</p></li>
+<li><p>From <a href="#fig-cov" class="quarto-xref">Figure&nbsp;3</a>, why is <span class="math inline">\(G_3\)</span> a <span class="math inline">\(2\times 2\)</span> matrix while <span class="math inline">\(G_5\)</span> is <span class="math inline">\(1\times 1\)</span>? Why does <span class="math inline">\(G_3\)</span> appear twice but <span class="math inline">\(G_2\)</span> appears once?</p></li>
 <li><p>Suppose <span class="math inline">\(f_0\)</span> and <span class="math inline">\(f_2\)</span> cannot be co-evaluated. Which subsets must be excluded? Can MLBLUE still use <span class="math inline">\(f_2\)</span> to improve the HF mean estimate?</p></li>
-<li><p>From <strong>?@fig-ceiling</strong>: at sample ratio <span class="math inline">\(r = 100\)</span>, how much better is MLBLUE than MLMC? Estimate as a ratio of variance reductions.</p></li>
+<li><p>From <a href="#fig-ceiling" class="quarto-xref">Figure&nbsp;4</a>: at sample ratio <span class="math inline">\(r = 100\)</span>, how much better is MLBLUE than MLMC? Estimate as a ratio of variance reductions.</p></li>
 </ol>
 </section>
 <section id="next-steps" class="level2">

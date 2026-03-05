@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Control Variate Monte Carlo: Analysis – PyApprox">
 <meta property="og:description" content="Deriving the optimal control variate weight, the variance reduction formula, and unbiasedness of the CVMC estimator.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/control_variate_analysis_files/figure-html/fig-verification-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="839">
+<meta property="og:image:width" content="1325">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1223,7 +1226,7 @@ window.Quarto = {
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We verify <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a> using a tunable two-model ensemble where the correlation <span class="math inline">\(\rho_{\alpha\kappa}\)</span> is controlled by a single parameter <span class="math inline">\(\theta_1\)</span>.</p>
-<div id="37e083df" class="cell">
+<div id="95def870" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1270,9 +1273,7 @@ window.Quarto = {
 <span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>empirical_reductions <span class="op">=</span> np.array(empirical_reductions)</span>
 <span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>theoretical_reductions <span class="op">=</span> np.array(theoretical_reductions)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-verification" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-verification" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._cv_acv <span class="im">import</span> plot_cv_verification</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover rho values for x-axis</span></span>
@@ -1283,11 +1284,18 @@ window.Quarto = {
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                     n_trials, N, ax)</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-verification" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="control_variate_analysis_files/figure-html/fig-verification-output-1.png" width="663" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-verification-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Empirical variance reduction (dots) versus the theoretical prediction <span class="math inline">\(1 - \rho^2\)</span> (line) across a range of model correlations. The agreement confirms <a href="#eq-variance-reduction" class="quarto-xref">Equation&nbsp;5</a>.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="discussion" class="level2">

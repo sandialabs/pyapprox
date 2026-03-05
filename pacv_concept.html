@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Parametrically Defined Approximate Control Variates – PyApprox">
 <meta property="og:description" content="How a single integer vector — the recursion index — unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family, and enables automatic selection of the best estimator structure for any problem.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/pacv_concept_files/figure-html/fig-dags-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="1340">
+<meta property="og:image:width" content="2284">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1165,7 +1168,21 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p><strong>?@fig-dags</strong> makes this visual for a four-model ensemble (<span class="math inline">\(M=3\)</span>, indices 1–3 for the LF models). Each subfigure is a valid recursion index; the edge from node <span class="math inline">\(j\)</span> to node <span class="math inline">\(\gamma_j\)</span> is drawn explicitly.</p>
+<p><a href="#fig-dags" class="quarto-xref">Figure&nbsp;1</a> makes this visual for a four-model ensemble (<span class="math inline">\(M=3\)</span>, indices 1–3 for the LF models). Each subfigure is a valid recursion index; the edge from node <span class="math inline">\(j\)</span> to node <span class="math inline">\(\gamma_j\)</span> is drawn explicitly.</p>
+<div id="cell-fig-dags" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-dags" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-dags-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pacv_concept_files/figure-html/fig-dags-output-1.png" width="1142" height="670" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-dags-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: All valid recursion DAGs for a four-model ensemble (<span class="math inline">\(f_0\)</span> HF, <span class="math inline">\(f_1\)</span>–<span class="math inline">\(f_3\)</span> LF). Each panel is one recursion index <span class="math inline">\(\boldsymbol{\gamma}\)</span>. Edges point from LF model <span class="math inline">\(j\)</span> to its target <span class="math inline">\(f_{\gamma_j}\)</span>. Top-left: chain (<span class="math inline">\(\boldsymbol{\gamma}=[0,1,2]\)</span>, MLMC/MFMC). Bottom-left: star (<span class="math inline">\(\boldsymbol{\gamma}=[0,0,0]\)</span>, ACVMF/ACVIS). All others are intermediate mixed structures.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>All <span class="math inline">\(3^1 \cdot 2^1 \cdot 1^1 = 6\)</span> valid indices are shown — but wait, for <span class="math inline">\(M=3\)</span> there are <span class="math inline">\(1 \times 2 \times 3 = 6\)</span> valid indices (entry <span class="math inline">\(\gamma_j \in \{0, \ldots, j-1\}\)</span>, so <span class="math inline">\(j\)</span> choices for entry <span class="math inline">\(j\)</span>, giving <span class="math inline">\(\prod_{j=1}^{M} j = M!\)</span> total). For <span class="math inline">\(M=4\)</span>: 24 indices. For <span class="math inline">\(M=5\)</span>: 120. Still enumerable.</p>
 </section>
 <section id="three-base-families" class="level2">
@@ -1174,7 +1191,21 @@ window.Quarto = {
 <p><strong>GMF (Generalised Multi-Fidelity):</strong> Based on the MFMC allocation matrix. If <span class="math inline">\(\gamma_j = i\)</span>, then <span class="math inline">\(\mathcal{Z}_j^* = \mathcal{Z}_i\)</span> and <span class="math inline">\(\mathcal{Z}_i \subseteq \mathcal{Z}_j\)</span> (the anchor set is a <em>nested subset</em> of the model’s full sample set). ACVMF is GMF with <span class="math inline">\(\boldsymbol{\gamma} = \mathbf{0}\)</span>; MFMC is GMF with <span class="math inline">\(\boldsymbol{\gamma} = [0,1,\ldots,M-1]\)</span>.</p>
 <p><strong>GRD (Generalised Recursive Difference):</strong> Based on the MLMC allocation matrix. If <span class="math inline">\(\gamma_j = i \neq j\)</span>, then <span class="math inline">\(\mathcal{Z}_i \cap \mathcal{Z}_j \neq \emptyset\)</span> (the anchor and the model’s set <em>overlap</em> but neither contains the other). MLMC is GRD with <span class="math inline">\(\boldsymbol{\gamma} = [0,1,\ldots,M-1]\)</span>.</p>
 <p><strong>GIS (Generalised Independent Sample):</strong> Based on the ACVIS allocation matrix. If <span class="math inline">\(\gamma_j = i\)</span>, then <span class="math inline">\(\mathcal{Z}_j^* \subseteq \mathcal{Z}_j\)</span> and the correction uses an <em>independent</em> sub-partition of model <span class="math inline">\(j\)</span>’s samples as the anchor. ACVIS is GIS with <span class="math inline">\(\boldsymbol{\gamma} = \mathbf{0}\)</span>.</p>
-<p><strong>?@fig-family-matrix</strong> shows how the four classical estimators map onto this family grid.</p>
+<p><a href="#fig-family-matrix" class="quarto-xref">Figure&nbsp;2</a> shows how the four classical estimators map onto this family grid.</p>
+<div id="cell-fig-family-matrix" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-family-matrix" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-family-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pacv_concept_files/figure-html/fig-family-matrix-output-1.png" width="950" height="373" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-family-matrix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: The three PACV families (rows) vs two canonical recursion indices (columns). Each cell is a named estimator. Every cell that is not one of the four named estimators is a novel PACV estimator with no classical name.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="automatic-best-estimator-selection" class="level2">
 <h2 class="anchored" data-anchor-id="automatic-best-estimator-selection">Automatic Best-Estimator Selection</h2>
@@ -1186,11 +1217,39 @@ window.Quarto = {
 <li>Return the estimator with the smallest predicted variance.</li>
 </ol>
 <p>This is what <code>ACVSearch</code> does with <code>TreeDepthRecursionStrategy(max_depth=M-1)</code>. No model evaluations are required beyond the pilot study — selection is purely from covariance structure.</p>
+<div id="cell-fig-enumeration" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-enumeration" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-enumeration-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pacv_concept_files/figure-html/fig-enumeration-output-1.png" width="949" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-enumeration-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Predicted variance (relative to MC) for all valid recursion indices of the GMF family on the four-model polynomial benchmark, at budget <span class="math inline">\(P = 100\)</span>. The best recursion index achieves the lowest variance for this correlation structure, but the ordering shifts at other budgets and for different benchmarks.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The best recursion index shifts with the cost ratio, budget, and correlation structure. Committing to MLMC or MFMC by convention can leave significant variance reduction on the table for problems where an intermediate structure is better.</p>
 </section>
 <section id="convergence-to-the-multi-model-cv-ceiling" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-to-the-multi-model-cv-ceiling">Convergence to the Multi-Model CV Ceiling</h2>
-<p>Like ACVMF, the best PACV estimator converges to the multi-model CV ceiling as LF sample counts grow. <strong>?@fig-pacv-ceiling</strong> demonstrates this by fixing the HF sample count at <span class="math inline">\(N_0 = 1\)</span> and steadily increasing LF samples on the five-model polynomial benchmark. The best GMF curve selects the recursion index with lowest variance at each cost point (over all 125 valid indices). Both ACVMF and the best GMF converge toward the CV-4 limit, while MLMC and MFMC plateau at CV-1.</p>
+<p>Like ACVMF, the best PACV estimator converges to the multi-model CV ceiling as LF sample counts grow. <a href="#fig-pacv-ceiling" class="quarto-xref">Figure&nbsp;4</a> demonstrates this by fixing the HF sample count at <span class="math inline">\(N_0 = 1\)</span> and steadily increasing LF samples on the five-model polynomial benchmark. The best GMF curve selects the recursion index with lowest variance at each cost point (over all 125 valid indices). Both ACVMF and the best GMF converge toward the CV-4 limit, while MLMC and MFMC plateau at CV-1.</p>
+<div id="cell-fig-pacv-ceiling" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-pacv-ceiling" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pacv-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="pacv_concept_files/figure-html/fig-pacv-ceiling-output-1.png" width="660" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pacv-ceiling-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Variance relative to MC (<span class="math inline">\(N_0 = 1\)</span> HF sample fixed) as LF sample counts grow, for MLMC, MFMC, ACVMF, and the best GMF estimator (selected over all valid recursion indices at each cost) on the five-model polynomial benchmark. MLMC and MFMC both plateau at the CV-1 limit. ACVMF and the best GMF converge toward the much lower CV-4 limit. Dashed lines mark the four CV-<span class="math inline">\(k\)</span> limits.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This plot mirrors the ceiling plots in the <a href="./mfmc_concept.html">MFMC Concept</a> and <a href="./mlblue_concept.html">MLBLUE Concept</a> tutorials. The best GMF envelope matches or beats ACVMF at every cost: at small budgets the best recursion index may differ from the star, while at large budgets both converge to CV-<span class="math inline">\(M\)</span>. MLMC and MFMC are permanently capped at CV-1. The key advantage of PACV is that it <em>automatically finds</em> the best recursion index — there is no need to guess whether the star (ACVMF) or chain (MFMC) structure is better for the problem at hand.</p>
 </section>
 <section id="key-takeaways" class="level2">

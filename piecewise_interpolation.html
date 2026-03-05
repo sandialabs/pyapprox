@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Piecewise Polynomial Interpolation: Local Basis Functions – PyApprox">
 <meta property="og:description" content="Construct linear, quadratic, and cubic piecewise bases, analyze convergence for smooth and discontinuous functions, and preview PiecewiseFactory for sparse grids.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/piecewise_interpolation_files/figure-html/fig-gibbs-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="951">
+<meta property="og:image:width" content="2476">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1113,7 +1116,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="7bffb2b2" class="cell">
+<div id="0df18a31" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1140,9 +1143,7 @@ window.Quarto = {
 \max_{x \in [a,b]} \lvert f(x) - f_M(x) \rvert \leq \frac{1}{M!} \max_x \prod_{j=1}^{M} \lvert x - x^{(j)} \rvert \cdot \max_{c} \lvert f^{(M)}(c) \rvert
 \]</span></p>
 <p>requires <span class="math inline">\(f\)</span> to have <span class="math inline">\(M\)</span> bounded derivatives. For functions with a <strong>discontinuity</strong> or a <strong>kink</strong>, this bound is violated and global polynomials exhibit the Gibbs phenomenon: persistent oscillations near the singularity that do not decay as <span class="math inline">\(M\)</span> increases.</p>
-<div id="fig-gibbs" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-gibbs" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_gibbs</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_step(x):</span>
@@ -1179,18 +1180,25 @@ window.Quarto = {
 <span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Global polynomial vs. piecewise interpolation of a step function"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
 <span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-gibbs" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-gibbs-output-1.png" width="1238" height="476" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gibbs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="local-basis-functions" class="level2">
 <h2 class="anchored" data-anchor-id="local-basis-functions">Local Basis Functions</h2>
 <p>Piecewise polynomial interpolation divides <span class="math inline">\([a, b]\)</span> into cells and fits a low-degree polynomial <strong>locally within each cell</strong>. The basis functions have <strong>compact support</strong>: <span class="math inline">\(\phi_j(x) = 0\)</span> outside the one or two cells adjacent to node <span class="math inline">\(j\)</span>. This locality prevents errors at one node from propagating across the domain.</p>
 <p>The <code>PiecewiseLinear</code>, <code>PiecewiseQuadratic</code>, and <code>PiecewiseCubic</code> classes each take a 1D array of nodes and a backend. The <code>__call__</code> method evaluates all basis functions at given points.</p>
-<div id="0af3801c" class="cell">
+<div id="d94d8ae4" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_piecewise_basis</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">7</span></span>
@@ -1224,6 +1232,13 @@ Figure&nbsp;1
 <span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>plot_piecewise_basis(x_plot, phi_hat, nodes_np, M, phi_lagrange_mid, j_mid, axs)</span>
 <span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="piecewise_interpolation_files/figure-html/cell-4-output-1.png" width="1236" height="373" class="figure-img"></p>
+</figure>
+</div>
+</div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1246,9 +1261,7 @@ Figure&nbsp;1
 \max_{x \in [a,b]} \lvert f(x) - f_M(x) \rvert \leq C_p\, h^{p+1} \max_{c \in [a,b]} \lvert f^{(p+1)}(c) \rvert,
 \]</span></p>
 <p>where <span class="math inline">\(C_p\)</span> depends only on the polynomial degree <span class="math inline">\(p\)</span>. Doubling the number of points (halving <span class="math inline">\(h\)</span>) reduces the error by a factor of <span class="math inline">\(2^{p+1}\)</span>: by 4 for piecewise linear (<span class="math inline">\(p=1\)</span>), by 8 for piecewise quadratic (<span class="math inline">\(p=2\)</span>), and by 16 for piecewise cubic (<span class="math inline">\(p=3\)</span>).</p>
-<div id="fig-pw-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-pw-convergence" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_pw_convergence</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_smooth(x):</span>
@@ -1286,11 +1299,18 @@ Figure&nbsp;1
 <span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>plot_pw_convergence(hs_linear, errors_linear, hs_cubic, errors_cubic, ax)</span>
 <span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-pw-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-pw-convergence-output-1.png" width="758" height="467" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pw-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm <span class="math inline">\(O(h^2)\)</span> and <span class="math inline">\(O(h^4)\)</span> theory.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="non-smooth-functions-piecewise-vs.-global" class="level2">
@@ -1309,9 +1329,7 @@ Figure&nbsp;2
 <p>The convergence plot below uses the <span class="math inline">\(L^\infty\)</span> (max) norm <span class="math inline">\(\|f - f_M\|_\infty = \max_x |f(x) - f_M(x)|\)</span>. For the kink function <span class="math inline">\(|x - 1/3|\)</span>, the maximum error occurs in the cell containing the kink and decreases as <span class="math inline">\(O(h)\)</span> since the interpolant is exact at the nodes and the worst-case error within a cell of width <span class="math inline">\(h\)</span> is proportional to <span class="math inline">\(h\)</span>. For a step function, by contrast, the <span class="math inline">\(L^\infty\)</span> error does not converge because the jump height is always 1 regardless of resolution — one would need the <span class="math inline">\(L^2\)</span> norm to see convergence (<span class="math inline">\(O(h^{1/2})\)</span>) in that case.</p>
 </div>
 </div>
-<div id="fig-discontinuous" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-discontinuous" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_discontinuous</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fun_kink(x):</span>
@@ -1347,17 +1365,24 @@ Figure&nbsp;2
 <span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>plot_discontinuous(Ms_cc, err_lag, Ms_pw, err_pw, ax)</span>
 <span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-discontinuous" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="piecewise_interpolation_files/figure-html/fig-discontinuous-output-1.png" width="758" height="467" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-discontinuous-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Error vs.&nbsp;<span class="math inline">\(M\)</span> for <span class="math inline">\(|x - 1/3|\)</span> (kink at <span class="math inline">\(x = 1/3\)</span>). Piecewise linear converges at <span class="math inline">\(O(M^{-1})\)</span>; global Lagrange converges much more slowly.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="piecewisefactory-for-sparse-grids" class="level2">
 <h2 class="anchored" data-anchor-id="piecewisefactory-for-sparse-grids"><code>PiecewiseFactory</code> for Sparse Grids</h2>
 <p>In the sparse grid framework the 1D basis is specified via a factory object. <code>PiecewiseFactory</code> wraps the piecewise polynomial construction to provide the same interface as <code>LejaLagrangeFactory</code> or <code>GaussLagrangeFactory</code>, enabling sparse grids with local basis functions.</p>
-<div id="3ae75988" class="cell">
+<div id="e089f724" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> PiecewiseFactory</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>

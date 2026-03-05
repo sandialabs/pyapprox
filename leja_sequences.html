@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Leja Sequences: Nested Points for Adaptive Interpolation – PyApprox">
 <meta property="og:description" content="Construct Leja sequences via greedy determinant maximization, understand Christoffel weighting, compare one-point vs.&nbsp;two-point optimization, and compare Leja vs.&nbsp;Gauss vs.&nbsp;CC for interpolation accuracy.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/leja_sequences_files/figure-html/fig-leja-growth-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="653">
+<meta property="og:image:width" content="2090">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1125,7 +1128,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="fa930771" class="cell">
+<div id="592b1f7c" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
@@ -1164,6 +1167,20 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 \]</span></p>
 <p>This is equivalent to maximizing the determinant of the Vandermonde matrix of the extended point set, and it ensures the new point is as <strong>far as possible</strong> (in a weighted sense) from all existing nodes — preventing clustering and controlling the Lebesgue constant.</p>
 <p>The first point <span class="math inline">\(z^{(1)}\)</span> is typically chosen as the maximum of <span class="math inline">\(v\)</span> alone; subsequent points are selected greedily.</p>
+<div id="cell-fig-leja-growth" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-leja-growth" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-leja-growth-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="leja_sequences_files/figure-html/fig-leja-growth-output-1.png" width="1045" height="327" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-leja-growth-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Leja sequence growth: the sequence at 3, 5, 9, and 15 points. Each new point fills the largest gap in the current set.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key observation is that the 3-point sequence is a <strong>subset</strong> of the 15-point sequence. Any function values already computed at the 3-point level are reused exactly when the sequence grows to 15 points.</p>
 </section>
 <section id="lejasequence1d-and-christoffelweighting" class="level2">
@@ -1175,7 +1192,7 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <li><strong>Bounds</strong> for the domain</li>
 </ul>
 <p>The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.</p>
-<div id="bc2baf2b" class="cell">
+<div id="aa875817" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_node_distribution</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Leja sequence on [-1, 1] with Christoffel weighting</span></span>
@@ -1204,11 +1221,18 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Node distributions — all cluster toward boundary"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
 <span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="leja_sequences_files/figure-html/cell-4-output-1.png" width="1045" height="476" class="figure-img"></p>
+</figure>
+</div>
+</div>
 </div>
 <section id="nestedness-verification" class="level3">
 <h3 class="anchored" data-anchor-id="nestedness-verification">Nestedness verification</h3>
 <p>Leja sequences are nested by construction: the first <span class="math inline">\(M\)</span> points of an <span class="math inline">\(N\)</span>-point sequence (<span class="math inline">\(N &gt; M\)</span>) are identical to the <span class="math inline">\(M\)</span>-point sequence.</p>
-<div id="d61b7a1d" class="cell">
+<div id="47945f30" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify nestedness</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>nodes5, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">5</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>nodes10, _ <span class="op">=</span> leja.quadrature_rule(<span class="dv">10</span>)</span>
@@ -1226,7 +1250,7 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <section id="using-lagrangebasis1d-with-leja-points" class="level2">
 <h2 class="anchored" data-anchor-id="using-lagrangebasis1d-with-leja-points">Using <code>LagrangeBasis1D</code> with Leja Points</h2>
 <p><code>LagrangeBasis1D</code> accepts any quadrature rule callable with signature <code>(npoints) → (samples, weights)</code>. We can pass <code>leja.quadrature_rule</code> directly:</p>
-<div id="890f7a62" class="cell">
+<div id="b1ffadc7" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_lagrange_on_leja</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a Lagrange basis on Leja points</span></span>
@@ -1245,12 +1269,19 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>plot_lagrange_on_leja(x_plot, phi_leja, nodes_7_np, <span class="dv">7</span>, ax)</span>
 <span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="leja_sequences_files/figure-html/cell-6-output-1.png" width="852" height="375" class="figure-img"></p>
+</figure>
+</div>
+</div>
 </div>
 </section>
 <section id="lejalagrangefactory-for-sparse-grids" class="level2">
 <h2 class="anchored" data-anchor-id="lejalagrangefactory-for-sparse-grids"><code>LejaLagrangeFactory</code> for Sparse Grids</h2>
 <p>In the sparse grid framework (Tutorial 6), each dimension of the grid needs a <strong>factory object</strong> that produces the 1D basis at any requested level. <code>LejaLagrangeFactory</code> wraps the Leja sequence construction into this interface.</p>
-<div id="c94434c5" class="cell">
+<div id="b1d0732a" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># LejaLagrangeFactory takes a marginal and backend;</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># it lazily constructs a LejaSequence1D and wraps it</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># as a LagrangeBasis1D.</span></span>
@@ -1269,9 +1300,7 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <section id="convergence-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="convergence-comparison">Convergence Comparison</h2>
 <p>For a uniform distribution the three families — Leja, Clenshaw-Curtis, and Gauss — all achieve exponential convergence for analytic functions. Leja sequences typically match CC accuracy for moderate <span class="math inline">\(M\)</span> while retaining the flexibility to be grown one point at a time.</p>
-<div id="fig-leja-convergence" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-leja-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-leja-convergence" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_convergence</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_test(x):</span>
@@ -1323,11 +1352,18 @@ z^{(M+1)} = \underset{z \in [a, b]}{\operatorname{argmax}}\; v(z) \prod_{n=1}^{M
 <span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>plot_leja_convergence(Ms, err_leja, cc_Ms, err_cc, err_gauss, ax)</span>
 <span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-leja-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-leja-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="leja_sequences_files/figure-html/fig-leja-convergence-output-1.png" width="851" height="469" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-leja-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-leja-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Interpolation error vs.&nbsp;M for an analytic function. Leja and CC achieve comparable exponential convergence; Gauss is slightly more efficient but non-nested.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>All three methods converge exponentially for this analytic function. The advantage of Leja over Gauss is not accuracy per se, but <strong>flexibility</strong>: Leja sequences can be extended by a single point without discarding any existing evaluations.</p>
 </section>
@@ -1343,7 +1379,7 @@ Figure&nbsp;1
 <section id="constructing-a-two-point-leja-sequence" class="level3">
 <h3 class="anchored" data-anchor-id="constructing-a-two-point-leja-sequence">Constructing a Two-Point Leja Sequence</h3>
 <p>Pass <code>objective_class=TwoPointLejaObjective</code> to <code>LejaSequence1D</code>:</p>
-<div id="2a4839b9" class="cell">
+<div id="e0fa63f9" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.leja <span class="im">import</span> TwoPointLejaObjective</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Fresh polynomial and weighting objects for each sequence</span></span>
@@ -1372,9 +1408,7 @@ Figure&nbsp;1
 <section id="quadrature-accuracy-comparison" class="level3">
 <h3 class="anchored" data-anchor-id="quadrature-accuracy-comparison">Quadrature Accuracy Comparison</h3>
 <p>Two-point optimization typically produces more accurate quadrature weights, especially for moderate <span class="math inline">\(M\)</span>:</p>
-<div id="fig-two-point-quadrature" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-two-point-quadrature-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-two-point-quadrature" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_two_point_quadrature</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f_quad_test(x):</span>
@@ -1401,11 +1435,18 @@ Figure&nbsp;1
 <span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>plot_two_point_quadrature(Ms_quad, err_1pt, err_2pt, ax)</span>
 <span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-two-point-quadrature" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-two-point-quadrature-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="leja_sequences_files/figure-html/fig-two-point-quadrature-output-1.png" width="854" height="469" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-two-point-quadrature-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-two-point-quadrature-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Quadrature error for one-point vs.&nbsp;two-point optimized Leja sequences. Two-point optimization improves accuracy for moderate M.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1426,9 +1467,7 @@ Figure&nbsp;2
 <h2 class="anchored" data-anchor-id="probability-aware-leja-for-non-uniform-distributions">Probability-Aware Leja for Non-Uniform Distributions</h2>
 <p>When the variable <span class="math inline">\(\theta\)</span> follows a non-uniform distribution, we want the interpolant to be most accurate in the high-probability region. By choosing the orthogonal polynomial basis matched to the distribution, <code>LejaSequence1D</code> automatically concentrates nodes where the probability density is large.</p>
 <p>For a <span class="math inline">\(\text{Beta}(\alpha, \beta)\)</span> distribution on <span class="math inline">\([0, 1]\)</span>, the matched orthogonal polynomials are the Jacobi polynomials with parameters <span class="math inline">\((\beta - 1, \alpha - 1)\)</span>.</p>
-<div id="fig-leja-beta" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-leja-beta-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-leja-beta" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> beta <span class="im">as</span> beta_dist</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._interpolation <span class="im">import</span> plot_leja_beta</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1461,11 +1500,18 @@ Figure&nbsp;2
 <span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="ss">f"Probability-aware Leja sequences, $M = </span><span class="sc">{</span>M<span class="sc">}</span><span class="ss">$"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.01</span>)</span>
 <span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-leja-beta" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-leja-beta-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="leja_sequences_files/figure-html/fig-leja-beta-output-1.png" width="1043" height="586" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-leja-beta-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-leja-beta-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Leja sequences for uniform vs.&nbsp;Beta(3,5) matched polynomials. The Beta-matched sequence concentrates nodes toward the mode of the distribution.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The Beta-matched sequence places more nodes in the region where the Beta(3,5) distribution has its mass. This improves the interpolation accuracy of <span class="math inline">\(\mathbb{E}_\theta[f(\theta)]\)</span> relative to a uniform Leja or CC sequence of the same size.</p>
 </section>

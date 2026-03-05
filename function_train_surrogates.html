@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="An Introduction to Function Trains – PyApprox">
 <meta property="og:description" content="Build intuition for low-rank functions and the function train decomposition.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/function_train_surrogates_files/figure-html/cell-2-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="753">
+<meta property="og:image:width" content="2263">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1130,6 +1133,15 @@ f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)
 <p><span class="math display">\[
 f(x_1, x_2) = e^{-x_1^2 / 2} \cdot e^{-x_2^2 / 2} = e^{-(x_1^2 + x_2^2)/2}
 \]</span></p>
+<div id="d6613530" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="function_train_surrogates_files/figure-html/cell-2-output-1.png" width="1132" height="377" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
 <p>The contour plot shows perfectly circular contour lines: the function is symmetric and has no preference between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span>. Every horizontal slice of the surface at fixed <span class="math inline">\(x_1\)</span> is just a rescaled version of <span class="math inline">\(g_2\)</span>, and vice versa. This is the hallmark of a rank-1 function.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1153,6 +1165,15 @@ f(x_1, x_2) = g_1^{(1)}(x_1)\cdot g_2^{(1)}(x_2) \;+\; g_1^{(2)}(x_1)\cdot g_2^{
 \]</span></p>
 <p>Each term is itself separable, but the sum introduces interactions that a single product could not capture. The rank measures how many such product terms are needed.</p>
 <p>Let us build a concrete rank-2 example. We take two very different rank-1 terms and add them:</p>
+<div id="92e077ce" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="function_train_surrogates_files/figure-html/cell-3-output-1.png" width="1228" height="396" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
 <p>The rank-2 function has two distinct peaks and asymmetric contours — structure that no single rank-1 term could reproduce. The rank measures the <em>complexity of interaction</em> between variables: rank-1 means “completely separable”, higher rank means “more entangled”.</p>
 <p>In general, a rank-<span class="math inline">\(r\)</span> function of two variables is:</p>
 <p><span class="math display">\[
@@ -1172,6 +1193,20 @@ f(x_1, x_2)
 <p>Read this carefully: <span class="math inline">\(\mathbf{G}_1(x_1)\)</span> is a <span class="math inline">\(1 \times 2\)</span> <strong>row vector whose entries are univariate functions of <span class="math inline">\(x_1\)</span></strong>, and <span class="math inline">\(\mathbf{G}_2(x_2)\)</span> is a <span class="math inline">\(2 \times 1\)</span> <strong>column vector whose entries are univariate functions of <span class="math inline">\(x_2\)</span></strong>. Their “product” is an ordinary matrix-vector product carried out entry-by-entry, evaluated at the given <span class="math inline">\((x_1, x_2)\)</span>.</p>
 <p>The result is a scalar: exactly our rank-2 function.</p>
 <p>This observation is the heart of the function train. We have replaced the sum-of-products formula with a <strong>matrix product of function-valued matrices</strong>. The rank <span class="math inline">\(r\)</span> becomes the shared dimension of the two matrices — identical to how the inner dimension of a matrix product determines the rank of the result in linear algebra.</p>
+<div id="cell-fig-core-diagram" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-core-diagram" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-core-diagram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="function_train_surrogates_files/figure-html/fig-core-diagram-output-1.png" width="950" height="325" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-core-diagram-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="extending-to-three-variables-the-function-train" class="level2">
 <h2 class="anchored" data-anchor-id="extending-to-three-variables-the-function-train">Extending to Three Variables: The Function Train</h2>
@@ -1186,6 +1221,20 @@ f(x_1, x_2, x_3)
 \underbrace{\mathbf{G}_3(x_3)}_{r \times 1}
 \]</span></p>
 <p>Each core <span class="math inline">\(\mathbf{G}_k(x_k)\)</span> is a matrix of univariate functions of <span class="math inline">\(x_k\)</span> only. For a fixed point <span class="math inline">\((x_1, x_2, x_3)\)</span>, each core becomes a matrix of numbers, and the whole expression is just an ordinary chain of matrix multiplications that produces a scalar.</p>
+<div id="cell-fig-ft-3var" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-ft-3var" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ft-3var-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="function_train_surrogates_files/figure-html/fig-ft-3var-output-1.png" width="1238" height="392" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ft-3var-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key properties to take away from this diagram are:</p>
 <ul>
 <li>The <strong>first core</strong> is always a <span class="math inline">\(1 \times r\)</span> row vector (one row, <span class="math inline">\(r\)</span> columns).</li>
@@ -1273,7 +1322,7 @@ f(x_1, \ldots, x_d)
 <li>Creates the correct orthogonal polynomial basis for each variable.</li>
 <li>Assembles the cores into a <code>FunctionTrain</code> with the specified rank.</li>
 </ol>
-<div id="bfec5dd0" class="cell">
+<div id="7bfc99aa" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal, GaussianMarginal</span>
@@ -1293,7 +1342,7 @@ f(x_1, \ldots, x_d)
 </div>
 <p>The shapes confirm the structure: core 0 is <span class="math inline">\(1 \times 2\)</span>, core 1 is <span class="math inline">\(2 \times 2\)</span>, and core 2 is <span class="math inline">\(2 \times 1\)</span>.</p>
 <p>We can evaluate the FT on a batch of samples just like any other surrogate:</p>
-<div id="4eaf29e1" class="cell">
+<div id="b04cc8db" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on 2000 random samples</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">3</span>, nsamples)))</span>
@@ -1316,7 +1365,7 @@ f(x_1, \ldots, x_d)
 <section id="visualising-a-fitted-rank-2-ft" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-a-fitted-rank-2-ft">Visualising a Fitted Rank-2 FT</h2>
 <p>To build intuition for what the FT actually represents, let us manually set the coefficients to reproduce the rank-2 Gaussian example from earlier.</p>
-<div id="a96041cd" class="cell">
+<div id="1120242d" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Recall our target:</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#   f(x1, x2) = g1_a(x1)*g2_a(x2) + g1_b(x1)*g2_b(x2)  (rank-2, 2 variables)</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># We will build a 2-variable version for this illustration.</span></span>
@@ -1362,27 +1411,32 @@ f(x_1, \ldots, x_d)
 <span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>mse_result <span class="op">=</span> MSEFitter(bkd).fit(als_result.surrogate(), s_fit, y_fit)</span>
 <span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>ft_fitted <span class="op">=</span> mse_result.surrogate()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="fig-ft-fitted" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-ft-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-ft-fitted" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_fitted</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig<span class="op">=</span>fig)</span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-ft-fitted" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ft-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="function_train_surrogates_files/figure-html/fig-ft-fitted-output-1.png" width="1234" height="392" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-ft-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ft-fitted-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>The function train reconstructs both the narrow peak at <span class="math inline">\((-0.6, -0.6)\)</span> and the broad peak at <span class="math inline">\((+0.6, +0.6)\)</span> with very small error. Importantly, it does so using only univariate polynomial expansions connected through a <span class="math inline">\(2 \times 2\)</span> matrix core.</p>
 </section>
 <section id="what-does-the-rank-control" class="level2">
 <h2 class="anchored" data-anchor-id="what-does-the-rank-control">What Does the Rank Control?</h2>
 <p>The rank <span class="math inline">\(r\)</span> is the single number that determines how much interaction between variables the FT can represent. A quick experiment illustrates this:</p>
-<div id="8bab4467" class="cell">
+<div id="3a293816" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1399,6 +1453,13 @@ Figure&nbsp;1
 <span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>             y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="function_train_surrogates_files/figure-html/cell-10-output-1.png" width="1238" height="396" class="figure-img"></p>
+</figure>
+</div>
+</div>
 </div>
 <p>A rank-1 FT cannot simultaneously represent two spatially separated peaks; it is forced to average them into a single symmetric feature. Rank-2 matches the target exactly (up to polynomial truncation error), and rank-4 gives no further benefit for this particular function. This illustrates a key principle: <strong>the rank you need is determined by the function, not by the dimension</strong>.</p>
 </section>

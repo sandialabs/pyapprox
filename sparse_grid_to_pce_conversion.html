@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="From Sparse Grids to PCE: The Mathematics of Basis Conversion – PyApprox">
 <meta property="og:description" content="Understand the spectral projection that converts Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions, with visual intuition.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/sparse_grid_to_pce_conversion_files/figure-html/fig-two-bases-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="840">
+<meta property="og:image:width" content="2277">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1118,7 +1121,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="143afc2b" class="cell">
+<div id="f7b86f03" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
@@ -1145,9 +1148,7 @@ window.Quarto = {
 <li><p><strong>Orthonormal polynomial basis</strong> <span class="math inline">\(\{P_k(x)\}_{k=0}^{n-1}\)</span>: defined by the probability measure <span class="math inline">\(\mu\)</span>, satisfying <span class="math inline">\(\int P_i P_j\, d\mu = \delta_{ij}\)</span>. Moment computation is trivial: <span class="math inline">\(\mathbb{E}[\hat{f}] = c_0\)</span>, <span class="math inline">\(\text{Var}[\hat{f}] = \sum_{k&gt;0} c_k^2\)</span>.</p></li>
 </ul>
 <p>Neither is “better” — they serve different purposes.</p>
-<div id="fig-two-bases" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-two-bases-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-two-bases" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_two_bases</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, bkd)</span>
@@ -1167,11 +1168,18 @@ window.Quarto = {
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>plot_two_bases(ax1, ax2, nodes, x_plot, ortho_vals)</span>
 <span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-two-bases" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-two-bases-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_grid_to_pce_conversion_files/figure-html/fig-two-bases-output-1.png" width="1139" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-two-bases-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-two-bases-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Both sets span the space of polynomials of degree 3. Left: four Lagrange basis functions, each peaking at its node. Right: four Legendre polynomials, smooth and oscillatory. The Lagrange basis is defined by interpolation nodes; the orthonormal basis is defined by the probability measure.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 </section>
 <section id="spectral-projection-the-1d-case" class="level2">
@@ -1189,9 +1197,7 @@ c_{jk} = \int L_j(x)\, P_k(x)\, d\mu(x) = \sum_{i} w_i\, L_j(x_i^q)\, P_k(x_i^q)
 \]</span></p>
 <p>So the PCE coefficient for <span class="math inline">\(P_k\)</span> is a weighted sum of the function values at the interpolation nodes, where the weights are the projection coefficients <span class="math inline">\(c_{jk}\)</span>.</p>
 <p>We can compute this projection matrix using PyApprox’s internal API:</p>
-<div id="fig-projection-1d" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-projection-1d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-projection-1d" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_projection_1d</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build the converter's 1D projection matrix</span></span>
@@ -1209,11 +1215,18 @@ c_{jk} = \int L_j(x)\, P_k(x)\, d\mu(x) = \sum_{i} w_i\, L_j(x_i^q)\, P_k(x_i^q)
 <span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>plot_projection_1d(ax1, ax2, x_plot, nodes, ortho_vals, proj_coefs_np, j_show)</span>
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-projection-1d" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-projection-1d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_grid_to_pce_conversion_files/figure-html/fig-projection-1d-output-1.png" width="1142" height="420" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-projection-1d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-projection-1d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Projection of a single Lagrange basis function L_2(x). Left: the Lagrange function (solid) and its reconstruction from orthonormal polynomial coefficients (dashed) — they overlap exactly. Right: bar chart of the projection coefficients c_{2,k}, showing how L_2 decomposes into the orthonormal basis.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1241,9 +1254,7 @@ Figure&nbsp;2
 \]</span></p>
 <p>where <span class="math inline">\(\hat{c}_{k_1 k_2} = \sum_{j_1, j_2} f(x_{j_1}, x_{j_2})\, c^{(1)}_{j_1 k_1}\, c^{(2)}_{j_2 k_2}\)</span>.</p>
 <p>This is a tensor contraction — each dimension is projected independently, so no multivariate quadrature is needed.</p>
-<div id="fig-2d-tp" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-2d-tp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-2d-tp" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_2d_tp</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a 2D example: f(x1, x2) = x1^2 + x1*x2</span></span>
@@ -1281,11 +1292,18 @@ Figure&nbsp;2
 <span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>plot_2d_tp(ax1, ax2, fig, sg_samples, sg_values, pce_indices, pce_coefs, bkd)</span>
 <span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-2d-tp" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-2d-tp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_grid_to_pce_conversion_files/figure-html/fig-2d-tp-output-1.png" width="1130" height="467" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-2d-tp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-2d-tp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: 2D tensor product conversion. Left: function values at the 4x4 tensor product grid. Right: the corresponding PCE multi-indices with color-coded coefficient magnitudes. Each grid point’s value is projected through the 1D matrices to produce the PCE coefficients.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>For the function <span class="math inline">\(f(x_1, x_2) = x_1^2 + x_1 x_2\)</span>, we expect nonzero PCE coefficients only for the multi-indices <span class="math inline">\((2, 0)\)</span> and <span class="math inline">\((1, 1)\)</span> (plus the constant term). The conversion reproduces this structure exactly.</p>
 </section>
@@ -1300,9 +1318,7 @@ Figure&nbsp;3
 \hat{f}_{\text{SG}} = \sum_{\boldsymbol{\ell}} c_{\boldsymbol{\ell}} \sum_{\mathbf{k}} \hat{c}^{(\boldsymbol{\ell})}_{\mathbf{k}}\, \Psi_{\mathbf{k}}
 \]</span></p>
 <p>Different subspaces may produce the <strong>same</strong> multi-index <span class="math inline">\(\mathbf{k}\)</span>, so their coefficients must be <strong>accumulated</strong> (summed). This merging step is what <code>SparseGridToPCEConverter</code> handles.</p>
-<div id="fig-smolyak-merge" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-smolyak-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-smolyak-merge" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sparse_grids <span class="im">import</span> plot_smolyak_merge</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build level-2 SG to have multiple subspaces</span></span>
@@ -1333,20 +1349,25 @@ Figure&nbsp;3
 <span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>             fontsize<span class="op">=</span><span class="dv">13</span>, y<span class="op">=</span><span class="fl">1.02</span>)</span>
 <span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-smolyak-merge" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-smolyak-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_grid_to_pce_conversion_files/figure-html/fig-smolyak-merge-output-1.png" width="1524" height="786" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-smolyak-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-smolyak-merge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Smolyak merging for a 2D, level-2 sparse grid with <span class="math inline">\(f(x_1, x_2) = x_1^2 + x_1 x_2\)</span>. Each dot is a PCE multi-index <span class="math inline">\((k_1, k_2)\)</span>. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value <span class="math inline">\(c_{\ell} \hat{c}_{\mathbf{k}}^{(\ell)}\)</span>. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure <span class="math inline">\(x_2\)</span> term, so the <span class="math inline">\((0,1)\)</span> coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same <span class="math inline">\((k_1, k_2)\)</span>, their weighted coefficients are summed.
 </figcaption>
 </figure>
+</div>
+</div>
 </div>
 <p>Notice that subspaces <span class="math inline">\((0,1)\)</span> and <span class="math inline">\((0,2)\)</span> have <strong>no nonzero coefficients</strong> (all gray dots). The reason is simple: level 0 in <span class="math inline">\(x_1\)</span> means a single Gauss node at <span class="math inline">\(x_1 = 0\)</span>. Since <span class="math inline">\(f(0, x_2) = 0^2 + 0 \cdot x_2 = 0\)</span> for all <span class="math inline">\(x_2\)</span>, every function value in these subspaces is exactly zero, so the projected PCE coefficients are all zero too.</p>
 </section>
 <section id="putting-it-all-together-worked-example" class="level2">
 <h2 class="anchored" data-anchor-id="putting-it-all-together-worked-example">Putting It All Together — Worked Example</h2>
 <p>Let us step through the full conversion on the simple 2D function <span class="math inline">\(f(x_1, x_2) = x_1^2 + x_1 x_2\)</span> with uniform inputs on <span class="math inline">\([-1, 1]^2\)</span> and verify that the SG interpolant and converted PCE agree everywhere.</p>
-<div id="fig-sg-vs-pce" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-sg-vs-pce-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="cell-fig-sg-vs-pce" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1368,14 +1389,21 @@ Figure&nbsp;4
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>plot_sg_vs_pce(ax1, ax2, fig, sg_vals, pce_vals, X_np, Y_np)</span>
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-sg-vs-pce" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sg-vs-pce-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="sparse_grid_to_pce_conversion_files/figure-html/fig-sg-vs-pce-output-1.png" width="1126" height="469" class="figure-img">
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-sg-vs-pce-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;5
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sg-vs-pce-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Confirmation that the SG interpolant and converted PCE are identical. Left: SG interpolant contours. Right: pointwise absolute difference between SG and PCE evaluations, confirming machine-precision agreement.
 </figcaption>
 </figure>
 </div>
+</div>
+</div>
 <p>The maximum error should be near machine epsilon (<span class="math inline">\(\sim 10^{-15}\)</span>), confirming that the conversion is exact for polynomial functions.</p>
-<div id="0a89c687" class="cell">
+<div id="ff94e3e7" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify moments match</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>sg_mean_l2 <span class="op">=</span> bkd.to_numpy(sg_l2.mean())</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>pce_mean_l2 <span class="op">=</span> bkd.to_numpy(pce_l2.mean())</span>

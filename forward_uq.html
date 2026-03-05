@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Forward Uncertainty Quantification – PyApprox">
 <meta property="og:description" content="The forward UQ problem: propagating input uncertainty through a model to characterize output uncertainty.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/forward_uq_files/figure-html/fig-forward-uq-schematic-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="549">
+<meta property="og:image:width" content="2088">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1121,7 +1124,21 @@ q = f(\params)
 <li><p><strong>An input distribution</strong> <span class="math inline">\(\pdf(\params)\)</span> — a probability density function that encodes what we know (and don’t know) about the parameters.</p></li>
 <li><p><strong>The push-forward distribution</strong> — the probability distribution of <span class="math inline">\(q\)</span> induced by pushing <span class="math inline">\(\pdf(\params)\)</span> through <span class="math inline">\(f\)</span>. This is the object we want to characterize.</p></li>
 </ol>
-<p><strong>?@fig-forward-uq-schematic</strong> illustrates the idea: an input distribution over <span class="math inline">\(\params\)</span> is mapped through the model to produce an output distribution over the QoI.</p>
+<p><a href="#fig-forward-uq-schematic" class="quarto-xref">Figure&nbsp;1</a> illustrates the idea: an input distribution over <span class="math inline">\(\params\)</span> is mapped through the model to produce an output distribution over the QoI.</p>
+<div id="cell-fig-forward-uq-schematic" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-forward-uq-schematic" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-forward-uq-schematic-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-forward-uq-schematic-output-1.png" width="1044" height="275" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-forward-uq-schematic-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: The forward UQ problem. An input distribution <span class="math inline">\(p(\boldsymbol{\theta})\)</span> over model parameters is propagated through the model <span class="math inline">\(f\)</span> to produce a push-forward distribution over the QoI <span class="math inline">\(q = f(\boldsymbol{\theta})\)</span>.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1142,7 +1159,21 @@ q = f(\params)
 <p><span class="math display">\[
 \delta_{\text{tip}} = \underbrace{\frac{11\, L^4}{120\, EI}}_{=\, c}\; q_0 = c\, q_0
 \]</span></p>
-<p>This is a linear function of <span class="math inline">\(q_0\)</span>: doubling the load doubles the deflection. If <span class="math inline">\(q_0\)</span> is drawn from a <span class="math inline">\(\normal\)</span> distribution, the distribution of <span class="math inline">\(\delta_{\text{tip}}\)</span> is simply a rescaled <span class="math inline">\(\normal\)</span> — the shape is preserved and only the location and scale change. <strong>?@fig-linear-propagation</strong> illustrates this.</p>
+<p>This is a linear function of <span class="math inline">\(q_0\)</span>: doubling the load doubles the deflection. If <span class="math inline">\(q_0\)</span> is drawn from a <span class="math inline">\(\normal\)</span> distribution, the distribution of <span class="math inline">\(\delta_{\text{tip}}\)</span> is simply a rescaled <span class="math inline">\(\normal\)</span> — the shape is preserved and only the location and scale change. <a href="#fig-linear-propagation" class="quarto-xref">Figure&nbsp;2</a> illustrates this.</p>
+<div id="cell-fig-linear-propagation" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-linear-propagation" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-linear-propagation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-linear-propagation-output-1.png" width="1143" height="323" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-linear-propagation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Linear propagation of uncertainty. A Gaussian input on <span class="math inline">\(q_0\)</span> produces a Gaussian push-forward on <span class="math inline">\(\delta_{\text{tip}}\)</span>. Because the model is linear, the shape is preserved.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key observation: because the model is linear, <strong>the push-forward inherits the shape of the input distribution</strong>. A <span class="math inline">\(\normal\)</span> input produces a <span class="math inline">\(\normal\)</span> output; a uniform input would produce a uniform output. This simple relationship breaks down for nonlinear models.</p>
 </section>
 <section id="a-nonlinear-model-uncertain-material-properties" class="level2">
@@ -1152,25 +1183,81 @@ q = f(\params)
 \delta_{\text{tip}} = \frac{11\, q_0\, L^4}{120\, E I} \propto \frac{1}{E}
 \]</span></p>
 <p>This is a <strong>nonlinear</strong> function of <span class="math inline">\(E\)</span>: the relationship <span class="math inline">\(\delta_{\text{tip}} \propto 1/E\)</span> means that a symmetric distribution on <span class="math inline">\(E\)</span> produces an asymmetric distribution on <span class="math inline">\(\delta_{\text{tip}}\)</span>. Small values of <span class="math inline">\(E\)</span> cause disproportionately large deflections.</p>
-<p><strong>?@fig-nonlinear-propagation</strong> illustrates this. Even though the input distribution on <span class="math inline">\(E\)</span> is symmetric (<span class="math inline">\(\normal\)</span>), the output distribution is right-skewed. The nonlinearity of the model has <strong>distorted</strong> the shape.</p>
+<p><a href="#fig-nonlinear-propagation" class="quarto-xref">Figure&nbsp;3</a> illustrates this. Even though the input distribution on <span class="math inline">\(E\)</span> is symmetric (<span class="math inline">\(\normal\)</span>), the output distribution is right-skewed. The nonlinearity of the model has <strong>distorted</strong> the shape.</p>
+<div id="cell-fig-nonlinear-propagation" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-nonlinear-propagation" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-nonlinear-propagation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-nonlinear-propagation-output-1.png" width="1143" height="323" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-nonlinear-propagation-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Nonlinear propagation of uncertainty. The tip deflection is proportional to <span class="math inline">\(1/E\)</span>, so a symmetric Gaussian input on <span class="math inline">\(E\)</span> produces a right-skewed output distribution. The red dashed curve is a Gaussian with matching mean and variance — the actual push-forward is clearly non-Gaussian.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This is the generic situation in UQ: most models of interest are nonlinear, so the push-forward distribution has a different shape than the input, and its properties cannot be deduced from the input distribution alone — they must be computed.</p>
 </section>
 <section id="different-inputs-and-models-produce-different-push-forwards" class="level2">
 <h2 class="anchored" data-anchor-id="different-inputs-and-models-produce-different-push-forwards">Different Inputs and Models Produce Different Push-Forwards</h2>
 <p>Two factors determine the push-forward distribution: the input distribution and the model. Changing either one changes the output.</p>
-<p><strong>?@fig-different-priors</strong> shows the same beam model evaluated with two different input distributions on <span class="math inline">\(E\)</span>: a narrow one (low uncertainty) and a wide one (high uncertainty). The push-forward distributions differ in both spread and shape — the wider input produces a heavier right tail because the <span class="math inline">\(1/E\)</span> nonlinearity amplifies low-stiffness samples.</p>
-<p><strong>?@fig-different-models</strong> shows the complementary effect: the <strong>same</strong> input distribution evaluated with two different models. Both use the Euler-Bernoulli formula but with different beam lengths:</p>
+<p><a href="#fig-different-priors" class="quarto-xref">Figure&nbsp;4</a> shows the same beam model evaluated with two different input distributions on <span class="math inline">\(E\)</span>: a narrow one (low uncertainty) and a wide one (high uncertainty). The push-forward distributions differ in both spread and shape — the wider input produces a heavier right tail because the <span class="math inline">\(1/E\)</span> nonlinearity amplifies low-stiffness samples.</p>
+<div id="cell-fig-different-priors" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-different-priors" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-different-priors-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-different-priors-output-1.png" width="1047" height="323" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-different-priors-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Same model, different inputs. A narrow input distribution on <span class="math inline">\(E\)</span> (10% CV, blue) produces a concentrated output; a wide input (25% CV, red) produces a broader, more skewed output. The choice of input distribution directly affects the conclusions we draw about the QoI.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><a href="#fig-different-models" class="quarto-xref">Figure&nbsp;5</a> shows the complementary effect: the <strong>same</strong> input distribution evaluated with two different models. Both use the Euler-Bernoulli formula but with different beam lengths:</p>
 <p><span class="math display">\[
 f_1(E) = \frac{11\, q_0\, L_1^4}{120\, E\, I}, \qquad
 f_2(E) = \frac{11\, q_0\, L_2^4}{120\, E\, I}
 \]</span></p>
 <p>Because deflection scales as <span class="math inline">\(L^4\)</span>, even a modest change in length significantly shifts the push-forward distribution. Both models receive identical random samples of <span class="math inline">\(E\)</span>, but produce different outputs.</p>
+<div id="cell-fig-different-models" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-different-models" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-different-models-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-different-models-output-1.png" width="1047" height="323" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-different-models-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Same input, different models. Identical samples of <span class="math inline">\(E\)</span> are propagated through two Euler-Bernoulli beam models with different lengths (<span class="math inline">\(L_1 = 100\)</span>, <span class="math inline">\(L_2 = 110\)</span>). The <span class="math inline">\(L^4\)</span> dependence amplifies the length difference, shifting and broadening the push-forward.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>These two figures illustrate a fundamental point: <strong>the push-forward distribution depends on both the input distribution and the model.</strong> Getting either one wrong changes the conclusions. This is why UQ must address parameter uncertainty and model-form uncertainty as complementary concerns.</p>
 </section>
 <section id="the-push-forward-pdf-and-summary-statistics" class="level2">
 <h2 class="anchored" data-anchor-id="the-push-forward-pdf-and-summary-statistics">The Push-Forward PDF and Summary Statistics</h2>
 <p>The push-forward distribution <span class="math inline">\(\pdf_q(q)\)</span> is the complete answer to the forward UQ problem — it tells us the probability of every possible value of the QoI. In principle, if we know this density, we know everything.</p>
-<p>In practice, however, decision makers rarely need the full PDF. They need specific numbers that answer specific questions. <strong>?@fig-summary-statistics</strong> illustrates the most common <strong>summary statistics</strong> extracted from a push-forward distribution:</p>
+<p>In practice, however, decision makers rarely need the full PDF. They need specific numbers that answer specific questions. <a href="#fig-summary-statistics" class="quarto-xref">Figure&nbsp;6</a> illustrates the most common <strong>summary statistics</strong> extracted from a push-forward distribution:</p>
+<div id="cell-fig-summary-statistics" class="cell" data-execution_count="6">
+<div class="cell-output cell-output-display">
+<div id="fig-summary-statistics" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-summary-statistics-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="forward_uq_files/figure-html/fig-summary-statistics-output-1.png" width="951" height="419" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-summary-statistics-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Summary statistics extracted from a push-forward PDF. The mean and median locate the center; the standard deviation and quantile interval describe the spread; the failure probability quantifies the chance that the QoI exceeds a critical threshold.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>Each statistic answers a different question:</p>
 <ul>
 <li><strong>Mean</strong> <span class="math inline">\(\E_{\params}[q]\)</span>: What is the average prediction? Useful for design targets and expected performance.</li>

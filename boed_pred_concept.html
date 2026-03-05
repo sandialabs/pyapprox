@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="Goal-Oriented Bayesian OED: Designing for Prediction – PyApprox">
 <meta property="og:description" content="Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/boed_pred_concept_files/figure-html/fig-pushforward-intuition-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="1644">
+<meta property="og:image:width" content="1818">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1121,6 +1124,20 @@ f(\boldsymbol{\theta}, x)
 \quad x \in [0, 1],
 \]</span></p>
 <p>with prior <span class="math inline">\(\theta_1 \sim \mathcal{N}(0, 4)\)</span>, <span class="math inline">\(\theta_2 \sim \mathcal{N}(0, 0.25)\)</span>, noise <span class="math inline">\(\sigma_n = 0.5\)</span>, and QoI <span class="math inline">\(q(\boldsymbol{\theta}) = \theta_2\)</span>. A sensor at <span class="math inline">\(x=0\)</span> measures only <span class="math inline">\(\theta_1\)</span> (since <span class="math inline">\(\cos 0 = 1\)</span>, <span class="math inline">\(\sin 0 = 0\)</span>). A sensor at <span class="math inline">\(x=1\)</span> measures only <span class="math inline">\(\theta_2\)</span> (since <span class="math inline">\(\cos\tfrac{\pi}{2} = 0\)</span>, <span class="math inline">\(\sin\tfrac{\pi}{2} = 1\)</span>). Both sensors generate identical EIG up to a scalar — yet only one reduces prediction uncertainty.</p>
+<div id="cell-fig-pushforward-intuition" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-pushforward-intuition" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pushforward-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_pred_concept_files/figure-html/fig-pushforward-intuition-output-1.png" width="909" height="822" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pushforward-intuition-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Top row: 2D posterior ellipses (1σ and 2σ) in parameter space for each design. The green double-headed arrow marks the QoI direction θ₂. Design A (EIG-optimal) tightly constrains θ₁ but leaves the ellipse width in the θ₂ direction unchanged; Design B constrains θ₂ directly. Bottom row: the resulting 1D push-forward distributions p(q(θ)|y,w). Design A’s push-forward is identical to the prior — the experiment gave zero benefit for prediction. Design B’s push-forward is 30% narrower.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key insight: Design A has <strong>4× higher EIG</strong> because it reduces uncertainty about the high-variance parameter <span class="math inline">\(\theta_1\)</span> — but <span class="math inline">\(\theta_1\)</span> is irrelevant to the QoI. Its posterior ellipse shrinks in the <span class="math inline">\(\theta_1\)</span> direction (horizontal), leaving the <span class="math inline">\(\theta_2\)</span> direction (vertical, green arrow) unchanged. The push-forward is <strong>identical to the prior</strong>. Design B has lower EIG but directly constrains <span class="math inline">\(\theta_2\)</span>, giving a 30% narrower push-forward.</p>
 <p><strong>Goal-oriented OED</strong> replaces the EIG criterion with a utility that directly measures prediction uncertainty after the experiment.</p>
 </section>
@@ -1150,6 +1167,20 @@ U(\mathbf{w}) =
 <section id="the-push-forward-as-an-average" class="level2">
 <h2 class="anchored" data-anchor-id="the-push-forward-as-an-average">The Push-Forward as an Average</h2>
 <p>Like EIG, the goal-oriented utility <span class="math inline">\(U(\mathbf{w})\)</span> is an expectation over observations. For each outer sample <span class="math inline">\(\mathbf{y}^{(m)}\)</span> you obtain a different posterior push-forward, and <span class="math inline">\(U(\mathbf{w})\)</span> averages their variance.</p>
+<div id="cell-fig-utility-as-average" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-utility-as-average" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-utility-as-average-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_pred_concept_files/figure-html/fig-utility-as-average-output-1.png" width="1138" height="435" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-utility-as-average-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Left: 12 outer samples each produce a push-forward posterior p(q|y^(m),w) (thin blue curves). For the linear Gaussian model, all have the same width (variance does not depend on the specific observation). The utility U(w) equals this common variance. The grey dashed curve is the prior push-forward. Right: EIG(x) (orange, left axis) and push-forward std (blue dashed, right axis) as functions of a single-sensor location. The two criteria are maximised/minimised at opposite ends of the domain — EIG peaks at x=0 (where θ₁ is measured), prediction utility peaks at x=1 (where θ₂ is measured).
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The right panel crystallises the key tension: EIG peaks at <span class="math inline">\(x=0\)</span> because a sensor there explains most of the prior variance (all from <span class="math inline">\(\theta_1\)</span>). The push-forward std is <strong>minimised at the opposite end</strong>, <span class="math inline">\(x=1\)</span>, because only there does a sensor directly constrain <span class="math inline">\(\theta_2\)</span>. Every intermediate location involves a tradeoff, and the two criteria rank them in reverse order.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1183,6 +1214,20 @@ U(\mathbf{w}) = \mathbb{E}_{p(\mathbf{y} \mid \mathbf{w})}
 </ol>
 <p>A key difference from the EIG estimator: for goal-oriented OED, the <strong>inner loop dominates</strong> convergence because the posterior variance involves a quadratic combination of QoI values and likelihoods. This is the opposite of EIG, where the outer loop dominates. The <a href="./boed_pred_usage.html">usage tutorial</a> demonstrates this numerically.</p>
 <p>The figure below shows how the push-forward shrinks as sensors accumulate under each design, and the utility landscape for a single-sensor sweep — the direct parallel to the <a href="./boed_kl_concept.html#fig-posterior-shrinkage">posterior-shrinkage figure</a> in the KL-OED tutorial.</p>
+<div id="cell-fig-pushforward-shrinkage" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-pushforward-shrinkage" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pushforward-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="boed_pred_concept_files/figure-html/fig-pushforward-shrinkage-output-1.png" width="1235" height="397" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pushforward-shrinkage-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Left: push-forward std of q(θ)=θ₂ as sensors are added for the EIG-optimal design (x=0, orange) and the Pred-OED-optimal design (x=1, blue). Design A never reduces prediction uncertainty regardless of how many sensors are added — it is exactly at the prior std for all K. Middle: push-forward PDFs at K=5 sensors; Design B’s push-forward is 2.5× narrower. Right: goal-oriented utility landscape (push-forward std vs.&nbsp;sensor location) for a single sensor, showing the monotone improvement as x→1.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>Design A sensors at <span class="math inline">\(x=0\)</span> measure only <span class="math inline">\(\theta_1\)</span>. Adding arbitrarily many of them never reduces <span class="math inline">\(\theta_2\)</span> uncertainty — the left panel’s orange line is perfectly flat at the prior std for every <span class="math inline">\(K\)</span>. Design B at <span class="math inline">\(x=1\)</span> monotonically tightens the push-forward, reaching std = 0.20 at <span class="math inline">\(K=5\)</span> versus 0.50 for Design A. The right panel confirms the utility landscape is monotone in <span class="math inline">\(x\)</span>: every step toward <span class="math inline">\(x=1\)</span> improves prediction.</p>
 </section>
 <section id="key-takeaways" class="level2">

@@ -220,7 +220,10 @@ window.Quarto = {
 
 <meta property="og:title" content="What Makes a Good Surrogate? – PyApprox">
 <meta property="og:description" content="How the choice of ansatz, training data, and fitting strategy affect surrogate quality, and how different surrogates exploit different kinds of function structure.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/surrogate_design_files/figure-html/fig-ansatz-vs-structure-output-1.png">
 <meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="1420">
+<meta property="og:image:width" content="2090">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -1131,6 +1134,20 @@ window.Quarto = {
 <h3 class="anchored" data-anchor-id="discontinuous-functions-global-polynomials-fail">Discontinuous Functions: Global Polynomials Fail</h3>
 <p>Now consider a function with a jump discontinuity. A global polynomial is infinitely differentiable everywhere — it is structurally incapable of representing a sharp jump. No matter how many terms we add, the polynomial will overshoot and oscillate near the discontinuity. This is the <strong>Gibbs phenomenon</strong>, and it is a fundamental limitation of smooth bases applied to non-smooth functions.</p>
 <p>A <strong>piecewise polynomial</strong> basis, by contrast, can place a breakpoint at (or near) the discontinuity and represent each smooth piece independently.</p>
+<div id="cell-fig-ansatz-vs-structure" class="cell" data-execution_count="1">
+<div class="cell-output cell-output-display">
+<div id="fig-ansatz-vs-structure" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ansatz-vs-structure-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-ansatz-vs-structure-output-1.png" width="1045" height="710" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ansatz-vs-structure-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Top row: a smooth function approximated by a global polynomial (left) and a piecewise polynomial (right). Both work well, but the global polynomial is more efficient — it needs fewer terms. Bottom row: a discontinuous function. The global polynomial oscillates wildly near the jump (Gibbs phenomenon), while the piecewise polynomial handles it cleanly.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The lesson is general: every basis encodes assumptions about the target function. When those assumptions are met, convergence is fast. When they are violated, no amount of data or optimisation will compensate. The rest of this tutorial surveys how different surrogate methods encode different structural assumptions.</p>
 </section>
 </section>
@@ -1146,12 +1163,40 @@ window.Quarto = {
 \]</span></p>
 <p>where each <span class="math inline">\(\Psi_j\)</span> is a product of univariate polynomials chosen to be <strong>orthogonal with respect to the input probability measure</strong>. Gaussian inputs get Hermite polynomials, uniform inputs get Legendre polynomials, and so on.</p>
 <p>The structure that PCE exploits is <strong>smoothness</strong>: if <span class="math inline">\(f\)</span> is smooth, its polynomial expansion coefficients decay rapidly, so a moderate number of terms gives a good approximation. The connection to the input measure is a bonus — orthogonality means the expansion coefficients directly encode statistical moments, making downstream UQ essentially free once the surrogate is fitted.</p>
+<div id="cell-fig-pce-coefficient-decay" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-pce-coefficient-decay" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-pce-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-pce-coefficient-decay-output-1.png" width="1043" height="324" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pce-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: PCE coefficients for a smooth function (left) decay rapidly — a few terms capture most of the variance. For a rough function (right) the coefficients decay slowly, requiring many more terms for the same accuracy.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>PCEs work best when the function is smooth and the number of important input variables is moderate. For details on building and fitting a PCE, see <a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a>.</p>
 </section>
 <section id="sparse-grids-exploiting-anisotropy" class="level3">
 <h3 class="anchored" data-anchor-id="sparse-grids-exploiting-anisotropy">Sparse Grids: Exploiting Anisotropy</h3>
 <p>Many multivariate functions are <strong>anisotropic</strong>: some input variables have a much stronger effect on the output than others. A full tensor-product polynomial basis allocates the same resolution to every variable, wasting effort on directions that contribute little.</p>
 <p><strong>Sparse grids</strong> address this by building an approximation from a carefully selected subset of tensor-product terms. The idea is rooted in the <strong>Smolyak construction</strong>: instead of requiring high resolution in all <span class="math inline">\(d\)</span> dimensions simultaneously, we combine many lower-dimensional approximations that each resolve one or two directions well.</p>
+<div id="cell-fig-sparse-grid-points" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<div id="fig-sparse-grid-points" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sparse-grid-points-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-sparse-grid-points-output-1.png" width="1191" height="384" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sparse-grid-points-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Left: a full tensor-product grid in 2D with 9 points per dimension (81 total). Centre: a Smolyak sparse grid at comparable accuracy (32 points). Right: an anisotropic sparse grid that allocates more resolution to the important variable x₁ (26 points). Sparse grids dramatically reduce the number of required evaluations by avoiding the corners of the full grid.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The key insight is that sparse grids <strong>allocate resolution where it matters</strong>. If <span class="math inline">\(x_1\)</span> drives most of the output variability and <span class="math inline">\(x_2\)</span> has only a mild effect, an anisotropic sparse grid puts many more points along <span class="math inline">\(x_1\)</span> and only a coarse resolution along <span class="math inline">\(x_2\)</span>. This can reduce the required number of evaluations from <span class="math inline">\(n^d\)</span> (full grid) to something closer to <span class="math inline">\(n \log(n)^{d-1}\)</span> for isotropic sparse grids, with further savings when anisotropy is exploited.</p>
 </section>
 <section id="function-trains-exploiting-low-rank-structure" class="level3">
@@ -1166,6 +1211,20 @@ f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)
 f(x_1, \ldots, x_d) = \mathbf{G}_1(x_1) \cdot \mathbf{G}_2(x_2) \cdots \mathbf{G}_d(x_d)
 \]</span></p>
 <p>where each <strong>core</strong> <span class="math inline">\(\mathbf{G}_k(x_k)\)</span> is a matrix whose entries are univariate functions. The shared matrix dimensions — the <strong>ranks</strong> — control how much interaction between variables the FT can represent.</p>
+<div id="cell-fig-low-rank" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-low-rank" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-low-rank-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-low-rank-output-1.png" width="1226" height="386" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-low-rank-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: A rank-1 function (left) is a product of two 1D functions — its contours are perfectly aligned with the coordinate axes. A rank-2 function (centre) is a sum of two such products, enabling richer structure like multiple peaks. A generic function (right) may require many terms, but low-rank approximations often capture most of the variability with surprisingly small rank.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The computational advantage is dramatic: a full polynomial expansion in <span class="math inline">\(d\)</span> variables at degree <span class="math inline">\(p\)</span> has <span class="math inline">\(\binom{d+p}{d}\)</span> terms, growing exponentially in <span class="math inline">\(d\)</span>. A rank-<span class="math inline">\(r\)</span> function train has <span class="math inline">\(\mathcal{O}(d \cdot r^2 \cdot p)\)</span> parameters — <strong>linear in <span class="math inline">\(d\)</span></strong> for fixed rank. This makes FTs one of the few surrogate methods that scale to truly high-dimensional problems, provided the function has low effective rank.</p>
 <p>For a detailed construction of function trains, see <a href="./function_train_surrogates.html">An Introduction to Function Trains</a>.</p>
 </section>
@@ -1180,6 +1239,20 @@ f(x_1, \ldots, x_d) = \mathbf{G}_1(x_1) \cdot \mathbf{G}_2(x_2) \cdots \mathbf{G
 <li><strong>Anisotropic length scales</strong> (one per input dimension) let the GP learn which variables the function varies along most rapidly</li>
 </ul>
 <p>The defining advantage of a GP over other surrogates is that it provides built-in <strong>uncertainty quantification</strong>. At every prediction point, the GP returns not just a best estimate <span class="math inline">\(\mu^*(\mathbf{x})\)</span> but also a posterior standard deviation <span class="math inline">\(\sigma^*(\mathbf{x})\)</span> that reflects how far the point is from the training data.</p>
+<div id="cell-fig-gp-uncertainty" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-gp-uncertainty" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gp-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-gp-uncertainty-output-1.png" width="757" height="374" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gp-uncertainty-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: A GP surrogate (blue line) with posterior uncertainty (shaded ±2σ band). Near training points (black dots) the band narrows to near zero — the GP is confident. Between observations the band widens, honestly reporting where the surrogate is uncertain. This built-in uncertainty is the GP’s defining feature.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This uncertainty information is valuable beyond accuracy assessment. It enables <strong>adaptive sampling</strong> strategies that place new training points where the GP is most uncertain, systematically filling gaps in data coverage. For details, see <a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a>.</p>
 </section>
 <section id="neural-networks-compositional-structure" class="level3">
@@ -1255,10 +1328,38 @@ f(x_1, \ldots, x_d) = \mathbf{G}_1(x_1) \cdot \mathbf{G}_2(x_2) \cdots \mathbf{G
 <section id="quasi-monte-carlo-better-coverage" class="level3">
 <h3 class="anchored" data-anchor-id="quasi-monte-carlo-better-coverage">Quasi-Monte Carlo: Better Coverage</h3>
 <p><strong>Quasi-Monte Carlo (QMC)</strong> sequences — such as Sobol, Halton, or lattice rules — are deterministic point sets designed to fill the domain more evenly than random samples. They minimise the <strong>discrepancy</strong> (a measure of how unevenly the points cover the space).</p>
+<div id="cell-fig-mc-vs-qmc" class="cell" data-execution_count="6">
+<div class="cell-output cell-output-display">
+<div id="fig-mc-vs-qmc" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-mc-vs-qmc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-mc-vs-qmc-output-1.png" width="877" height="421" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mc-vs-qmc-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: 256 sample points in 2D drawn by Monte Carlo (left) and a Sobol quasi-Monte Carlo sequence (right). The MC samples cluster and leave visible gaps. The Sobol sequence covers the domain much more uniformly, which translates directly to better surrogate accuracy for the same number of evaluations.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 </section>
 <section id="better-coverage-better-surrogates" class="level3">
 <h3 class="anchored" data-anchor-id="better-coverage-better-surrogates">Better Coverage → Better Surrogates</h3>
 <p>The improved space-filling of QMC translates directly to better surrogate accuracy for the same <span class="math inline">\(N\)</span>. The following experiment fits the same polynomial surrogate to 1D training data drawn by MC and QMC, repeated over many random seeds to show the variability.</p>
+<div id="cell-fig-sampling-convergence" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-sampling-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-sampling-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-sampling-convergence-output-1.png" width="659" height="418" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sampling-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;7: Surrogate error vs.&nbsp;number of training points for Monte Carlo (blue) and Sobol QMC (orange) sampling. Bands show the 10th–90th percentile range over 50 repetitions (QMC uses different scrambles). QMC consistently achieves lower error with less variability, especially at small N where every sample point matters most.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>The practical message: <strong>before spending the budget on more evaluations, consider whether the same budget spent on better-placed evaluations would help more.</strong> This is especially important when each evaluation is expensive and the budget is small.</p>
 </section>
 </section>
@@ -1266,6 +1367,20 @@ f(x_1, \ldots, x_d) = \mathbf{G}_1(x_1) \cdot \mathbf{G}_2(x_2) \cdots \mathbf{G
 <h2 class="anchored" data-anchor-id="the-curse-of-dimensionality">The Curse of Dimensionality</h2>
 <p>Everything above becomes dramatically harder in high dimensions. To understand why, consider the simplest approach to approximating a <span class="math inline">\(d\)</span>-dimensional function: evaluate it on a grid.</p>
 <p>With <span class="math inline">\(n\)</span> points per dimension, the total number of grid points is <span class="math inline">\(n^d\)</span>. Even a modest <span class="math inline">\(n = 10\)</span> becomes completely infeasible in moderate dimensions:</p>
+<div id="cell-fig-curse-of-dimensionality" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<div id="fig-curse-of-dimensionality" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-curse-of-dimensionality-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="surrogate_design_files/figure-html/fig-curse-of-dimensionality-output-1.png" width="894" height="371" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-curse-of-dimensionality-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8: The curse of dimensionality: grid points required for n = 10 points per dimension. At d = 5 we already need 100,000 evaluations. By d = 10, the count exceeds any computational budget. This exponential scaling is why surrogate methods must exploit function structure — smoothness, anisotropy, low rank — to break the curse.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
 <p>This is why <strong>exploiting structure is not optional in high dimensions — it is the only way forward</strong>:</p>
 <ul>
 <li><strong>PCEs</strong> with total-degree index sets grow as <span class="math inline">\(\binom{d+p}{d}\)</span> instead of <span class="math inline">\(p^d\)</span>, but this is still exponential for fixed <span class="math inline">\(p\)</span>. Sparse and low-rank PCE methods push this further.</li>
