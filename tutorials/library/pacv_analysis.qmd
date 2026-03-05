@@ -391,7 +391,7 @@ Every PACV estimator fits the general ACV framework from
 [General ACV Analysis](acv_many_models_analysis.qmd). For a given recursion index and
 family, the allocation matrix determines the sample-set intersection sizes, which
 in turn determine $\boldsymbol{\Sigma}_{\Delta\Delta}$ and $\boldsymbol{\Sigma}_{\Delta Q_0}$.
-The optimal variance formula is always @eq-acv-min-cov:
+The optimal variance formula is always the Schur-complement form from that tutorial:
 
 $$
 \mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}})

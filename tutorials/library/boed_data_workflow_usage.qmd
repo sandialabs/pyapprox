@@ -308,8 +308,3 @@ plt.show()
    the same total number of samples. Is there a visible difference in the
    weight distribution?
 
-## Next Steps
-
-- [Surrogate-Accelerated Bayesian OED](boed_surrogate_usage.qmd) — replacing
-  expensive PDE calls with a sparse-grid surrogate to enable much larger sample
-  budgets

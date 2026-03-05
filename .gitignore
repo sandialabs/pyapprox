@@ -40,3 +40,8 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+# Quarto
+_freeze/
+_site/
+.quarto/

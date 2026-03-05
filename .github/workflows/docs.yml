@@ -27,7 +27,14 @@ jobs:
           pip install ipykernel
           python -m ipykernel install --user
       - name: Render tutorials
-        run: cd tutorials && ./build.sh -j auto --notebooks
+        run: cd tutorials && ./build.sh --notebooks 2>&1 | tee /tmp/quarto-build.log
+      - name: Check for unresolved crossrefs
+        run: |
+          if grep "Unable to resolve crossref\|Unable to resolve link target" /tmp/quarto-build.log | grep -v "notebooks/.*\.ipynb" | grep -q .; then
+            echo "ERROR: Unresolved crossrefs or link targets found:"
+            grep "Unable to resolve crossref\|Unable to resolve link target" /tmp/quarto-build.log | grep -v "notebooks/.*\.ipynb"
+            exit 1
+          fi
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4

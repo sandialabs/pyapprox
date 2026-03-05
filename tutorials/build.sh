@@ -292,10 +292,10 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         rmdir "${name}_files" 2>/dev/null || true
     done
 
-    # Assemble full site (no execution needed, _freeze/ is populated)
+    # Assemble full site from freeze cache (_freeze/ is populated)
     echo ""
     echo "  Assembling site..."
-    quarto render --no-execute
+    quarto render
 
     if [ -n "$TIMINGS" ]; then
         echo ""
