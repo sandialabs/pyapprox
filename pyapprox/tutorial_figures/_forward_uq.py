@@ -6,7 +6,6 @@ Covers: forward_uq.qmd, random_variables_distributions.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # forward_uq.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
@@ -16,9 +15,9 @@ def plot_forward_uq_schematic(ax_in, ax_mid, ax_out):
 
     Input distribution → model box → push-forward distribution.
     """
-    from scipy.stats import norm
     from matplotlib.patches import FancyBboxPatch
-    from ._style import apply_style
+    from scipy.stats import norm
+
 
     # Left: input distribution (2D contour)
     t1 = np.linspace(-3, 3, 200)
@@ -75,10 +74,12 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
     Linear propagation: Gaussian in → Gaussian out.
     """
     from scipy.stats import norm
-    from pyapprox.util.backends.numpy import NumpyBkd
+
     from pyapprox.pde.galerkin.physics.euler_bernoulli import (
         EulerBernoulliBeamFEM,
     )
+    from pyapprox.util.backends.numpy import NumpyBkd
+
     from ._style import apply_style
 
     bkd = NumpyBkd()
@@ -143,6 +144,7 @@ def plot_nonlinear_propagation(ax_in, ax_mid, ax_out):
     Nonlinear (1/E) propagation: Gaussian in → skewed out.
     """
     from scipy.stats import norm
+
     from ._style import apply_style
 
     L, H, q0_nom = 100.0, 30.0, 10.0
@@ -261,7 +263,7 @@ def plot_different_models(ax1, ax2):
     """
     from ._style import apply_style
 
-    L, H, q0_nom = 100.0, 30.0, 10.0
+    _, H, q0_nom = 100.0, 30.0, 10.0
     A_skin = 2 * 5.0 * 1.0
     A_core = 20.0 * 1.0
     E_mean = (A_skin * 2e4 + A_core * 5e3) / (A_skin + A_core)
@@ -307,6 +309,7 @@ def plot_summary_statistics(delta_nonlinear, ax):
     Accepts pre-computed nonlinear delta samples.
     """
     from scipy.stats import gaussian_kde
+
     from ._style import apply_style
 
     kde = gaussian_kde(delta_nonlinear)
@@ -523,15 +526,16 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
 
     Deflected beam shapes for two KLE parameter values, colored by EI.
     """
-    from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-        EulerBernoulliBeamFEM,
-    )
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import Normalize
+
     from pyapprox.pde.field_maps.kle_factory import (
         create_lognormal_kle_field_map,
     )
-    from matplotlib.collections import LineCollection
-    from matplotlib.colors import Normalize
-    import matplotlib.pyplot as plt
+    from pyapprox.pde.galerkin.physics.euler_bernoulli import (
+        EulerBernoulliBeamFEM,
+    )
 
     nx, length, EI_mean, q0 = 40, 100.0, 1e6, 1.0
     sigma, corr_len, num_kle = 0.3, 0.3, 2
@@ -610,10 +614,12 @@ def plot_samples_and_surface(model, samples, qoi_values, bkd, ax1, ax2,
 
     Samples in input space and response surface with samples overlaid.
     """
+    from matplotlib.patches import FancyArrowPatch
+
     from pyapprox.interface.functions.plot.plot2d_rectangular import (
         Plotter2DRectangularDomain,
     )
-    from matplotlib.patches import FancyArrowPatch
+
     from ._style import apply_style
 
     samples_np = bkd.to_numpy(samples)
@@ -764,7 +770,6 @@ def plot_mean_mse_convergence(model, variable, true_var, bkd, ax):
 
     Log-log convergence of MC mean estimator variance.
     """
-    from ._style import apply_style
 
     n_reps = 500
     M_values = [10, 20, 50, 100, 200, 500, 1000]
@@ -879,7 +884,6 @@ def plot_diagonal_variances(empirical_est_cov, theoretical_est_cov,
 
     Bar chart of individual estimator variances (diagonal entries).
     """
-    from ._style import apply_style
 
     n_stats = len(labels)
     empirical_diag = np.diag(empirical_est_cov)

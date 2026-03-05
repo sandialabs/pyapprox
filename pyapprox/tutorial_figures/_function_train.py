@@ -6,7 +6,6 @@ Covers: function_train_surrogates.qmd, functiontrain_sensitivity.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # function_train_surrogates.qmd — echo:false figures → Convention A
 # ---------------------------------------------------------------------------
@@ -339,14 +338,14 @@ def plot_ft_rank_comparison(
 
     FT approximation quality vs rank for a rank-2 target.
     """
-    from pyapprox.surrogates.functiontrain import (
-        create_pce_functiontrain,
-        ALSFitter,
-    )
-    from pyapprox.surrogates.functiontrain.fitters import MSEFitter
     from pyapprox.interface.functions.plot.plot2d_rectangular import (
         Plotter2DRectangularDomain,
     )
+    from pyapprox.surrogates.functiontrain import (
+        ALSFitter,
+        create_pce_functiontrain,
+    )
+    from pyapprox.surrogates.functiontrain.fitters import MSEFitter
 
     npts = 100
     for ax, rank in zip(axes, [1, 2, 4]):
@@ -445,15 +444,15 @@ def plot_ft_decomposition(all_S, ax):
     ]
 
     colors = [
-        'tab:blue' if len(eval(l)) == 1
-        else 'tab:orange' if len(eval(l)) == 2
+        'tab:blue' if len(eval(lb)) == 1
+        else 'tab:orange' if len(eval(lb)) == 2
         else 'tab:green'
-        for l in labels
+        for lb in labels
     ]
 
     ax.bar(range(len(values)), values, color=colors, alpha=0.8)
     ax.set_xticks(range(len(labels)))
-    ax.set_xticklabels([f'$S_{{{l[1:-1]}}}$' for l in labels])
+    ax.set_xticklabels([f'$S_{{{lb[1:-1]}}}$' for lb in labels])
     ax.set_ylabel('Sobol Index')
     ax.set_title('Sobol Index Decomposition (Ishigami)')
 

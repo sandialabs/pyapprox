@@ -84,7 +84,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         mu_values : float or Array
             Shear modulus values. Must be positive.
         """
-        min_val = self._bkd.to_float(self._bkd.min(self._bkd.asarray(mu_values).ravel()))
+        mu_arr = self._bkd.asarray(mu_values).ravel()
+        min_val = self._bkd.to_float(self._bkd.min(mu_arr))
         if min_val <= 0.0:
             raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         self._stress_model.set_mu(mu_values)
@@ -97,7 +98,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda_values : float or Array
             Lame's first parameter values. Must be non-negative.
         """
-        min_val = self._bkd.to_float(self._bkd.min(self._bkd.asarray(lamda_values).ravel()))
+        lam_arr = self._bkd.asarray(lamda_values).ravel()
+        min_val = self._bkd.to_float(self._bkd.min(lam_arr))
         if min_val < 0.0:
             raise ValueError(f"lamda must be non-negative; found min {min_val:.2e}")
         self._stress_model.set_lamda(lamda_values)

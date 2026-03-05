@@ -184,7 +184,8 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         self._constraint.set_budget(target_cost, min_nhf)
 
         # Set up bounds
-        max_npartition_samples = target_cost / self._bkd.to_float(self._bkd.min(self._est._costs)) + 1
+        min_cost = self._bkd.to_float(self._bkd.min(self._est._costs))
+        max_npartition_samples = target_cost / min_cost + 1
         bounds = self._bkd.array(
             [[0.0, max_npartition_samples]] * self._est.npartitions()
         )
@@ -204,7 +205,9 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             return GroupACVAllocationResult(
                 npartition_samples=init_guess[:, 0],
                 nsamples_per_model=nsamples_per_model,
-                actual_cost=self._bkd.to_float(self._est._estimator_cost(init_guess[:, 0])),
+                actual_cost=self._bkd.to_float(
+                    self._est._estimator_cost(init_guess[:, 0])
+                ),
                 objective_value=self._bkd.array([float("inf")]),
                 success=False,
                 message=f"Optimization failed: {result.message()}",

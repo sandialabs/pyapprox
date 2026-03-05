@@ -6,7 +6,6 @@ Covers: lagrange_interpolation.qmd, tensor_product_interpolation.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # lagrange_interpolation.qmd
 # ---------------------------------------------------------------------------
@@ -17,6 +16,7 @@ def plot_lagrange_basis(bkd, cc_rule, ax):
     Lagrange basis polynomials for M=5 Clenshaw-Curtis nodes.
     """
     from pyapprox.surrogates.affine.univariate import LagrangeBasis1D
+
     from ._style import apply_style
 
     M = 5
@@ -108,7 +108,6 @@ def plot_nested_cc(cc_rule, bkd, levels, ax):
 
     Nested Clenshaw-Curtis node hierarchies.
     """
-    from ._style import apply_style
 
     colors = ["#2C7FB8", "#E67E22", "#27AE60"]
     y_pos = list(range(len(levels)))
@@ -121,7 +120,7 @@ def plot_nested_cc(cc_rule, bkd, levels, ax):
         ax.axhline(yy, lw=0.4, color=col, alpha=0.4)
 
     ax.set_yticks(y_pos)
-    ax.set_yticklabels([f"$M={l}$" for l in levels], fontsize=12)
+    ax.set_yticklabels([f"$M={lv}$" for lv in levels], fontsize=12)
     ax.set_xlabel("Node location", fontsize=12)
     ax.set_title("Nested Clenshaw-Curtis hierarchies", fontsize=12)
     ax.legend(fontsize=10)
@@ -133,7 +132,6 @@ def plot_interp_convergence(Ms, errors_by_func, labels, ax):
 
     Interpolation error convergence for multiple test functions.
     """
-    from ._style import apply_style
 
     colors = ["#2C7FB8", "#E67E22", "#27AE60"]
     for (errors, label), col in zip(zip(errors_by_func, labels), colors):
@@ -190,7 +188,6 @@ def plot_curse_of_dimensionality(levels, dims, ax):
 
     TP point counts vs refinement level for several dimensions.
     """
-    from ._style import apply_style
 
     def double_plus_one(level):
         if level == 0:
@@ -219,7 +216,6 @@ def plot_2d_convergence(Ms_cc, err_cc_smooth, err_cc_nonsmooth,
 
     2D TP convergence: CC/Lagrange vs piecewise linear, smooth vs non-smooth.
     """
-    from ._style import apply_style
 
     data = [
         (err_cc_smooth, err_pw_smooth),
@@ -306,7 +302,6 @@ def plot_pw_convergence(hs_linear, errors_linear, hs_cubic, errors_cubic, ax):
 
     Piecewise linear and cubic convergence with reference slopes.
     """
-    from ._style import apply_style
 
     ax.loglog(hs_linear, errors_linear, "o-", color="#2C7FB8", lw=2, ms=6,
               label="Linear ($p=1$)")
@@ -328,7 +323,6 @@ def plot_discontinuous(Ms_cc, err_lag, Ms_pw, err_pw, ax):
 
     Kink function error: piecewise linear vs global Lagrange.
     """
-    from ._style import apply_style
 
     ax.loglog(Ms_cc, err_lag, "o-", color="#E67E22", lw=2, ms=6,
               label="Global Lagrange (CC nodes)")
@@ -355,7 +349,6 @@ def plot_leja_growth(bkd, leja_seq, Ms, ax):
 
     Leja sequence growth showing nestedness at multiple sizes.
     """
-    from ._style import apply_style
 
     nodes_full, _ = leja_seq.quadrature_rule(max(Ms))
     nodes_full_np = bkd.to_numpy(nodes_full).ravel()
@@ -385,7 +378,6 @@ def plot_node_distribution(leja_np, M_leja, cc_np, M_cc, gauss_np, M_gauss,
 
     Side-by-side node distributions for Leja, CC, and Gauss-Legendre.
     """
-    from ._style import apply_style
 
     labels = ["Leja (Christoffel)", "Clenshaw-Curtis", "Gauss-Legendre"]
     colors_pts = ["#2C7FB8", "#E67E22", "#27AE60"]
@@ -430,7 +422,6 @@ def plot_leja_convergence(Ms, err_leja, cc_Ms, err_cc, err_gauss, ax):
 
     Interpolation error comparison: Leja vs CC vs Gauss-Legendre.
     """
-    from ._style import apply_style
 
     ax.semilogy(Ms, err_leja, "o-", color="#2C7FB8", lw=2, ms=5,
                 label="Leja (nested, any M)")
@@ -450,7 +441,6 @@ def plot_two_point_quadrature(Ms_quad, err_1pt, err_2pt, ax):
 
     Quadrature error: one-point vs two-point optimized Leja.
     """
-    from ._style import apply_style
 
     ax.semilogy(Ms_quad, err_1pt, "o-", color="#2C7FB8", lw=2, ms=5,
                 label="One-point Leja")

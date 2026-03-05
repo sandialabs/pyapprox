@@ -5,7 +5,6 @@ Covers: kle_introduction.qmd, kle_mesh_and_data_driven.qmd, kle_spde.qmd
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # kle_introduction.qmd — all echo:true → Convention B
 # ---------------------------------------------------------------------------

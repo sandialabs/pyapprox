@@ -421,7 +421,8 @@ class IndependentJoint(Generic[Array]):
                 # Fallback: use sampling
                 samples = marginal.rvs(10000)
                 mean = self._bkd.to_float(self._bkd.sum(samples) / 10000)
-                variances.append(self._bkd.to_float(self._bkd.sum((samples - mean) ** 2) / 10000))
+                var = self._bkd.sum((samples - mean) ** 2) / 10000
+                variances.append(self._bkd.to_float(var))
         return self._bkd.asarray(variances)
 
     def covariance(self) -> Array:

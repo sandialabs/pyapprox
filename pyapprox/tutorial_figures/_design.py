@@ -6,7 +6,6 @@ Covers: experimental_design_intro.qmd, design_under_uncertainty.qmd,
 
 import numpy as np
 
-
 # ====================================================================
 # Private helpers for models_decisions_uncertainty.qmd figures
 # ====================================================================
@@ -26,7 +25,8 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
                 nonlinear=False, max_iter=1):
     """Solve beam with given material map and return solution array."""
     from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
+        DirichletBC,
+        NeumannBC,
     )
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
@@ -65,9 +65,10 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
 def _plot_deformed(ax, coordx, coordy, conn, ext_edges, sol, material_map,
                    sub_elems, L, title, tip_dof, scale=None):
     """Plot deformed mesh colored by von Mises stress."""
-    from matplotlib.collections import PolyCollection, LineCollection
+    from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
     from skfem.models.elasticity import lame_parameters
+
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress_2d
 
     ux_loc, uy_loc = sol[0::2], sol[1::2]
@@ -111,12 +112,12 @@ def _plot_deformed(ax, coordx, coordy, conn, ext_edges, sol, material_map,
 
 def _setup_beam_mesh(mesh_path):
     """Set up beam mesh, basis, connectivity, and exterior edges."""
-    from pyapprox.util.backends.numpy import NumpyBkd
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.benchmarks.instances.pde.cantilever_beam import (
         _find_tip_dof,
     )
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     L, H = 100.0, 30.0
@@ -662,24 +663,26 @@ def plot_reference_solution(fig, ax):
 
     Von Mises stress on the deformed mesh with undeformed outline.
     """
-    from matplotlib.collections import PolyCollection, LineCollection
+    from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
     from skfem.models.elasticity import lame_parameters
+
+    from pyapprox.benchmarks.instances.pde.cantilever_beam import MESH_PATHS
     from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
+        DirichletBC,
+        NeumannBC,
     )
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress_2d
-    from pyapprox.benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     info = _setup_beam_mesh(MESH_PATHS[2])
     bkd = info["bkd"]
     basis, sub_elems = info["basis"], info["sub_elems"]
-    skm, conn = info["skm"], info["conn"]
+    _skm, conn = info["skm"], info["conn"]
     coordx, coordy = info["coordx"], info["coordy"]
     ext_edges, tip_dof = info["ext_edges"], info["tip_dof"]
-    L, H = info["L"], info["H"]
+    L, _H = info["L"], info["H"]
     q0 = 10.0
 
     material_map = {
@@ -770,10 +773,11 @@ def plot_uncertainty_sources(kind, fig, axes):
     axes : pair of Axes
     """
     from pyapprox.benchmarks.instances.pde.cantilever_beam import (
-        MESH_PATHS, _find_tip_dof,
+        MESH_PATHS,
+        _find_tip_dof,
     )
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()

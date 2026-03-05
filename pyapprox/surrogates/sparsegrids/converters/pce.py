@@ -194,7 +194,8 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
             Projection coefficients.
         """
         # Create cache key from nodes (convert to tuple for hashing)
-        nodes_key = tuple(self._bkd.to_float(n) for n in self._bkd.flatten(lagrange_nodes))
+        flat = self._bkd.flatten(lagrange_nodes)
+        nodes_key = tuple(self._bkd.to_float(n) for n in flat)
         cache_key = (dim, nodes_key)
 
         if cache_key not in self._cached_projection_coefs:
@@ -276,7 +277,10 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         nsamples = values.shape[1]  # nsamples is second dimension
         for term_idx in range(nterms):
             # Extract multi-index for this PCE term
-            term_multi_idx = [self._bkd.to_int(indices[dim, term_idx]) for dim in range(self._nvars)]
+            term_multi_idx = [
+                self._bkd.to_int(indices[dim, term_idx])
+                for dim in range(self._nvars)
+            ]
 
             # Sum over all Lagrange basis functions
             for sample_idx in range(nsamples):

@@ -572,7 +572,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._ensure_allocation()
         # Convert to int for rvs call - this is at a boundary where we're
         # generating samples, not computing gradients through rvs
-        ntotal_independent_samples = self._bkd.to_int(self._bkd.sum(self._npartition_samples))
+        npart_sum = self._bkd.sum(self._npartition_samples)
+        ntotal_independent_samples = self._bkd.to_int(npart_sum)
         partition_splits = self._get_partition_splits(self._npartition_samples)
         samples = rvs(ntotal_independent_samples)
         samples_per_model = []

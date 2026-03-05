@@ -7,7 +7,6 @@ Covers: polynomial_chaos_surrogates.qmd, pce_sensitivity.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # polynomial_chaos_surrogates.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
@@ -52,14 +51,15 @@ def plot_pce_convergence(func, prior, marginals, nvars, gt_main, gt_total,
 
     Sobol index convergence with PCE degree (first-order and total-order).
     """
-    from ._style import apply_style
-    from pyapprox.surrogates.affine.expansions.pce import (
-        create_pce_from_marginals,
-    )
+    from pyapprox.sensitivity import PolynomialChaosSensitivityAnalysis
     from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
         LeastSquaresFitter,
     )
-    from pyapprox.sensitivity import PolynomialChaosSensitivityAnalysis
+    from pyapprox.surrogates.affine.expansions.pce import (
+        create_pce_from_marginals,
+    )
+
+    from ._style import apply_style
 
     ls_fitter = LeastSquaresFitter(bkd)
     degrees = [2, 3, 4, 5, 6, 8, 10]
@@ -121,14 +121,13 @@ def plot_truncation_error(model, prior, marginals, nvars, nqoi,
 
     Test-set L2 error vs training size for several total-degree PCEs.
     """
-    from ._style import apply_style
-    from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-    from pyapprox.surrogates.affine.expansions.pce import (
-        create_pce_from_marginals,
-    )
     from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
         LeastSquaresFitter,
     )
+    from pyapprox.surrogates.affine.expansions.pce import (
+        create_pce_from_marginals,
+    )
+    from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 
     ls_fitter = LeastSquaresFitter(bkd)
     vals_np = bkd.to_numpy(values_test)
@@ -398,11 +397,10 @@ def plot_pce_vs_mc(model, prior, marginals, ls_fitter, bkd,
 
     PCE vs MC efficiency: relative error in mean and variance vs budget.
     """
-    from ._style import apply_style
-    from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
     from pyapprox.surrogates.affine.expansions.pce import (
         create_pce_from_marginals,
     )
+    from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
     from pyapprox.surrogates.quadrature import (
         TensorProductQuadratureRule,
         gauss_quadrature_rule,

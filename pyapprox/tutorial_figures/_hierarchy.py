@@ -6,7 +6,6 @@ Covers: mlmc_concept.qmd, mlmc_analysis.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # mlmc_concept.qmd — echo:false figures → Convention A
 # ---------------------------------------------------------------------------
@@ -14,12 +13,14 @@ import numpy as np
 def plot_level_variances(ax1, ax2):
     """mlmc_concept.qmd -> fig-level-variances
 
-    Variance of level corrections vs cost per sample for the 5-model polynomial hierarchy.
+    Variance of level corrections vs cost per sample for the
+    5-model polynomial hierarchy.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
+    from pyapprox.util.backends.numpy import NumpyBkd
+
     from ._style import apply_style
 
     bkd = NumpyBkd()
@@ -72,13 +73,14 @@ def plot_mlmc_vs_mc(axes):
 
     Distribution of MC and MLMC mean estimates at equal total cost.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
-    from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.statest import MLMCEstimator
     from pyapprox.statest.mc_estimator import MCEstimator
+    from pyapprox.statest.statistics import MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
+
     from ._style import apply_style
 
     bkd = NumpyBkd()
@@ -163,7 +165,6 @@ def plot_variance_vs_cost(target_costs_sweep, mc_vars_pred, mc_vars_emp,
 
     MLMC and MC variance vs total cost: predicted lines and empirical markers.
     """
-    from ._style import apply_style
 
     ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#2C7FB8", lw=2,
               label="MC (predicted)")
@@ -209,7 +210,7 @@ def plot_sample_structure(axes):
     Sample allocation diagram for MLMC (independent) vs MFMC (nested).
     """
     import matplotlib.patches as mpatches
-    from ._style import apply_style
+
 
     np.random.seed(42)
 
@@ -289,7 +290,6 @@ def plot_mfmc_variance_verify(target_costs_sweep, mc_vars_pred, mc_vars_emp,
 
     MFMC and MC variance vs total cost: predicted lines and empirical markers.
     """
-    from ._style import apply_style
 
     ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
               label="MC (predicted)")

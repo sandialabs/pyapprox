@@ -9,7 +9,6 @@ Covers: boed_kl_concept.qmd, boed_kl_usage.qmd, boed_kl_estimator.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # boed_kl_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
@@ -148,8 +147,8 @@ def plot_eig_vs_nobs(ax):
 
     EIG vs number of observations for a linear Gaussian model.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(0)
@@ -781,10 +780,10 @@ def plot_pushforward_intuition(ax_A2d, ax_B2d, ax_Apf, ax_Bpf):
 
     for ax_2d, ax_pf, Spost, title, subtitle, color in [
         (ax_A2d, ax_Apf, Spost_A,
-         f"Design A  (EIG-optimal, $x=0$)",
+         "Design A  (EIG-optimal, $x=0$)",
          f"EIG = {eig_A:.2f} nats", ORANGE),
         (ax_B2d, ax_Bpf, Spost_B,
-         f"Design B  (Pred-OED-optimal, $x=1$)",
+         "Design B  (Pred-OED-optimal, $x=1$)",
          f"EIG = {eig_B:.2f} nats", BLUE),
     ]:
         # 2D ellipses

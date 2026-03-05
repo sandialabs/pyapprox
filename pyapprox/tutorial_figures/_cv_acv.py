@@ -7,7 +7,6 @@ Covers: control_variate_concept.qmd, control_variate_analysis.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # control_variate_concept.qmd — all echo:false -> Convention A
 # ---------------------------------------------------------------------------
@@ -223,7 +222,7 @@ def plot_unknown_mean_problem(benchmark, bkd, axes):
     for label, r in scenarios:
         ests = np.empty(n_trials)
         for i in range(n_trials):
-            rng = np.random.default_rng(i)
+            np.random.default_rng(i)
             samples_shared = variable.rvs(N)
             v_hf = bkd.to_numpy(hf_model(samples_shared)).ravel()
             v_lf_shared = bkd.to_numpy(lf_model(samples_shared)).ravel()
@@ -395,8 +394,8 @@ def plot_acv_ceiling(benchmark, bkd, ax):
     Variance/MC variance vs total cost for MLMC, MFMC, ACVMF with CV-k
     limit lines.
     """
+    from pyapprox.statest import GMFEstimator, MFMCEstimator, MLMCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
-    from pyapprox.statest import MLMCEstimator, MFMCEstimator, GMFEstimator
 
     models = benchmark.models()
     costs = benchmark.costs()
@@ -547,7 +546,6 @@ def plot_variance_verification(target_costs_sweep, mc_vars_pred, mc_vars_emp,
 
     MC, MFMC, ACVMF variance vs cost: predicted lines and empirical markers.
     """
-    from ._style import apply_style
 
     ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
               label="MC (predicted)")

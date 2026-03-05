@@ -6,7 +6,6 @@ Covers: multifidelity_sparse_grids.qmd, uq_with_sparse_grids.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # multifidelity_sparse_grids.qmd
 # ---------------------------------------------------------------------------
@@ -101,7 +100,8 @@ def plot_mf_indices_1d(ax, sel_np):
     Selected multi-indices for 1D physical + 1 config variable.
     """
     from pyapprox.surrogates.affine.indices import (
-        plot_indices_2d, format_index_axes,
+        format_index_axes,
+        plot_indices_2d,
     )
 
     plot_indices_2d(
@@ -122,12 +122,16 @@ def plot_mf_animation(fig, ax_idx, ax_fn, snapshots, f1_exact, z_plot_arr):
     Animated multi-index refinement with selected/candidate indices.
     """
     import matplotlib.animation as animation
-    from matplotlib.patches import Patch
     from IPython.display import HTML
+    from matplotlib.patches import Patch
+
     from pyapprox.surrogates.affine.indices import plot_index_sets
 
-    _mf_color = lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
-    _mf_cand_color = lambda idx: "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
+    def _mf_color(idx):
+        return "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
+
+    def _mf_cand_color(idx):
+        return "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
 
     # Compute fixed axis limits from the union of all frames
     _all_idx = np.hstack(
@@ -209,12 +213,16 @@ def plot_cost_weighted_animation(
     Side-by-side comparison of unweighted vs cost-weighted refinement.
     """
     import matplotlib.animation as animation
-    from matplotlib.patches import Patch
     from IPython.display import HTML
+    from matplotlib.patches import Patch
+
     from pyapprox.surrogates.affine.indices import plot_index_sets
 
-    _mf_color = lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
-    _mf_cand_color = lambda idx: "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
+    def _mf_color(idx):
+        return "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
+
+    def _mf_cand_color(idx):
+        return "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
 
     # Compute fixed axis limits from both runs
     _cw_all = np.hstack(
@@ -273,10 +281,12 @@ def plot_mf_indices_2d(ax, sel_2d_np):
 
     Selected multi-indices for 2D physical + 1 config variable (3D voxels).
     """
-    from pyapprox.surrogates.affine.indices import (
-        plot_indices_3d, format_index_axes,
-    )
     from matplotlib.patches import Patch
+
+    from pyapprox.surrogates.affine.indices import (
+        format_index_axes,
+        plot_indices_3d,
+    )
 
     plot_indices_3d(
         ax, sel_2d_np,

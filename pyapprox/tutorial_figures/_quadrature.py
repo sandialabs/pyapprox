@@ -6,8 +6,7 @@ Covers: gauss_quadrature.qmd, piecewise_quadrature.qmd,
 
 import numpy as np
 
-from ._style import COLORS, apply_style
-
+from ._style import COLORS
 
 # ---------------------------------------------------------------------------
 # gauss_quadrature.qmd — all echo:true -> Convention B

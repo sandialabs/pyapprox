@@ -6,7 +6,6 @@ Covers: gp_surrogate.qmd, gp_sensitivity.qmd, multioutput_gp.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # gp_surrogate.qmd — Convention A (echo:false) unless noted
 # ---------------------------------------------------------------------------
@@ -67,8 +66,11 @@ def plot_kernel_comparison(axes, bkd_preview, n_samples=5):
     Prior sample paths for SE, Matern 5/2, and Matern 3/2 kernels.
     """
     from pyapprox.surrogates.kernels.matern import (
-        SquaredExponentialKernel, Matern52Kernel, Matern32Kernel,
+        Matern32Kernel,
+        Matern52Kernel,
+        SquaredExponentialKernel,
     )
+
     from ._style import apply_style
 
     _xi = np.linspace(-3, 3, 300)
@@ -109,6 +111,7 @@ def plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip):
     NLML contour as a function of the first two length scales.
     """
     import matplotlib.pyplot as plt
+
     from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
     from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
@@ -192,6 +195,7 @@ def plot_gp_predictions(axes, vals_np, mean_np, std_np, l2_err):
     Predicted vs true scatter and standardised residual histogram.
     """
     import matplotlib.pyplot as plt
+
     from ._style import apply_style
 
     # Left: prediction vs truth coloured by std
@@ -239,6 +243,7 @@ def plot_calibration(ax, vals_np, mean_np, std_np):
     Reliability diagram comparing nominal vs empirical coverage.
     """
     from scipy import stats as sp_stats
+
     from ._style import apply_style
 
     nominal_levels = np.linspace(0.01, 0.99, 60)
@@ -284,9 +289,10 @@ def plot_gp_convergence_n(
         GPMaximumLikelihoodFitter,
     )
     from pyapprox.surrogates.kernels.matern import (
-        Matern52Kernel, SquaredExponentialKernel,
+        Matern52Kernel,
+        SquaredExponentialKernel,
     )
-    from ._style import apply_style
+
 
     budgets_n = [10, 20, 40, 60, 80, 100]
 
@@ -389,7 +395,6 @@ def plot_gp_sobol(
 
     GP kernel-integral vs fix-and-freeze Sobol indices with ground truth.
     """
-    from ._style import apply_style
 
     x = np.arange(nvars)
     width = 0.35
@@ -640,7 +645,6 @@ def plot_gp_sampling_convergence(
 
     Relative L2 error vs training samples for three sampling strategies.
     """
-    from ._style import apply_style
 
     ax.semilogy(
         budgets, chol_errors, "o-", color="#1A5276",

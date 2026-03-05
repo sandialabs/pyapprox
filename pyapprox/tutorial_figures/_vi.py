@@ -12,7 +12,6 @@ import math
 import numpy as np
 from scipy.stats import norm
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -34,8 +33,8 @@ def _beam_exact_posterior(bkd, tip_model, mu_prior, sigma_prior,
                           y_obs, sigma_noise):
     """Compute exact posterior moments and grid PDF for the 1D beam."""
     from pyapprox.surrogates.affine.univariate import (
-        HermitePolynomial1D,
         GaussQuadratureRule,
+        HermitePolynomial1D,
     )
 
     hermite_poly = HermitePolynomial1D(bkd)
@@ -88,21 +87,21 @@ def _make_degree0_expansion(bkd, coeff=0.0):
 def _run_vi_with_maxiter(bkd, tip_model, std_tip_model, noise_variances,
                          y_obs, mu_prior, sigma_prior, maxiter, seed=42):
     """Run VI in standardized space, return (mu_E, sigma_E, neg_elbo)."""
-    from pyapprox.probability.conditional.gaussian import ConditionalGaussian
-    from pyapprox.probability.conditional.joint import (
-        ConditionalIndependentJoint,
-    )
-    from pyapprox.probability.joint.independent import IndependentJoint
-    from pyapprox.probability.univariate.gaussian import GaussianMarginal
-    from pyapprox.probability.likelihood import DiagonalGaussianLogLikelihood
-    from pyapprox.probability.likelihood.gaussian import (
-        MultiExperimentLogLikelihood,
-    )
     from pyapprox.inverse.variational.elbo import make_single_problem_elbo
     from pyapprox.inverse.variational.fitter import VariationalFitter
     from pyapprox.optimization.minimize.scipy.trust_constr import (
         ScipyTrustConstrOptimizer,
     )
+    from pyapprox.probability.conditional.gaussian import ConditionalGaussian
+    from pyapprox.probability.conditional.joint import (
+        ConditionalIndependentJoint,
+    )
+    from pyapprox.probability.joint.independent import IndependentJoint
+    from pyapprox.probability.likelihood import DiagonalGaussianLogLikelihood
+    from pyapprox.probability.likelihood.gaussian import (
+        MultiExperimentLogLikelihood,
+    )
+    from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
     mf = _make_degree0_expansion(bkd, 0.0)
     lsf = _make_degree0_expansion(bkd, 0.0)
@@ -319,6 +318,7 @@ def plot_vi_vs_mcmc(bkd, tip_model, noise_likelihood, prior,
     from pyapprox.inverse.sampling.metropolis import (
         MetropolisHastingsSampler,
     )
+
     from ._style import apply_style
 
     posterior_fn = LogUnNormalizedPosterior(
@@ -431,6 +431,7 @@ def plot_family_comparison(E1_m, E2_m, p_grid, E1_true, E2_true,
     Diagonal vs full-covariance Gaussian VI on 2D composite beam posterior.
     """
     from matplotlib.patches import Ellipse
+
     from ._style import apply_style
 
     # Extract diagonal params
@@ -512,6 +513,7 @@ def plot_beta_vi(prior_alpha, prior_beta, exact_posterior_alpha,
     Beta VI approximation vs exact conjugate posterior for coin-flip.
     """
     from scipy.stats import beta as beta_dist
+
     from ._style import apply_style
 
     p_grid = np.linspace(0.001, 0.999, 300)
@@ -577,7 +579,6 @@ def plot_kl_landscape(E_grid, post_exact, ax, fig):
 
     KL divergence surface over (mu, sigma) with candidates marked.
     """
-    from ._style import apply_style
 
     mu_range = np.linspace(6_000, 16_000, 120)
     sig_range = np.linspace(300, 4_000, 100)
@@ -911,21 +912,21 @@ def plot_base_samples(bkd, tip_model, std_tip_model,
 
     Effect of number of base samples on VI accuracy.
     """
-    from pyapprox.probability.conditional.gaussian import ConditionalGaussian
-    from pyapprox.probability.conditional.joint import (
-        ConditionalIndependentJoint,
-    )
-    from pyapprox.probability.joint.independent import IndependentJoint
-    from pyapprox.probability.univariate.gaussian import GaussianMarginal
-    from pyapprox.probability.likelihood import DiagonalGaussianLogLikelihood
-    from pyapprox.probability.likelihood.gaussian import (
-        MultiExperimentLogLikelihood,
-    )
     from pyapprox.inverse.variational.elbo import make_single_problem_elbo
     from pyapprox.inverse.variational.fitter import VariationalFitter
     from pyapprox.optimization.minimize.scipy.trust_constr import (
         ScipyTrustConstrOptimizer,
     )
+    from pyapprox.probability.conditional.gaussian import ConditionalGaussian
+    from pyapprox.probability.conditional.joint import (
+        ConditionalIndependentJoint,
+    )
+    from pyapprox.probability.joint.independent import IndependentJoint
+    from pyapprox.probability.likelihood import DiagonalGaussianLogLikelihood
+    from pyapprox.probability.likelihood.gaussian import (
+        MultiExperimentLogLikelihood,
+    )
+    from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
     for ax, ns in zip(axes, sample_counts):
         mf = _make_degree0_expansion(bkd, 0.0)
@@ -980,11 +981,12 @@ def plot_vi_2d(bkd, tip_model_2d, noise_lik_2d, prior_2d,
 
     Exact 2D posterior vs diagonal and full-covariance Gaussian VI.
     """
+    from matplotlib.patches import Ellipse
+
     from pyapprox.inverse.posterior.log_unnormalized import (
         LogUnNormalizedPosterior,
     )
-    from matplotlib.patches import Ellipse
-    from ._style import apply_style
+
 
     # Grid posterior in physical (E1, E2) space
     posterior_2d_fn = LogUnNormalizedPosterior(
@@ -1234,7 +1236,7 @@ def plot_generalization(bkd, mean_func, log_stdev_func,
     ax1_twin.set_ylabel(r"$\sigma(x)$", fontsize=12, color="#8E44AD")
     ax1.set_title("Learned parameter functions", fontsize=11)
     lns = [ln1, ln2]
-    labs = [l.get_label() for l in lns]
+    labs = [ln.get_label() for ln in lns]
     ax1.legend(lns, labs, fontsize=10, loc="upper left")
     ax1.grid(True, alpha=0.15)
     ax1.text(0.98, 0.05, "● train   ★ test", transform=ax1.transAxes,

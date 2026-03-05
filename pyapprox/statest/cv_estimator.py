@@ -433,7 +433,8 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         if not self.has_allocation:
             return f"{self.__class__.__name__}(allocation=None)"
         # Convert Array to float for formatting
-        criteria_val = self._bkd.to_float(self._bkd.flatten(self.optimized_criteria())[0])
+        crit = self._bkd.flatten(self.optimized_criteria())[0]
+        criteria_val = self._bkd.to_float(crit)
         return (
             f"{self.__class__.__name__}("
             f"criteria={criteria_val:.3g}, "

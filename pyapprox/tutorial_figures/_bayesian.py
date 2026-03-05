@@ -5,7 +5,6 @@ Covers: bayesian_inference_intro.qmd, mcmc_sampling.qmd, dram_mcmc.qmd
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # bayesian_inference_intro.qmd — all echo:false -> Convention A
 # ---------------------------------------------------------------------------
@@ -15,8 +14,8 @@ def plot_forward_inverse_schematic(fig, axes):
 
     Forward UQ (top, faded) vs Bayesian inference (bottom, vivid) schematic.
     """
+    from matplotlib.patches import ConnectionPatch, FancyBboxPatch
     from scipy.stats import norm
-    from matplotlib.patches import FancyBboxPatch, ConnectionPatch
 
     # --- Shared data for the schematic ---
     E_grid_s = np.linspace(6_000, 18_000, 300)
@@ -317,7 +316,7 @@ def plot_posterior_pushforward(ax1, ax2, beam_model, prior, post_5, E_grid,
     ax2.hist(delta_post, bins=60, density=True, color="#E67E22", alpha=0.5,
              edgecolor="none", label="Posterior push-forward")
     ax2.axvline(delta_true, color="#27AE60", ls="--", lw=1.5,
-                label=f"True $\\delta_{{\\text{{tip}}}}$")
+                label="True $\\delta_{\\text{tip}}$")
     ax2.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
     ax2.set_ylabel("Density", fontsize=12)
     ax2.set_title("Push-forward distributions", fontsize=11)
@@ -604,9 +603,9 @@ def plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,
     ax.hist(delta_predictive, bins=60, density=True, color="#2C7FB8",
             alpha=0.6, edgecolor="k", lw=0.3, label="Posterior predictions")
     ax.axvline(y_obs_2d, color="#C0392B", ls="--", lw=2,
-               label=f"Observed $y_{{\\text{{obs}}}}$")
+               label="Observed $y_{\\text{obs}}$")
     ax.axvline(delta_true_2d, color="#27AE60", ls="--", lw=1.5,
-               label=f"True $\\delta_{{\\text{{tip}}}}$")
+               label="True $\\delta_{\\text{tip}}$")
     ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
     ax.set_ylabel("Density", fontsize=12)
     ax.set_title("Posterior predictive distribution", fontsize=11)

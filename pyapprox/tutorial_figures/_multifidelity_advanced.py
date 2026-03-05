@@ -8,7 +8,6 @@ Covers: mlblue_concept.qmd, mlblue_analysis.qmd, pacv_concept.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # mlblue_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
@@ -56,8 +55,8 @@ def plot_mlblue_subsets(ax):
                 va="bottom", fontsize=8, color="#555")
         y_counter += len(sub["models"])
 
-    handles = [mpatches.Patch(facecolor=c, edgecolor="k", label=l)
-               for c, l in zip(model_colors, model_labels)]
+    handles = [mpatches.Patch(facecolor=c, edgecolor="k", label=lb)
+               for c, lb in zip(model_colors, model_labels)]
     ax.legend(handles=handles, loc="upper right", fontsize=9, ncol=1,
               framealpha=0.95, edgecolor="#ccc")
 
@@ -244,14 +243,15 @@ def plot_mlblue_ceiling(ax):
     Variance relative to MC as LF samples grow: MLMC, MFMC, MLBLUE.
     """
     import copy
-    from pyapprox.util.backends.numpy import NumpyBkd
+
     from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
-    from pyapprox.statest.statistics import MultiOutputMean
-    from pyapprox.statest.acv import MLMCEstimator, MFMCEstimator
+    from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
     from pyapprox.statest.groupacv import MLBLUEEstimator
     from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+    from pyapprox.statest.statistics import MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     benchmark = polynomial_ensemble_5model(bkd)
@@ -529,18 +529,19 @@ def plot_pacv_enumeration(ax):
 
     Predicted variance for all valid GMF recursion indices at budget P=100.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
-    from pyapprox.statest.statistics import MultiOutputMean
-    from pyapprox.statest.mc_estimator import MCEstimator
-    from pyapprox.statest.acv.search import ACVSearch
-    from pyapprox.statest.acv.allocation import (
-        ACVAllocator, default_allocator_factory,
-    )
-    from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
+    from pyapprox.statest.acv.allocation import (
+        ACVAllocator,
+        default_allocator_factory,
+    )
+    from pyapprox.statest.acv.search import ACVSearch
+    from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+    from pyapprox.statest.mc_estimator import MCEstimator
+    from pyapprox.statest.statistics import MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(1)
@@ -595,7 +596,7 @@ def plot_pacv_enumeration(ax):
            alpha=0.85)
     ax.axhline(1.0, color="k", ls=":", lw=1, alpha=0.4, label="MC baseline")
     ax.set_xticks(x)
-    ax.set_xticklabels([f"$\\gamma={l}$" for l in labels_ri],
+    ax.set_xticklabels([f"$\\gamma={lb}$" for lb in labels_ri],
                        rotation=30, ha="right", fontsize=9)
     ax.set_ylabel("Predicted variance / MC variance", fontsize=11)
     ax.set_title(
@@ -618,13 +619,13 @@ def plot_pacv_ceiling(ax):
 
     Variance vs cost ceiling plot: MLMC, MFMC, ACVMF, best GMF.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
-    from pyapprox.statest.statistics import MultiOutputMean
-    from pyapprox.statest.acv import MLMCEstimator, MFMCEstimator, GMFEstimator
+    from pyapprox.statest.acv import GMFEstimator, MFMCEstimator, MLMCEstimator
     from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+    from pyapprox.statest.statistics import MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     benchmark = polynomial_ensemble_5model(bkd)
@@ -772,12 +773,12 @@ def plot_moacv_vs_soacv(ax):
 
     Estimator variance for QoI 0 vs target cost: MOACV vs SOACV vs MC.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
         multioutput_ensemble_3x3,
     )
-    from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.statest.acv.search import ACVSearch
+    from pyapprox.statest.statistics import MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(1)
@@ -890,9 +891,9 @@ def plot_bad_model(ax):
 
     Three-model vs best two-model ACVMF variance across rho_01 values.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks import tunable_ensemble_3model
-    from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
+    from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(42)
@@ -971,9 +972,10 @@ def plot_correlation_heatmaps(axes, fig):
 
     Correlation matrices for two configurations of the tunable benchmark.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
-    from pyapprox.benchmarks import tunable_ensemble_3model
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    from pyapprox.benchmarks import tunable_ensemble_3model
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     nmodels = 3
@@ -1011,9 +1013,9 @@ def plot_ensemble_nmodels(ax):
 
     Best 1-LF vs 2-LF ACVMF variance ratio across rho_01 values.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks import tunable_ensemble_3model
-    from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
+    from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     P = 100.0
@@ -1087,14 +1089,13 @@ def plot_pilot_tradeoff(axes):
 
     MSE vs pilot size with/without pilot cost deduction.
     """
-    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox.benchmarks import polynomial_ensemble_3model
-    from pyapprox.statest import MultiOutputMean, MFMCEstimator, MCEstimator
+    from pyapprox.statest import MCEstimator, MFMCEstimator, MultiOutputMean
+    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(1)
     benchmark = polynomial_ensemble_3model(bkd)
-    nmodels = 3
     nqoi = 1
     costs = bkd.array([1.0, 0.1, 0.05])
     prior = benchmark.prior()

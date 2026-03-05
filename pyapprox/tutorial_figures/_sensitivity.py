@@ -6,7 +6,6 @@ Covers: sensitivity_analysis_concept.qmd, sobol_sensitivity_analysis.qmd,
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # sensitivity_analysis_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
@@ -17,7 +16,6 @@ def plot_variance_decomposition(main_effects, qoi_idx, input_labels,
 
     Bar chart of variance fractions for a single QoI.
     """
-    from ._style import apply_style
 
     main_vals = main_effects[:, qoi_idx]
 
@@ -50,7 +48,6 @@ def plot_sobol_bar_chart(main_effects, total_effects, plot_qois,
 
     Side-by-side first-order vs total-order Sobol indices for selected QoIs.
     """
-    from ._style import apply_style
 
     x = np.arange(nvars)
     width = 0.35
@@ -77,7 +74,6 @@ def plot_scatter_dominant(scatter_samples_np, scatter_values, main_effects,
 
     Scatter plots of QoI vs dominant and least influential inputs.
     """
-    from ._style import apply_style
 
     dominant_var = np.argmax(main_effects[:, qoi_idx])
     least_var = np.argmin(main_effects[:, qoi_idx])
@@ -116,7 +112,6 @@ def plot_sobol_indices(first_order, total_order, labels, d, axes):
 
     First-order bar chart and first-order vs total-order comparison.
     """
-    from ._style import apply_style
 
     x = np.arange(d)
     width = 0.35
@@ -251,7 +246,7 @@ def plot_bin_2d(xi, xj, values_np, edges_i, edges_j, cell_means,
 
     ax2.set_xlabel('$X_1$')
     ax2.set_ylabel('$X_3$')
-    ax2.set_title(f'Conditional means E[Y | X_1, X_3] per cell')
+    ax2.set_title('Conditional means E[Y | X_1, X_3] per cell')
 
 
 def plot_bin_vs_mc(budgets, bin_errors, mc_errors, gt_main,
@@ -261,7 +256,6 @@ def plot_bin_vs_mc(budgets, bin_errors, mc_errors, gt_main,
 
     Convergence comparison and per-variable accuracy at equal budget.
     """
-    from ._style import apply_style
 
     # Left: convergence plot
     ax = axes[0]
