@@ -179,7 +179,7 @@ class GammaMarginal(Generic[Array]):
             rtol=1e-6,
             atol=1e-8,
         ):
-            integral_val = float(self._bkd.to_numpy(integral))
+            integral_val = self._bkd.to_float(integral)
             raise ValueError(
                 f"Quadrature rule does not integrate Lebesgue measure on [0, 1]. "
                 f"Expected integral of x^2 to be "
@@ -244,11 +244,11 @@ class GammaMarginal(Generic[Array]):
 
     def shape(self) -> float:
         """Return the shape parameter."""
-        return float(self._bkd.to_numpy(self._shape_hyp.exp_values())[0])
+        return self._bkd.to_float(self._shape_hyp.exp_values()[0])
 
     def scale(self) -> float:
         """Return the scale parameter."""
-        return float(self._bkd.to_numpy(self._scale_hyp.exp_values())[0])
+        return self._bkd.to_float(self._scale_hyp.exp_values()[0])
 
     def rate(self) -> float:
         """Return the rate parameter (1/scale)."""
@@ -441,7 +441,7 @@ class GammaMarginal(Generic[Array]):
     def _set_index(self, arr: Array, idx: int, value: Any) -> Array:
         """Set value at single index."""
         arr_np = self._bkd.to_numpy(arr).copy()
-        arr_np[idx] = float(self._bkd.to_numpy(self._bkd.atleast_1d(value))[0])
+        arr_np[idx] = self._bkd.to_float(self._bkd.atleast_1d(value)[0])
         return self._bkd.asarray(arr_np)
 
     # Alias for compatibility

@@ -126,7 +126,7 @@ To see sparsity in action, let's fit a least-squares PCE at degree 5 and examine
 #| fig-cap: "Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse."
 #| label: fig-coefficient-decay
 
-from _figures._pce import plot_coefficient_decay
+from pyapprox.tutorial_figures._pce import plot_coefficient_decay
 
 degree_large = 5
 pce_ls = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
@@ -169,7 +169,7 @@ The residual history shows how the fit improves as terms are added:
 #| fig-cap: "OMP residual history. The residual norm decreases as each new basis term is added to the active set."
 #| label: fig-omp-residual
 
-from _figures._pce import plot_omp_residual
+from pyapprox.tutorial_figures._pce import plot_omp_residual
 
 res_hist = bkd.to_numpy(omp_result.residual_history())
 
@@ -337,7 +337,7 @@ bpdn_result = bpdn_fitter.fit(pce_bpdn, samples_train, values_train)
 #| fig-cap: "Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."
 #| label: fig-sparse-coefficients
 
-from _figures._pce import plot_sparse_coefficients
+from pyapprox.tutorial_figures._pce import plot_sparse_coefficients
 
 fitter_names = ["Least Squares", "OMP", "BPDN"]
 results = [ls_result, omp_result, bpdn_result]
@@ -367,7 +367,7 @@ The advantage of sparse methods becomes more pronounced when the training budget
 #| fig-cap: "Test-set error vs. training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit."
 #| label: fig-accuracy-vs-n
 
-from _figures._pce import plot_accuracy_vs_n
+from pyapprox.tutorial_figures._pce import plot_accuracy_vs_n
 
 N_values = [30, 50, 75, 100, 150]
 ls3_errors = []

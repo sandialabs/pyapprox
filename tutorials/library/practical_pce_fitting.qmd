@@ -113,7 +113,7 @@ A higher degree $p$ includes more basis terms and reduces the truncation error, 
 #| fig-cap: "Truncation error. Each curve shows the test-set $L_2$ error vs. number of training samples for a fixed total-degree. The error plateaus at a floor determined by the truncation error --- higher degrees reach lower floors but need more data. Bands show min/max over repetitions; lines show the mean."
 #| label: fig-truncation-error
 
-from _figures._pce import plot_truncation_error
+from pyapprox.tutorial_figures._pce import plot_truncation_error
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_truncation_error(model, prior, marginals, nvars, nqoi,
@@ -218,7 +218,7 @@ def _nterms_list(degrees):
 #| fig-cap: "Test error and 5-fold CV score vs. total polynomial degree for N = 75. Lines show the mean over 10 random training sets; bands show min/max. Test error has a U-shape: it decreases as more terms reduce truncation error, then rises as the oversampling ratio $N/P$ shrinks. The CV score tracks the test error and correctly identifies the optimal degree without a held-out test set. The condition number (bottom) tracks the error rise."
 #| label: fig-train-test-cv
 
-from _figures._pce import plot_train_test_cv
+from pyapprox.tutorial_figures._pce import plot_train_test_cv
 
 degrees_sweep = list(range(1, 9))
 
@@ -261,7 +261,7 @@ With more training samples, we can afford higher-degree polynomials before the o
 #| fig-cap: "Test error and 5-fold CV score vs. total polynomial degree for N = 75 (left) and N = 200 (right), each averaged over 10 random training sets. With more data the error minimum shifts to a higher degree and a lower error floor."
 #| label: fig-train-test-cv-2panel
 
-from _figures._pce import plot_train_test_cv_2panel
+from pyapprox.tutorial_figures._pce import plot_train_test_cv_2panel
 
 res_75 = sweep_train_test_cv(
     N_train=75, degrees=degrees_sweep,

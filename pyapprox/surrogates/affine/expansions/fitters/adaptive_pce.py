@@ -186,7 +186,7 @@ def _expand_indices(
             # current set
             admissible = True
             for back_dim in range(nvars):
-                if int(bkd.to_numpy(neighbor[back_dim])) > 0:
+                if bkd.to_int(neighbor[back_dim]) > 0:
                     back_neighbor = bkd.copy(neighbor)
                     back_neighbor[back_dim] -= 1
                     if hash_index(back_neighbor, bkd) not in current_set:

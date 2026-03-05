@@ -165,13 +165,13 @@ class Backend(Protocol, Generic[Array]):
     def to_numpy(array: Array) -> NDArray[Any]: ...
 
     @staticmethod
-    def to_float(array: Array) -> float:
-        """Convert a scalar array to a Python float.
+    def to_float(array: "float | Array") -> float:
+        """Convert a scalar array or Python scalar to a Python float.
 
         Parameters
         ----------
-        array : Array
-            A scalar or single-element array.
+        array : float | Array
+            A Python scalar, or a single-element array.
 
         Returns
         -------
@@ -186,13 +186,13 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def to_int(array: Array) -> int:
-        """Convert a scalar array to a Python int.
+    def to_int(array: "int | Array") -> int:
+        """Convert a scalar array or Python scalar to a Python int.
 
         Parameters
         ----------
-        array : Array
-            A scalar or single-element array.
+        array : int | Array
+            A Python scalar, or a single-element array.
 
         Returns
         -------

@@ -59,10 +59,10 @@ def _make_kle_field_map_2d(
     npts = physical_pts.shape[1]
     x = physical_pts[0, :]
     y = physical_pts[1, :]
-    x_min = float(bkd.min(x))
-    x_max = float(bkd.max(x))
-    y_min = float(bkd.min(y))
-    y_max = float(bkd.max(y))
+    x_min = bkd.to_float(bkd.min(x))
+    x_max = bkd.to_float(bkd.max(x))
+    y_min = bkd.to_float(bkd.min(y))
+    y_max = bkd.to_float(bkd.max(y))
     x_range = max(x_max - x_min, 1e-12)
     y_range = max(y_max - y_min, 1e-12)
     x_norm = (x - x_min) / x_range
@@ -126,7 +126,7 @@ def _make_functional(
         # In reference coords: x in [-1, -1 + 2*fraction], y in [-1, 1]
         xi_b = -1.0 + 2.0 * weld_r_fraction
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
-        area = float(bkd.sum(w_sub))
+        area = bkd.to_float(bkd.sum(w_sub))
         return AverageHoopStressFunctional(
             proc,
             w_sub,
@@ -192,7 +192,7 @@ def _make_hyperelastic_functional(
         quad = CollocationQuadrature2D(basis, bkd)
         xi_b = -1.0 + 2.0 * weld_r_fraction
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
-        area = float(bkd.sum(w_sub))
+        area = bkd.to_float(bkd.sum(w_sub))
         return HyperelasticAverageHoopStressFunctional(
             proc,
             w_sub,

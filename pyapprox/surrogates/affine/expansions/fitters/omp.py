@@ -133,10 +133,10 @@ class OMPFitter(Generic[Array]):
                     correlations,
                 )
 
-            best_idx = int(bkd.argmax(correlations))
+            best_idx = bkd.to_int(bkd.argmax(correlations))
 
             # Check if column is linearly dependent (correlation ~0)
-            if float(correlations[best_idx]) < 1e-14:
+            if bkd.to_float(correlations[best_idx]) < 1e-14:
                 termination_flag = OMPTerminationFlag.COLUMNS_DEPENDENT
                 break
 

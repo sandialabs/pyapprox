@@ -184,7 +184,7 @@ The accuracy of PCE-based Sobol indices depends on how well the surrogate approx
 #| fig-cap: "Convergence of PCE-based Sobol indices with polynomial degree. As the degree increases, the estimates approach the analytical ground truth (dashed lines). The x_1-x_3 interaction requires higher degree to resolve because it involves a degree-4 polynomial in x_3."
 #| label: fig-convergence
 
-from _figures._pce import plot_pce_convergence
+from pyapprox.tutorial_figures._pce import plot_pce_convergence
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_pce_convergence(func, prior, marginals, nvars, gt_main, gt_total,

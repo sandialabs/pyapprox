@@ -69,7 +69,7 @@ Before the algebra, @fig-sample-structure makes the structural difference visual
 #| label: fig-sample-structure
 
 import matplotlib.pyplot as plt
-from _figures._hierarchy import plot_sample_structure
+from pyapprox.tutorial_figures._hierarchy import plot_sample_structure
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.5))
 plot_sample_structure(axes)

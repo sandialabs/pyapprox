@@ -502,8 +502,8 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
     def generate_samples_per_model(
         self, rvs: Callable, npilot_samples: int = 0
     ) -> List[Array]:
-        ntotal_independent_samples = int(
-            self._rounded_npartition_samples.sum() - npilot_samples
+        ntotal_independent_samples = self._bkd.to_int(
+            self._bkd.sum(self._rounded_npartition_samples) - npilot_samples
         )
         independent_samples = rvs(ntotal_independent_samples)
         samples_per_model = []

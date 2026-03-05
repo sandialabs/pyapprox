@@ -998,8 +998,8 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         The error ratio (min/max) should be small, indicating the analytical
         derivative matches finite differences at the optimal step size.
         """
-        min_err = float(self._bkd.min(errors))
-        max_err = float(self._bkd.max(errors))
+        min_err = self._bkd.to_float(self._bkd.min(errors))
+        max_err = self._bkd.to_float(self._bkd.max(errors))
 
         if min_err == max_err:
             # All errors are the same - either all zero or no convergence

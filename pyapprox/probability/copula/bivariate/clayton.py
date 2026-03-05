@@ -222,5 +222,5 @@ class ClaytonCopula(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        theta_val = float(self._bkd.to_numpy(self._theta()))
+        theta_val = self._bkd.to_float(self._theta())
         return f"ClaytonCopula(theta={theta_val:.4f})"

@@ -401,7 +401,7 @@ class IndependentJoint(Generic[Array]):
             else:
                 # Fallback: use sampling
                 samples = marginal.rvs(10000)
-                means.append(float(self._bkd.sum(samples) / 10000))
+                means.append(self._bkd.to_float(self._bkd.sum(samples) / 10000))
         return self._bkd.asarray(means)
 
     def variance(self) -> Array:
@@ -420,8 +420,8 @@ class IndependentJoint(Generic[Array]):
             else:
                 # Fallback: use sampling
                 samples = marginal.rvs(10000)
-                mean = float(self._bkd.sum(samples) / 10000)
-                variances.append(float(self._bkd.sum((samples - mean) ** 2) / 10000))
+                mean = self._bkd.to_float(self._bkd.sum(samples) / 10000)
+                variances.append(self._bkd.to_float(self._bkd.sum((samples - mean) ** 2) / 10000))
         return self._bkd.asarray(variances)
 
     def covariance(self) -> Array:
@@ -471,8 +471,8 @@ class IndependentJoint(Generic[Array]):
             if hasattr(marginal, "interval"):
                 interval = marginal.interval(1.0)  # Returns shape (1, 2)
                 interval_flat = self._bkd.flatten(interval)
-                lower_bounds.append(float(self._bkd.to_numpy(interval_flat)[0]))
-                upper_bounds.append(float(self._bkd.to_numpy(interval_flat)[1]))
+                lower_bounds.append(self._bkd.to_float(interval_flat[0]))
+                upper_bounds.append(self._bkd.to_float(interval_flat[1]))
             else:
                 # Default to unbounded
                 lower_bounds.append(-np.inf)

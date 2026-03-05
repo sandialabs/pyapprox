@@ -236,7 +236,7 @@ class AffineTransform(Generic[Array]):
         self._validate_input(samples)
         nsamples = samples.shape[1]
 
-        log_det = -float(self._bkd.sum(self._bkd.log(self._scale)))
+        log_det = -self._bkd.to_float(self._bkd.sum(self._bkd.log(self._scale)))
         return self._bkd.reshape(self._bkd.full((nsamples,), log_det), (1, -1))
 
     def log_det_jacobian_from_canonical(self, canonical_samples: Array) -> Array:
@@ -263,7 +263,7 @@ class AffineTransform(Generic[Array]):
         self._validate_input(canonical_samples)
         nsamples = canonical_samples.shape[1]
 
-        log_det = float(self._bkd.sum(self._bkd.log(self._scale)))
+        log_det = self._bkd.to_float(self._bkd.sum(self._bkd.log(self._scale)))
         return self._bkd.reshape(self._bkd.full((nsamples,), log_det), (1, -1))
 
     def __repr__(self) -> str:

@@ -186,7 +186,7 @@ class AdaptiveIndexRefinement(Generic[Array]):
             raise RuntimeError("Must call step_samples() first")
 
         # Update error estimate (simplified: use mean absolute value)
-        error_contribution = float(self._bkd.mean(self._bkd.abs(values)))
+        error_contribution = self._bkd.to_float(self._bkd.mean(self._bkd.abs(values)))
         self._total_error += error_contribution
 
         # Refine the index

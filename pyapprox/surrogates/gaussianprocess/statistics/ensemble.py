@@ -390,7 +390,7 @@ class GaussianProcessEnsemble(Generic[Array]):
                 in_bin = (z_i_sorted >= bin_edges[b]) & (z_i_sorted < bin_edges[b + 1])
                 # Convert boolean mask to float: True -> 1.0, False -> 0.0
                 in_bin_float = in_bin * 1.0
-                n_in_bin = int(bkd.to_numpy(bkd.sum(in_bin_float)))
+                n_in_bin = bkd.to_int(bkd.sum(in_bin_float))
                 if n_in_bin > 0:
                     # Compute mean within bin
                     f_in_bin = f_r_sorted * in_bin_float

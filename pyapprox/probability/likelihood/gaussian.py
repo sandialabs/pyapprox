@@ -482,7 +482,7 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
 
     def _compute_log_normalization(self) -> float:
         """Compute log normalization constant."""
-        log_det = float(self._bkd.sum(self._bkd.log(self._variances)))
+        log_det = self._bkd.to_float(self._bkd.sum(self._bkd.log(self._variances)))
         return float(-0.5 * self._nobs * math.log(2 * math.pi) - 0.5 * log_det)
 
     def gradient(self, model_outputs: Array) -> Array:

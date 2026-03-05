@@ -207,7 +207,7 @@ qoi_labels = [r"$\delta_{\mathrm{tip}}$", r"$\sigma_{\mathrm{tot}}$"]
 #| fig-cap: "PCE predictions vs. true model values on the independent test set. Left: tip deflection. Right: total von Mises stress. Points near the diagonal indicate good surrogate accuracy."
 #| label: fig-pce-predictions
 
-from _figures._pce import plot_pce_predictions
+from pyapprox.tutorial_figures._pce import plot_pce_predictions
 
 fig, axes = plt.subplots(1, nqoi, figsize=(11, 4.5))
 plot_pce_predictions(pce, samples_test, values_test, qoi_labels, bkd, axes)

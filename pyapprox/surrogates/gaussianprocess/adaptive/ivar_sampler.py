@@ -148,15 +148,13 @@ class IVARSampler(Generic[Array]):
             Kmat = self._K[idx, :][:, idx]
             Pmat = self._P[idx, :][:, idx]
             obj = -bkd.trace(bkd.solve(Kmat, Pmat))
-            self._best_obj_vals.append(float(bkd.to_numpy(bkd.reshape(obj, (1,)))[0]))
+            self._best_obj_vals.append(bkd.to_float(obj))
 
         for _ in range(nsamples):
             obj_vals = self._compute_objective()
             # Select candidate with minimum objective (best variance reduction)
-            best = int(bkd.to_numpy(bkd.reshape(bkd.argmin(obj_vals), (1,)))[0])
-            self._best_obj_vals.append(
-                float(bkd.to_numpy(bkd.reshape(obj_vals[best], (1,)))[0])
-            )
+            best = bkd.to_int(bkd.argmin(obj_vals))
+            self._best_obj_vals.append(bkd.to_float(obj_vals[best]))
             new_pivots.append(best)
             self._selected_indices.append(best)
             self._cholesky.add_pivot(best)

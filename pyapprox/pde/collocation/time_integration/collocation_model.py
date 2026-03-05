@@ -226,7 +226,7 @@ class CollocationModel(Generic[Array]):
             )
 
             # Check convergence
-            res_norm = float(bkd.norm(residual))
+            res_norm = bkd.to_float(bkd.norm(residual))
             if verbosity >= 1:
                 print(f"Newton iter {iteration}: ||res|| = {res_norm:.3e}")
 
@@ -244,7 +244,7 @@ class CollocationModel(Generic[Array]):
                 state_new = state + alpha * delta
                 res_new = self._adapter(state_new)
                 res_new = self._apply_bc_to_residual(res_new, state_new, 0.0)
-                if float(bkd.norm(res_new)) < res_norm:
+                if bkd.to_float(bkd.norm(res_new)) < res_norm:
                     break
                 alpha *= 0.5
             else:

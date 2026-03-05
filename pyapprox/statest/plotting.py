@@ -148,10 +148,10 @@ def plot_estimator_variance_reductions(
     for est in optimized_estimators:
         est_cov = est.optimized_covariance()
         bkd = est._bkd
-        est_det = float(bkd.to_numpy(est_cov).flat[0])
-        nhf = int(est._rounded_target_cost / float(bkd.to_numpy(est._costs)[0]))
+        est_det = bkd.to_float(bkd.flatten(est_cov)[0])
+        nhf = bkd.to_int(est._rounded_target_cost / est._costs[0])
         sf_cov = est._stat.high_fidelity_estimator_covariance(nhf)
-        sf_det = float(bkd.to_numpy(sf_cov).flat[0])
+        sf_det = bkd.to_float(bkd.flatten(sf_cov)[0])
         var_red.append(sf_det / est_det if est_det > 0 else 0.0)
         est_covs.append(est_det)
         sf_covs.append(sf_det)

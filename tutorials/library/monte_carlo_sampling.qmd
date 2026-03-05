@@ -77,7 +77,7 @@ print(f"Number of QoIs: {model.nqoi()}")
 #| echo: false
 #| fig-cap: "Deflected beam shapes for two different KLE parameter values. Color indicates the spatially varying bending stiffness $EI(x)$. Left: $\\boldsymbol{\\xi} = (-1.5,\\, 1.0)$ produces a stiffness field that is softer near the root, giving larger deflection. Right: $\\boldsymbol{\\xi} = (1.5,\\, -1.0)$ yields a stiffer root region and smaller deflection."
 #| label: fig-beam-deflections
-from _figures._forward_uq import plot_beam_deflections
+from pyapprox.tutorial_figures._forward_uq import plot_beam_deflections
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.5),
                           gridspec_kw={"wspace": 0.3, "right": 0.88})
@@ -109,7 +109,7 @@ print(f"Sample mean of tip deflection: "
 #| echo: false
 #| fig-cap: "Left: $M = 50$ samples drawn from the prior in $(\\xi_1, \\xi_2)$ space. Right: the model response surface $\\delta_{\\text{tip}} = f(\\xi_1, \\xi_2)$ with sample QoI values overlaid as colored points."
 #| label: fig-samples-and-surface
-from _figures._forward_uq import plot_samples_and_surface
+from pyapprox.tutorial_figures._forward_uq import plot_samples_and_surface
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_samples_and_surface(model, samples, qoi_values, bkd, ax1, ax2, fig=fig)
@@ -209,7 +209,7 @@ for i in range(n_reps):
     q = model(s)[0]
     means_small[i] = bkd.to_float(bkd.mean(q))
 
-from _figures._forward_uq import plot_mc_variability_histogram
+from pyapprox.tutorial_figures._forward_uq import plot_mc_variability_histogram
 
 fig, ax = plt.subplots(figsize=(7, 3.5))
 plot_mc_variability_histogram(means_small, true_mean, n_reps, M_small, ax)
@@ -236,7 +236,7 @@ for i in range(n_reps):
     q = model(s)[0]
     means_large[i] = bkd.to_float(bkd.mean(q))
 
-from _figures._forward_uq import plot_mc_variability_comparison
+from pyapprox.tutorial_figures._forward_uq import plot_mc_variability_comparison
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3.5), sharey=True)
 plot_mc_variability_comparison(means_small, means_large, true_mean,
@@ -270,7 +270,7 @@ print(f"Mean max curvature:      {bkd.to_float(bkd.mean(qoi_multi[2])):.6f}")
 #| fig-cap: "Pairwise scatter of three QoIs across $M = 50$ samples. Tip deflection and max curvature are highly correlated, while integrated stress is nearly uncorrelated with both."
 #| label: fig-multi-qoi-scatter
 
-from _figures._forward_uq import plot_multi_qoi_scatter
+from pyapprox.tutorial_figures._forward_uq import plot_multi_qoi_scatter
 
 qoi_multi_np = bkd.to_numpy(qoi_multi)
 qoi_labels = [

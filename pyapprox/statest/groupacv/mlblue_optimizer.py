@@ -241,7 +241,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         # Compute derived quantities
         nsamples_per_model = self._est._compute_nsamples_per_model(npartition_samples)
-        actual_cost = float(self._est._estimator_cost(npartition_samples))
+        actual_cost = self._bkd.to_float(self._est._estimator_cost(npartition_samples))
         obj_value = self._bkd.array([float(t_cvxpy.value)])
 
         return GroupACVAllocationResult(

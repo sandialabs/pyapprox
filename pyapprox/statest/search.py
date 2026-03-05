@@ -103,7 +103,7 @@ def unified_search(
             acv_result = acv_search.search(target_cost, allow_failures=allow_failures)
             # search() only returns successfully if allocation succeeded
             bkd = acv_search.bkd()
-            acv_obj = float(bkd.to_numpy(acv_result.allocation.objective_value)[0])
+            acv_obj = bkd.to_float(acv_result.allocation.objective_value[0])
         except RuntimeError:
             if not allow_failures:
                 raise
@@ -116,8 +116,8 @@ def unified_search(
             )
             # search() only returns successfully if allocation succeeded
             bkd = groupacv_search.bkd()
-            groupacv_obj = float(
-                bkd.to_numpy(groupacv_result.allocation.objective_value)[0]
+            groupacv_obj = bkd.to_float(
+                groupacv_result.allocation.objective_value[0]
             )
         except RuntimeError:
             if not allow_failures:

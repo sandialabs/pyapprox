@@ -273,7 +273,7 @@ class LegendreInterfaceBasis1D(Generic[Array]):
         float
             Integral over interface.
         """
-        return float(self._bkd.sum(values * self._physical_weights))
+        return self._bkd.to_float(self._bkd.sum(values * self._physical_weights))
 
     def __repr__(self) -> str:
         return (

@@ -92,7 +92,7 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
         nx=40, length=L, EI=E_eff * I_rect,
         load_func=lambda x: 1.0 * x / L, bkd=bkd,
     )
-    c_linear = float(beam_ref.tip_deflection())
+    c_linear = bkd.to_float(beam_ref.tip_deflection())
 
     rng = np.random.default_rng(42)
     nsamples = 5000
@@ -385,8 +385,8 @@ def plot_indep_beta(variable_indep, beta_E1, beta_E2, samples_indep, bkd,
     Joint scatter with marginal histograms for independent Beta prior.
     """
     domain = variable_indep.domain()
-    E1_lo, E1_hi = float(domain[0, 0]), float(domain[0, 1])
-    E2_lo, E2_hi = float(domain[1, 0]), float(domain[1, 1])
+    E1_lo, E1_hi = bkd.to_float(domain[0, 0]), bkd.to_float(domain[0, 1])
+    E2_lo, E2_hi = bkd.to_float(domain[1, 0]), bkd.to_float(domain[1, 1])
 
     plotter = variable_indep.plotter()
     plotter.plot_contours(ax_main, npts_1d=80, levels=8, cmap="Blues",
@@ -436,8 +436,8 @@ def plot_copula_beta(variable_copula, beta_E1, beta_E2, samples_copula,
     Joint scatter with marginal histograms for copula Beta prior.
     """
     domain = variable_copula.domain()
-    E1_lo, E1_hi = float(domain[0, 0]), float(domain[0, 1])
-    E2_lo, E2_hi = float(domain[1, 0]), float(domain[1, 1])
+    E1_lo, E1_hi = bkd.to_float(domain[0, 0]), bkd.to_float(domain[0, 1])
+    E2_lo, E2_hi = bkd.to_float(domain[1, 0]), bkd.to_float(domain[1, 1])
 
     plotter_cop = variable_copula.plotter()
     plotter_cop.plot_contours(ax_main, npts_1d=80, levels=8, cmap="Greens",

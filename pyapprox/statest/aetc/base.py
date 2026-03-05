@@ -470,7 +470,7 @@ class AETC(Generic[Array]):
 
         # Find best subset (minimum loss)
         losses = bkd.asarray([result[0] for result in results])
-        best_subset_idx = int(bkd.argmin(losses))
+        best_subset_idx = bkd.to_int(bkd.argmin(losses))
         best_result = results[best_subset_idx]
 
         (
@@ -503,13 +503,13 @@ class AETC(Generic[Array]):
         if best_rate > 2 * nsamples:
             nexplore_samples = 2 * nsamples
         elif best_rate > nsamples:
-            nexplore_samples = int(bkd.ceil((nsamples + best_rate) / 2))
+            nexplore_samples = bkd.to_int(bkd.ceil((nsamples + best_rate) / 2))
         else:
             nexplore_samples = nsamples
 
         # Ensure we don't exceed budget
         if (total_budget - nexplore_samples * explore_cost) < 0:
-            nexplore_samples = int(total_budget / explore_cost)
+            nexplore_samples = bkd.to_int(total_budget / explore_cost)
 
         return (
             nexplore_samples,

@@ -87,7 +87,7 @@ def compute_dvine_partial_correlations(
                 chol = CholeskyFactor(L, bkd)
                 P = chol.matrix_inverse()
                 rho = -P[0, t] / bkd.sqrt(P[0, 0] * P[t, t])
-            result[t].append(float(bkd.to_numpy(rho)))
+            result[t].append(bkd.to_float(rho))
 
     return result
 

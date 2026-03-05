@@ -225,15 +225,13 @@ class MultiOutputIVARSampler(Generic[Array]):
             priorities = self._objective_to_priority(obj_vals)
 
             # Select candidate with highest priority
-            best = int(bkd.to_numpy(bkd.reshape(bkd.argmax(priorities), (1,)))[0])
+            best = bkd.to_int(bkd.argmax(priorities))
             new_pivots.append(best)
             self._ivar._selected_indices.append(best)
             self._ivar._cholesky.add_pivot(best)
 
             # Track objective value on the base IVAR
-            self._ivar._best_obj_vals.append(
-                float(bkd.to_numpy(bkd.reshape(obj_vals[best], (1,)))[0])
-            )
+            self._ivar._best_obj_vals.append(bkd.to_float(obj_vals[best]))
 
         # Map global pivot indices to per-output arrays
         return self._partition_samples(new_pivots)

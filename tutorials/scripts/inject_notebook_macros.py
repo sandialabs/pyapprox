@@ -205,6 +205,49 @@ def expand_all_macros(text: str) -> str:
     return text
 
 
+def _strip_yaml_front_matter(cells: list) -> tuple[list, bool]:
+    """Strip YAML front matter from the first markdown cell.
+
+    Quarto's ``quarto convert`` puts the YAML header (title, tags,
+    execute options, etc.) at the start of the first markdown cell.
+    This metadata is meaningless in a standalone notebook.
+    """
+    modified = False
+    for cell in cells:
+        if cell.get('cell_type') != 'markdown':
+            continue
+        src = cell.get('source', [])
+        text = ''.join(src) if isinstance(src, list) else src
+        if not text.lstrip().startswith('---'):
+            break
+        # Find the closing --- of the front matter
+        # Skip the opening ---
+        first_fence = text.index('---')
+        rest = text[first_fence + 3:]
+        second_fence = rest.find('\n---')
+        if second_fence == -1:
+            break
+        # Everything after the closing --- line
+        after_fence = rest[second_fence + 4:]  # skip \n---
+        # Skip the newline after closing ---
+        if after_fence.startswith('\n'):
+            after_fence = after_fence[1:]
+        cleaned = after_fence.lstrip('\n')
+        if cleaned:
+            cell['source'] = cleaned.split('\n')
+            cell['source'] = [line + '\n' for line in cell['source']]
+            if cell['source']:
+                cell['source'][-1] = cell['source'][-1].rstrip('\n')
+        else:
+            # Entire cell was front matter — mark for removal
+            cell['source'] = []
+        modified = True
+        break  # only process the first markdown cell
+    # Remove empty cells
+    cells = [c for c in cells if c.get('source', [''])]
+    return cells, modified
+
+
 def process_notebook(notebook_path: Path) -> bool:
     """Expand macros in a notebook.
 
@@ -215,6 +258,12 @@ def process_notebook(notebook_path: Path) -> bool:
 
     modified = False
     cells = notebook.get('cells', [])
+
+    # Strip YAML front matter cells (Quarto metadata not useful in notebooks)
+    cells, front_matter_removed = _strip_yaml_front_matter(cells)
+    if front_matter_removed:
+        notebook['cells'] = cells
+        modified = True
 
     for cell in cells:
         if cell.get('cell_type') == 'markdown':

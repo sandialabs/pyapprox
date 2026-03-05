@@ -108,7 +108,7 @@ $\gamma_j$ is drawn explicitly.
 #| label: fig-dags
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_pacv_dags
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_dags
 
 nrows, ncols = 3, 3
 fig, axes = plt.subplots(nrows, ncols, figsize=(12, 10))
@@ -152,7 +152,7 @@ $\boldsymbol{\gamma} = \mathbf{0}$.
 #| label: fig-family-matrix
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_pacv_family_matrix
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_family_matrix
 
 fig, ax = plt.subplots(figsize=(10, 4))
 plot_pacv_family_matrix(ax)
@@ -181,7 +181,7 @@ covariance structure.
 #| label: fig-enumeration
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_pacv_enumeration
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_enumeration
 
 fig, ax = plt.subplots(figsize=(10, 4.5))
 plot_pacv_enumeration(ax)
@@ -209,7 +209,7 @@ limit, while MLMC and MFMC plateau at CV-1.
 #| label: fig-pacv-ceiling
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_pacv_ceiling
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_ceiling
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_pacv_ceiling(ax)

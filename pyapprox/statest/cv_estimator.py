@@ -269,7 +269,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         # Create allocation result and set it
         allocation = CVAllocationResult(
             nsamples_per_model=rounded_nsamples_per_model,
-            actual_cost=float(rounded_target_cost),
+            actual_cost=self._bkd.to_float(rounded_target_cost),
             objective_value=self._bkd.zeros((1,)),
             success=True,
             message="",
@@ -433,7 +433,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         if not self.has_allocation:
             return f"{self.__class__.__name__}(allocation=None)"
         # Convert Array to float for formatting
-        criteria_val = float(self._bkd.to_numpy(self.optimized_criteria()).flat[0])
+        criteria_val = self._bkd.to_float(self._bkd.flatten(self.optimized_criteria())[0])
         return (
             f"{self.__class__.__name__}("
             f"criteria={criteria_val:.3g}, "

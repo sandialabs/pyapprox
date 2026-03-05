@@ -153,7 +153,7 @@ for seed in range(n_seeds):
 #| echo: false
 #| fig-cap: "Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."
 #| label: fig-variability
-from _figures import plot_design_variability
+from pyapprox.tutorial_figures import plot_design_variability
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharey=True)
 plot_design_variability(axes, obs_times, designs_fixed, M_fixed)
@@ -202,7 +202,7 @@ for M in budgets:
 #| echo: false
 #| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized."
 #| label: fig-design-convergence
-from _figures import plot_design_convergence
+from pyapprox.tutorial_figures import plot_design_convergence
 
 fig, axes = plt.subplots(len(budgets), 2, figsize=(13, 3.0 * len(budgets)),
                          sharex=True, sharey=True)

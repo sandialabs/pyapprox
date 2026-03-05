@@ -501,8 +501,8 @@ def plot_ft_vs_mc(model, prior, marginals, bkd, axes):
     quad_pts, quad_wts = quad_rule()
     qoi_quad = bkd.to_numpy(model(quad_pts))[0]
     quad_wts_np = bkd.to_numpy(quad_wts)
-    true_mean = float(quad_wts_np @ qoi_quad)
-    true_var = float(quad_wts_np @ (qoi_quad - true_mean) ** 2)
+    true_mean = (quad_wts_np @ qoi_quad).item()
+    true_var = (quad_wts_np @ (qoi_quad - true_mean) ** 2).item()
 
     # (degree, budget) pairs at oversampling ratio 3
     rank = 3
@@ -550,8 +550,8 @@ def plot_ft_vs_mc(model, prior, marginals, bkd, axes):
                 ).fit(ft_rep, s, v).surrogate()
                 pce_ft_rep = PCEFunctionTrain(ft_fitted)
                 mom_rep = FunctionTrainMoments(pce_ft_rep)
-                ft_mu = float(bkd.to_numpy(mom_rep.mean()))
-                ft_va = float(bkd.to_numpy(mom_rep.variance()))
+                ft_mu = bkd.to_float(mom_rep.mean())
+                ft_va = bkd.to_float(mom_rep.variance())
                 ft_mean_errors[N_bud].append(
                     abs(ft_mu - true_mean) / abs(true_mean)
                 )

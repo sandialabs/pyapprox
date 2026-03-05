@@ -287,7 +287,7 @@ inputs from the prior, evaluate the (cheap) surrogate, and plot a histogram.
 #| fig-cap: "Estimated marginal density of tip deflection using the GP surrogate ($N=50\\,000$ evaluations). The dashed line marks $\\E_{\\boldsymbol{\\xi}}[\\mu^*]$; the shaded band shows $\\pm 1\\sigma$ where $\\sigma = \\sqrt{\\E_{\\boldsymbol{\\xi}}[\\gamma_f] + \\Var_{\\boldsymbol{\\xi}}[\\mu^*]}$."
 #| label: fig-marginal-density
 
-from _figures._pce import plot_gp_marginal_density
+from pyapprox.tutorial_figures._pce import plot_gp_marginal_density
 
 np.random.seed(999)
 N_mc = 50_000

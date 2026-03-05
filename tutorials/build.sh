@@ -13,8 +13,9 @@
 #                   Use -j auto to detect CPU count automatically
 #                   NOTE: Quarto has race conditions in parallel mode — a few
 #                   tutorials may fail with "No such file or directory" errors.
-#                   Simply re-run the same command; previously succeeded tutorials
-#                   are cached in _freeze/ and skipped, so only failures re-execute.
+#                   Re-run without -j (serial) to finish the remaining failures;
+#                   previously succeeded tutorials are cached in _freeze/ and
+#                   skipped, so only the failures re-execute.
 #   --html-fast     Build HTML site from freeze cache only (skips all execution)
 #   --pdf           Generate PDF user manual (uses freeze cache, executes if needed)
 #   --notebooks     Generate downloadable notebooks (library only)
@@ -242,20 +243,43 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
     ' _ {} "$LOG_DIR" "$EXECUTE_FLAG" "${TIMINGS:+$TIMINGS_FILE}" || FAIL_COUNT=$?
 
     if [ "$FAIL_COUNT" -ne 0 ]; then
-        echo ""
-        echo "ERROR: Some tutorials failed to render. Check logs in $LOG_DIR/"
-        echo "Failed logs:"
-        grep -l "^.*ERROR:" "$LOG_DIR"/*.log 2>/dev/null | while read -r logf; do
-            echo "  $logf"
+        # Collect failed tutorials from logs
+        FAILED_QMDS=()
+        for f in "${QMD_FILES[@]}"; do
+            name="${f%.qmd}"
+            if [ -f "$LOG_DIR/${name}.log" ] && grep -q "ERROR:" "$LOG_DIR/${name}.log" 2>/dev/null; then
+                FAILED_QMDS+=("$f")
+            fi
         done
-        if [ -n "$TIMINGS" ]; then
+
+        if [ ${#FAILED_QMDS[@]} -gt 0 ]; then
             echo ""
-            echo "Partial timings saved to: $TIMINGS_FILE"
+            echo "  ${#FAILED_QMDS[@]} tutorial(s) failed — retrying in serial..."
+            SERIAL_FAIL=0
+            for f in "${FAILED_QMDS[@]}"; do
+                name="${f%.qmd}"
+                echo "  [RETRY] $name"
+                start=$(date +%s)
+                if quarto render "$f" $EXECUTE_FLAG > "$LOG_DIR/${name}.log" 2>&1; then
+                    elapsed=$(( $(date +%s) - start ))
+                    echo "  [DONE]  $name (${elapsed}s)"
+                else
+                    elapsed=$(( $(date +%s) - start ))
+                    echo "  [FAIL]  $name (${elapsed}s) — see $LOG_DIR/${name}.log"
+                    SERIAL_FAIL=1
+                fi
+            done
+
+            if [ "$SERIAL_FAIL" -ne 0 ]; then
+                echo ""
+                echo "ERROR: Some tutorials failed even in serial mode."
+                echo "Check logs in $LOG_DIR/"
+                if [ -n "$TIMINGS" ]; then
+                    echo "Partial timings saved to: $TIMINGS_FILE"
+                fi
+                exit 1
+            fi
         fi
-        echo ""
-        echo "TIP: Parallel builds can fail due to Quarto race conditions."
-        echo "     Re-run the same command — cached tutorials are skipped."
-        exit 1
     fi
 
     # Clean up empty stubs created for parallel safety
@@ -301,7 +325,8 @@ if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
     mkdir -p _site/notebooks
 
     for f in *.qmd; do
-        if [ "$(basename "$f")" != "index.qmd" ]; then
+        skip_name="$(basename "$f")"
+        if [ "$skip_name" != "index.qmd" ] && [ "$skip_name" != "404.qmd" ] && [ "$skip_name" != "tutorials.qmd" ]; then
             name=$(basename "${f%.qmd}")
             echo "  Converting: $name.qmd -> $name.ipynb"
             quarto convert "$f" --output "_site/notebooks/${name}.ipynb" 2>/dev/null || true
@@ -315,6 +340,10 @@ if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
     # Add pip install cell for Colab/standalone use
     echo "Injecting install cells..."
     python "$SCRIPT_DIR/scripts/inject_notebook_install.py" _site/notebooks/
+
+    # Generate landing page for notebooks directory
+    echo "Generating notebooks index page..."
+    python "$SCRIPT_DIR/scripts/generate_notebook_index.py" _site/notebooks/
 
     echo "Notebooks saved to: $BUILD_DIR/_site/notebooks/"
 fi

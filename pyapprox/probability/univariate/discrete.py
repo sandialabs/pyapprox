@@ -63,7 +63,7 @@ class CustomDiscreteMarginal(Generic[Array]):
             raise ValueError("xk and pk must have at least one element")
 
         # Validate probabilities sum to 1
-        pk_sum = float(self._bkd.sum(pk_arr))
+        pk_sum = self._bkd.to_float(self._bkd.sum(pk_arr))
         if not self._bkd.allclose(
             self._bkd.asarray([pk_sum]),
             self._bkd.asarray([1.0]),

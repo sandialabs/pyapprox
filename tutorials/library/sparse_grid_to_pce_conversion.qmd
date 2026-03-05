@@ -86,7 +86,7 @@ Neither is "better" --- they serve different purposes.
 #| fig-cap: "Both sets span the space of polynomials of degree 3. Left: four Lagrange basis functions, each peaking at its node. Right: four Legendre polynomials, smooth and oscillatory. The Lagrange basis is defined by interpolation nodes; the orthonormal basis is defined by the probability measure."
 #| label: fig-two-bases
 
-from _figures._sparse_grids import plot_two_bases
+from pyapprox.tutorial_figures._sparse_grids import plot_two_bases
 
 marginal = UniformMarginal(-1.0, 1.0, bkd)
 bases_1d = create_bases_1d([marginal], bkd)
@@ -134,7 +134,7 @@ We can compute this projection matrix using PyApprox's internal API:
 #| fig-cap: "Projection of a single Lagrange basis function L_2(x). Left: the Lagrange function (solid) and its reconstruction from orthonormal polynomial coefficients (dashed) --- they overlap exactly. Right: bar chart of the projection coefficients c_{2,k}, showing how L_2 decomposes into the orthonormal basis."
 #| label: fig-projection-1d
 
-from _figures._sparse_grids import plot_projection_1d
+from pyapprox.tutorial_figures._sparse_grids import plot_projection_1d
 
 # Build the converter's 1D projection matrix
 converter_1d = TensorProductSubspaceToPCEConverter(bkd, bases_1d)
@@ -181,7 +181,7 @@ This is a tensor contraction --- each dimension is projected independently, so n
 #| fig-cap: "2D tensor product conversion. Left: function values at the 4x4 tensor product grid. Right: the corresponding PCE multi-indices with color-coded coefficient magnitudes. Each grid point's value is projected through the 1D matrices to produce the PCE coefficients."
 #| label: fig-2d-tp
 
-from _figures._sparse_grids import plot_2d_tp
+from pyapprox.tutorial_figures._sparse_grids import plot_2d_tp
 
 # Build a 2D example: f(x1, x2) = x1^2 + x1*x2
 marginals_2d = [
@@ -243,7 +243,7 @@ Different subspaces may produce the **same** multi-index $\mathbf{k}$, so their 
 #| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with $f(x_1, x_2) = x_1^2 + x_1 x_2$. Each dot is a PCE multi-index $(k_1, k_2)$. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value $c_{\\ell} \\hat{c}_{\\mathbf{k}}^{(\\ell)}$. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure $x_2$ term, so the $(0,1)$ coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same $(k_1, k_2)$, their weighted coefficients are summed."
 #| label: fig-smolyak-merge
 
-from _figures._sparse_grids import plot_smolyak_merge
+from pyapprox.tutorial_figures._sparse_grids import plot_smolyak_merge
 
 # Build level-2 SG to have multiple subspaces
 fitter_l2 = IsotropicSparseGridFitter(
@@ -290,7 +290,7 @@ Let us step through the full conversion on the simple 2D function $f(x_1, x_2) =
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     meshgrid_samples,
 )
-from _figures._sparse_grids import plot_sg_vs_pce
+from pyapprox.tutorial_figures._sparse_grids import plot_sg_vs_pce
 
 # Convert the level-2 SG to PCE
 pce_l2 = converter.convert(sg_l2)

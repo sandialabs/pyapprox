@@ -69,7 +69,7 @@ Bayesian inference provides the mathematical framework for flipping this arrow. 
 #| fig-cap: "Forward UQ (top, faded) propagates a prior distribution through the model to predict the QoI. Bayesian inference (bottom, vivid) reverses the arrow: a single observation is combined with the model via Bayes' theorem to produce an updated posterior distribution over the parameter."
 #| label: fig-forward-inverse-schematic
 import matplotlib.pyplot as plt
-from _figures._bayesian import plot_forward_inverse_schematic
+from pyapprox.tutorial_figures._bayesian import plot_forward_inverse_schematic
 
 fig, axes = plt.subplots(
     2, 3, figsize=(11, 6),
@@ -204,7 +204,7 @@ What we want is not a single number, but an **updated distribution** over $E$ th
 #| echo: false
 #| fig-cap: "A point estimate (red dashed line) gives a single value, but ignores measurement noise and prior information. Multiple noisy measurements of the same beam would give different point estimates (gray lines), showing the inherent uncertainty in the inversion."
 #| label: fig-point-estimate-problem
-from _figures._bayesian import plot_point_estimate_problem
+from pyapprox.tutorial_figures._bayesian import plot_point_estimate_problem
 
 fig, ax = plt.subplots(figsize=(8, 4))
 plot_point_estimate_problem(
@@ -237,7 +237,7 @@ This is called the **likelihood function**. It is *not* a probability distributi
 #| echo: false
 #| fig-cap: "The prior distribution (blue) encodes our belief before seeing data. The likelihood function (red) peaks where the model prediction matches the observation. The two disagree: the data suggests $E$ is lower than the prior mean."
 #| label: fig-likelihood
-from _figures._bayesian import plot_likelihood
+from pyapprox.tutorial_figures._bayesian import plot_likelihood
 
 # Evaluate likelihood on grid using the composed model+likelihood object
 E_grid = np.linspace(6_000, 18_000, 500)
@@ -303,7 +303,7 @@ print(f"Evidence (normalizing constant): {evidence:.6e}")
 #| echo: false
 #| fig-cap: "Bayes' theorem in action. The posterior (orange) combines the prior (blue) and the likelihood (red, scaled). It sits between the two, shifted toward the data-consistent region but shaped by the prior. The true parameter value (green dashed) falls within the posterior's support."
 #| label: fig-bayes-update
-from _figures._bayesian import plot_bayes_update
+from pyapprox.tutorial_figures._bayesian import plot_bayes_update
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_bayes_update(ax, E_grid, prior_vals, likelihood_vals,
@@ -344,7 +344,7 @@ To build intuition, @fig-prior-likelihood-balance shows how the posterior change
 #| echo: false
 #| fig-cap: "The balance between prior and data. Left: a vague prior (large $\\sigma_{\\text{prior}}$) lets the data dominate --- the posterior nearly coincides with the likelihood. Right: a tight prior (small $\\sigma_{\\text{prior}}$) resists the data --- the posterior stays close to the prior even though the data disagrees."
 #| label: fig-prior-likelihood-balance
-from _figures._bayesian import plot_prior_likelihood_balance
+from pyapprox.tutorial_figures._bayesian import plot_prior_likelihood_balance
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 plot_prior_likelihood_balance(ax1, ax2, E_grid, likelihood_vals,
@@ -370,7 +370,7 @@ $$
 #| echo: false
 #| fig-cap: "More data narrows the posterior. Blue: prior. Light orange: posterior after one observation. Dark orange: posterior after two independent observations. Each observation provides additional information, reducing the remaining uncertainty about $E$."
 #| label: fig-multiple-observations
-from _figures._bayesian import plot_multiple_observations
+from pyapprox.tutorial_figures._bayesian import plot_multiple_observations
 
 # Posterior after one observation (already computed)
 post_1 = posterior_vals
@@ -431,7 +431,7 @@ Once we have a posterior distribution, we can propagate it forward through the m
 #| echo: false
 #| fig-cap: "Push-forward distributions using the prior (blue) and the posterior after 5 observations (orange). The posterior-based push-forward is much narrower and centered closer to the true tip deflection, because the data has reduced parameter uncertainty."
 #| label: fig-posterior-pushforward
-from _figures._bayesian import plot_posterior_pushforward
+from pyapprox.tutorial_figures._bayesian import plot_posterior_pushforward
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 plot_posterior_pushforward(ax1, ax2, beam_model, prior, post_5, E_grid,

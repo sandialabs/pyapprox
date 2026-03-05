@@ -271,7 +271,7 @@ median error with 10th/90th percentile bands.
 #| echo: false
 #| fig-cap: "FT vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of beam evaluations. For the FT, polynomial degree increases with budget at oversampling ratio 3. Lines show medians over 10 repetitions; bands show 10th--90th percentiles."
 #| label: fig-ft-vs-mc
-from _figures._function_train import plot_ft_vs_mc
+from pyapprox.tutorial_figures._function_train import plot_ft_vs_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_ft_vs_mc(model, prior, marginals, bkd, axes)

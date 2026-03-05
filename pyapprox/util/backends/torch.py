@@ -142,7 +142,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return array.detach().numpy()
 
     @staticmethod
-    def to_float(array: torch.Tensor) -> float:
+    def to_float(array: "float | torch.Tensor") -> float:
+        if isinstance(array, (float, int)):
+            return float(array)
         if array.numel() != 1:
             raise ValueError(
                 "to_float requires a single-element tensor,"
@@ -151,7 +153,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return array.detach().item()
 
     @staticmethod
-    def to_int(array: torch.Tensor) -> int:
+    def to_int(array: "int | torch.Tensor") -> int:
+        if isinstance(array, (float, int)):
+            return int(array)
         if array.numel() != 1:
             raise ValueError(
                 "to_int requires a single-element tensor,"

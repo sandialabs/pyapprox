@@ -110,7 +110,7 @@ class AETCMC(AETC[Array]):
         rounded_nsamples_per_subset = result[5]
 
         # Generate shared samples
-        nsamples = int(self._bkd.to_numpy(rounded_nsamples_per_subset).sum())
+        nsamples = self._bkd.to_int(self._bkd.sum(rounded_nsamples_per_subset))
         samples = rvs(nsamples)
 
         # All models use the same samples
@@ -119,7 +119,7 @@ class AETCMC(AETC[Array]):
         ]
 
         # Convert to HF-indexed subset
-        best_subset_HF = [int(s) + 1 for s in self._bkd.to_numpy(best_subset)]
+        best_subset_HF = [self._bkd.to_int(s) + 1 for s in best_subset]
 
         return samples_per_model, best_subset_HF
 

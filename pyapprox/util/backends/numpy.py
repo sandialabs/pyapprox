@@ -120,7 +120,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return mat
 
     @staticmethod
-    def to_float(array: NDArray[Any]) -> float:
+    def to_float(array: "float | NDArray[Any]") -> float:
+        if isinstance(array, (float, int)):
+            return float(array)
         if array.size != 1:
             raise ValueError(
                 f"to_float requires a single-element array, got shape {array.shape}"
@@ -128,7 +130,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return float(array.flat[0])
 
     @staticmethod
-    def to_int(array: NDArray[Any]) -> int:
+    def to_int(array: "int | NDArray[Any]") -> int:
+        if isinstance(array, (float, int)):
+            return int(array)
         if array.size != 1:
             raise ValueError(
                 f"to_int requires a single-element array, got shape {array.shape}"

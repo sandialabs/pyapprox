@@ -215,7 +215,7 @@ def _build_allocation_result(
     continuous = est._npartition_samples_from_partition_ratios(
         target_cost, partition_ratios
     )
-    nhf_continuous = float(bkd.to_numpy(continuous[0]))
+    nhf_continuous = bkd.to_float(continuous[0])
     if nhf_continuous < 1 - 1e-3:
         nmodels = est._nmodels
         npartitions = est._npartitions
@@ -236,13 +236,13 @@ def _build_allocation_result(
     npartition_samples = bkd.asarray(
         bkd.floor(continuous + 1e-8), dtype=int
     )
-    if int(bkd.to_numpy(npartition_samples[0])) < 1:
+    if bkd.to_int(npartition_samples[0]) < 1:
         npartition_samples[0] = 1
     nsamples_per_model = bkd.asarray(
         est._compute_nsamples_per_model(npartition_samples), dtype=int
     )
-    actual_cost = float(
-        bkd.to_numpy(bkd.sum(nsamples_per_model * est._costs))
+    actual_cost = bkd.to_float(
+        bkd.sum(nsamples_per_model * est._costs)
     )
 
     return ACVAllocationResult(
@@ -381,7 +381,7 @@ class ACVAllocator(Allocator[Array]):
 
     def _allocate_impl(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Core allocation logic (requires autodiff-capable backend)."""
-        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+        if target_cost < self._bkd.to_float(self._bkd.sum(self._est._costs)):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"
             )
@@ -520,7 +520,7 @@ class AnalyticalAllocator(Allocator[Array]):
         AllocationResult
             The allocation result. Check `success` field for status.
         """
-        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+        if target_cost < self._bkd.to_float(self._bkd.sum(self._est._costs)):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"
             )
@@ -601,7 +601,7 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
         self._bkd: Backend[Array] = estimator._bkd
 
     def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
-        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+        if target_cost < self._bkd.to_float(self._bkd.sum(self._est._costs)):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"
             )
@@ -678,7 +678,7 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         self._bkd: Backend[Array] = estimator._bkd
 
     def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
-        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+        if target_cost < self._bkd.to_float(self._bkd.sum(self._est._costs)):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"
             )

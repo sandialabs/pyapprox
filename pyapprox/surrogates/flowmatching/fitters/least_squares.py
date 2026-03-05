@@ -100,7 +100,7 @@ class LeastSquaresFitter(Generic[Array]):
 
         # Compute final loss
         final_loss_val = loss(fitted_vf, path, t, x0, x1, qd.weights(), qd.c())
-        final_loss = float(bkd.to_numpy(bkd.reshape(final_loss_val, (1,)))[0])
+        final_loss = bkd.to_float(final_loss_val)
 
         return FlowMatchingFitResult(
             surrogate=fitted_vf,

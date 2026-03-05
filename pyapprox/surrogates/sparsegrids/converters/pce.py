@@ -164,11 +164,11 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
 
         for j in range(npts):
             # L_j(x) = prod_{k != j} (x - x_k) / (x_j - x_k)
-            x_j = float(nodes[j])
+            x_j = self._bkd.to_float(nodes[j])
             L_j = self._bkd.ones((neval,))
             for k in range(npts):
                 if k != j:
-                    x_k = float(nodes[k])
+                    x_k = self._bkd.to_float(nodes[k])
                     L_j = L_j * (x - x_k) / (x_j - x_k)
             result[:, j] = L_j
 
@@ -194,7 +194,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
             Projection coefficients.
         """
         # Create cache key from nodes (convert to tuple for hashing)
-        nodes_key = tuple(float(n) for n in self._bkd.flatten(lagrange_nodes))
+        nodes_key = tuple(self._bkd.to_float(n) for n in self._bkd.flatten(lagrange_nodes))
         cache_key = (dim, nodes_key)
 
         if cache_key not in self._cached_projection_coefs:
@@ -276,7 +276,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         nsamples = values.shape[1]  # nsamples is second dimension
         for term_idx in range(nterms):
             # Extract multi-index for this PCE term
-            term_multi_idx = [int(indices[dim, term_idx]) for dim in range(self._nvars)]
+            term_multi_idx = [self._bkd.to_int(indices[dim, term_idx]) for dim in range(self._nvars)]
 
             # Sum over all Lagrange basis functions
             for sample_idx in range(nsamples):
@@ -423,7 +423,7 @@ class SparseGridToPCEConverter(Generic[Array]):
         all_indices: Dict[Tuple[int, ...], Array] = {}
 
         for subspace_idx, subspace in enumerate(subspaces):
-            coef = float(smolyak_coefs[subspace_idx])
+            coef = self._bkd.to_float(smolyak_coefs[subspace_idx])
             if abs(coef) < 1e-14:
                 continue
 

@@ -130,7 +130,7 @@ true_vals = fun_2d(np.vstack([z1g.ravel(), z2g.ravel()]))
 #| fig-cap: "True function, tensor product interpolant, and pointwise error for f(z1,z2) = cos(pi*z1)*cos(pi*z2/2). Interpolant is indistinguishable from truth at M=5 per dimension."
 #| label: fig-tp-2d
 
-from _figures._interpolation import plot_tp_2d
+from pyapprox.tutorial_figures._interpolation import plot_tp_2d
 
 grid_np = bkd.to_numpy(grid)
 Z_true  = true_vals.reshape(nfine, nfine)
@@ -151,7 +151,7 @@ The fundamental problem with tensor products is captured in the point-count tabl
 #| fig-cap: "Number of tensor product grid points vs. refinement level for several dimensions. Log scale reveals exponential growth."
 #| label: fig-curse
 
-from _figures._interpolation import plot_curse_of_dimensionality
+from pyapprox.tutorial_figures._interpolation import plot_curse_of_dimensionality
 
 dims  = [2, 3, 4, 6, 10]
 levels = np.arange(0, 6)
@@ -206,7 +206,7 @@ We compare the convergence of tensor product interpolants based on Clenshaw-Curt
 #| label: fig-2d-convergence
 
 from pyapprox.surrogates.affine.univariate import PiecewiseLinear
-from _figures._interpolation import plot_2d_convergence
+from pyapprox.tutorial_figures._interpolation import plot_2d_convergence
 
 def fun_smooth_2d(zz):
     return np.exp(-0.5 * (zz[0:1]**2 + zz[1:2]**2))

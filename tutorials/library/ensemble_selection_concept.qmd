@@ -67,7 +67,7 @@ would have been better spent on the remaining models, pushing the estimator cova
 #| label: fig-bad-model
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_bad_model
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_bad_model
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_bad_model(ax)
@@ -120,7 +120,7 @@ correlation structure controls which models are worth including.
 #| label: fig-heatmap
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_correlation_heatmaps
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_correlation_heatmaps
 
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.8))
 plot_correlation_heatmaps(axes, fig)
@@ -148,7 +148,7 @@ $\rho_{01}$, the full three-model ensemble wins.
 #| label: fig-nmodels
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_ensemble_nmodels
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_ensemble_nmodels
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_ensemble_nmodels(ax)

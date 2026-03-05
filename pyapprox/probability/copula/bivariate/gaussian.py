@@ -220,5 +220,5 @@ class BivariateGaussianCopula(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        rho_val = float(self._bkd.to_numpy(self._rho()))
+        rho_val = self._bkd.to_float(self._rho())
         return f"BivariateGaussianCopula(rho={rho_val:.4f})"

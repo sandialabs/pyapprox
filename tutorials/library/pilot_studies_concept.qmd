@@ -94,7 +94,7 @@ the main estimator. A large pilot leaves too little budget for the estimator its
 #| label: fig-tradeoff
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_pilot_tradeoff
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pilot_tradeoff
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
 plot_pilot_tradeoff(axes)

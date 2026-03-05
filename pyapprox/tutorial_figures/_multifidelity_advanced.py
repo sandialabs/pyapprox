@@ -291,9 +291,9 @@ def plot_mlblue_ceiling(ax):
             est_copy._set_optimized_params_base(
                 npartition_samples, nsamples_per_model,
                 est_copy._estimator_cost(npartition_samples))
-            est_var = float(est_copy._optimized_covariance[0, 0])
+            est_var = bkd.to_float(est_copy._optimized_covariance[0, 0])
             est_costs.append(
-                float(est_copy._estimator_cost(npartition_samples)))
+                bkd.to_float(est_copy._estimator_cost(npartition_samples)))
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios
 
@@ -319,7 +319,7 @@ def plot_mlblue_ceiling(ax):
         est_copy = copy.deepcopy(mlblue_template)
         nsamples_per_model = est_copy._compute_nsamples_per_model(
             npartition_samples)
-        actual_cost = float(est_copy._estimator_cost(npartition_samples))
+        actual_cost = bkd.to_float(est_copy._estimator_cost(npartition_samples))
         result = GroupACVAllocationResult(
             npartition_samples=npartition_samples,
             nsamples_per_model=nsamples_per_model,
@@ -328,7 +328,7 @@ def plot_mlblue_ceiling(ax):
             success=True,
         )
         est_copy.set_allocation(result)
-        est_var = float(bkd.to_numpy(est_copy.optimized_covariance())[0, 0])
+        est_var = bkd.to_float(est_copy.optimized_covariance()[0, 0])
         mlblue_costs.append(actual_cost)
         mlblue_ratio.append(est_var / mc_var)
 
@@ -555,7 +555,7 @@ def plot_pacv_enumeration(ax):
 
     mc_est = MCEstimator(stat, costs[:1])
     mc_est.allocate_samples(100.0)
-    mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+    mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
 
     _slsqp = ScipySLSQPOptimizer(maxiter=200)
 
@@ -578,8 +578,7 @@ def plot_pacv_enumeration(ax):
         if alloc.success:
             try:
                 est.set_allocation(alloc)
-                var = float(
-                    bkd.to_numpy(est.optimized_covariance())[0, 0])
+                var = bkd.to_float(est.optimized_covariance()[0, 0])
             except np.linalg.LinAlgError:
                 var = mc_var
         else:
@@ -660,10 +659,10 @@ def plot_pacv_ceiling(ax):
             ratios = bkd.asarray(
                 partition_ratio_base[:nparts - 1] * 2**factor, dtype=float)
             model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
-            target_cost = float(
+            target_cost = bkd.to_float(
                 nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:])))
             est_cov = estimator.covariance_from_ratios(target_cost, ratios)
-            est_var = float(est_cov[0, 0])
+            est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(target_cost)
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios
@@ -686,11 +685,11 @@ def plot_pacv_ceiling(ax):
             ratios = bkd.asarray(
                 partition_ratio_base[:nparts - 1] * 2**factor, dtype=float)
             model_ratios = est._partition_ratios_to_model_ratios(ratios)
-            target_cost = float(
+            target_cost = bkd.to_float(
                 nhf_samples * (
                     costs[0] + bkd.dot(model_ratios, costs[1:])))
             est_cov = est.covariance_from_ratios(target_cost, ratios)
-            est_var = float(est_cov[0, 0])
+            est_var = bkd.to_float(est_cov[0, 0])
             if est_var < best_var:
                 best_var = est_var
         best_costs.append(target_cost)
@@ -821,8 +820,8 @@ def plot_moacv_vs_soacv(ax):
         cov_mo_P = bkd.to_numpy(result_mo.estimator.optimized_covariance())
         target_costs.append(P)
         mo_vars.append(cov_mo_P[0, 0])
-        so_vars.append(float(
-            bkd.to_numpy(result_so.estimator.optimized_covariance())[0, 0]))
+        so_vars.append(bkd.to_float(
+            result_so.estimator.optimized_covariance()[0, 0]))
         mc_vars.append(mc_var_q0 / float(P))
 
     ax.loglog(target_costs, mo_vars, "-", color="#8E44AD", lw=2.5,
@@ -919,7 +918,7 @@ def plot_bad_model(ax):
         stat_mc.set_pilot_quantities(cov)
         mc_est = MCEstimator(stat_mc, costs[:1])
         mc_est.allocate_samples(P)
-        mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+        mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
         mc_vars.append(mc_var)
 
         best2 = mc_var
@@ -931,7 +930,7 @@ def plot_bad_model(ax):
             est2 = GMFEstimator(stat2, sub_costs,
                                 recursion_index=bkd.asarray([0]))
             est2.allocate_samples(P)
-            v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
+            v = bkd.to_float(est2.optimized_covariance()[0, 0])
             best2 = min(best2, v)
         two_model_vars.append(best2)
 
@@ -940,7 +939,7 @@ def plot_bad_model(ax):
         est3 = GMFEstimator(stat3, costs,
                             recursion_index=bkd.asarray([0, 0]))
         est3.allocate_samples(P)
-        v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
+        v3 = bkd.to_float(est3.optimized_covariance()[0, 0])
         three_model_vars.append(v3)
 
     rho01_arr = np.array(rho01_vals)
@@ -1038,7 +1037,7 @@ def plot_ensemble_nmodels(ax):
         stat_mc.set_pilot_quantities(cov)
         mc_est = MCEstimator(stat_mc, costs[:1])
         mc_est.allocate_samples(P)
-        mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+        mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
 
         best1 = mc_var
         for idx2 in ([0, 1], [0, 2]):
@@ -1049,7 +1048,7 @@ def plot_ensemble_nmodels(ax):
             est2 = GMFEstimator(stat2, sub_costs,
                                 recursion_index=bkd.asarray([0]))
             est2.allocate_samples(P)
-            v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
+            v = bkd.to_float(est2.optimized_covariance()[0, 0])
             best1 = min(best1, v)
         best_1lf.append(best1 / mc_var)
 
@@ -1058,7 +1057,7 @@ def plot_ensemble_nmodels(ax):
         est3 = GMFEstimator(stat3, costs,
                             recursion_index=bkd.asarray([0, 0]))
         est3.allocate_samples(P)
-        v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
+        v3 = bkd.to_float(est3.optimized_covariance()[0, 0])
         two_lf.append(v3 / mc_var)
 
     rho01_arr = np.array(rho01_vals)
@@ -1100,7 +1099,7 @@ def plot_pilot_tradeoff(axes):
     costs = bkd.array([1.0, 0.1, 0.05])
     prior = benchmark.prior()
     models = benchmark.models()
-    true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
+    true_mean = bkd.to_float(benchmark.ensemble_means()[0, 0])
     P_total = 100.0
 
     cov_oracle = benchmark.ensemble_covariance()
@@ -1108,11 +1107,11 @@ def plot_pilot_tradeoff(axes):
     oracle_stat.set_pilot_quantities(cov_oracle)
     oracle_est = MFMCEstimator(oracle_stat, costs)
     oracle_est.allocate_samples(P_total)
-    oracle_mse = float(bkd.to_numpy(oracle_est.optimized_covariance())[0, 0])
+    oracle_mse = bkd.to_float(oracle_est.optimized_covariance()[0, 0])
 
     mc_est = MCEstimator(oracle_stat, costs[:1])
     mc_est.allocate_samples(P_total)
-    mc_mse = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+    mc_mse = bkd.to_float(mc_est.optimized_covariance()[0, 0])
 
     def single_trial(seed, npilot, budget):
         np.random.seed(seed)
@@ -1127,7 +1126,7 @@ def plot_pilot_tradeoff(axes):
             np.random.seed(seed + 1000)
             s_main = est.generate_samples_per_model(prior.rvs)
             vals_main = [m(s) for m, s in zip(models, s_main)]
-            return float(est(vals_main))
+            return bkd.to_float(est(vals_main))
         except Exception:
             return float("nan")
 
@@ -1139,7 +1138,7 @@ def plot_pilot_tradeoff(axes):
     mse_paid = []
 
     for npilot in npilot_list:
-        pilot_cost = float(costs_np.sum()) * npilot
+        pilot_cost = costs_np.sum().item() * npilot
         budget_free = P_total
         budget_paid = max(P_total - pilot_cost, 1.0)
 
@@ -1151,8 +1150,8 @@ def plot_pilot_tradeoff(axes):
         vals_free = np.array([v for v in vals_free if np.isfinite(v)])
         vals_paid = np.array([v for v in vals_paid if np.isfinite(v)])
 
-        mse_free.append(float(np.mean((vals_free - true_mean)**2)))
-        mse_paid.append(float(np.mean((vals_paid - true_mean)**2)))
+        mse_free.append(np.mean((vals_free - true_mean)**2).item())
+        mse_paid.append(np.mean((vals_paid - true_mean)**2).item())
 
     for ax, mse_list, title in zip(
         axes,
@@ -1227,7 +1226,7 @@ def plot_budget_vs_statistic(stat_configs, cost_per_eval, bkd, ax):
             est_temp = MCEstimator(stat_obj, cost_per_eval)
             est_temp.allocate_samples(float(budget))
             est_cov = est_temp.optimized_covariance()
-            traces.append(float(bkd.trace(est_cov)))
+            traces.append(bkd.to_float(bkd.trace(est_cov)))
         ax.loglog(budget_values, traces, "-o", ms=4, color=color, label=name)
 
     ax.set_xlabel("Computational budget (model evaluations)", fontsize=12)

@@ -327,10 +327,10 @@ class SASNormalMarginal(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        xi = float(self._bkd.to_numpy(self._xi_hyp.get_values())[0])
-        eta = float(self._bkd.to_numpy(self._eta_hyp.exp_values())[0])
-        eps = float(self._bkd.to_numpy(self._epsilon_hyp.get_values())[0])
-        delta = float(self._bkd.to_numpy(self._delta_hyp.exp_values())[0])
+        xi = self._bkd.to_float(self._xi_hyp.get_values()[0])
+        eta = self._bkd.to_float(self._eta_hyp.exp_values()[0])
+        eps = self._bkd.to_float(self._epsilon_hyp.get_values()[0])
+        delta = self._bkd.to_float(self._delta_hyp.exp_values()[0])
         return (
             f"SASNormalMarginal(xi={xi}, eta={eta}, "
             f"epsilon={eps}, delta={delta})"

@@ -186,10 +186,10 @@ class SympyField2D(Generic[Array]):
             # Fall back to computing from mesh points
             pts = self._mesh.points()
             return (
-                float(self._bkd.min(pts[0, :])),
-                float(self._bkd.max(pts[0, :])),
-                float(self._bkd.min(pts[1, :])),
-                float(self._bkd.max(pts[1, :])),
+                self._bkd.to_float(self._bkd.min(pts[0, :])),
+                self._bkd.to_float(self._bkd.max(pts[0, :])),
+                self._bkd.to_float(self._bkd.min(pts[1, :])),
+                self._bkd.to_float(self._bkd.max(pts[1, :])),
             )
 
     def _get_coords(self) -> Tuple[np.ndarray, np.ndarray]:

@@ -218,7 +218,7 @@ print(f"Variance reduction:     {var_mc / var_est:.1f}x")
 #| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."
 #| label: fig-variance-vs-cost
 
-from _figures._hierarchy import plot_variance_vs_cost
+from pyapprox.tutorial_figures._hierarchy import plot_variance_vs_cost
 
 target_costs_sweep = [10, 100, 1000, 10000]
 n_trials = 500
@@ -278,7 +278,7 @@ from pyapprox.statest.acv.allocation import ACVAllocator
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
-from _figures._hierarchy import plot_mlmc_vs_opt
+from pyapprox.tutorial_figures._hierarchy import plot_mlmc_vs_opt
 
 stat_true = MultiOutputMean(nqoi, bkd)
 stat_true.set_pilot_quantities(bkd.asarray(cov_true))

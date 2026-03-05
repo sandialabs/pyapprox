@@ -80,7 +80,7 @@ If the walker always accepts moves to higher density and *sometimes* accepts mov
 #| label: fig-random-walk-concept
 import numpy as np
 import matplotlib.pyplot as plt
-from _figures._bayesian import plot_random_walk_concept
+from pyapprox.tutorial_figures._bayesian import plot_random_walk_concept
 
 fig, ax = plt.subplots(figsize=(8, 6))
 plot_random_walk_concept(fig, ax)
@@ -110,7 +110,7 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from scipy.stats import norm
-from _figures._bayesian import plot_mh_single_step
+from pyapprox.tutorial_figures._bayesian import plot_mh_single_step
 
 bkd = NumpyBkd()
 
@@ -209,7 +209,7 @@ print(f"Acceptance rate: {result.acceptance_rate:.1%}")
 #| echo: false
 #| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."
 #| label: fig-trace-and-histogram
-from _figures._bayesian import plot_trace_and_histogram
+from pyapprox.tutorial_figures._bayesian import plot_trace_and_histogram
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,
@@ -294,7 +294,7 @@ print(f"Acceptance rate: {result_2d.acceptance_rate:.1%}")
 #| echo: false
 #| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."
 #| label: fig-2d-chain
-from _figures._bayesian import plot_2d_chain
+from pyapprox.tutorial_figures._bayesian import plot_2d_chain
 
 burnin_2d = 500
 chain_2d_post = chain_2d[burnin_2d:]
@@ -312,7 +312,7 @@ plt.show()
 #| echo: false
 #| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."
 #| label: fig-2d-marginals
-from _figures._bayesian import plot_2d_marginals
+from pyapprox.tutorial_figures._bayesian import plot_2d_marginals
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)
@@ -329,7 +329,7 @@ As a final sanity check, we propagate every posterior sample through the model a
 #| echo: false
 #| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."
 #| label: fig-posterior-predictive
-from _figures._bayesian import plot_posterior_predictive
+from pyapprox.tutorial_figures._bayesian import plot_posterior_predictive
 
 fig, ax = plt.subplots(figsize=(8, 4))
 plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,

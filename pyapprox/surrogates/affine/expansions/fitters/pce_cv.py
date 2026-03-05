@@ -173,12 +173,12 @@ class PCEDegreeSelectionFitter(Generic[Array]):
                 )
 
             # cv_score shape: (nqoi,) - take mean across QoIs
-            cv_scores_list.append(float(bkd.mean(cv_score)))
+            cv_scores_list.append(bkd.to_float(bkd.mean(cv_score)))
             all_params.append(coef)
 
         # Find best level
         cv_scores_array = bkd.asarray(cv_scores_list)
-        best_index = int(bkd.argmin(cv_scores_array))
+        best_index = bkd.to_int(bkd.argmin(cv_scores_array))
         best_level = self._levels[best_index]
         best_params = all_params[best_index]
 

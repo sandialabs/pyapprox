@@ -410,7 +410,7 @@ class AcquisitionOptimizer(Generic[Array]):
                 opt_x = result.optima()  # (nvars, 1)
                 # Evaluate acquisition at optimum
                 opt_acq = acquisition.evaluate(opt_x, ctx)
-                opt_val = float(bkd.to_numpy(opt_acq)[0])
+                opt_val = bkd.to_float(opt_acq[0])
 
                 if opt_val > best_val:
                     best_val = opt_val
@@ -489,7 +489,7 @@ class AcquisitionOptimizer(Generic[Array]):
                 result = opt.minimize(init_guess)
                 opt_x = result.optima()  # (nvars, 1)
                 opt_pred = surrogate.predict(opt_x)
-                opt_val = float(bkd.to_numpy(opt_pred[0])[0])
+                opt_val = bkd.to_float(opt_pred[0][0])
 
                 improved = (opt_val < best_val) if minimize else (opt_val > best_val)
                 if improved:

@@ -53,7 +53,7 @@ Complete [Forward UQ](forward_uq.qmd) before this tutorial.
 #| label: fig-beam-schematic
 import numpy as np
 import matplotlib.pyplot as plt
-from _figures import plot_duu_beam_schematic
+from pyapprox.tutorial_figures import plot_duu_beam_schematic
 
 fig, (ax_side, ax_cross) = plt.subplots(
     1, 2, figsize=(12, 4),
@@ -333,7 +333,7 @@ any_failure_rob = np.sum(np.any(constraint_values_rob < 0, axis=0))
 ```{python}
 #| fig-cap: "Constraint value distributions at the deterministic (blue) and robust (orange) optima. The robust design shifts the distributions away from the failure boundary, dramatically reducing constraint violations at the cost of a modest increase in cross-sectional area."
 #| label: fig-comparison
-from _figures import plot_duu_comparison
+from pyapprox.tutorial_figures import plot_duu_comparison
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 plot_duu_comparison(constraint_values, constraint_values_rob, axes)

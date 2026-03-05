@@ -172,7 +172,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         D = self._D1_matrices[0]
 
         # Check for negative depth
-        min_h = float(bkd.min(h))
+        min_h = bkd.to_float(bkd.min(h))
         if min_h <= 0:
             raise RuntimeError(f"Depth became non-positive: min(h) = {min_h}")
 
@@ -202,7 +202,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Dy = self._D1_matrices[1]
 
         # Check for negative depth
-        min_h = float(bkd.min(h))
+        min_h = bkd.to_float(bkd.min(h))
         if min_h <= 0:
             raise RuntimeError(f"Depth became non-positive: min(h) = {min_h}")
 

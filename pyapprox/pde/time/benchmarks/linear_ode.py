@@ -377,7 +377,7 @@ class QuadraticODEResidual(Generic[Array]):
         """
         result = self._bkd.zeros((self._nparams,))
         result = self._bkd.copy(result)
-        result[0] = 2.0 * float(self._bkd.sum(adj_state * state * wvec))
+        result[0] = 2.0 * self._bkd.to_float(self._bkd.sum(adj_state * state * wvec))
         return result
 
     def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:

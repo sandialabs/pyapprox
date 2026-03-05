@@ -278,7 +278,7 @@ class DVineCopula(Generic[Array]):
                     )
                 arctanh_rho = copula.hyp_list().get_values()[0]
                 rho = self._bkd.tanh(arctanh_rho)
-                partial_corrs[t].append(float(self._bkd.to_numpy(rho)))
+                partial_corrs[t].append(self._bkd.to_float(rho))
         return correlation_from_partial_correlations(
             partial_corrs, self._nvars, self._bkd
         )

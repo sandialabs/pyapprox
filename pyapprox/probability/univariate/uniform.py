@@ -117,11 +117,11 @@ class UniformMarginal(Generic[Array]):
 
     def lower(self) -> float:
         """Return the lower bound."""
-        return float(self._bkd.to_numpy(self._lower_hyp.get_values())[0])
+        return self._bkd.to_float(self._lower_hyp.get_values()[0])
 
     def upper(self) -> float:
         """Return the upper bound."""
-        return float(self._bkd.to_numpy(self._upper_hyp.get_values())[0])
+        return self._bkd.to_float(self._upper_hyp.get_values()[0])
 
     def pdf(self, samples: Array) -> Array:
         """

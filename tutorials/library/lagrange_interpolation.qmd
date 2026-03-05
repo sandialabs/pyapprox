@@ -96,7 +96,7 @@ The first factor depends entirely on the node placement; the second factor is a 
 #| label: fig-lagrange-basis
 #| echo: false
 
-from _figures._interpolation import plot_lagrange_basis
+from pyapprox.tutorial_figures._interpolation import plot_lagrange_basis
 
 cc_rule = ClenshawCurtisQuadratureRule(bkd, store=True)
 
@@ -111,7 +111,7 @@ plt.show()
 `LagrangeBasis1D` takes a **quadrature rule callable** — any function with signature `(npoints) → (samples, weights)` — and builds the Lagrange basis at the rule's nodes.  This design lets us plug in Gauss, Clenshaw-Curtis, or Leja points interchangeably.
 
 ```{python}
-from _figures._interpolation import plot_basis_comparison
+from pyapprox.tutorial_figures._interpolation import plot_basis_comparison
 
 # --- Clenshaw-Curtis basis ---
 cc_rule = ClenshawCurtisQuadratureRule(bkd, store=True)
@@ -156,7 +156,7 @@ A natural first choice for interpolation nodes is **equally spaced** points.  Fo
 #| fig-cap: "Runge's function 1/(1+25x^2) interpolated with equally-spaced (M=13) vs. Clenshaw-Curtis (M=17) nodes. Equidistant nodes produce violent oscillations near the boundary; CC nodes give an excellent approximation."
 #| label: fig-runge
 
-from _figures._interpolation import plot_runge
+from pyapprox.tutorial_figures._interpolation import plot_runge
 
 def runge(x):
     return 1.0 / (1.0 + 25.0 * x**2)
@@ -215,7 +215,7 @@ These are the projection of equally spaced points on the unit circle onto the re
 A critical property for sparse grids is that CC nodes are **nested**: the $M = 2^k + 1$ point CC grid contains all points of the $M = 2^{k-1} + 1$ point grid.
 
 ```{python}
-from _figures._interpolation import plot_nested_cc
+from pyapprox.tutorial_figures._interpolation import plot_nested_cc
 
 levels = [3, 5, 9]
 
@@ -234,7 +234,7 @@ For a function with $r$ continuous derivatives, the Lagrange interpolant on Cheb
 #| fig-cap: "Interpolation error vs. number of nodes M for three test functions. Analytic functions converge exponentially; C^1 functions converge algebraically."
 #| label: fig-convergence
 
-from _figures._interpolation import plot_interp_convergence
+from pyapprox.tutorial_figures._interpolation import plot_interp_convergence
 
 def f_analytic(x):
     return np.exp(np.cos(np.pi * x))

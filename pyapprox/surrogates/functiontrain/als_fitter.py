@@ -203,7 +203,7 @@ class ALSFitter(Generic[Array]):
     def _compute_residual(self, pred: Array, values: Array) -> float:
         """Compute normalized RMSE residual."""
         diff = pred - values
-        mse = float(self._bkd.to_numpy(self._bkd.mean(diff * diff)))
+        mse = self._bkd.to_float(self._bkd.mean(diff * diff))
         return mse**0.5
 
     def _solve_core(

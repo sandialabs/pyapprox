@@ -134,7 +134,7 @@ class GaussLegendreIntegrator(Generic[Array]):
 
         # Compute weighted sum
         result = self._bkd.sum(vals[:, 0] * weights[:, 0]) * jacobian
-        return float(result)
+        return self._bkd.to_float(result)
 
 
 class UnboundedIntegrator(Generic[Array]):
@@ -218,7 +218,7 @@ class UnboundedIntegrator(Generic[Array]):
         jacobian = (ub - lb)
 
         vals = self._integrand(mapped_points)
-        return float(self._bkd.sum(vals[:, 0] * weights[:, 0]) * jacobian)
+        return self._bkd.to_float(self._bkd.sum(vals[:, 0] * weights[:, 0]) * jacobian)
 
     def _adaptive_integrate_interval(self, lb: float, ub: float) -> float:
         """Adaptively integrate over an interval with refinement."""

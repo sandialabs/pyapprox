@@ -149,8 +149,8 @@ class BoundedParameterSweeper(Generic[Array]):
         if len(indices) == 0:
             raise RuntimeError("No valid sweep bounds found")
 
-        y_lb = float(self._bkd.to_numpy(y[0, indices[0]]))
-        y_ub = float(self._bkd.to_numpy(y[0, indices[-1]]))
+        y_lb = self._bkd.to_float(y[0, indices[0]])
+        y_ub = self._bkd.to_float(y[0, indices[-1]])
         return y_lb, y_ub
 
     def canonical_sweep_samples(self, rotation_vec: Array) -> Array:

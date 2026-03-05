@@ -63,7 +63,7 @@ The KL term between two Gaussians has a closed-form expression, so its gradient 
 #| fig-cap: "Left: sampling $\\theta \\sim q(\\cdot;\\, \\mu, \\sigma)$ blocks gradient flow — we cannot differentiate through a random number generator (red). Right: writing $\\theta = \\mu + \\sigma \\varepsilon$ with fixed $\\varepsilon \\sim \\mathcal{N}(0,1)$ makes $\\theta$ a differentiable function of the parameters (green). The gradient flows through the deterministic transformation."
 #| label: fig-reparam-diagram
 import matplotlib.pyplot as plt
-from _figures._vi import plot_reparam_diagram
+from pyapprox.tutorial_figures._vi import plot_reparam_diagram
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 plot_reparam_diagram(ax1, ax2)
@@ -107,7 +107,7 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from _figures._vi import _beam_exact_posterior, plot_reparam_visual
+from pyapprox.tutorial_figures._vi import _beam_exact_posterior, plot_reparam_visual
 
 bkd = NumpyBkd()
 
@@ -251,7 +251,7 @@ for mi in maxiters:
 #| echo: false
 #| fig-cap: "ELBO convergence and parameter trajectories. Left: the negative ELBO decreases sharply in the first 50 iterations and then plateaus. Center: the variational mean converges toward the exact posterior mean (dashed line). Right: the variational standard deviation converges toward the exact posterior std. Most optimization work happens early."
 #| label: fig-elbo-convergence
-from _figures._vi import plot_elbo_convergence
+from pyapprox.tutorial_figures._vi import plot_elbo_convergence
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4))
 plot_elbo_convergence(
@@ -276,7 +276,7 @@ The ELBO expectation is approximated by a sum over $S$ base samples. More sample
 #| echo: false
 #| fig-cap: "Effect of the number of base samples on VI accuracy. Each panel shows the converged VI approximation (blue dashed) vs. the exact posterior (orange). With $S = 20$, the noisy ELBO estimate leads to a poor fit. By $S = 200$, the result is already close to the $S = 2000$ result."
 #| label: fig-base-samples
-from _figures._vi import plot_base_samples
+from pyapprox.tutorial_figures._vi import plot_base_samples
 
 sample_counts = [20, 200, 2000]
 fig, axes = plt.subplots(1, len(sample_counts), figsize=(13, 3.5),
@@ -484,7 +484,7 @@ print(f"Full-covariance Gaussian: {elbo_full.nvars()} params, "
 #| echo: false
 #| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam. Left: the exact posterior shows a tilted ridge — $E_1$ and $E_2$ are correlated. Center: the diagonal Gaussian captures the correct center but its axis-aligned ellipses cannot represent the tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior, producing a better fit (lower negative ELBO). The extra expressiveness costs 1 additional parameter (5 vs. 4)."
 #| label: fig-vi-2d
-from _figures._vi import plot_vi_2d
+from pyapprox.tutorial_figures._vi import plot_vi_2d
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(17, 5))
 plot_vi_2d(

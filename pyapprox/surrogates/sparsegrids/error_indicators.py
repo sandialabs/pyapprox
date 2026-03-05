@@ -70,10 +70,8 @@ class L2SurrogateDifferenceIndicator(Generic[Array]):
         new_vals = info.sel_plus_candidate_surrogate(samples)
         diff = new_vals - old_vals
 
-        error = float(
-            self._bkd.to_numpy(
-                self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
-            )
+        error = self._bkd.to_float(
+            self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
         )
         return (error, error)
 
@@ -113,10 +111,8 @@ class L2NewSamplesIndicator(Generic[Array]):
         new_vals = info.sel_plus_candidate_surrogate(samples)
         diff = new_vals - old_vals
 
-        error = float(
-            self._bkd.to_numpy(
-                self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
-            )
+        error = self._bkd.to_float(
+            self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
         )
         return (error, error)
 
@@ -154,13 +150,11 @@ class VarianceChangeIndicator(Generic[Array]):
         old_var = info.selected_surrogate.variance()
         new_var = info.sel_plus_candidate_surrogate.variance()
 
-        mean_change = float(
-            self._bkd.to_numpy(self._bkd.max(self._bkd.abs(new_mean - old_mean)))
+        mean_change = self._bkd.to_float(
+            self._bkd.max(self._bkd.abs(new_mean - old_mean))
         )
-        var_change = float(
-            self._bkd.to_numpy(
-                self._bkd.max(self._bkd.sqrt(self._bkd.abs(new_var - old_var)))
-            )
+        var_change = self._bkd.to_float(
+            self._bkd.max(self._bkd.sqrt(self._bkd.abs(new_var - old_var)))
         )
         error = mean_change + var_change
         return (error, error)

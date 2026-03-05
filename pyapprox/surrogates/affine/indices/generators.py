@@ -617,7 +617,7 @@ class IsotropicSparseGridBasisIndexGenerator(
         for j in range(subspace_indices.shape[1]):
             k = subspace_indices[:, j]
             dims = [
-                self._growth_rules[i](int(bkd.to_numpy(k[i])))
+                self._growth_rules[i](bkd.to_int(k[i]))
                 for i in range(nvars)
             ]
             if all(d > 0 for d in dims):

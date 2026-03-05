@@ -86,7 +86,7 @@ def lanczos_recursion(
         norm_sq = bkd.sum(weights * p_next * p_next)
         if norm_sq < ortho_tol:
             raise ValueError(
-                f"Lanczos breakdown at term {nn + 1}: norm^2 = {float(norm_sq)}"
+                f"Lanczos breakdown at term {nn + 1}: norm^2 = {bkd.to_float(norm_sq)}"
             )
 
         ab[nn + 1, 1] = bkd.sqrt(bkd.asarray([norm_sq]))[0]

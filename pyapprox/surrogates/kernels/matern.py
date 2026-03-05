@@ -293,8 +293,8 @@ class SquaredExponentialKernel(MaternKernel):
         # Get bounds in user space (exp of log bounds)
         bounds = self._bkd.exp(self._log_lenscale.get_bounds())
         bounds_tuple = (
-            float(self._bkd.to_numpy(bounds[0, 0])),
-            float(self._bkd.to_numpy(bounds[0, 1]))
+            self._bkd.to_float(bounds[0, 0]),
+            self._bkd.to_float(bounds[0, 1]),
         )
 
         return SquaredExponentialKernel(

@@ -572,7 +572,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._ensure_allocation()
         # Convert to int for rvs call - this is at a boundary where we're
         # generating samples, not computing gradients through rvs
-        ntotal_independent_samples = int(self._npartition_samples.sum())
+        ntotal_independent_samples = self._bkd.to_int(self._bkd.sum(self._npartition_samples))
         partition_splits = self._get_partition_splits(self._npartition_samples)
         samples = rvs(ntotal_independent_samples)
         samples_per_model = []
@@ -934,7 +934,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         if not self.has_allocation:
             return "{0}()".format(self.__class__.__name__)
         criteria = self.optimized_criteria()
-        criteria_val = float(self._bkd.to_numpy(criteria.flatten())[0])
+        criteria_val = self._bkd.to_float(criteria.flatten()[0])
         rep = "{0}(criteria={1:.3g}".format(self.__class__.__name__, criteria_val)
         rep += " target_cost={0:.5g}, nsamples={1})".format(
             self._target_cost, self._nsamples_per_model

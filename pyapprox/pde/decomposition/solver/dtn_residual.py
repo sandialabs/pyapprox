@@ -221,7 +221,7 @@ class DtNResidual(Generic[Array]):
             L2 norm of residual.
         """
         residual = self(global_dofs)
-        return float(self._bkd.norm(residual))
+        return self._bkd.to_float(self._bkd.norm(residual))
 
     def set_time(self, time: float) -> None:
         """Set the current time for time-dependent problems.

@@ -192,7 +192,7 @@ class GroupACVSearch(Generic[Array]):
         sorted_allocs = sorted(
             all_allocations,
             key=lambda x: (
-                float(self._bkd.to_numpy(x[1].objective_value)[0])
+                self._bkd.to_float(x[1].objective_value[0])
                 if x[1].success
                 else float("inf")
             ),

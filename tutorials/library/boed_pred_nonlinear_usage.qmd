@@ -102,7 +102,7 @@ predictions   = pred_model(sample)
 #| echo: false
 #| fig-cap: "Observation times (circles, states 1 and 3) and prediction targets (crosses, red) for the Lotka-Volterra model. The goal-oriented OED will concentrate observation budget at times that reduce posterior uncertainty at the red crosses."
 #| label: fig-lv-pred-target
-from _figures import plot_lv_pred_target
+from pyapprox.tutorial_figures import plot_lv_pred_target
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_lv_pred_target(ax, benchmark, obs_model, sample, observations,
@@ -201,7 +201,7 @@ The solver is otherwise identical.
 ```{python}
 #| fig-cap: "Optimal design weights for standard-deviation (blue) and entropic-deviation (orange) objectives, for states 1 and 3 of the Lotka-Volterra ODE. Differences between the two panels indicate that risk preferences influence which observation times are deemed most valuable."
 #| label: fig-lv-design-comparison
-from _figures import plot_pred_design_weights
+from pyapprox.tutorial_figures import plot_pred_design_weights
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 8), sharey="row")
 plot_pred_design_weights(axes, benchmark, weights_std, weights_ent, bkd)

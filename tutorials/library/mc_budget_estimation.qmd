@@ -219,7 +219,7 @@ The predicted estimator covariance tells us how precise we *expect* the estimate
 #| fig-cap: "Verification of the budget prediction. Histograms of mean estimates from 200 independent experiments at the allocated budget, with the predicted standard deviation (red dashed) and empirical standard deviation (green) overlaid."
 #| label: fig-budget-verification
 
-from _figures._multifidelity_advanced import plot_budget_verification
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_budget_verification
 
 n_reps = 200
 M_alloc = int(est._rounded_nsamples_per_model[0])
@@ -251,7 +251,7 @@ The estimator covariance depends on which statistics we estimate. Estimating the
 #| fig-cap: "Predicted estimation error (trace of estimator covariance) vs. computational budget for three statistic choices. Estimating the variance requires a larger budget than the mean for the same accuracy, and estimating both simultaneously is the most expensive."
 #| label: fig-budget-vs-statistic
 
-from _figures._multifidelity_advanced import plot_budget_vs_statistic
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_budget_vs_statistic
 
 # Create stat objects and set pilot quantities
 stat_mean = MultiOutputMean(nqoi, bkd)
@@ -289,7 +289,7 @@ The budget estimate is only as good as the pilot estimates of $\boldsymbol{\Sigm
 #| fig-cap: "Sensitivity of the budget prediction to pilot size. Each point is the predicted standard deviation of $\\hat{\\mu}_1$ from an independent pilot experiment. Small pilots ($M_{\\text{pilot}} = 20$) produce highly variable predictions; larger pilots ($M_{\\text{pilot}} = 200$) are much more stable. The true value (from the benchmark's exact moments) is shown as a dashed red line."
 #| label: fig-pilot-sensitivity
 
-from _figures._multifidelity_advanced import plot_pilot_sensitivity
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pilot_sensitivity
 
 pilot_sizes = [20, 50, 100, 200]
 n_pilot_reps = 100
@@ -397,7 +397,7 @@ The estimator covariance matrix at the allocated budget shows the block structur
 #| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation at the allocated budget. The block structure from the previous tutorial is visible: mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right)."
 #| label: fig-est-cov-final
 
-from _figures._multifidelity_advanced import plot_est_cov_final
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_est_cov_final
 
 # Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance
 stat_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]

@@ -123,6 +123,6 @@ class CollocationQuadrature1D(Generic[Array]):
         """
         bkd = self._bkd
         phys_pts = self._basis.mesh().points()  # shape (1, npts)
-        a = float(bkd.to_numpy(phys_pts[0, 0]))
-        b = float(bkd.to_numpy(phys_pts[0, -1]))
+        a = bkd.to_float(phys_pts[0, 0])
+        b = bkd.to_float(phys_pts[0, -1])
         return self.weights(a, b)

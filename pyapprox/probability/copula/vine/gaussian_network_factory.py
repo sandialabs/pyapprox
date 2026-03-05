@@ -70,16 +70,16 @@ def _extract_chain_structure(
     for pos, nid in enumerate(topo_order):
         if network.is_root(nid):
             prior_cov = network.get_prior_cov(nid)
-            noise_variance[pos] = float(bkd.to_numpy(prior_cov[0, 0]))
+            noise_variance[pos] = bkd.to_float(prior_cov[0, 0])
         else:
             parents = network.get_parents(nid)
             coeffs = network.get_cpd_coefficients(nid)
             cpd_noise = network.get_cpd_noise_cov(nid)
-            noise_variance[pos] = float(bkd.to_numpy(cpd_noise[0, 0]))
+            noise_variance[pos] = bkd.to_float(cpd_noise[0, 0])
 
             for pid, coeff in zip(parents, coeffs):
                 p_pos = node_to_pos[pid]
-                c_val = float(bkd.to_numpy(coeff[0, 0]))
+                c_val = bkd.to_float(coeff[0, 0])
                 parent_pos_coeffs[pos].append((p_pos, c_val))
                 bandwidth = max(bandwidth, pos - p_pos)
 
@@ -196,7 +196,7 @@ def _extract_partial_correlations(
                 chol = CholeskyFactor(L, bkd)
                 P = chol.matrix_inverse()
                 rho_partial = -P[0, t] / bkd.sqrt(P[0, 0] * P[t, t])
-                partial_corrs[t].append(float(bkd.to_numpy(rho_partial)))
+                partial_corrs[t].append(bkd.to_float(rho_partial))
 
     return partial_corrs
 

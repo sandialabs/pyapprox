@@ -78,7 +78,7 @@ evaluated at the same $m_k$ sample points.
 #| label: fig-subsets
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_mlblue_subsets
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_subsets
 
 fig, ax = plt.subplots(figsize=(8, 5))
 plot_mlblue_subsets(ax)
@@ -113,7 +113,7 @@ gives the full system $\mathbf{Y} = \mathbf{H}\mathbf{q} + \boldsymbol{\epsilon}
 #| label: fig-system
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_mlblue_system
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_system
 
 fig, axes = plt.subplots(1, 4, figsize=(14, 5),
                          gridspec_kw={"width_ratios": [2.0, 1.5, 2.5, 1.5]})
@@ -151,7 +151,7 @@ from the pilot study. @fig-cov shows this block structure for the same three-sub
 #| label: fig-cov
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_mlblue_cov
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_cov
 
 fig, ax = plt.subplots(figsize=(7, 5.5))
 plot_mlblue_cov(ax, fig)
@@ -188,7 +188,7 @@ the five-model polynomial benchmark.
 #| label: fig-ceiling
 
 import matplotlib.pyplot as plt
-from _figures._multifidelity_advanced import plot_mlblue_ceiling
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_ceiling
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_mlblue_ceiling(ax)

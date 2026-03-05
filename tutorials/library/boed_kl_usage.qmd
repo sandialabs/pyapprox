@@ -153,7 +153,7 @@ values_inner = diagnostics.compute_mse_for_sample_combinations(
 #| echo: false
 #| fig-cap: "Left: MSE vs. outer sample count M for two inner counts (MC quadrature). Both curves nearly collapse and follow O(1/M), confirming that variance — not bias — drives the outer convergence. Right: bias² and variance vs. inner sample count N_in for fixed M=500. Bias² decays rapidly once N_in ≳ 50; variance (set by M) stays flat, confirming the budget separation."
 #| label: fig-convergence-panels
-from _figures import plot_boed_convergence_panels
+from pyapprox.tutorial_figures import plot_boed_convergence_panels
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 fig.suptitle("Outer budget drives variance; inner budget drives bias",

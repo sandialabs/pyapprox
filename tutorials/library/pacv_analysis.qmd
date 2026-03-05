@@ -375,7 +375,7 @@ for fam, result_fam in [("gmf", result_gmf), ("grd", result_grd), ("gis", result
     if ri_list is None:
         ri_list = fam_ri
 
-from _figures._multifidelity_advanced import plot_pacv_cross_family
+from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_cross_family
 
 fig, ax = plt.subplots(figsize=(11, 5))
 plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,

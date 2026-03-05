@@ -258,7 +258,7 @@ For 2D projections, we can see how the three strategies distribute their points.
 #| fig-cap: "Sample designs for 30 training points. Each panel shows the projection onto dimensions 1 and 2. Cholesky and IVAR tend to spread points more evenly across the input space than Sobol, which can exhibit clustering in projections."
 #| label: fig-sample-designs
 
-from _figures._gp import plot_sample_designs
+from pyapprox.tutorial_figures._gp import plot_sample_designs
 
 strategies = [
     (bkd.to_numpy(chol_samples), "#1A5276", "Cholesky-greedy"),
@@ -350,7 +350,7 @@ for n in budgets:
 #| fig-cap: "Relative L₂ error vs. number of training samples for Cholesky-greedy, IVAR, and Sobol designs. Adaptive strategies typically achieve lower error at every budget."
 #| label: fig-convergence
 
-from _figures._gp import plot_gp_sampling_convergence
+from pyapprox.tutorial_figures._gp import plot_gp_sampling_convergence
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)

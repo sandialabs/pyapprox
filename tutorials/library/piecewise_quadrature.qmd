@@ -60,7 +60,7 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
 )
-from _figures._quadrature import plot_newton_cotes, plot_pw_quad_convergence
+from pyapprox.tutorial_figures._quadrature import plot_newton_cotes, plot_pw_quad_convergence
 
 bkd = NumpyBkd()
 ```

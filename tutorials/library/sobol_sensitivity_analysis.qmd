@@ -201,7 +201,7 @@ for i, st in enumerate(total_order):
 #| fig-cap: "Sobol index estimates for the 3-species Lotka--Volterra model (QoI: species 1 final population). Left: first-order indices $S_i$ showing direct parameter contributions. Right: comparison of first-order and total-order indices---large gaps (e.g. interaction coefficients) indicate parameter interactions."
 #| label: fig-sobol-indices
 
-from _figures._sensitivity import plot_sobol_indices
+from pyapprox.tutorial_figures._sensitivity import plot_sobol_indices
 
 # Parameter labels
 labels = [f'r_{i}' for i in range(1, 4)] + \
@@ -272,7 +272,7 @@ for group, sens in group_sensitivity.items():
 #| fig-cap: "Total-order sensitivity aggregated by parameter group. Growth rates ($r_i$) and self-competition ($a_{ii}$) dominate; inter-species competition ($a_{ij}, i \\neq j$) contributes the remainder."
 #| label: fig-group-pie
 
-from _figures._sensitivity import plot_group_pie
+from pyapprox.tutorial_figures._sensitivity import plot_group_pie
 
 fig, ax = plt.subplots(figsize=(8, 6))
 plot_group_pie(group_sensitivity, ax)

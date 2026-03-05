@@ -114,8 +114,8 @@ def plot_cvmc_histograms(benchmark, bkd, axes):
     cov = bkd.to_numpy(benchmark.ensemble_covariance()[:2, :2])
     eta_opt = -cov[0, 1] / cov[1, 1]
     means = bkd.to_numpy(benchmark.ensemble_means())
-    mu_kappa = float(means[1, 0])
-    mu_alpha_true = float(means[0, 0])
+    mu_kappa = means[1, 0].item()
+    mu_alpha_true = means[0, 0].item()
     rho = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
 
     N = 100
@@ -207,8 +207,8 @@ def plot_unknown_mean_problem(benchmark, bkd, axes):
 
     cov_mat = bkd.to_numpy(benchmark.ensemble_covariance()[:2, :2])
     eta_opt = -cov_mat[0, 1] / cov_mat[1, 1]
-    mu_kappa_true = float(bkd.to_numpy(benchmark.ensemble_means()[1, 0]))
-    mu_alpha_true = float(bkd.to_numpy(benchmark.ensemble_means()[0, 0]))
+    mu_kappa_true = bkd.to_float(benchmark.ensemble_means()[1, 0])
+    mu_alpha_true = bkd.to_float(benchmark.ensemble_means()[0, 0])
 
     N = 20
     n_trials = 2000
@@ -433,11 +433,11 @@ def plot_acv_ceiling(benchmark, bkd, ax):
                 partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
             )
             model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
-            target_cost = float(
+            target_cost = bkd.to_float(
                 nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
             )
             est_cov = estimator.covariance_from_ratios(target_cost, ratios)
-            est_var = float(est_cov[0, 0])
+            est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(target_cost)
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios

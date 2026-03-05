@@ -83,7 +83,7 @@ where $P_1$ is the first orthonormal polynomial and $c_0, c_1, d_0, d_1$ are the
 #| fig-cap: "Single-problem VI (top) runs a separate optimization for each dataset, producing independent posteriors. Amortized VI (bottom) learns parameter functions $\\mu(x)$ and $\\sigma(x)$ that map any dataset descriptor $x$ to the corresponding posterior --- a single optimization covers all problems."
 #| label: fig-amortization-concept
 import matplotlib.pyplot as plt
-from _figures._vi import plot_amortization_concept
+from pyapprox.tutorial_figures._vi import plot_amortization_concept
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7),
                                  gridspec_kw={"hspace": 0.5})
@@ -356,7 +356,7 @@ for k in range(K):
 #| label: fig-training-recovery
 import numpy as np
 from scipy.stats import norm
-from _figures._vi import plot_training_recovery
+from pyapprox.tutorial_figures._vi import plot_training_recovery
 
 theta_grid = np.linspace(-4, 5, 300)
 fig, axes = plt.subplots(1, K, figsize=(5 * K, 4), sharey=True)
@@ -426,7 +426,7 @@ for t in range(K_test):
 #| echo: false
 #| fig-cap: "Left: the learned $\\mu(x)$ and $\\sigma(x)$ functions (solid curves) evaluated across the label range $[-1, 1]$. Training points (circles) and test points (stars) are shown. Right: the amortized posterior at a test label compared to the exact conjugate posterior. The degree-1 polynomial exactly captures the affine relationship between the observations and the posterior parameters."
 #| label: fig-generalization
-from _figures._vi import plot_generalization
+from pyapprox.tutorial_figures._vi import plot_generalization
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_generalization(

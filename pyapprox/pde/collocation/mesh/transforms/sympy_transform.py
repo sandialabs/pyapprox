@@ -226,7 +226,7 @@ class BaseSympyTransform(Generic[Array], ABC):
 
         diff = self._bkd.abs(recovered - test_pts)
         scale = self._bkd.maximum(self._bkd.abs(test_pts), self._bkd.asarray([1e-10]))
-        max_rel_error = float(self._bkd.max(diff / scale))
+        max_rel_error = self._bkd.to_float(self._bkd.max(diff / scale))
 
         if max_rel_error > rtol:
             raise ValueError(

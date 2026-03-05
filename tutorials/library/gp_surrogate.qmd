@@ -109,7 +109,7 @@ function after conditioning on the training observations.
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from _figures._gp import plot_prior_posterior_samples
+from pyapprox.tutorial_figures._gp import plot_prior_posterior_samples
 
 bkd_preview = NumpyBkd()
 _k = Matern52Kernel([0.8], (0.1, 10.0), 1, bkd_preview)
@@ -183,7 +183,7 @@ data. The most widely used kernels for smooth physical models are:
 #| fig-cap: "Five prior sample paths for three common kernels (same random seed, same length scale ℓ=0.8). The Squared Exponential produces glass-smooth paths; Matérn 5/2 paths have visible small-scale curvature but remain smooth; Matérn 3/2 paths have occasional kinks. For most engineering models, Matérn 5/2 is the right trade-off."
 #| label: fig-kernel-comparison
 
-from _figures._gp import plot_kernel_comparison
+from pyapprox.tutorial_figures._gp import plot_kernel_comparison
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), sharey=True)
 plot_kernel_comparison(axes, bkd_preview)
@@ -282,7 +282,7 @@ lowest — is where the fitted GP will land.
 #| fig-cap: "Negative log marginal likelihood as a function of the first two length scales (ℓ₁, ℓ₂), with ℓ₃ fixed at 1.0 and the output variance fixed. The ★ marks the grid minimum. A well-defined single minimum means the optimiser will reliably find the best hyperparameters. Note that the full optimiser also tunes ℓ₃ and the output variance jointly, so its solution may differ slightly from this 2D slice."
 #| label: fig-nlml-landscape
 
-from _figures._gp import plot_nlml_landscape
+from pyapprox.tutorial_figures._gp import plot_nlml_landscape
 
 fig, ax = plt.subplots(figsize=(5.5, 4.5))
 plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip)
@@ -305,7 +305,7 @@ gp     = result.surrogate()
 #| fig-cap: "Fitted length scales per input dimension (blue bars) vs the initial value of 1.0 (dashed line). A short bar indicates the model output varies rapidly along that input axis — the GP needed a short length scale to track those rapid changes. A long bar indicates a slowly varying, less influential input."
 #| label: fig-length-scales
 
-from _figures._gp import plot_length_scales
+from pyapprox.tutorial_figures._gp import plot_length_scales
 
 fig, ax = plt.subplots(figsize=(5, 2.8))
 plot_length_scales(ax, gp, bkd)
@@ -379,7 +379,7 @@ standard deviation: darker points are locations where the GP is less certain.
 #| fig-cap: "GP predictions vs. true model values on the independent test set (tip deflection). Points near the diagonal indicate good surrogate accuracy. Colour encodes posterior standard deviation: darker points have higher uncertainty."
 #| label: fig-gp-predictions
 
-from _figures._gp import plot_gp_predictions
+from pyapprox.tutorial_figures._gp import plot_gp_predictions
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
 plot_gp_predictions(axes, vals_np, mean_np, std_np, l2_err)
@@ -403,7 +403,7 @@ interval?"
 #| fig-cap: "Calibration (reliability) diagram. A perfectly calibrated GP lies on the dashed diagonal. Points above the diagonal mean the GP is over-confident (intervals too narrow); points below mean it is under-confident (intervals too wide). Each dot corresponds to a distinct nominal coverage level from 5% to 99%."
 #| label: fig-calibration
 
-from _figures._gp import plot_calibration
+from pyapprox.tutorial_figures._gp import plot_calibration
 
 fig, ax = plt.subplots(figsize=(5, 5))
 plot_calibration(ax, vals_np, mean_np, std_np)
@@ -426,7 +426,7 @@ converged or whether more data would help substantially.
 #| fig-cap: "Relative L₂ error vs training set size on a log-log scale for both Matérn 5/2 and Squared Exponential kernels. The SE kernel converges faster because the beam response is infinitely smooth (it solves a linear ODE), matching the SE kernel's smoothness assumption. The dashed line shows an N⁻¹ reference slope."
 #| label: fig-convergence-n
 
-from _figures._gp import plot_gp_convergence_n
+from pyapprox.tutorial_figures._gp import plot_gp_convergence_n
 
 fig, ax = plt.subplots(figsize=(6, 4))
 plot_gp_convergence_n(ax, bkd, nvars, prior, model, samples_test, vals_np)
@@ -481,7 +481,7 @@ projects the uncertainty $\sigma^*(\xi_1, \xi_2)$ onto the first two KLE dimensi
 #| fig-cap: "Posterior standard deviation σ*(ξ₁, ξ₂) with ξ₃ = 0. Dark blue regions are well-constrained by nearby training data (black crosses). Yellow regions have high uncertainty because they lie far from any training point. This map directly shows where additional evaluations would most reduce surrogate error."
 #| label: fig-uncertainty-map
 
-from _figures._gp import plot_uncertainty_map
+from pyapprox.tutorial_figures._gp import plot_uncertainty_map
 
 fig, ax = plt.subplots(figsize=(6, 5))
 plot_uncertainty_map(ax, gp, bkd, samples_train, N_train)

@@ -149,7 +149,7 @@ class OMPCVFitter(Generic[Array]):
 
         for k in range(1, n_selected + 1):
             # Sub-basis matrix from first k selected columns
-            active_indices = [int(selection_order[i]) for i in range(k)]
+            active_indices = [bkd.to_int(selection_order[i]) for i in range(k)]
             sub_basis_mat = full_basis_mat[:, active_indices]
 
             # Check if system is overdetermined enough for CV
@@ -168,7 +168,7 @@ class OMPCVFitter(Generic[Array]):
                     sub_basis_mat, values_T, fold_indices, self._alpha, bkd=bkd
                 )
 
-            cv_scores_list.append(float(cv_score[0]))
+            cv_scores_list.append(bkd.to_float(cv_score[0]))
 
             # Build full coefficient array from active coefficients
             full_coef = bkd.zeros((nterms, 1))
@@ -178,7 +178,7 @@ class OMPCVFitter(Generic[Array]):
 
         # Step 3: Find best truncation
         cv_scores_array = bkd.asarray(cv_scores_list)
-        best_index = int(bkd.argmin(cv_scores_array))
+        best_index = bkd.to_int(bkd.argmin(cv_scores_array))
         best_k = candidate_labels[best_index]
         best_params = all_params[best_index]
 

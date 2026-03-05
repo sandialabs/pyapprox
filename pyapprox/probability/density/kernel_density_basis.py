@@ -79,8 +79,8 @@ class KernelDensityBasis(Generic[Array]):
         c_min = bkd.min(centers_1d)
         c_max = bkd.max(centers_1d)
         return (
-            float(bkd.to_numpy(c_min - margin)),
-            float(bkd.to_numpy(c_max + margin)),
+            bkd.to_float(c_min - margin),
+            bkd.to_float(c_max + margin),
         )
 
     def evaluate(self, y_values: Array) -> Array:

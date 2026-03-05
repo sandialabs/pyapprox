@@ -125,10 +125,8 @@ def plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip):
             )
             _gp_tmp.hyp_list().set_all_inactive()
             _gp_tmp.fit(samples_train, values_train_tip)
-            nlml_grid[jj, ii] = float(
-                bkd.to_numpy(bkd.reshape(
-                    bkd.asarray([_gp_tmp.neg_log_marginal_likelihood()]), (1,)
-                ))[0]
+            nlml_grid[jj, ii] = bkd.to_float(
+                bkd.asarray([_gp_tmp.neg_log_marginal_likelihood()])[0]
             )
 
     best_ii, best_jj = np.unravel_index(
@@ -165,7 +163,7 @@ def plot_length_scales(ax, gp, bkd):
         if "lenscale" in h._name.lower()
     ]
     _ls_vals = [
-        float(v) for v in bkd.to_numpy(bkd.exp(_ls_log[0].get_values()))
+        v.item() for v in bkd.to_numpy(bkd.exp(_ls_log[0].get_values()))
     ]
     _ls_names = [
         rf"$\ell_{{{i+1}}}$ ($\xi_{{{i+1}}}$)"

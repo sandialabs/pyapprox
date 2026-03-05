@@ -115,7 +115,7 @@ class AETCBLUE(AETC[Array]):
         )
 
         # Set target cost and allocate samples using new API
-        target_cost = 10 * float(bkd.to_numpy(costs_S[0]))
+        target_cost = 10 * bkd.to_float(costs_S[0])
         allocator = GroupACVAllocationOptimizer(est, optimizer=self._optimizer)
         result = allocator.optimize(
             target_cost, min_nhf_samples=0, round_nsamples=round_nsamples
@@ -176,7 +176,7 @@ class AETCBLUE(AETC[Array]):
         nsamples_per_model = est._compute_nsamples_per_model(
             rounded_nsamples_per_subset
         )
-        actual_cost = float(est._estimator_cost(rounded_nsamples_per_subset))
+        actual_cost = bkd.to_float(est._estimator_cost(rounded_nsamples_per_subset))
         allocation = GroupACVAllocationResult(
             npartition_samples=rounded_nsamples_per_subset,
             nsamples_per_model=nsamples_per_model,
@@ -217,7 +217,7 @@ class AETCBLUE(AETC[Array]):
         samples_per_model = est.generate_samples_per_model(rvs)
 
         # Convert to HF-indexed subset (add 1 to account for HF model at index 0)
-        best_subset_HF = [int(s) + 1 for s in best_subset]
+        best_subset_HF = [self._bkd.to_int(s) + 1 for s in best_subset]
 
         return samples_per_model, best_subset_HF
 

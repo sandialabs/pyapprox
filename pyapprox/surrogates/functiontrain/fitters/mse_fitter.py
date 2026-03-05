@@ -137,7 +137,7 @@ class MSEFitter(Generic[Array]):
             # Compute loss for the fixed surrogate
             loss_fn = FunctionTrainMSELoss(surrogate, samples, values, self._bkd)
             init_params = self._bkd.zeros((0, 1))
-            final_loss = float(self._bkd.to_numpy(loss_fn(init_params)[0, 0]))
+            final_loss = self._bkd.to_float(loss_fn(init_params)[0, 0])
             # Create a dummy result
             from pyapprox.optimization.minimize.scipy.scipy_result import (
                 ScipyOptimizerResultWrapper,
@@ -187,7 +187,7 @@ class MSEFitter(Generic[Array]):
         fitted_surrogate = surrogate.with_params(optimal_params)
 
         # Compute final loss
-        final_loss = float(self._bkd.to_numpy(loss(optimal_params)[0, 0]))
+        final_loss = self._bkd.to_float(loss(optimal_params)[0, 0])
 
         return MSEFitterResult(
             surrogate=fitted_surrogate,

@@ -275,7 +275,7 @@ class GaussianMarginal(Generic[Array]):
         float
             Mean value.
         """
-        return float(self._bkd.to_numpy(self._mean_hyp.get_values())[0])
+        return self._bkd.to_float(self._mean_hyp.get_values()[0])
 
     def variance(self) -> float:
         """
@@ -286,7 +286,7 @@ class GaussianMarginal(Generic[Array]):
         float
             Variance value.
         """
-        stdev = float(self._bkd.to_numpy(self._stdev_hyp.exp_values())[0])
+        stdev = self._bkd.to_float(self._stdev_hyp.exp_values()[0])
         return stdev * stdev
 
     def std(self) -> float:
@@ -298,7 +298,7 @@ class GaussianMarginal(Generic[Array]):
         float
             Standard deviation.
         """
-        return float(self._bkd.to_numpy(self._stdev_hyp.exp_values())[0])
+        return self._bkd.to_float(self._stdev_hyp.exp_values()[0])
 
     def is_bounded(self) -> bool:
         """

@@ -120,7 +120,7 @@ class OMPSolver(SingleQoiSolverMixin, LinearSystemSolver[Array], Generic[Array])
             for idx in active_indices:
                 correlations[idx] = 0.0
 
-            best_idx = int(bkd.argmax(correlations))
+            best_idx = bkd.to_int(bkd.argmax(correlations))
 
             # Check if column is linearly dependent
             if correlations[best_idx] < 1e-14:

@@ -96,7 +96,7 @@ class IncrementalCholeskyFactorization(Generic[Array]):
         l_21_flat = bkd.flatten(l_21)  # (n,)
 
         l_22_sq = k_pp - l_21_flat @ l_21_flat
-        if float(bkd.to_numpy(bkd.reshape(l_22_sq, (1,)))[0]) <= 0:
+        if bkd.to_float(l_22_sq) <= 0:
             warnings.warn(
                 "Non-positive diagonal encountered during incremental "
                 "update; pivot is degenerate and will be skipped."

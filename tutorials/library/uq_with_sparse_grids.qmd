@@ -167,7 +167,7 @@ The SG and PCE moments should agree to near machine precision, since both repres
 #| label: fig-sg-sobol
 
 from pyapprox.sensitivity import SparseGridSensitivityAnalysis
-from _figures._sparse_grids import plot_sg_sobol
+from pyapprox.tutorial_figures._sparse_grids import plot_sg_sobol
 
 sa = SparseGridSensitivityAnalysis(surrogate, bases_1d)
 main_effects = sa.main_effects()   # (nvars, nqoi)
@@ -195,7 +195,7 @@ $$
 #| label: fig-sg-marginals
 
 from pyapprox.interface.functions.timing import timed
-from _figures._sparse_grids import plot_sg_marginals
+from pyapprox.tutorial_figures._sparse_grids import plot_sg_marginals
 
 # Measure per-evaluation cost
 timed_model = timed(model)
@@ -246,7 +246,7 @@ from pyapprox.surrogates.quadrature import (
     TensorProductQuadratureRule,
     gauss_quadrature_rule,
 )
-from _figures._sparse_grids import plot_sg_vs_mc
+from pyapprox.tutorial_figures._sparse_grids import plot_sg_vs_mc
 
 # True moments via tensor-product Gauss quadrature
 nquad = 20

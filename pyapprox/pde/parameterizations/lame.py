@@ -75,7 +75,7 @@ class YoungModulusParameterization(Generic[Array]):
     def apply(self, physics: object, params_1d: Array) -> None:
         """Apply parameterization: convert E field to Lame params on physics."""
         E_field = self._field_map(params_1d)
-        min_val = float(self._bkd.min(E_field))
+        min_val = self._bkd.to_float(self._bkd.min(E_field))
         if min_val <= 0.0:
             raise ValueError(
                 f"Young's modulus must be positive; found min {min_val:.2e}"

@@ -231,7 +231,7 @@ def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
     closure_set: set[tuple[int, ...]] = set()
 
     for j in range(indices.shape[1]):
-        index = tuple(int(bkd.to_numpy(indices[i, j])) for i in range(nvars))
+        index = tuple(bkd.to_int(indices[i, j]) for i in range(nvars))
 
         # Add all predecessors (including the index itself)
         ranges = [range(index[i] + 1) for i in range(nvars)]

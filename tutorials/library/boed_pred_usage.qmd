@@ -148,7 +148,7 @@ values_mc = diagnostics.compute_mse_for_sample_combinations(
 #| echo: false
 #| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."
 #| label: fig-pred-mse-mc
-from _figures import plot_pred_mse_mc
+from pyapprox.tutorial_figures import plot_pred_mse_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts)

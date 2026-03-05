@@ -75,7 +75,7 @@ class LevelCostFunction(CostFunction[Array], Generic[Array]):
     """
 
     def __call__(self, index: Array) -> float:
-        return float(self._bkd.sum(index)) + 1.0
+        return self._bkd.to_float(self._bkd.sum(index)) + 1.0
 
     def __repr__(self) -> str:
         return "LevelCostFunction()"
@@ -99,7 +99,7 @@ class ExponentialCostFunction(CostFunction[Array], Generic[Array]):
         self._base = base
 
     def __call__(self, index: Array) -> float:
-        return self._base ** float(self._bkd.sum(index))
+        return self._base ** self._bkd.to_float(self._bkd.sum(index))
 
     def __repr__(self) -> str:
         return f"ExponentialCostFunction(base={self._base})"
@@ -182,7 +182,7 @@ class LevelRefinementCriteria(RefinementCriteria[Array], Generic[Array]):
         self._max_level = max_level
 
     def __call__(self, index: Array) -> Tuple[float, float]:
-        level = float(self._bkd.sum(index))
+        level = self._bkd.to_float(self._bkd.sum(index))
         # Error estimate: just use level as proxy
         error = level + 1.0
         # Priority: higher for lower levels
