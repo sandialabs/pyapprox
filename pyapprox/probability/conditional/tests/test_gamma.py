@@ -26,6 +26,7 @@ from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: Fix typing issues
 
 def _create_basis_expansion(
     bkd, nvars: int, max_level: int, nqoi: int = 1
@@ -122,6 +123,7 @@ class TestConditionalGamma:
         samples = cond.rvs(x)
         assert samples.shape == (1, nsamples)
         # All samples should be > 0
+        # TODO use bkd.all_bool to avoid conversion to numpy
         samples_np = bkd.to_numpy(samples)
         assert np.all(samples_np > 0)
 
@@ -246,6 +248,7 @@ class TestConditionalGamma:
 
     def test_logpdf_jacobian_wrt_params_autograd(self, bkd):
         """Verify logpdf_jacobian_wrt_params matches torch autograd."""
+        # TODO: Change to verifying with derivative checker
         if not isinstance(bkd, NumpyBkd):
             import torch
             from torch.autograd.functional import jacobian as torch_jacobian

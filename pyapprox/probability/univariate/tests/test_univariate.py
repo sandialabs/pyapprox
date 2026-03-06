@@ -12,6 +12,8 @@ from pyapprox.probability.univariate import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: This groups testing of multiple classes together. Should
+# they be spit into other files or new ones to mirrow module structure
 
 class TestGaussianMarginal:
     """Tests for GaussianMarginal."""

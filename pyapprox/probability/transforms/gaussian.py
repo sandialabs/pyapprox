@@ -14,6 +14,9 @@ from pyapprox.probability.protocols import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+# TODO: Name should reflect it applies to a Univariate Gaussian
+# TODO: This uses np functions that should be bkd. computational graph
+# will not work with autograd. Is clip necessary
 class GaussianTransform(Generic[Array]):
     """
     Transform a single marginal to/from standard normal.
@@ -228,6 +231,9 @@ class GaussianTransform(Generic[Array]):
         return f"GaussianTransform(marginal={self._marginal})"
 
 
+# TODO: Is there a reason that we need an indendent transform
+# just for Gaussians can we just have a transform that takes in any
+# marginal satisfying a protocol
 class IndependentGaussianTransform(Generic[Array]):
     """
     Transform independent marginals to standard normal space.

@@ -10,6 +10,11 @@ from pyapprox.probability.copula.correlation.cholesky import (
 from pyapprox.probability.copula.gaussian import GaussianCopula
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
+# TODO: do not use astype, this will break if we want to use float32
+# let backend do correct conversion
+
 
 class TestGaussianCopula:
 
@@ -81,6 +86,7 @@ class TestGaussianCopula:
         assert samples.shape == (nvars, 100)
         # All values should be in (0, 1)
         samples_np = bkd.to_numpy(samples)
+        # use bkd.all_bool
         assert np.all(samples_np > 0.0)
         assert np.all(samples_np < 1.0)
 

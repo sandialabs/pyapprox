@@ -189,6 +189,7 @@ class ConditionalCopulaSAS(Generic[Array]):
         """Return the base distribution: N(0, I_d)."""
         from pyapprox.probability.joint.independent import IndependentJoint
         from pyapprox.probability.univariate.gaussian import GaussianMarginal
+        # TODO: Do these imports need to be lazy
 
         marginals = [
             GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(self._d)

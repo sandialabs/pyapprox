@@ -16,6 +16,9 @@ where n ~ N(0,1) and:
 At epsilon=0, delta=1 this reduces exactly to N(xi, eta^2).
 """
 
+# TODO: Create conditional SAS normal marginal for use with amortized
+# VI (optional if need arises)
+
 import math
 from typing import Any, Generic
 

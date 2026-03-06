@@ -204,6 +204,7 @@ class ISEOptimizingFitter(Generic[Array]):
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
+            # TODO: Is lazy import necessary here
             from pyapprox.optimization.minimize.chained.chained_optimizer import (
                 ChainedOptimizer,
             )
@@ -235,5 +236,5 @@ class ISEOptimizingFitter(Generic[Array]):
         fitter = ProjectionDensityFitter(basis)
         return fitter.fit(y_values, weights)
 
-
+# TODO: Why is __all__ in this file
 __all__ = ["ProjectionDensityFitter", "ISEOptimizingFitter"]

@@ -739,7 +739,9 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         """Return the base distribution: N(0, I_d)."""
         from pyapprox.probability.gaussian.dense import (
             DenseCholeskyMultivariateGaussian,
-        )
+        ) #TODO: does this need to be a lazy import,
+        # i.e. adding to top will load an otional dependency or can we move
+        # import to top of file
 
         return DenseCholeskyMultivariateGaussian(
             self._bkd.zeros((self._d, 1)),

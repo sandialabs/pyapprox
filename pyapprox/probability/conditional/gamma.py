@@ -57,8 +57,8 @@ class ConditionalGamma(Generic[Array]):
 
     def __init__(
         self,
-        log_shape_func: Generic[Array],
-        log_scale_func: Generic[Array],
+        log_shape_func: Generic[Array], # TODO: Use protocol
+        log_scale_func: Generic[Array], # TODO: Use protocol
         bkd: Backend[Array],
     ):
         self._log_shape_func = log_shape_func

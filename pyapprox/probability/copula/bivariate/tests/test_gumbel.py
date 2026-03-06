@@ -12,6 +12,11 @@ from pyapprox.probability.copula.bivariate.protocols import (
 )
 
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
+# TODO: do not use astype, this will break if we want to use float32
+# let backend do correct conversion
+
 def _gumbel_cdf_reference(u1: np.ndarray, u2: np.ndarray, theta: float) -> np.ndarray:
     """Reference Gumbel CDF (test helper only)."""
     A = (-np.log(u1)) ** theta + (-np.log(u2)) ** theta

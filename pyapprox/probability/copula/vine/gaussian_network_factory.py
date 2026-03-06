@@ -12,6 +12,10 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+# TODO: GaussianNetwork seems like a unndeed heavy dependency
+# can we just use networkx
+# TODO: Is this only needed for testing that dvine is equivalent
+# to a Gaussian network if so move to testing.
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
 from pyapprox.probability.copula.bivariate.gaussian import (
     BivariateGaussianCopula,

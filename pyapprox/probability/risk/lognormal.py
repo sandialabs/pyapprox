@@ -9,7 +9,7 @@ import numpy as np
 from scipy import stats
 from scipy.special import erfinv
 
-
+#TODO: remove   # doctest: +ELLIPSIS
 class LogNormalAnalyticalRiskMeasures:
     """
     Analytical risk measures for univariate lognormal distributions.

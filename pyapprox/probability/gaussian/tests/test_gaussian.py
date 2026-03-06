@@ -18,6 +18,8 @@ from pyapprox.probability.gaussian import (
     OperatorBasedMultivariateGaussian,
 )
 
+# TODO: should tests be seperated into files mirrowing module structure
+# or kept all in one file as currently done
 
 class TestGaussianLogPDFCore:
     """Tests for GaussianLogPDFCore."""

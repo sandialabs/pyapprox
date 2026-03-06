@@ -4,6 +4,10 @@ from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: put protocol into own file protocols (or fitter_protocols).
+# It is not obvious that one should look for protocol in this file.
+# Perhaps need to rename protocols.py to reflect what type of protocols it
+# contains
 
 @runtime_checkable
 class DensityFitterProtocol(Protocol, Generic[Array]):
@@ -106,5 +110,5 @@ class KDEFitter(Generic[Array]):
         """
         return load_vector
 
-
+#TODO: Why is __all__ in this file
 __all__ = ["DensityFitterProtocol", "LinearDensityFitter", "KDEFitter"]

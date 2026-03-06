@@ -18,6 +18,9 @@ from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
 
+# TODO: Fix typing issues
+# TODO: add short docstring to each test
+# TODO: remove use of np. and replace with bkd. except np.random
 
 def _make_expansion(bkd, nvars_in, degree, nqoi, coeff=0.0):
     """Create a BasisExpansion with given params."""
@@ -271,7 +274,7 @@ class TestDenseCholBase:
 
 class TestLowRankBase:
     """Tests for ConditionalLowRankCholGaussian."""
-
+    
     def test_basic_properties(self, bkd) -> None:
         cond = _make_low_rank(bkd, nvars_in=2, d=3, rank=1, degree=1)
         assert cond.nvars() == 2

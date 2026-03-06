@@ -11,6 +11,10 @@ from pyapprox.probability.copula.bivariate.protocols import (
     BivariateCopulaProtocol,
 )
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
+# TODO: do not use astype, this will break if we want to use float32
+# let backend do correct conversion
 
 def _frank_cdf_reference(u1: np.ndarray, u2: np.ndarray, theta: float) -> np.ndarray:
     """Reference Frank CDF (test helper only)."""
@@ -42,6 +46,7 @@ class TestFrankCopula:
 
     def test_logpdf_vs_numerical_cdf_derivative(self, bkd) -> None:
         """Verify c(u1,u2) = d^2C/du1du2 via finite differences on CDF."""
+        #TODO: replace with DerivativeChecker
         theta = 5.0
         copula = self._make_copula(bkd, theta)
         np.random.seed(42)
@@ -138,6 +143,8 @@ class TestFrankCopula:
         """Negative theta (negative dependence) should work."""
         copula = FrankCopula(-3.0, bkd)
         np.random.seed(42)
+        # TODO: do not use astype, this will break if we want to use float32
+        # use 0., 1. so floats are created and let abckend do correct conversion
         u = bkd.asarray(np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64))
         result = copula.logpdf(u)
         assert result.shape == (1, 20)
@@ -154,6 +161,8 @@ class TestFrankCopula:
 
     def test_input_validation_wrong_nvars(self, bkd) -> None:
         copula = self._make_copula(bkd)
+        # TODO: do not use astype, this will break if we want to use float32
+        # use 0., 1. so floats are created and let abckend do correct conversion
         u = bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
         with pytest.raises(ValueError):
             copula.logpdf(u)

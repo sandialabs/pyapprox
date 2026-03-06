@@ -264,6 +264,7 @@ class TestGammaMarginal:
         )
 
 
+#TODO: Is this only run with TorchBkd
 class TestGammaMarginalAutograd:
     """Test autograd compatibility for GammaMarginal."""
 

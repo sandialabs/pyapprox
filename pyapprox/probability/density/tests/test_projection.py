@@ -23,9 +23,12 @@ from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
 
+# TODO: use bkd.to_float
 
 class TestProjectionDensityFitter:
 
+    # TODO cant we use pyapprox.probability.unifvariate.gaussian
+    # instead of this hard coded version which could introduce bugs
     def _gaussian_pdf(self, y: np.ndarray, mu: float, sigma: float) -> np.ndarray:
         """Standard Gaussian PDF for reference."""
         return (1.0 / (sigma * math.sqrt(2.0 * math.pi))) * np.exp(
@@ -331,6 +334,8 @@ class TestISEOptimizingFitter:
         """ISEOptimizingFitter should accept a custom optimizer."""
         y_values, weights = self._gaussian_quadrature(bkd)
 
+        # TODO: avoid lazy import unless it avoids loading an
+        # optional dependency
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
         )

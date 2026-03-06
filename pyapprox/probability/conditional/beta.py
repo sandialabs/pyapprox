@@ -61,8 +61,8 @@ class ConditionalBeta(Generic[Array]):
 
     def __init__(
         self,
-        log_alpha_func: Generic[Array],
-        log_beta_func: Generic[Array],
+        log_alpha_func: Generic[Array],  # TODO: use protocol
+        log_beta_func: Generic[Array], # TODO: use protocol
         bkd: Backend[Array],
         lb: float = 0.0,
         ub: float = 1.0,
@@ -543,7 +543,7 @@ class ConditionalBeta(Generic[Array]):
         """Return the base distribution for reparameterization (Uniform(0,1))."""
         from pyapprox.probability.univariate.uniform import (
             UniformMarginal,
-        )
+        ) # TODO: Does this have to be a lazy import to avoid loading optional deps
 
         return UniformMarginal(0.0, 1.0, self._bkd)
 

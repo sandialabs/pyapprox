@@ -57,8 +57,8 @@ class ConditionalGaussian(Generic[Array]):
 
     def __init__(
         self,
-        mean_func: Generic[Array],
-        log_stdev_func: Generic[Array],
+        mean_func: Generic[Array],  # TODO: use protocol
+        log_stdev_func: Generic[Array],  # TODO: use protocol
         bkd: Backend[Array],
     ):
         self._mean_func = mean_func

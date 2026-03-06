@@ -20,7 +20,10 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
 )
 
+# TODO: Fix typing issues
+
 # Gauss-Legendre quadrature for Debye function
+# Use np to avoid cicular imports with pyapprox gauss quadrature module
 _GL_NODES_32, _GL_WEIGHTS_32 = np.polynomial.legendre.leggauss(32)
 
 
@@ -51,6 +54,8 @@ class FrankCopula(Generic[Array]):
         )
         self._hyp_list = HyperParameterList([self._hyp])
         # Precompute GL nodes/weights for Debye function
+        # TODO: do not use as type, this will break if we want to use float32
+        # let backend do correct conversion
         self._gl_nodes = bkd.asarray(_GL_NODES_32.astype(np.float64))
         self._gl_weights = bkd.asarray(_GL_WEIGHTS_32.astype(np.float64))
 
@@ -103,6 +108,7 @@ class FrankCopula(Generic[Array]):
         Array
             Log copula density values. Shape: (1, nsamples)
         """
+        # TODO: Do we need clip it degrades derivatives
         self._validate_input(u)
         u_c = self._bkd.clip(u, 1e-10, 1.0 - 1e-10)
         u1 = u_c[0:1, :]
@@ -139,6 +145,7 @@ class FrankCopula(Generic[Array]):
         Array
             Conditional CDF values in (0, 1). Shape: (1, nsamples)
         """
+        # TODO: Do we need clip it degrades derivatives
         self._validate_h_input(u1, u2)
         u1_c = self._bkd.clip(u1, 1e-10, 1.0 - 1e-10)
         u2_c = self._bkd.clip(u2, 1e-10, 1.0 - 1e-10)
@@ -173,6 +180,7 @@ class FrankCopula(Generic[Array]):
         Array
             Recovered u1 values. Shape: (1, nsamples)
         """
+        # TODO: Do we need clip it degrades derivatives
         self._validate_h_input(v, u2)
         v_c = self._bkd.clip(v, 1e-10, 1.0 - 1e-10)
         u2_c = self._bkd.clip(u2, 1e-10, 1.0 - 1e-10)
@@ -201,6 +209,8 @@ class FrankCopula(Generic[Array]):
         Array
             Samples in (0,1)^2. Shape: (2, nsamples)
         """
+        # TODO: do not use as type, this will break if we want to use float32
+        # use 0., 1. so floats are created and let abckend do correct conversion
         w = self._bkd.asarray(np.random.uniform(0, 1, (2, nsamples)).astype(np.float64))
         u1 = w[0:1, :]
         w2 = w[1:2, :]

@@ -27,6 +27,7 @@ from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: Fix typing issues
 
 def _create_basis_expansion(
     bkd, nvars: int, max_level: int, nqoi: int = 1

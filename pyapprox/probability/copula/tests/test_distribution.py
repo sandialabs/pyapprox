@@ -10,6 +10,12 @@ from pyapprox.probability.copula.gaussian import GaussianCopula
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
+# TODO: do not use astype, this will break if we want to use float32
+# let backend do correct conversion
+#TOD): do not use np_bkd.assert_allclose use bkd.assert all close with correct conversion of arguments
+
 
 class TestCopulaDistribution:
 

@@ -82,6 +82,7 @@ class TestCholeskyCorrelation:
         z_np = bkd.to_numpy(z)
         empirical_cov = np.cov(z_np)
         expected_sigma = bkd.to_numpy(corr_param.correlation_matrix())
+        # use bkd.allclose with correct conversion of np array
         np_bkd = NumpyBkd()
         np_bkd.assert_allclose(empirical_cov, expected_sigma, atol=0.03)
 

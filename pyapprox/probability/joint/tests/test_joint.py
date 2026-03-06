@@ -767,3 +767,7 @@ class TestIndependentJointJacobianCombinations:
             single = samples[:, ii : ii + 1]
             single_jac = joint.jacobian(single)
             bkd.assert_allclose(batch_jac[ii, 0, :], single_jac[0, :])
+
+
+# TODO: Are any of the tests now made rendundant by the parameterized tests.
+# If so remove

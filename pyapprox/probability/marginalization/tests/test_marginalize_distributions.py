@@ -25,6 +25,10 @@ from pyapprox.util.test_utils import (
     slow_test,
 )
 
+# TODO: the module is empty and only contains a test file. Should
+# this test be somewhere else. It seems to only apply tests to copulas
+# so should we move the test there and remove this module
+
 
 def _make_3d_copula_distribution(bkd):
     """Create a 3D Gaussian copula distribution with Beta marginals."""

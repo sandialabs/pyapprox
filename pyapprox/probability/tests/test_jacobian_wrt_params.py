@@ -29,6 +29,8 @@ from pyapprox.probability.univariate import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 
+# TODO: Should be move to the submodule it is testing
+
 
 def create_gaussian(bkd) -> GaussianMarginal:
     return GaussianMarginal(1.0, 2.0, bkd)
@@ -122,6 +124,7 @@ class TestParamJacobianDerivativeChecker:
         assert ratio <= 1e-6
 
 
+#TODO: This should only be run with TorchBkd
 class TestParamJacobianAutograd:
     """Test logpdf_jacobian_wrt_params against PyTorch autograd."""
 

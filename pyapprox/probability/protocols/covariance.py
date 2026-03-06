@@ -23,6 +23,11 @@ from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: Check for redundancies with protocols defined at subodule level
+# If there are redundancies we need to decide where they should be defined
+# likely at submodule level, we want to be extensible, e.g. it is clear
+# where to add new protocols if they need to be added
+
 
 @runtime_checkable
 class SqrtCovarianceOperatorProtocol(Protocol, Generic[Array]):

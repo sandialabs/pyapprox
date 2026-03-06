@@ -13,6 +13,7 @@ from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
 
+# TODO: use bkd.to_float instead of float(bkd.to_numpy
 
 class TestGaussianCopulaKL:
 

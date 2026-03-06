@@ -43,6 +43,8 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
     >>> samples = dist.rvs(100)
     """
 
+    # TODO: implement CI that checks all docstring examples run
+
     def __init__(self, mean: Array, covariance: Array, bkd: Backend[Array]):
         self._bkd = bkd
         self._mean = mean

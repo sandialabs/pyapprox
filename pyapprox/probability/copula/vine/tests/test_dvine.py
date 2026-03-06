@@ -25,6 +25,8 @@ from pyapprox.probability.gaussian.dense import (
 
 _SQRT2 = math.sqrt(2.0)
 
+# TODO: Fix typing issues
+
 
 def _make_gaussian_dvine(partial_corrs, nvars, bkd):
     """Build a DVineCopula with BivariateGaussianCopula pair copulas."""
@@ -52,16 +54,22 @@ def _make_gaussian_copula(partial_corrs, nvars, bkd):
     return GaussianCopula(corr_param, bkd)
 
 
+
+# TODO: Do we really need to redefine these
+# Can we import from probability.univariate.gaussian
 def _standard_normal_invcdf(u, bkd):
     """Phi^{-1}(u) using erfinv (autograd-safe, no scipy)."""
     return _SQRT2 * bkd.erfinv(2.0 * u - 1.0)
 
 
+# TODO: Do we really need to redefine these
+# Can we import from probability.univariate.gaussian
 def _standard_normal_cdf(z, bkd):
     """Phi(z) using erf (autograd-safe, no scipy)."""
     return 0.5 * (1.0 + bkd.erf(z / _SQRT2))
 
-
+# TODO: Cant we just use bkd.cov if it does not exist in backend
+# add it to backend protocol
 def _empirical_correlation(z, bkd):
     """Compute empirical correlation matrix from (nvars, nsamples) array."""
     nvars = z.shape[0]
@@ -229,6 +237,9 @@ class TestDVineCopula:
 
     def test_logpdf_truncated_vs_full(self, bkd) -> None:
         """Truncated vine ignores higher tree contributions."""
+        # TODO: Weak test. Check this is already likely covered better
+        # by gaussian newtwork comparison that checks covariance from
+        # truncated dvine matches that of Gaussian network with the same graph
         np.random.seed(42)
         partial_corrs_full: Dict[int, List[float]] = {
             1: [0.6, 0.5, 0.7],

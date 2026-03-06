@@ -15,6 +15,8 @@ from pyapprox.probability.likelihood import (
 )
 from pyapprox.util.optional_deps import package_available
 
+# TODO: should test classes be split into files that mirrow module structure?
+
 
 class TestGaussianLogLikelihood:
     """Tests for GaussianLogLikelihood."""

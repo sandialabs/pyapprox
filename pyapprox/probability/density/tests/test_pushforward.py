@@ -175,6 +175,7 @@ class TestPushforwardDensity:
         density = PushforwardDensity(y_values, weights, basis)
 
         # Compare on a grid inside the effective support
+        # TODO: why not just use bkd from the begining not convert np.linspace
         y_grid = np.linspace(y_min + 0.5, y_max - 0.5, 40)
         y_test = bkd.reshape(bkd.asarray(y_grid), (1, -1))
         f_approx = density(y_test)

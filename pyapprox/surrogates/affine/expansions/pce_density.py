@@ -445,7 +445,7 @@ def composite_gauss_legendre(
 
     return float(total)
 
-
+# TODO: Why is __all__ in this file
 __all__ = [
     "UnivariatePCEDensity",
     "composite_gauss_legendre",

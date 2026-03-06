@@ -116,6 +116,7 @@ class BivariateGaussianCopula(Generic[Array]):
             Log copula density values. Shape: (1, nsamples)
         """
         self._validate_input(u)
+        # TODO: Do we need clip it degrades derivatives
         u_clipped = self._bkd.clip(u, 1e-10, 1.0 - 1e-10)
         z = self._standard_normal_invcdf(u_clipped)
         z1 = z[0:1, :]
@@ -147,6 +148,7 @@ class BivariateGaussianCopula(Generic[Array]):
         Array
             Conditional CDF values in (0, 1). Shape: (1, nsamples)
         """
+        # TODO: Do we need clip it degrades derivatives
         self._validate_h_input(u1, u2)
         u1_c = self._bkd.clip(u1, 1e-10, 1.0 - 1e-10)
         u2_c = self._bkd.clip(u2, 1e-10, 1.0 - 1e-10)
@@ -174,6 +176,7 @@ class BivariateGaussianCopula(Generic[Array]):
             Recovered u1 values. Shape: (1, nsamples)
         """
         self._validate_h_input(v, u2)
+        # TODO: Do we need clip it degrades derivatives
         v_c = self._bkd.clip(v, 1e-10, 1.0 - 1e-10)
         u2_c = self._bkd.clip(u2, 1e-10, 1.0 - 1e-10)
         z_v = self._standard_normal_invcdf(v_c)
@@ -200,6 +203,8 @@ class BivariateGaussianCopula(Generic[Array]):
         Array
             Samples in (0,1)^2. Shape: (2, nsamples)
         """
+        # TODO: do not use astype, this will break if we want to use float32
+        # use 0., 1. so floats are created and let abckend do correct conversion
         w = self._bkd.asarray(np.random.uniform(0, 1, (2, nsamples)).astype(np.float64))
         u1 = w[0:1, :]
         w2 = w[1:2, :]

@@ -32,6 +32,10 @@ BETA_CONFIGS = [
     ("wide_2_2", 2.0, 2.0, -10.0, 10.0),
 ]
 
+# TODO: Fix typing issues
+# TODO: Remove redundancies in TestBetaMarginal and TestBetaMarginalParametrized
+# TODO: Is TestBetaMarginalBoundsValidation needed
+
 
 class GaussLegendreQuadratureScaled:
     """Gauss-Legendre quadrature on [lb, ub] with Lebesgue measure for tests."""

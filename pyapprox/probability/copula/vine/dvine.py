@@ -198,6 +198,8 @@ class DVineCopula(Generic[Array]):
         n = self._nvars
         T = self._truncation_level
 
+        # TODO: do not use astype, this will break if we want to use float32
+        # let backend do correct conversion
         w = self._bkd.asarray(np.random.uniform(0, 1, (n, nsamples)).astype(np.float64))
 
         if T == 0:

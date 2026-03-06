@@ -13,6 +13,7 @@ from pyapprox.probability.copula.gaussian import GaussianCopula
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.sas_normal import SASNormalMarginal
 
+# TODO: Fix typing issues
 
 def _make_copula_sas(bkd, d=2):
     """Create a ConditionalCopulaSAS for testing."""
@@ -209,6 +210,7 @@ class TestCholeskyAutograd:
 
     def test_cholesky_autograd_gradient(self, torch_bkd) -> None:
         """Verify autograd works through the Cholesky parameterization."""
+        # TODO use DerivativeChecker to check gradient
         bkd = torch_bkd
         import torch
 
@@ -245,6 +247,7 @@ class TestCholeskyAutograd:
 
     def test_cholesky_correlation_matrix_autograd(self, torch_bkd) -> None:
         """Verify correlation_matrix is differentiable w.r.t. Cholesky params."""
+        # TODO use DerivativeChecker to check gradient
         bkd = torch_bkd
         import torch
 
@@ -264,6 +267,7 @@ class TestCholeskyAutograd:
 
     def test_cholesky_log_det_autograd(self, torch_bkd) -> None:
         """Verify log_det is differentiable w.r.t. Cholesky params."""
+        # TODO use DerivativeChecker to check gradient
         bkd = torch_bkd
         import torch
 

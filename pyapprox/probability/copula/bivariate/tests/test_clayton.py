@@ -12,6 +12,9 @@ from pyapprox.probability.copula.bivariate.protocols import (
 )
 
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
+
 def _clayton_cdf_reference(u1: np.ndarray, u2: np.ndarray, theta: float) -> np.ndarray:
     """Reference Clayton CDF (test helper only)."""
     return (u1 ** (-theta) + u2 ** (-theta) - 1.0) ** (-1.0 / theta)
@@ -39,6 +42,7 @@ class TestClaytonCopula:
 
     def test_logpdf_vs_numerical_cdf_derivative(self, bkd) -> None:
         """Verify c(u1,u2) = d^2C/du1du2 via finite differences on CDF."""
+        #TODO: replace with DerivativeChecker
         theta = 2.0
         copula = self._make_copula(bkd, theta)
         np.random.seed(42)
@@ -100,6 +104,7 @@ class TestClaytonCopula:
         samples = copula.sample(100)
         assert samples.shape == (2, 100)
         samples_np = bkd.to_numpy(samples)
+        # TODO: use bkd.all_bool
         assert np.all(samples_np > 0.0)
         assert np.all(samples_np < 1.0)
 

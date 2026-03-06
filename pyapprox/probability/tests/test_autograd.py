@@ -15,6 +15,7 @@ from pyapprox.probability.gaussian import (
 from pyapprox.probability.univariate import GaussianMarginal
 from pyapprox.util.backends.torch import TorchBkd
 
+# TODO: Should be move to the submodule it is testing
 
 class TestGaussianMarginalAutograd:
     """Test autograd compatibility for GaussianMarginal."""
@@ -124,6 +125,8 @@ class TestGaussianMarginalAutogradFiniteDiff:
         loss.backward()
         autograd_grad = samples.grad.clone()
 
+        #TODO: Use DerivativeChecker
+        
         # Finite difference
         eps = 1e-6
         fd_grad = torch.zeros_like(samples)
@@ -186,6 +189,7 @@ class TestDenseCholeskyMultivariateGaussianAutograd:
         autograd_grad = samples.grad.clone()
 
         # Finite difference
+        # TODO: Use DerivativeChecker
         eps = 1e-6
         fd_grad = torch.zeros_like(samples)
         for i in range(self.nvars):
@@ -259,6 +263,7 @@ class TestDiagonalMultivariateGaussianAutograd:
         autograd_grad = samples.grad.clone()
 
         # Finite difference
+        # TODO: Use DerivativeChecker
         eps = 1e-6
         fd_grad = torch.zeros_like(samples)
         for i in range(self.nvars):

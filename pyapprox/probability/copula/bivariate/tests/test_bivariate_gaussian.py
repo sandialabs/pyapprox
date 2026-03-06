@@ -17,6 +17,8 @@ from pyapprox.probability.copula.correlation.cholesky import (
 )
 from pyapprox.probability.copula.gaussian import GaussianCopula
 
+# TODO: Fix typing issues
+# TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
 
 def _scipy_bivariate_normal_cdf(
     z1: np.ndarray, z2: np.ndarray, rho: float
@@ -58,6 +60,7 @@ class TestBivariateGaussianCopula:
 
     def test_logpdf_vs_numerical_cdf_derivative(self, bkd) -> None:
         """Verify c(u1,u2) = d^2C/du1du2 via finite differences on scipy CDF."""
+        # TODO: replace with DerivativeChecker
         rho = 0.6
         copula = self._make_copula(bkd, rho)
         np.random.seed(42)
@@ -104,6 +107,8 @@ class TestBivariateGaussianCopula:
         rho = 0.6
         copula = self._make_copula(bkd, rho)
         np.random.seed(42)
+        # TODO: do not use astype, this will break if we want to use float32
+        # use 0., 1. so floats are created and let backend do correct conversion
         u1_np = np.random.uniform(0.1, 0.9, (1, 15)).astype(np.float64)
         u2_np = np.random.uniform(0.1, 0.9, (1, 15)).astype(np.float64)
         eps = 1e-5
@@ -146,6 +151,7 @@ class TestBivariateGaussianCopula:
         samples = copula.sample(100)
         assert samples.shape == (2, 100)
         samples_np = bkd.to_numpy(samples)
+        # TODO: use bkd.all_bool
         assert np.all(samples_np > 0.0)
         assert np.all(samples_np < 1.0)
 

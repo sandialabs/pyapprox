@@ -22,6 +22,10 @@ from pyapprox.optimization.rootfinding.bisection import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+# TODO: do we need clip. Also we shoul not be using np.fun only bkd.fun
+# so computational graph is not broken for autograd
+# TODO: Fix type errors in this file
+
 class RosenblattTransform(Generic[Array]):
     """
     Rosenblatt transform for joint distributions to independent uniform.
@@ -220,6 +224,9 @@ class RosenblattTransform(Generic[Array]):
         bounds = self._bkd.to_numpy(self._bounds)
         x_np = self._bkd.to_numpy(x)
 
+        # TODO: we should pass in a quadrature class or factory that satisfies
+        # a proticik so we can swap in different quadrature rules easily
+        # to allow user to use one that works best for thier porblem
         for i in range(self._nvars):
             if i == 0:
                 # F_1(x_1) = integral_{-inf}^{x_1} f_1(t) dt
@@ -264,6 +271,8 @@ class RosenblattTransform(Generic[Array]):
                 conditional_cdf=self._conditional_cdf_numerical,
             )
 
+            # TODO: when does root finding fail. Should we throw error
+            # or is fallback ok
             try:
                 bisection = BisectionSearch(residual)
                 search_bounds = self._bkd.asarray([[bounds[0, i]], [bounds[1, i]]]).T
@@ -296,6 +305,8 @@ class RosenblattTransform(Generic[Array]):
         F_i(x) = integral_{-inf}^{x} f_i(t) dt
         """
         from scipy import integrate
+        # TODO: Again should allow protocol to be passed in so we
+        # can use different integration methods
 
         bounds = self._bkd.to_numpy(self._bounds)
 
@@ -328,7 +339,7 @@ class _CDFInversionResidual(Generic[Array]):
 
     Finds x such that F(x) = target, i.e., residual = F(x) - target = 0.
     """
-
+    
     def __init__(
         self,
         bkd: Backend[Array],

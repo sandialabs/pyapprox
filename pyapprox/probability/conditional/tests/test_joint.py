@@ -348,6 +348,7 @@ class TestConditionalIndependentJoint:
 
     def test_logpdf_jacobian_wrt_params_autograd(self, bkd):
         """Verify logpdf_jacobian_wrt_params matches torch autograd."""
+        # TODO: Change to verifying with derivative checker
         if not isinstance(bkd, NumpyBkd):
             import torch
             from torch.autograd.functional import jacobian as torch_jacobian

@@ -26,6 +26,9 @@ from pyapprox.probability.univariate import (
 from pyapprox.util.test_utils import slow_test
 
 
+# TODO: should tests be split into files that mirror module structure
+
+
 class TestAffineTransform:
     """Tests for AffineTransform."""
 
