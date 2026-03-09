@@ -7,6 +7,8 @@ from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
+#TODO: this test class should be where function is defined not at this level which is for integration tests.
+
 
 class TestIshigami3DBenchmark:
     """Tests for ishigami_3d benchmark instance."""
@@ -136,7 +138,7 @@ class TestIshigami3DBenchmark:
         values = func(samples)
         assert values.shape == (1, 10)
 
-
+#TODO: this should be at higher level depending on final design for registry and submodule structure
 class TestBenchmarkRegistrySensitivity:
     """Test registry for sensitivity benchmarks."""
 

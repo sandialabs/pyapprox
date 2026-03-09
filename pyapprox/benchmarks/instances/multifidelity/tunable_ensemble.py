@@ -112,7 +112,7 @@ def tunable_ensemble_3model(
         estimated_cost=2.3e-05,
     )
 
-
+# TODO: these benchmarks do not use ground truth pattern
 @BenchmarkRegistry.register(
     "tunable_ensemble_3model",
     category="multifidelity",

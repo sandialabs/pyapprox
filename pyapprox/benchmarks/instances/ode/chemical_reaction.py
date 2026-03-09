@@ -111,7 +111,6 @@ def chemical_reaction_surface(
 
     return ODEBenchmarkWrapper(inner, estimated_cost=9.0e-03)
 
-
 @BenchmarkRegistry.register(
     "chemical_reaction_surface",
     category="ode",

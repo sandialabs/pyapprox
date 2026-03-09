@@ -170,7 +170,12 @@ class ODEQoIFunction(Generic[Array]):
     >>> samples = bkd.array([[0.5]*12]).T  # Single sample, shape (12, 1)
     >>> qoi_values = qoi_func(samples)  # Shape (3, 1) - 3 states at final time
     """
-
+    # TODO: This seems to be confusing a resusable ODE model with
+    # a benchmark A benchmark should have a qoi not a qoi created from
+    # a benchmark. A qoi can be created from a resusable ODE model though
+    # We need notion of UQODE benchmark and OperatorLearningODE benchmark
+    # the former focuses on reproducing a qoi, the later the entire state.
+    # Write now ODEGroundTruth is for a OperatorLearningODE
     def __init__(
         self,
         benchmark: "ODEBenchmark[Array, Any]",
@@ -453,6 +458,11 @@ class ODEBenchmark(Generic[Array, GT]):
         >>> integrator = benchmark.integrator()
         >>> solutions, times = integrator.solve(bkd.flatten(gt.initial_condition))
         """
+        # TODO: The conditional if elif here is not very extensible and confuses
+        # a benchmark with a reusable model. A benchmark should have a fixed
+        # timestepper, whereas a model can accept multiple timesteppers.
+        # But we should avoid passing in string and rather pass in a configured
+        # time integrator
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,

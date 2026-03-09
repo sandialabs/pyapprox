@@ -33,9 +33,11 @@ class SobolGFunction(Generic[Array]):
 
     References
     ----------
-    Sobol, I.M. (1993). "Sensitivity analysis for non-linear mathematical
-    models."
+    A. Saltelli, I.M. Sobol′
+    About the use of rank transformation in sensitivity analysis of model output
+    Reliab. Eng. Syst. Safety, 50 (3) (1995), pp. 225-239
     """
+    # Add html link to reference to https://doi.org/10.1016/0951-8320(95)00099-2
 
     def __init__(
         self,
@@ -234,8 +236,9 @@ class SobolGSensitivityIndices(Generic[Array]):
 
     References
     ----------
-    Sobol, I.M. (1993). "Sensitivity analysis for non-linear mathematical
-    models."
+    A. Saltelli, I.M. Sobol′
+    About the use of rank transformation in sensitivity analysis of model output
+    Reliab. Eng. Syst. Safety, 50 (3) (1995), pp. 225-239
     """
 
     def __init__(

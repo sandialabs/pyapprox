@@ -4,7 +4,7 @@ The Rosenbrock function is a classic benchmark for nonlinear optimization,
 featuring a narrow banana-shaped valley that makes it challenging for
 many optimization algorithms.
 
-Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
+Implements FunctionWithJacobianAndHVPProtocol directly.
 """
 
 from typing import Generic

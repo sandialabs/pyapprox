@@ -29,6 +29,8 @@ class CornerPeakFunction(Generic[Array]):
     ----------
     Genz, A. (1984). "Testing multidimensional integration routines."
     """
+    # TODO: Need to add html to reference https://dl.acm.org/doi/10.5555/2837.2842
+    # Here and alll other Genz Functions
 
     def __init__(
         self,

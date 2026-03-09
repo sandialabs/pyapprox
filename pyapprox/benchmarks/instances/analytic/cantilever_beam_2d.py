@@ -68,6 +68,9 @@ def cantilever_beam_2d_analytical(
     )
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
+    # TODO: We shodul not use empty groudtruths e.g. SensitivityGroundTruth()
+    # to make this a benchmark. This is really just a problem instance with
+    # a function instance and a prior
     return BenchmarkWithPrior(
         _name="cantilever_beam_2d_analytical",
         _function=func,

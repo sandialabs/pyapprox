@@ -8,6 +8,8 @@ from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
+# TODO: Are lazy imports needed to avoid imports of optional deps or cantilever
+# they be moved to top of file
 
 class TestCantileverBeam2DAnalytical:
     def _make_model(self, bkd):
@@ -266,6 +268,7 @@ class TestCantileverBeam2DObjective:
         assert ratio <= 1e-5
 
 
+# TODO: Should registry of benchark be tested here or somewhere else?
 class TestCantileverBeam2DRegistry:
     def test_registry_access(self):
         """Verify benchmark is accessible from registry."""

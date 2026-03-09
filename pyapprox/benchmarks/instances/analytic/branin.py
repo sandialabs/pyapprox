@@ -106,6 +106,10 @@ def branin_2d(
     return BraninBenchmark(inner)
 
 
+# TODO: I dont think analytic is a category. Rather this should be optimization
+# analytic is the type of function underlying the benchmark but benchmark
+# category should be about what benchmark is used to test. Should we have two
+# categories, benchmark category and model category, e.g. analytic, ode, pde?
 @BenchmarkRegistry.register(
     "branin_2d",
     category="analytic",

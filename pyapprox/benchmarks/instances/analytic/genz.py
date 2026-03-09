@@ -319,6 +319,13 @@ def genz_gaussian_peak_5d(
     return GenzBenchmark(inner)
 
 
+# TODO: These are good examples of specific Benchmarks, hoewver we have
+# to create a lot of code each time we want to just add a different
+# genz function /nvars combination. Is there a better way
+# to handle combinatorial explosion of benchmarks such as this one. E.g
+# a way to register benchmarks by looping over combinations, would
+# this bloat the registry?
+
 # Register benchmarks
 @BenchmarkRegistry.register(
     "genz_oscillatory_2d",

@@ -16,6 +16,8 @@ from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
 
+#TODO: this test class should be where function is defined not at this level which is for integration tests.
+
 
 class TestRosenbrockFunction:
     """Base tests for RosenbrockFunction."""

@@ -86,6 +86,7 @@ class TestPDEFastJacobians:
         verify_jacobian_fd(bm, bkd, n_tests=2, rtol=1e-4)
 
 
+# TODO: THis seems fragile. Fast tests should be based on markings of tests with slow_on etc not based on name. Make changes similary for other test files
 def _make_pde_fast_test(name: str):
     def test_method(self, bkd):
         self._run_jacobian_check(bkd, name)

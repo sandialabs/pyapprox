@@ -8,6 +8,7 @@ from pyapprox.benchmarks.protocols import BenchmarkProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
+#TODO: this test class should be where function is defined not at this level which is for integration tests.
 
 class TestRosenbrock2DBenchmark:
     """Tests for rosenbrock_2d benchmark instance."""

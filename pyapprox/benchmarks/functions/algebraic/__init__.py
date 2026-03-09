@@ -34,9 +34,11 @@ __all__ = [
     "SobolGFunction",
     "SobolGSensitivityIndices",
     "BraninFunction",
-    "BRANIN_GLOBAL_MINIMUM",
-    "BRANIN_MINIMIZERS",
+    "BRANIN_GLOBAL_MINIMUM",  # TODO: Does this need to be in __init__
+    "BRANIN_MINIMIZERS",  # TODO: Does this need to be in __init__
     "CantileverBeam1DAnalytical",
     "CantileverBeam2DAnalytical",
     "HomogeneousBeam1DAnalytical",
 ]
+
+#TODO: implement Eventchenko objective and contraints from linalg-refactor branch

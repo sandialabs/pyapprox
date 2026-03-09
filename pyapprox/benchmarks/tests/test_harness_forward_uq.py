@@ -5,6 +5,10 @@ Uses ``verify_forward_uq_mean`` and ``verify_forward_uq_variance`` from
 ``HasReferenceVariance`` against Monte Carlo estimates.
 """
 
+# TODO: we no longer use nighlty like markers in tests. Instead we use
+# slow, slower, slowest or unmarked (fast). update this file to use
+# such naming syntax. Similarly for other test files in this module
+
 import pyapprox.benchmarks.instances  # noqa: F401
 from pyapprox.benchmarks.protocols import (
     HasPrior,

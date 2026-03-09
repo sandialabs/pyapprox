@@ -14,6 +14,7 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: Rename this file cantilever_beam_1d to reflect its contents
 
 def cantilever_beam_1d_analytical(
     bkd: Backend[Array],
@@ -66,6 +67,9 @@ def cantilever_beam_1d_analytical(
     bounds = bkd.array([[18000.0, 22000.0], [4500.0, 5500.0]])
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
+    # TODO: This should not use SensitivityGroundTruth(). It has no
+    # known SA ground truth, TODO Implement, StatisticsGroundTruth and
+    # compute reference values for this class using Sympy?
     return BenchmarkWithPrior(
         _name="cantilever_beam_1d_analytical",
         _function=func,
@@ -78,6 +82,15 @@ def cantilever_beam_1d_analytical(
     )
 
 
+# TODO: Analytic is not a benchmark category. Change to "statistics" once statistics ground truth is implemented
+# TODO: can we write runtime checks that category matches the Benchmark class type, or should we remove category and just determine it from Benchmark class,  we should allow a benchmark to have multiple categories, e.g. ODEBenchmark, and StatisticsBenchmark, that will be picked up by BenchmarkRegistry.list_category("ode") and BenchmarkRegistry.list_category("statistics") will both return a list containing an ODE benchmark that returns both ODEGroundTruth and StatisticsGroundTruth.
+#TODO: BenchmarkProtocols seem to be trying to achieve a similar but not quite the same thing as category. Protocols seem to be useful for a level below benchmark, e.g. not necessarily having a ground_truth but allowing the package to provide configurable reusable problem setups, e.g. a forward uq setup that has a prior. Right now we have function instances and benchmark instances. A function instance can be configurable and a benchmark should be fixed and has a function instance. Do we need a intermediate level, e.g. a benchmark problem that does not have a ground truth (should such be configurable or no configurable) or is this intermediate problem level unccessary. Currently some benchmarks like this one, use empty groudtruths e.g. SensitivityGroundTruth() to make this a benchmark (code wise but not conceptually) we should not do this. This is really just a problem instance with a function instance and a priorA user may want to know if a benchmark has a prior. Is there a unified way of combining all these goals currently attempted with these three mechanisms, benchmark category, ground truth and protocols. Or a cleaner split.
+# Should Benchmarks should just be compositions of different components, e.g. function instance, problem setup, e.g. prior, obs model for InverseProblemBenchmark a, and ground truth, e.g. true posterior pdf, posterior mean, var etc. Use of string categories is not very extensible, new benchmark types are not easily added, however searching over properties of benchmarks seems easier. I.e. what ground trhuths does it have, what problem components does it have, (I think this is currently handled by protocols)
+# Right now benchmarks like  RosenbrockBenchmark or MultiOutputEnsembleBenchmark are really just problem instances (which can be configured) perhaps we should rename as such. The former has a ground truth but perhaps that should be seperated from problem instance. The alter does not even have a ground truth. Once we decide on better convention update CONVENTIONS.md in this module.
+# TODO: THere are many example of combinatorial explosion of benchmarks (which have ground thruth computations for configurable versions of benchmarks. Write now we only instantiate a few in the registry, e.g. genz_oscillatory_2d, sobol_g_4d,  rosenbrock_10d, we have a ConfigulableBenchmark class for these special cases they still have ground truth, but avoid code bloat?
+#Right definition of what is an instance is unclear. We need clear types of instances, e.g. configurable function/model instances, fowrard models based on alegrabic ode, pde etc. Problem instances, e.g funciotn instance with extra information to solve outerloop problems, e.g. prior, obs model and prediction model for goal oriented inference, and benchmark instances that add ground truths. or some better split. We should try to provide estimated cost for function/model instances, if. How do we handle cost for configurable functions/models, e.g. those that use different timesteppers. Should we only provide costs when they are used in a benchmark instance (which has a fixed configuration)
+# Should we allow a benchmark to define its own function/model without making it an function instance reusable elsewhere, pros are allows benchmarks where model will likely never be reused, cons funciton is not reusable without setting up entire benchmark.
+# Look at benchmark.tests.harness and test files like test_harness_forward uq of how benchmarks can be used for testing and benchmarking for research development. Benchmarks should be structured such that we can obtain all benchmarks that have the propertires required by algorithm types to conduct anlaysis without knowning differences between benchmarks under the hood.
 @BenchmarkRegistry.register(
     "cantilever_beam_1d_analytical",
     category="analytic",

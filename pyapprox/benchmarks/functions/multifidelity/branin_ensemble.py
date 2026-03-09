@@ -15,6 +15,8 @@ Karniadakis, G. E. (2017). "Nonlinear information fusion algorithms
 for data-efficient multi-fidelity modelling."
 Proceedings of the Royal Society A, 473(2198), 20160751.
 """
+#TODO: need to add html link to reference https://doi.org/10.1098/rspa.2016.0751
+
 
 import math
 from typing import Generic, List, Sequence
@@ -90,6 +92,8 @@ class BraninModelFunction(Generic[Array]):
         Array
             Values of shape ``(1, nsamples)``.
         """
+        # TODO: Check this recovers each of the three formula
+        # in the cited paper
         x1 = samples[0:1, :]
         x2 = samples[1:2, :]
         bkd = self._bkd

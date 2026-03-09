@@ -28,6 +28,8 @@ from typing import Generic
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+#TODO: Should we rename this file cantiler_beam_1d.py
+
 class HomogeneousBeam1DAnalytical(Generic[Array]):
     """Analytical homogeneous beam: E -> [tip_deflection, integrated_stress,
     max_curvature].
@@ -135,6 +137,8 @@ class HomogeneousBeam1DAnalytical(Generic[Array]):
         )
 
 
+# TODO: Should we rename this class as CompositeCantileverBeam1DAnalytical
+# TO better reflect its contents
 class CantileverBeam1DAnalytical(Generic[Array]):
     """Analytical composite beam: (E1, E2) -> [tip_deflection, integrated_stress,
     max_curvature].

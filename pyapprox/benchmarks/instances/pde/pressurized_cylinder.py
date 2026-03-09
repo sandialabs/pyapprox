@@ -6,6 +6,11 @@ QoI functionals: outer radial displacement, average hoop stress, and
 strain energy.
 """
 
+# TODO: This anot the other elasticity benchmarks in this submodule
+# seem to use a lot of custom code
+# can we make general testable utilities that we can then resuse to
+# reduce code bloat and prouce more reliable code
+
 import math
 
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain

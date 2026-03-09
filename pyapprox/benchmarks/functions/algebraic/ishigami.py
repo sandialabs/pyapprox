@@ -3,7 +3,7 @@
 The Ishigami function is a standard benchmark for global sensitivity analysis,
 featuring non-monotonic behavior and variable interaction effects.
 
-Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
+Implements FunctionWithJacobianAndHVPProtocol directly.
 """
 
 import math
@@ -34,6 +34,7 @@ class IshigamiFunction(Generic[Array]):
     Ishigami, T. and Homma, T. (1990). "An importance quantification technique
     in uncertainty analysis for computer models."
     """
+    # TODO add html link to reference 10.1109/ISUMA.1990.151285
 
     def __init__(
         self,

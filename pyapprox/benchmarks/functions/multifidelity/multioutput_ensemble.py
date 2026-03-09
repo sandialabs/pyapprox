@@ -5,6 +5,7 @@ analytical covariance structure for testing multi-output estimators.
 
 Reference: Dixon et al. (2024), SIAM/ASA JUQ
 """
+#TODO: add http link to Dixon paper https://doi.org/10.1137/23M1607994
 
 import math
 from typing import Callable, Generic, List, Sequence

@@ -18,6 +18,11 @@ from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+# TODO: Why do we need this wrapper benchmark class.
+# These functions just reference ground truth, why
+# do we need this light weight wrappers, if we make this
+# a sensitivity benchmark cant user just access the SensitivityGroundTruth
+# which is gurateneed to be provided by such benchmarks?
 class IshigamiBenchmark:
     """Ishigami benchmark wrapper.
 
@@ -143,6 +148,7 @@ def ishigami_3d(
     return IshigamiBenchmark(inner)
 
 
+# TODO: Analytic is not a benchmark category should be sensitivity
 @BenchmarkRegistry.register(
     "ishigami_3d",
     category="analytic",

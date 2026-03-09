@@ -26,7 +26,6 @@ from pyapprox.util.test_utils import (
     slowest_test,
 )
 
-
 def _make_benchmark(
     bkd, qoi="outer_radial_displacement", npts_r=10, npts_theta=10, num_kle_terms=2
 ):

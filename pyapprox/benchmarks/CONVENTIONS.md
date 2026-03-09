@@ -309,7 +309,7 @@ class TestMyFunction:
 
 ## Mathematical Notation
 
-For consistency with tutorials, use notation from `pyapprox/typing/tutorials/CONVENTIONS.md`:
+For consistency with tutorials, use notation from `pyapprox/tutorials/CONVENTIONS.md`:
 
 | Symbol | Meaning |
 |--------|---------|
@@ -332,11 +332,3 @@ All arrays follow pyapprox conventions:
 | Bounds | `(nvars, 2)` | [lower, upper] per row |
 | Jacobian | `(nqoi, nvars)` | Single sample |
 | Jacobian batch | `(nsamples, nqoi, nvars)` | Multiple samples |
-
-## References
-
-- Sobol, I.M. (2001). Global sensitivity indices for nonlinear models.
-- Ishigami, T. & Homma, T. (1990). An importance quantification technique.
-- Genz, A. (1984). Testing multidimensional integration routines.
-- Lotka, A.J. (1925). Elements of Physical Biology.
-- Volterra, V. (1926). Fluctuations in the abundance of a species.

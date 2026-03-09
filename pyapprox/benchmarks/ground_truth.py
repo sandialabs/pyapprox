@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, Generic, Optional, Sequence, Tuple
 
 from pyapprox.util.backends.protocols import Array
 
+#TODO: Implement a StatisticsGroundTruth, e.g. mean and variance.
+# Note Integral Ground Truth is not a statistics ground truth
+# because it uses a lebesque integration measure where as statistics
+# Benchmark uses an arbitrary prior probability measure.
 
 @dataclass(frozen=True)
 class SensitivityGroundTruth(Generic[Array]):
@@ -124,7 +128,11 @@ class InverseGroundTruth(Generic[Array]):
             )
         return value
 
-
+# TODO: for this to really be a ground truth we need either reference_solution
+# of analytical_solution to be provided. If both are not we need to raise an
+# error, Adding this validation check will likely break existing tests because
+# we are incorrectly using ODE ground truth just to provide a configuration of an ODE problem instance. Perhaps consider splitting this into ODEConfiguration and ODEGroundTruth, An analytical ground truth just has the analytical solution, bur a reference ground truth has all the time confirhuations, etc needed to produce
+# the reference solution. ODE ground truth seems pretty useless as is, really only useful for manufactured solution testing but benchmarks are more intended for users not developers. We really care about using ODEs for paramterized problems, eg. ODE solutions for many parameters, but storing them would be resource consuming, epescially for git repo. I think we really only need outerloop benchmark, e.g. sensitivity analysis, statistcs moment estimation, optimization and problem instances that depend on a function instance (like those based on ode, pde, algebraic). Are ground truths the bet most extnsible way to support different benchmarks that may have multiple groudn truths, e.g. momeents and sensitivity and posterior if a porblem instance suports both prior and posterior moments how do we handle that. Again reacall we want registry to find benchmarks with certain properties, e.g. prior based momnents, or posterior PDF, we also may want to extend what a benchmark provides in the future, Currently ground thruths provided many optional arguments, would it be better to make benchmarks classes with functoins that provide all ground_thruths they support and use protocols to determine broad categories when searching, or user defined custom searches that only care about one ground truth function.
 @dataclass(frozen=True)
 class ODEGroundTruth(Generic[Array]):
     """Ground truth for ODE benchmarks.
@@ -177,3 +185,7 @@ class ODEGroundTruth(Generic[Array]):
                 f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
+
+# TODO: Should a benchmark have only one ground_thruth e.g. ODEGroundTruth
+# or should we allow multiple, e.g. ODEGroundTruth, OptimizationGroundTruth
+# for ODE based optimization benchmark.
