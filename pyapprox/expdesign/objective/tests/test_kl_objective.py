@@ -72,7 +72,8 @@ class TestKLOEDObjective:
     def test_jacobian_finite_diff(self, bkd):
         """Test Jacobian against finite differences."""
         objective = self._create_objective(bkd)
-
+        # TODO: Use derivativechecker. Is this redundant now we have
+        # test_kl_objective_gradients.py
         jac_analytical = objective.jacobian(self._design_weights)
 
         # Finite difference

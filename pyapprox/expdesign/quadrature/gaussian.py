@@ -14,7 +14,8 @@ from pyapprox.surrogates.affine.univariate import (
 from pyapprox.surrogates.quadrature import TensorProductQuadratureRule
 from pyapprox.util.backends.protocols import Array, Backend
 
-
+#TODO: should use univariate quadrature factory from marginals. Should work for
+# any marginals not just gaussian. 
 class GaussianQuadratureSampler(Generic[Array]):
     """
     Tensor product Gaussian quadrature sampler for standard normal.

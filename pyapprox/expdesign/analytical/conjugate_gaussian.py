@@ -5,6 +5,8 @@ Provides analytical formulas for expected deviations when computing
 prediction OED with linear Gaussian models and conjugate priors.
 """
 
+#TODO: currently analytical only consists of analytical expressions for prediction based oed. Inference for parameters with KL is in kl_diagois elsewhere in the package
+
 import math
 from abc import ABC, abstractmethod
 from typing import Generic, Optional

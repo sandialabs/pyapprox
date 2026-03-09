@@ -117,7 +117,7 @@ class TestGOptimalCriterion:
         crit = GOptimalCriterion(dm, self._pred_factors, bkd)
 
         analytical_jac = crit.jacobian(self._weights)
-
+        # TODO: Use DerivativeChecker
         eps = 1e-7
         numerical_jac = np.zeros((self._npred_pts, self._ndesign_pts))
         for k in range(self._ndesign_pts):
@@ -144,7 +144,9 @@ class TestGOptimalCriterion:
         assert val.shape == (self._npred_pts, 1)
         assert bkd.all_bool(val > 0)
 
-
+#TODO: Why is R optimal in this test file.
+# Change name of test file to reflect all of its contents or move below
+# to another file. Why is this not in test_adjoint_criteria
 class TestROptimalCriterion:
     """Base test class for R-optimal criterion."""
 
@@ -208,3 +210,5 @@ class TestROptimalCriterion:
         g_jac = g_crit.jacobian(self._weights)
         r_jac = r_crit.jacobian(self._weights)
         bkd.assert_allclose(g_jac, r_jac, rtol=1e-12)
+
+    # TODO: test numerical jacobian with DerivativeChecker

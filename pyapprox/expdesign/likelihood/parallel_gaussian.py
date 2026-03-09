@@ -5,6 +5,9 @@ Provides parallelized versions of OED likelihood computations by chunking
 over outer samples (observations).
 """
 
+# TODO: This was experimental and its continued existance needs to be justified.
+# E.g. by mkaing sure it speeds up computation, now we have dispatch to numba and# pytorch I suspect that this will not beat those.
+
 from typing import Generic, List, Optional
 
 import numpy as np

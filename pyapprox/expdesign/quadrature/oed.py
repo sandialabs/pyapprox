@@ -10,6 +10,9 @@ from typing import Generic, Optional, Tuple
 from pyapprox.expdesign.protocols import QuadratureSamplerProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: This is specific to OED as are most other samplers except sobol and halton and should be in OED module
+# Should sobol and halton quadrature (we may add other cubature rules later) be separate to local, and bayesian oed modules as they are more general types of expdesign. In legacy code sobol and halton were considered expdesign because they are often used as "good" point sets for surrgate construction, but they were primarily used for qudarture. Where should quadrature modules exist now?
+# this particular file is specific to OED and so may need to exist in oed modules, are there any other samplers used only for OED?
 
 class OEDQuadratureSampler(Generic[Array]):
     """

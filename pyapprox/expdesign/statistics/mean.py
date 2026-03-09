@@ -9,6 +9,7 @@ from typing import Generic
 from pyapprox.expdesign.statistics.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: should we dete SampleAverageMean or make it a light weight wrapper of SampleAverageMeanPlusStddev
 
 class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
     """

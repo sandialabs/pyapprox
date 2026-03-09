@@ -130,6 +130,7 @@ class SobolSampler(Generic[Array]):
             Uniform quadrature weights. Shape: (nsamples,)
             Each weight is 1/nsamples.
         """
+        # TODO: why use a lazy import here?
         from scipy import stats
 
         # Generate samples: scipy returns (nsamples, nvars)
@@ -145,6 +146,11 @@ class SobolSampler(Generic[Array]):
             uniform_samples = self._bkd.asarray(samples_np)
             samples = self._distribution.invcdf(uniform_samples)
         elif self._transform_to_normal:
+            # TODO replace this with validation that start index is setting
+            # so that 0 and 1 are not part of sequence, e.g. avoid start index 0
+            # which corresponds to (0,...,0)
+            # remove _self._transform_to_normal for arg list and as member variable
+            
             # Transform uniform to standard normal via inverse CDF
             # Clip to avoid infinities at 0 and 1
             samples_np = np.clip(samples_np, 1e-10, 1 - 1e-10)

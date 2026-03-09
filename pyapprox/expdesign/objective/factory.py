@@ -7,6 +7,8 @@ supports any forward model satisfying FunctionProtocol, enabling
 both linear and nonlinear models.
 """
 
+#TODO: This factory is only for KL based OED modify file doc string and rename file name
+
 from typing import Optional
 
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood

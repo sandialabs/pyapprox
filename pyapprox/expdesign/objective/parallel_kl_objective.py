@@ -5,6 +5,8 @@ Provides a parallelized version of the KL-OED objective by using
 ParallelGaussianOEDInnerLoopLikelihood for evidence computation.
 """
 
+#TODO: It is likely parallelizing outerloop will be more effective than parallelizing inner loop. Howevever I doubt these methods are faster than backend dispatch using numba and torch. Profile and remove if this file is not faster.
+
 from typing import Generic, Optional
 
 from pyapprox.expdesign.evidence import LogEvidence

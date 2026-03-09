@@ -18,6 +18,8 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
 )
 
+#TODO: rename this file to better differentiate it from test_conjugate_mc.py
+
 
 class TestConjugateGaussianOEDStandalone:
     """Standalone tests for conjugate Gaussian OED utilities."""

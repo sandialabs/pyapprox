@@ -398,3 +398,6 @@ class TestLikelihoodValuesStandalone:
 
         log_like_np = bkd.to_numpy(log_like_matrix)
         assert np.all(np.isfinite(log_like_np))
+
+
+#TODO: Add tests that these likelihoods are consistent with those in pyapprox.probability.likelihood

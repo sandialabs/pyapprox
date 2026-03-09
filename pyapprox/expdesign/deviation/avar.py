@@ -120,6 +120,8 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         if hasattr(self._bkd, "jacobian"):
             # Autodiff returns shape (1, npred*nouter, nobs, 1)
             # Need to reshape to (npred*nouter, nobs)
+            # TODO: fix so that autodiff code this calls returns the correct
+            # shape
             jac = self._bkd.jacobian(self._evaluate, design_weights)
             return self._bkd.reshape(jac, (self._npred * self.nouter(), self.nvars()))
 

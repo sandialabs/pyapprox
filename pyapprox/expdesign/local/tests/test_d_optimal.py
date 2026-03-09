@@ -19,7 +19,6 @@ from pyapprox.expdesign.local.design_matrices import (
     QuantileDesignMatrices,
 )
 
-
 class TestDOptimalCriterion:
     """Base test class for D-optimal criterion."""
 
@@ -138,6 +137,7 @@ class TestDOptimalCriterion:
         analytical_jac = crit.jacobian(self._weights)
 
         # Compute numerical Jacobian
+        # TODO: use DerivativeChecker
         eps = 1e-7
         numerical_jac = np.zeros((1, self._ndesign_pts))
         for k in range(self._ndesign_pts):

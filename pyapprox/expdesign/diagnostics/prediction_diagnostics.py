@@ -5,6 +5,10 @@ Provides tools for computing bias, variance, and MSE of numerical
 prediction OED estimates compared to exact analytical values.
 """
 
+#TODO: This file is long and should be split
+#TODO: classes should use bkd.fun not np.fun, e.g. compute mse
+#TODO: float(self._bkd.to_numpy( should be bkd.to_float
+
 from typing import (
     Any,
     Callable,
@@ -400,6 +404,7 @@ class PredictionOEDDiagnostics(Generic[Array]):
         value = objective(design_weights)
         return float(self._bkd.to_numpy(value)[0, 0])
 
+    #TODO: this method is also defined in kl_diagnostics should we consolidate
     def compute_mse(
         self,
         nouter: int,
@@ -509,6 +514,8 @@ class PredictionOEDDiagnostics(Generic[Array]):
 
         return values
 
+    # TODO: this method is also defined in kl_diagnostics should we consolidate
+    # functionality into pyapprox.utils since it is very generic (or put in another place)
     @staticmethod
     def compute_convergence_rate(
         sample_counts: List[int],

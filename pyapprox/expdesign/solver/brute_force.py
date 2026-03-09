@@ -13,7 +13,14 @@ import numpy as np
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.protocols import Array, Backend
 
-
+# TODO: this still uses weight based formulation of likelihood
+# We need a version that works with  weights (0,1,2,3) and removes
+# design location from liklihood computation if weight is zero (so
+# covariance matrix is not singular) and adds multiple repititions
+# at the same location. That new class and this should be consistent
+# when no weights are zero. Should they be consistent if weight is closed
+# to zero numerically, ie.. when we use small positive weight for
+# unselected to avoid divide by zero (below)
 class BruteForceKLOEDSolver(Generic[Array]):
     """Brute-force solver for discrete OED.
 

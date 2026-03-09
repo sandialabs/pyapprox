@@ -15,7 +15,7 @@ from pyapprox.expdesign.likelihood import (
     GaussianOEDOuterLoopLikelihood,
 )
 
-
+# TODO: rename file to better reflect its contents and differentiate it from test_likelihood_values
 class TestGaussianOEDLikelihood:
     """Base test class for Gaussian OED likelihood."""
 
@@ -78,6 +78,7 @@ class TestGaussianOEDLikelihood:
         jac_analytical = likelihood.jacobian(self._design_weights)
 
         # Compute finite difference Jacobian
+        # TODO: Use DerivativeChecker
         eps = 1e-6
         jac_fd = bkd.zeros((self._nouter, self._nobs))
         for k in range(self._nobs):
@@ -109,6 +110,7 @@ class TestGaussianOEDLikelihood:
 
         # Compute finite difference Jacobian
         # Need to recompute observations for each perturbed weight
+        # TODO: Use DerivativeChecker
         eps = 1e-6
         jac_fd = bkd.zeros((self._nouter, self._nobs))
         for k in range(self._nobs):
@@ -178,6 +180,7 @@ class TestGaussianOEDLikelihood:
         # Compute finite difference
         eps = 1e-6
         jac_fd = bkd.zeros((self._ninner, self._nouter, self._nobs))
+        # TODO: Use DerivativeChecker
         for k in range(self._nobs):
             weights_plus = bkd.copy(self._design_weights)
             weights_minus = bkd.copy(self._design_weights)

@@ -10,6 +10,8 @@ Tests cover:
 - OED sampler joint/prior sampling
 """
 
+# TODO: should we split up into smaller tests files.
+
 import numpy as np
 import pytest
 

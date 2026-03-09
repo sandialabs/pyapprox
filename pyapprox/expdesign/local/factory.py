@@ -71,6 +71,7 @@ def create_design_matrices(
         )
 
 
+# TODO: Could we make this more extensible. Easier to add new criteria? without large if elif below
 def create_criterion(
     criterion_type: CriterionType,
     design_factors: Array,

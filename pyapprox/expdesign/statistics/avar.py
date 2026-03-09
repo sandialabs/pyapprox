@@ -43,6 +43,10 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         self._delta = delta
         self._lambda = 0.0  # Regularization parameter
 
+    # TODO: Pyapprox does not use _implemented functions
+    # rather it uses dynamic binding and protocols if jacobian is defined then
+    # jacobian is accepted. Remove _implemented method from all stats in this
+    # module
     def jacobian_implemented(self) -> bool:
         """Jacobian is implemented."""
         return True

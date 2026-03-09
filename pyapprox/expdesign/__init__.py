@@ -1,3 +1,5 @@
+#TODO: Should we provide examples here. If we are going to provide examples here we should include example using local OED. Should we split module into two submodules, local (frequentist oed and Bayesian OED or even further, local, Bayes oed for params (currently we only support KL but we will add additional classes in the future), and bayes oed for prediction?
+
 """
 Experimental Design module for pyapprox.
 

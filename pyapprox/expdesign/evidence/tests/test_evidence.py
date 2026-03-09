@@ -78,6 +78,7 @@ class TestEvidence:
         jac = evidence.jacobian(self._design_weights)
         assert jac.shape == (self._nouter, self._nobs)
 
+    # TODO: Is this now redundant given we now have test_evidence_gradients.py
     def test_evidence_jacobian_finite_diff(self, bkd):
         """Test evidence Jacobian against finite differences."""
         evidence = self._create_evidence(bkd)

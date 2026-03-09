@@ -5,6 +5,9 @@ Provides tools for computing bias, variance, and MSE of numerical
 EIG estimates compared to exact analytical values.
 """
 
+#TODO: classes should use bkd.fun not np.fun, e.g. compute mse
+#TODO: float(self._bkd.to_numpy( should be bkd.to_float
+
 from typing import Dict, Generic, List, Tuple
 
 import numpy as np
@@ -46,6 +49,9 @@ class KLOEDDiagnostics(Generic[Array]):
     def __init__(self, benchmark: LinearGaussianOEDBenchmark[Array]) -> None:
         self._benchmark = benchmark
         self._bkd = benchmark.bkd()
+
+        # TODO: add validation check that benchmark meets protocol, e.g.
+        # has exact_eig
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""

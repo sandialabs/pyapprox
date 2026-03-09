@@ -65,6 +65,7 @@ class TestDeviationMeasures:
 
     def _finite_diff_jacobian(self, bkd, deviation, design_weights):
         """Compute Jacobian via finite differences."""
+        #TODO: use DerivativeChecker
         eps = 1e-6
         nobs = design_weights.shape[0]
         nout = self._npred * self._nouter

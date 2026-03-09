@@ -20,6 +20,9 @@ from pyapprox.expdesign.local.design_matrices import (
     LeastSquaresDesignMatrices,
 )
 
+# TODO: most of this code is repetitive. Cant we just use consitent
+# api of criterion to write tests once and use pytest paramterized tests
+# TODO: always use DerivativeChecker for checking derivatives
 
 class TestCOptimalCriterion:
     """Base test class for C-optimal criterion."""
@@ -222,6 +225,7 @@ class TestAOptimalCriterion:
 
         analytical_jac = crit.jacobian(self._weights)
 
+        # TODO: use DerivativeChecker
         eps = 1e-7
         numerical_jac = np.zeros((1, self._ndesign_pts))
         for k in range(self._ndesign_pts):

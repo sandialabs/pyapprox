@@ -92,6 +92,10 @@ class DOptimalLinearModelObjective(Generic[Array]):
         """Number of outputs (= 1 for scalar objective)."""
         return 1
 
+    # TODO: pyapprox uses dynamic binding and instance checks
+    # for derivatives e.g. optimizers check what protocols
+    # an objective satisfies and calls accordingly. Delete
+    # the _implemented functions
     def jacobian_implemented(self) -> bool:
         """Whether analytical Jacobian is available."""
         return True
@@ -181,6 +185,8 @@ class DOptimalLinearModelObjective(Generic[Array]):
 
         return self._bkd.reshape(-0.5 * jac_log_det, (1, self._nobs))
 
+    # TODO: optimize the hessian implementation. Or better yet
+    # implement targetd hvp (not hessian@vec) and remove hessian fun
     def hessian(self, weights: Array) -> Array:
         """
         Compute Hessian of objective w.r.t. weights.

@@ -6,6 +6,8 @@ log-normal random field provides forcing. Parameters control the KLE
 coefficients, inlet velocity shape, and Reynolds number.
 """
 
+#TODO: Should benchmarks be defined here on in benchmarks module. Decide and document rule, and place in benchmarks.CONVENTIONS.md
+
 from typing import Generic, Tuple
 
 import numpy as np

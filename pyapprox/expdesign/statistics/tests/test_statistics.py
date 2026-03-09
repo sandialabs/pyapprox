@@ -44,6 +44,7 @@ class TestSampleStatistics:
         self, bkd, stat, values, weights, eps=1e-6, jac_values=None
     ):
         """Compute Jacobian via finite differences."""
+        # TODO: Use DerivativeChecker to check gradients
         if jac_values is None:
             jac_values = self._jac_values
         nqoi = values.shape[0]

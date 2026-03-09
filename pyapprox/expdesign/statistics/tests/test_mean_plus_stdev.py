@@ -7,6 +7,8 @@ Tests cover:
 - Dual-backend testing (NumPy and PyTorch)
 """
 
+#TODO: Why is this file seperate from the other test file which tests all other stats
+
 import numpy as np
 
 from pyapprox.expdesign.statistics import (
