@@ -25,6 +25,7 @@ class TestActiveSetFunction:
         self._keep = [4, 5]
 
     def _make_asf(self, bkd, function=None, nominal=None, keep=None):
+        # TODO: Why do we need a lazy import here
         from pyapprox.interface.functions.marginalize import (
             ActiveSetFunction,
         )

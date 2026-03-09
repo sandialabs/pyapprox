@@ -24,6 +24,8 @@ The correct composition order is ``timed(make_parallel(fn))``, NOT
 pickles the timer into worker processes and the state is lost.
 """
 
+# TODO: should this be moved to the interface.wrappers module
+
 import time
 from typing import Any, Dict, Generic, List, Optional, Tuple
 

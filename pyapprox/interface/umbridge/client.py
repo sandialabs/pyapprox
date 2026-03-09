@@ -139,6 +139,10 @@ class UMBridgeModel(Generic[Array]):
         """
         return bool(self._model.supports_gradient())
 
+    # TODO: PyApprox uses dynamic binding of derivative methods and protocols
+    # see numpy wrapper. Remove has_jvp has_hvp etc and use dynamic binding
+    # e.g. self.jacobian = self._jacobian if self._model supports it
+    # set this when self._model is set
     def has_jvp(self) -> bool:
         """Check if the model supports Jacobian-vector products.
 

@@ -12,13 +12,6 @@ Submodules
 - derivative_checks: Derivative validation utilities
 - plot: Plotting utilities for functions
 - numpy: NumPy-specific function wrappers
-
-Examples
---------
->>> from pyapprox.interface.functions.protocols import FunctionProtocol
->>> from pyapprox.interface.functions.parameterized import (
-...     convert_to_function_of_parameters
-... )
 """
 
 __all__ = []

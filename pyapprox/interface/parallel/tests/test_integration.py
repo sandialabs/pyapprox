@@ -51,6 +51,7 @@ class QuadraticFunction(Generic[Array]):
         return 2 * vec
 
 
+# TODO: imoprt this from benchmarks
 class RosenbrockFunction(Generic[Array]):
     """Rosenbrock function: f(x,y) = (1-x)^2 + 100*(y-x^2)^2."""
 

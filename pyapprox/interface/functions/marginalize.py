@@ -15,12 +15,16 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 ``PairPlotter`` can accept either interchangeably.
 """
 
+# TODO: should this be moved to the interface.wrappers module
+
 from typing import Callable, Generic, List, Protocol, runtime_checkable
 
 from pyapprox.surrogates.quadrature.protocols import (
     MultivariateQuadratureRuleProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+# TODO: This file is quite log. Consider spliting it up
 
 # ------------------------------------------------------------------ #
 # Protocols                                                          #
