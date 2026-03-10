@@ -11,6 +11,8 @@ from pyapprox.inverse.bayesnet.inference import (
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
 
 
+#TODO: use bkd.assert_allclose and  bkd.to_float
+
 class TestVariableEliminationBase:
     """Base tests for variable elimination inference."""
 
@@ -152,6 +154,9 @@ class TestVariableEliminationBase:
 
         # The posterior mean should shift toward observed value
         # (but less than with direct observation)
+        # TODO: use pyapprox.inverse.conjugate.gaussian to generate the exact
+        # posterior mean and covariance and check they are reproduced
+        # exactly replacing checks below
         mean_val = float(bkd.to_numpy(mean)[0])
         assert mean_val > 0.0
         assert mean_val < 2.0
@@ -173,6 +178,10 @@ class TestVariableEliminationBase:
         evidence = {2: bkd.asarray(np.array([1.0]))}
 
         posterior = compute_posterior(network, [0, 1], evidence)
+
+         # TODO: use pyapprox.inverse.conjugate.gaussian to generate the exact
+        # posterior mean and covariance and check they are reproduced
+        # exactly replacing checks below
 
         assert set(posterior.var_ids()) == {0, 1}
 

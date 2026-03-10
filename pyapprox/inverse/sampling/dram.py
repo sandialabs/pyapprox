@@ -13,6 +13,7 @@ Haario, H., Laine, M., Mira, A., and Saksman, E. (2006).
 "DRAM: Efficient adaptive MCMC."
 Statistics and Computing, 16(4), 339-354.
 """
+# TODO: add html link to reference
 
 from typing import Callable, Optional, Tuple
 
@@ -26,6 +27,7 @@ from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+#TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
 class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
     """
     Delayed Rejection Adaptive Metropolis (DRAM) sampler.
@@ -68,6 +70,9 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
     >>> result = sampler.sample(nsamples=1000, burn=100)
     """
 
+    # TODO: we should be using runtime_checkable for logposterior_fn, e.g.
+    # LogUnNormalizedPosteriorProtocol
+    # TODO: Log posterior should really be renamed to unnormalizedlogposterior
     def __init__(
         self,
         log_posterior_fn: Callable[[Array], Array],
@@ -234,6 +239,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
             # Check bounds if provided
             in_bounds = True
             if bounds is not None:
+                # TODO: why conert to np use bkd.all_bool
                 bounds_np = self._bkd.to_numpy(bounds)
                 proposal_np = self._bkd.to_numpy(proposal)
                 in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(

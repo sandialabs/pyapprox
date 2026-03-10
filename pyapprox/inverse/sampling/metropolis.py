@@ -35,6 +35,9 @@ class MCMCResult(Generic[Array]):
     log_posteriors: Array
 
 
+# TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
+# TODO: A lot of the DRA and this class write repeated code, e.g. def sample().
+# Can we consolidate?
 class MetropolisHastingsSampler(Generic[Array]):
     """
     Standard Metropolis-Hastings MCMC sampler.
@@ -69,6 +72,8 @@ class MetropolisHastingsSampler(Generic[Array]):
     >>> result = sampler.sample(nsamples=1000, burn=100)
     """
 
+    # TODO we should be using runtime_checkable for logposterior_fn, e.g.
+    # LogUnNormalizedPosteriorProtocol
     def __init__(
         self,
         log_posterior_fn: Callable[[Array], Array],

@@ -140,6 +140,11 @@ class LogUnNormalizedPosterior(Generic[Array]):
         result = loglike + logprior
         return self._bkd.flatten(result)
 
+    # TODO: Pyapprox uses dynamic binding and protocols for derivative methods
+    # make sure to do the same here, e.g. self.jacobian = self.jacobian if
+    # all components needed are defined. Do not ever call finite difference
+    # approximation if components not provided jacobian is not binded.
+    # Same for other derivatives like hessian, etc
     def jacobian(
         self,
         sample: Array,
@@ -307,6 +312,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         )
         return H @ vec
 
+    # TODO: pass in configured bindable optimizer so we can use any optimizer
     def maximum_aposteriori_point(
         self,
         initial_guess: Optional[Array] = None,
@@ -375,6 +381,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         map_point = self._bkd.asarray(result.x.reshape(self._nvars, 1))
         return map_point
 
+    #TODO: delete
     def _finite_diff_jacobian(
         self,
         fn: Callable[[Array], Array],

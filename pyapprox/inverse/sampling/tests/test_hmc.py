@@ -7,6 +7,10 @@ import pytest
 
 from pyapprox.inverse.sampling.hmc import HamiltonianMonteCarlo
 
+# TODO: we should be using bkd.assert_allclose and other bkd generic functions
+# not functions from np.testing. This will avoid a lot of unneeded
+# bkd.to_numpy conversions
+
 
 class TestHMCBase:
     """Base test class for HamiltonianMonteCarlo."""

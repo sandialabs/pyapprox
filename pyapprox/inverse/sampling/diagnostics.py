@@ -17,6 +17,9 @@ import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 
+# TODO: We should use bkd.fun whever possible and avoid conversion to numpy
+# functions below convert to numpy theb back to bkd instead of just
+# using bkd for everything
 
 def autocorrelation(
     samples: Array,

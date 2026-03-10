@@ -25,6 +25,10 @@ from pyapprox.util.test_utils import (
     slower_test,
 )
 
+# TODO: Should this be split into test specific to samplers, such files already exist
+# TODO: we should be using bkd.assert_allclose and other bkd generic functions
+# not functions from np.testing. This will avoid a lot of unneeded
+# bkd.to_numpy conversions. Use bkd.all_bool instead of np.all
 
 class TestMCMCPosteriorBase:
     """Base class for MCMC posterior validation tests."""

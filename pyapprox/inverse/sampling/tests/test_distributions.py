@@ -78,6 +78,9 @@ class BananaLogPosterior(Generic[Array]):
 
         return -0.5 * (term1 + term2)
 
+    # TODO: Pyapprox uses jacobian with shape (nqoi, nvars) never gradient.
+    # rename function. This class should meet protocol required by
+    # samplers for logposterior. 
     def gradient(self, sample: Array) -> Array:
         """
         Evaluate gradient of log posterior.

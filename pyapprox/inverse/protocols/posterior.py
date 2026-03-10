@@ -15,6 +15,10 @@ from typing import Generic, Optional, Protocol, runtime_checkable
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+# TODO: I think we need protocols for just __call__
+# call with jacobian and call jacobian and hessian methods
+# not all liklihoods will support derivatives and thus
+# this protocol is overly restrictive
 @runtime_checkable
 class LogUnNormalizedPosteriorProtocol(Protocol, Generic[Array]):
     """

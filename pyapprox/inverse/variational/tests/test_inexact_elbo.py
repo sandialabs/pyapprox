@@ -234,6 +234,7 @@ class TestInexactELBOConjugateRecovery:
     @slow_test
     def test_gaussian_1d_conjugate_fixed_strategy(self, bkd) -> None:
         """Inexact ELBO + FixedSampleStrategy recovers Gaussian conjugate."""
+        # TODO: should we be using lazy imports here
         from pyapprox.inverse.conjugate.gaussian import (
             DenseGaussianConjugatePosterior,
         )
@@ -288,7 +289,6 @@ class TestInexactELBOConjugateRecovery:
         fitter = VariationalFitter(bkd, optimizer=optimizer)
         fitter.fit(elbo)
 
-        # Extract recovered params
         cond = var_dist._conditionals[0]
         vi_mean, vi_stdev = _extract_gaussian_params(cond, bkd)
 
@@ -313,6 +313,7 @@ class TestInexactELBOConjugateRecovery:
             DiagonalGaussianLogLikelihood,
             MultiExperimentLogLikelihood,
         )
+        # TODO: Should we be using lazy imports here
 
         obs_matrix = bkd.asarray([[1.0]])
         observations = bkd.asarray([[2.0]])
@@ -389,6 +390,7 @@ class TestInexactELBOConjugateRecovery:
             ParameterizedIsotropicSparseGridQuadratureRule,
             TensorProductSubspaceFactory,
         )
+        # TODO: Should we be using lazy imports here
 
         nlatent = 2
         obs_matrix = bkd.eye(nlatent)
@@ -449,6 +451,8 @@ class TestInexactELBOConjugateRecovery:
             vi_means.append(m)
             vi_vars.append(s ** 2)
 
+        # TODO: with sparse grid quadrature we should be able to use
+        # tighter tolerances
         bkd.assert_allclose(
             bkd.asarray(vi_means), exact_mean, atol=0.15,
         )

@@ -10,6 +10,10 @@ from pyapprox.probability.covariance import DiagonalCovarianceOperator
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.probability.likelihood import GaussianLogLikelihood
 
+# TODO: ose inverse.conjugate.gaussian to determine exact posterior and map
+# (mean) that we should be able to match exactly using linear model gaussian
+# prior and likelihood
+
 
 class TestLogUnNormalizedPosteriorBase:
     """Base test class for LogUnNormalizedPosterior."""

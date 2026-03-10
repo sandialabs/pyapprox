@@ -253,6 +253,11 @@ class LowRankLaplacePosterior(Generic[Array]):
             raise RuntimeError("Must call compute() first")
         return self._Ur
 
+    # TODO: scipy is moving from rvs towards sample. Rename rvs to sample
+    # and make rvs and wrapper of sample
+    # to this class and other classes in conjugate and laplace modules
+    # with deprecation warning abut use of rvs. Make sure that all
+    # random variables in probability also do the same
     def rvs(self, nsamples: int) -> Array:
         """
         Generate random samples from the approximate posterior.

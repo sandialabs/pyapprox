@@ -128,6 +128,15 @@ class ELBOObjective(Generic[Array]):
         elbo = self._bkd.sum(self._joint_weights * (log_lik - kl_terms))
         return self._bkd.reshape(-elbo, (1, 1))
 
+    # TODO: should we define jacobian_autograd here
+    # or should we implement a general torch wrapper in optimization
+    # that when applied to a totch function uses autograd to compute
+    # jacobian if model does not implement it analytically, i.e.
+    # def jacobian is not on the class. The class could allow user to
+    # ask for hvp whvp etc but default should be not use autograd forming
+    # this because it is expensive for second order derivs. We should
+    # apply this principal across the code base if we decide to
+    # move forward with it.
     def _jacobian_autograd(self, params: Array) -> Array:
         """Compute Jacobian via autograd.
 

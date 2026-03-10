@@ -12,7 +12,10 @@ from scipy.linalg import eigh as generalized_eigenvalue_decomp
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend
 
-
+# TODO: Name does not reflect unique feature of this class, i.e.
+# genralized eigenvalue solver. Current module has gaussian and prediction
+# both are for gaussians. Rename both files to better reflect their
+# content
 class DenseGaussianPrediction(Generic[Array]):
     """
     Compute the Gaussian posterior pushforward through a prediction model.

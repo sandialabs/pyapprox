@@ -68,6 +68,7 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.test_utils import slow_test
 
+# TODO: make sure all code uses bkd.fun not np.fun
 
 def _make_expansion(bkd: Backend, degree: int, coeff: float = 0.0) -> BasisExpansion:
     """Create a BasisExpansion with given degree (1D input, 1 QoI).
@@ -80,6 +81,7 @@ def _make_expansion(bkd: Backend, degree: int, coeff: float = 0.0) -> BasisExpan
     indices = compute_hyperbolic_indices(1, degree, 1.0, bkd)
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     exp = BasisExpansion(basis, bkd, nqoi=1)
+    # TODO:  just use bkd.zeros
     coeffs_np = np.zeros((degree + 1, 1))
     coeffs_np[0, 0] = coeff
     exp.set_coefficients(bkd.asarray(coeffs_np))

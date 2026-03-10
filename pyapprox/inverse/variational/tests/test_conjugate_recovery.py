@@ -6,6 +6,10 @@ These tests verify that optimizing the ELBO with conditional distributions
 recovers the exact conjugate posterior.
 """
 
+# TODO: check if their is any redundancy in tests here and in test_amortized
+# if so consolidate. Either way update file doc strings of tests
+# to state what is unique to the test contained in them
+
 import math
 
 import numpy as np

@@ -15,6 +15,12 @@ from typing import Generic, Protocol, runtime_checkable
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+#TODO: Isnt this protcol really just FunctionProtocol with nobs instead of nqoi
+# should we just use FunctionProtocol instead. Similarly should we
+# swtich nobs to nqoi for protocols with derivatives so usual function
+# api can be used with addition of additional methods needed like
+# apply_jacobian_transpose
+
 @runtime_checkable
 class ObservationOperatorProtocol(Protocol, Generic[Array]):
     """

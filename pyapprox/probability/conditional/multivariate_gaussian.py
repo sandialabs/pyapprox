@@ -385,10 +385,12 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
     bkd : Backend[Array]
         Computational backend.
     """
+    # TODO: why do we support rank=0 what does this even mean?
+    # is this just diagonal? if so update docs to make this distinction clear
 
     def __init__(
         self,
-        mean_func,
+        mean_func, #TODO: all args here and in other functions must have types. Wwe should use runtime_checkable protocols incuding for factor_func
         log_diag_func,
         factor_func: Optional[Any],
         rank: int,

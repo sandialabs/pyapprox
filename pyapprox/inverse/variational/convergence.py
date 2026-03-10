@@ -108,6 +108,8 @@ class VIConvergenceMonitor(Generic[Array]):
             self._triggered = True
         return result
 
+    # TODO: Pyapprox uses member functions not properties for access
+    # to private variables. Fix
     @property
     def triggered(self) -> bool:
         """Whether early stopping has been triggered."""

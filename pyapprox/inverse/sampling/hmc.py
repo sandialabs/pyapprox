@@ -10,6 +10,7 @@ References
 Neal, R. (2011). "MCMC using Hamiltonian dynamics."
     Handbook of Markov Chain Monte Carlo.
 """
+# TODO: Add html link to reference
 
 from typing import Callable, Generic, Optional, Tuple
 
@@ -18,6 +19,8 @@ import numpy as np
 from pyapprox.inverse.sampling.metropolis import MCMCResult
 from pyapprox.util.backends.protocols import Array, Backend
 
+
+#TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
 
 class HamiltonianMonteCarlo(Generic[Array]):
     """
@@ -63,7 +66,9 @@ class HamiltonianMonteCarlo(Generic[Array]):
     ... )
     >>> result = sampler.sample(nsamples=1000, burn=100)
     """
-
+    # TODO: we should be using runtime_checkable protocol for
+    # log_posterior_fn and gradient_fn, e.g.
+    # LogUnNormalizedPosteriorProtocol class that has value and jacobian
     def __init__(
         self,
         log_posterior_fn: Callable[[Array], Array],
@@ -136,6 +141,8 @@ class HamiltonianMonteCarlo(Generic[Array]):
             New momentum. Shape: (nvars, 1)
         """
         eps = self._step_size
+        # TODO: use bkd.copy() not array.copy to avoid this hasattr conditional
+        # blocks
         q = (
             position.copy()
             if hasattr(position, "copy")
@@ -263,6 +270,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
             logposts_np[i] = self._bkd.to_float(self._log_posterior_fn(current_q))
 
         # Remove burn-in
+        # TODO: again we should be using bkd for samples not np
         samples_np = samples_np[:, burn:]
         logposts_np = logposts_np[burn:]
 

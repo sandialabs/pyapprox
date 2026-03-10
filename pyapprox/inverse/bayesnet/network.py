@@ -328,6 +328,8 @@ class GaussianNetwork(Generic[Array]):
             data = self._node_data[node_id]
             nvars = data["nvars"]
 
+            #TODO: create functions sample_root sample_nonroot
+            # which contain the contents of the if else block below
             if data["is_root"]:
                 # Sample from prior
                 mean = data["prior_mean"]

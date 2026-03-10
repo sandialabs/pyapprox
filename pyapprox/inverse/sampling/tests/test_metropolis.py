@@ -178,3 +178,8 @@ class TestMetropolisWithBounds:
         samples_np = bkd.to_numpy(result.samples)
         assert np.all(samples_np >= -2.0)
         assert np.all(samples_np <= 2.0)
+
+# TODO: other sampler test files include convergence test. Add one here
+# TODO: we should be using bkd.assert_allclose and other bkd generic functions
+# not functions from np.testing. This will avoid a lot of unneeded
+# bkd.to_numpy conversions
