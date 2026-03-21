@@ -1,4 +1,4 @@
-\from typing import Union, cast, overload
+from typing import Union, cast, overload
 
 from pyapprox.interface.functions.numpy.wrappers import (
     NumpyFunctionWithJacobianAndHVPWrapper,

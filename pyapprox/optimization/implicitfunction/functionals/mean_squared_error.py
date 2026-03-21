@@ -22,6 +22,7 @@ class MSEFunctional(Generic[Array]):
         bkd : Backend
             Backend used for computations.
         """
+        # TODO: ensure that all classes in pyapprox call validate_backend
         validate_backend(bkd)
         self._nstates = nstates
         self._nparams = nparams

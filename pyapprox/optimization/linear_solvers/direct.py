@@ -8,6 +8,8 @@ from typing import Generic
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+# TODO: should we implement a direct solver for sparse matrices. does np and torch both support sparse solve?
+
 class DirectSolver(Generic[Array]):
     """Direct linear solver using backend's solve function.
 

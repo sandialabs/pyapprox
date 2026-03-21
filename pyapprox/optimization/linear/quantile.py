@@ -100,6 +100,7 @@ class QuantileRegressionSolver(
 
         import numpy as np
         from scipy.optimize import linprog
+        # TODO: are lazy imports necessary here
 
         bkd = self._bkd
         A = bkd.to_numpy(basis_matrix)

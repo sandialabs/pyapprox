@@ -41,4 +41,4 @@ __all__ = [
     "HomogeneousBeam1DAnalytical",
 ]
 
-#TODO: implement Eventchenko objective and contraints from linalg-refactor branch
+#TODO: Eventchenko objective and contraints are in optimization module should they be there or here

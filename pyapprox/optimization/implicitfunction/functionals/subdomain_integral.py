@@ -5,6 +5,9 @@ Q(u) = integral_a^b g(u(x), x) dx (nonlinear) using quadrature weights
 projected to collocation nodes.
 """
 
+# TODO: this is specific to collocation, should it go in collocation module or in benchmark module
+
+
 from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (

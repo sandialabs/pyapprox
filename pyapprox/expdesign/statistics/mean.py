@@ -73,3 +73,8 @@ class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
 
     def __repr__(self) -> str:
         return "SampleAverageMean()"
+
+    def label(self) -> str:
+        """Return a short label for plotting."""
+        return "Mean"
+

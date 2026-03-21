@@ -117,6 +117,8 @@ class AVaROptimizer(Generic[Array]):
 
         self._bounds = self._bkd.vstack([t_bounds, s_bounds, self._original_bounds])
 
+    # TODO: we should pass in bindable optimizer satisfying protocol
+    # that lets us swap in different optimization methods
     def minimize(
         self, init_guess: Optional[Array] = None
     ) -> ScipyOptimizerResultWrapper[Array]:

@@ -21,6 +21,8 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
 )
 
+# TODO: this is specific to collocation, should it go in collocation module or in benchmark module
+
 
 class TestSubdomainIntegralFunctional:
 

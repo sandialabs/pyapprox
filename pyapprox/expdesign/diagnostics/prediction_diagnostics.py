@@ -156,6 +156,7 @@ def _avar_noise_stat_factory(
 
 
 # Register built-in utility types for lognormal (NonLinearGaussianOEDBenchmark)
+# TODO: rename to include nonlinear and the fact we are using mean, e.g nonlinear_mean_stdev, ismilary other registred deviations must specify both outer and inner stat
 @register_utility("stdev")
 def _create_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     """Create lognormal expected std dev utility with mean noise statistic."""
@@ -166,6 +167,7 @@ def _create_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     )
 
 
+#TODO: renameto include nonlinear
 @register_utility("avar_stdev")
 def _create_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     """Create lognormal AVaR std dev utility with AVaR noise statistic."""

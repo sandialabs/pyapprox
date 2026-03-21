@@ -25,7 +25,8 @@ Quantile
     - ExpectileRegressionSolver: Expectile regression via IRLS
 """
 
-# TODO: Consider renaming this module to 'regression' to distinguish from
+# TODO: Consider renaming this module to 'regression' or affineregression
+# distinguish from
 # 'linear_solvers/' which handles exact Ax=b.
 
 from pyapprox.optimization.linear.base import (

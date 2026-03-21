@@ -7,6 +7,7 @@ Provides three QoI functionals for 2D linear elastic problems:
 
 All satisfy ParameterizedFunctionalWithJacobianProtocol.
 """
+# TODO: this is specific to collocation, should it go in collocation module or in benchmark module
 
 from typing import Generic
 
