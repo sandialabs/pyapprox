@@ -79,7 +79,7 @@ class TestMCEstimator:
         est.allocate_samples(100.0)
 
         def rvs(nsamples):
-            return bkd.asarray(np.random.randn(nvars, nsamples))
+            return bkd.asarray(np.random.randn(nvars, int(nsamples)))
 
         samples = est.generate_samples_per_model(rvs)
         # Should return list with one entry
@@ -209,7 +209,7 @@ class TestCVEstimator:
         est.allocate_samples(100.0)
 
         def rvs(nsamples):
-            return bkd.asarray(np.random.randn(nvars, nsamples))
+            return bkd.asarray(np.random.randn(nvars, int(nsamples)))
 
         samples = est.generate_samples_per_model(rvs)
         # Should return list with nmodels entries

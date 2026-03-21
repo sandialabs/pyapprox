@@ -93,9 +93,8 @@ class Backend(Protocol, Generic[Array]):
         """Compute the dot product of multiple matrices."""
         ...
 
-    @staticmethod
     def eye(
-        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+        self, nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> Array: ...
 
     @staticmethod
@@ -104,14 +103,14 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def pinv(matrix: Array) -> Array: ...
 
-    @staticmethod
     def asarray(
+        self,
         array: Union[Sequence[Any], Array, float, int],
         dtype: Optional[Any] = None,
     ) -> Array: ...
 
-    @staticmethod
     def array(
+        self,
         array: Union[Sequence[Any], Array, float, int],
         dtype: Optional[Any] = None,
     ) -> Array: ...
@@ -155,11 +154,9 @@ class Backend(Protocol, Generic[Array]):
         arrays: Union[List[Array], Tuple[Array, ...]],
     ) -> Array: ...
 
-    @staticmethod
-    def linspace(start: float, stop: float, num: int) -> Array: ...
+    def linspace(self, start: float, stop: float, num: int) -> Array: ...
 
-    @staticmethod
-    def logspace(start: float, stop: float, num: int) -> Array: ...
+    def logspace(self, start: float, stop: float, num: int) -> Array: ...
 
     @staticmethod
     def to_numpy(array: Array) -> NDArray[Any]: ...
@@ -295,19 +292,15 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def arctanh(array: Array) -> Array: ...
 
-    @staticmethod
     def full(
-        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> Array: ...
 
-    @staticmethod
-    def zeros(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
+    def zeros(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
-    @staticmethod
-    def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
+    def ones(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
-    @staticmethod
-    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
+    def empty(self, shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
     # @staticmethod
     # def arange(
@@ -318,27 +311,27 @@ class Backend(Protocol, Generic[Array]):
     # ) -> Array: ...
 
     # Overload 1: arange(stop)
-    @staticmethod
     @overload
-    def arange(stop: Union[int, float], /) -> Array:
+    def arange(self, stop: Union[int, float], /) -> Array:
         """
         Overload for when only `stop` is provided.
         """
         ...
 
     # Overload 2: arange(start, stop)
-    @staticmethod
     @overload
-    def arange(start: Union[int, float], stop: Union[int, float], /) -> Array:
+    def arange(
+        self, start: Union[int, float], stop: Union[int, float], /
+    ) -> Array:
         """
         Overload for when `start` and `stop` are provided.
         """
         ...
 
     # Overload 3: arange(start, stop, step)
-    @staticmethod
     @overload
     def arange(
+        self,
         start: Union[int, float],
         stop: Union[int, float],
         step: Union[int, float],
@@ -350,9 +343,9 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     # Overload 4: Allow keyword arguments including dtype
-    @staticmethod
     @overload
     def arange(
+        self,
         *args: Union[int, float],
         dtype: Optional[Any] = None,
     ) -> Array:
@@ -362,8 +355,7 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     # Runtime implementation
-    @staticmethod
-    def arange(*args: Any, **kwargs: Any) -> Array:
+    def arange(self, *args: Any, **kwargs: Any) -> Array:
         """
         Runtime implementation of arange.
 
@@ -750,8 +742,7 @@ class Backend(Protocol, Generic[Array]):
         """Return an array of zeros with the same shape as input."""
         ...
 
-    @staticmethod
-    def default_dtype() -> Any:
+    def default_dtype(self) -> Any:
         """Return the default floating point dtype for this backend."""
         ...
 
@@ -1031,8 +1022,7 @@ class Backend(Protocol, Generic[Array]):
         """
         ...
 
-    @staticmethod
-    def tril_indices(n: int, k: int = 0) -> Tuple[Array, Array]:
+    def tril_indices(self, n: int, k: int = 0) -> Tuple[Array, Array]:
         """Return indices for lower-triangular part of an (n, n) array.
 
         Parameters

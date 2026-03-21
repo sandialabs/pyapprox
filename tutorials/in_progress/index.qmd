@@ -36,4 +36,6 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 | [Optimal Experimental Design](optimal_experimental_design.qmd) | Information-theoretic design | GP Surrogates |
 | [Optimization Under Uncertainty](optimization_under_uncertainty.qmd) | Risk-aware optimization | MC Basics |
 | [Backend Alternatives](backend_alternatives.qmd) | Using PyTorch backend | Setup |
+| [GPU Computing with PyTorch](gpu_torch_intro.qmd) | PyTorch GPU basics, device placement, TorchBkd intro | Backend Alternatives |
+| [GPU Acceleration](gpu_acceleration.qmd) | Float32 and GPU benchmarks for GP surrogates | GPU Computing with PyTorch, GP Surrogates |
 | [ODE Integration](ode_integration.qmd) | ODE integration infrastructure | Forward Model |

@@ -11,6 +11,13 @@ from pyapprox.util.backends.protocols import Backend
 
 # Implement the NumPy backend
 class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
+    def __init__(
+        self,
+        device: Optional[Any] = None,
+        dtype: Optional[Any] = None,
+    ) -> None:
+        pass
+
     @staticmethod
     def dot(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
         # for typing consistancy make sure dot always returns an array

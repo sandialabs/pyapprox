@@ -23,6 +23,7 @@
 #   --timings       Render each tutorial individually, clear its freeze cache
 #                   first for accurate execution times, and log results to
 #                   render_timings.csv with a sorted summary at the end
+#   --gpu           Include GPU-requiring tutorials (skipped by default)
 #   --skip=NAME     Skip rendering a tutorial (e.g. --skip=pacv_usage)
 #                   Can be repeated: --skip=pacv_usage --skip=foo
 #   --help          Show this help message
@@ -46,6 +47,7 @@ GEN_PDF=""
 HTML_FAST=""
 SERVE=""
 TIMINGS=""
+GPU=""
 NJOBS=1
 SKIP_FILES=()
 
@@ -75,6 +77,9 @@ for arg in "$@"; do
         --timings)
             TIMINGS="yes"
             ;;
+        --gpu)
+            GPU="yes"
+            ;;
         --serve)
             SERVE="yes"
             ;;
@@ -82,7 +87,7 @@ for arg in "$@"; do
             SKIP_FILES+=("${arg#--skip=}")
             ;;
         --help)
-            head -23 "$0" | tail -21
+            head -29 "$0" | tail -27
             exit 0
             ;;
         *)
@@ -104,6 +109,16 @@ if [ "$SITE" = "library" ]; then
 else
     BUILD_DIR="$SCRIPT_DIR/in_progress"
     SITE_LABEL="In-Progress Tutorials"
+fi
+
+# Tutorials that require a GPU — skipped unless --gpu is passed
+GPU_TUTORIALS=(gpu_torch_intro gpu_acceleration)
+
+if [ -z "$GPU" ]; then
+    for name in "${GPU_TUTORIALS[@]}"; do
+        SKIP_FILES+=("$name")
+    done
+    echo "Skipping GPU tutorials (use --gpu to include them)"
 fi
 
 echo "=== Building PyApprox $SITE_LABEL ==="

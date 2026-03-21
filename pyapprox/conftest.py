@@ -76,6 +76,26 @@ def torch_bkd():
     return TorchBkd()
 
 
+@pytest.fixture
+def torch_float32_bkd():
+    """TorchBkd with float32 dtype for targeted precision tests."""
+    torch = pytest.importorskip("torch")
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return TorchBkd(dtype=torch.float32)
+
+
+@pytest.fixture
+def torch_mps_bkd():
+    """TorchBkd on MPS device (skipped if MPS unavailable)."""
+    torch = pytest.importorskip("torch")
+    if not torch.backends.mps.is_available():
+        pytest.skip("MPS device not available")
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return TorchBkd(device="mps", dtype=torch.float32)
+
+
 @pytest.fixture(autouse=True)
 def _reproducible_rng():
     """Reset NumPy (and Torch if available) RNG before every test.

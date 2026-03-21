@@ -18,17 +18,40 @@ from pyapprox.util.backends.protocols import Backend
 
 # Implement the PyTorch backend
 class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
+    def __init__(
+        self,
+        device: Optional[Union[str, "torch.device"]] = None,
+        dtype: Optional[Any] = None,
+    ) -> None:
+        self._device = (
+            torch.device(device) if device is not None else torch.device("cpu")
+        )
+        self._dtype = dtype if dtype is not None else torch.get_default_dtype()
+
+    def synchronize(self) -> None:
+        """Block until all pending operations on this backend's device complete.
+
+        CPU is always synchronous so this is a no-op for device="cpu".
+        For CUDA and MPS devices, this waits for all queued GPU work to finish.
+        """
+        if self._device.type == "cuda":
+            torch.cuda.synchronize(self._device)
+        elif self._device.type == "mps":
+            torch.mps.synchronize()
+
     @staticmethod
     def dot(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         # for typing consistancy make sure dot always returns an array
         return torch.matmul(Amat, Bmat)
 
-    @staticmethod
     def eye(
-        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+        self, nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> torch.Tensor:
         return torch.eye(
-            nrows, ncols if ncols is not None else nrows, dtype=dtype
+            nrows,
+            ncols if ncols is not None else nrows,
+            dtype=dtype if dtype is not None else self._dtype,
+            device=self._device,
         )
 
     @staticmethod
@@ -47,29 +70,31 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         ), "Expected torch.linalg.pinv to return a torch.Tensor"
         return result
 
-    @staticmethod
     def array(
+        self,
         array: Union[Sequence[Any], torch.Tensor, float, int],
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         if isinstance(array, torch.Tensor):
             return array.detach().clone().to(
-                dtype=dtype or array.dtype
+                dtype=dtype or array.dtype, device=self._device
             )
         arr_np = np.asarray(array)
         result = torch.from_numpy(arr_np.copy())
         if dtype is not None:
-            return result.to(dtype=dtype)
+            return result.to(dtype=dtype, device=self._device)
         if result.is_floating_point():
-            return result.to(dtype=torch.float64)
-        return result
+            return result.to(dtype=self._dtype, device=self._device)
+        return result.to(device=self._device)
 
-    @staticmethod
     def asarray(
+        self,
         array: Union[Sequence[Any], torch.Tensor, float, int],
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
-        return torch.as_tensor(array, dtype=dtype)
+        if dtype is None and not isinstance(array, torch.Tensor):
+            dtype = self._dtype
+        return torch.as_tensor(array, dtype=dtype, device=self._device)
 
     @staticmethod
     def assert_allclose(
@@ -127,19 +152,21 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         return torch.vstack(arrays)
 
-    @staticmethod
-    def linspace(start: float, stop: float, num: int) -> torch.Tensor:
-        return torch.linspace(start, stop, num)
+    def linspace(self, start: float, stop: float, num: int) -> torch.Tensor:
+        return torch.linspace(
+            start, stop, num, dtype=self._dtype, device=self._device
+        )
 
-    @staticmethod
-    def logspace(start: float, stop: float, num: int) -> torch.Tensor:
-        return torch.logspace(start, stop, num)
+    def logspace(self, start: float, stop: float, num: int) -> torch.Tensor:
+        return torch.logspace(
+            start, stop, num, dtype=self._dtype, device=self._device
+        )
 
     @staticmethod
     def to_numpy(array: torch.Tensor) -> NDArray[Any]:
         if isinstance(array, np.ndarray):
             return array
-        return array.detach().numpy()
+        return array.detach().cpu().numpy()
 
     @staticmethod
     def to_float(array: "float | torch.Tensor") -> float:
@@ -252,32 +279,45 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def arctanh(array: torch.Tensor) -> torch.Tensor:
         return torch.atanh(array)
 
-    @staticmethod
     def full(
-        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> torch.Tensor:
-        return torch.full(shape, fill_value, dtype=dtype)
+        return torch.full(
+            shape,
+            fill_value,
+            dtype=dtype if dtype is not None else self._dtype,
+            device=self._device,
+        )
 
-    @staticmethod
     def zeros(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> torch.Tensor:
-        return torch.zeros(shape, dtype=dtype)
+        return torch.zeros(
+            shape,
+            dtype=dtype if dtype is not None else self._dtype,
+            device=self._device,
+        )
 
-    @staticmethod
     def ones(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> torch.Tensor:
-        return torch.ones(shape, dtype=dtype)
+        return torch.ones(
+            shape,
+            dtype=dtype if dtype is not None else self._dtype,
+            device=self._device,
+        )
 
-    @staticmethod
     def empty(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
+        self, shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> torch.Tensor:
-        return torch.empty(shape, dtype=dtype)
+        return torch.empty(
+            shape,
+            dtype=dtype if dtype is not None else self._dtype,
+            device=self._device,
+        )
 
-    @staticmethod
-    def arange(*args: Any, **kwargs: Any) -> torch.Tensor:
+    def arange(self, *args: Any, **kwargs: Any) -> torch.Tensor:
+        kwargs.setdefault("device", self._device)
         return torch.arange(*args, **kwargs)
 
     @staticmethod
@@ -758,9 +798,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         return torch.zeros_like(array, dtype=dtype)
 
-    @staticmethod
-    def default_dtype() -> Any:
-        return torch.float64
+    def default_dtype(self) -> Any:
+        return self._dtype
 
     @staticmethod
     def maximum(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
@@ -840,10 +879,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         """Return the array type class for this backend."""
         return torch.Tensor
 
-    @staticmethod
-    def tril_indices(n: int, k: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
+    def tril_indices(self, n: int, k: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return indices for lower-triangular part of an (n, n) array."""
-        return torch.tril_indices(n, n, offset=k)
+        return torch.tril_indices(n, n, offset=k, device=self._device)
 
     @staticmethod
     def multidot(arrays: List[torch.Tensor]) -> torch.Tensor:
