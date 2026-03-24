@@ -361,9 +361,10 @@ class UMBridgeModel(Generic[Array]):
         if out is None:
             out = open(os.devnull, "w")
 
+        import shlex
+
         process = subprocess.Popen(
-            run_command,
-            shell=True,
+            shlex.split(run_command),
             stdout=out,
             stderr=out,
             preexec_fn=os.setsid,
