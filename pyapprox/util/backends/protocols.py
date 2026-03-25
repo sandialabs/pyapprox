@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import (
+    TYPE_CHECKING,
     Any,
     Generic,
     List,
@@ -15,8 +18,14 @@ from typing import (
 # from typing_extensions import SupportsIndex
 from numpy.typing import NDArray
 
+if TYPE_CHECKING:
+    import torch
+
 # Define generic types for arrays
 Array = TypeVar("Array", bound="ArrayProtocol")
+
+# Input type for asarray/array — must be accepted by all backends
+ArrayLike = Union[Sequence[Any], float, int, "NDArray[Any]", "torch.Tensor"]
 
 
 @runtime_checkable
@@ -105,13 +114,13 @@ class Backend(Protocol, Generic[Array]):
 
     def asarray(
         self,
-        array: Union[Sequence[Any], Array, float, int],
+        array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> Array: ...
 
     def array(
         self,
-        array: Union[Sequence[Any], Array, float, int],
+        array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> Array: ...
 

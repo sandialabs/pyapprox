@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import ArrayLike, Backend
 
 
 # Implement the PyTorch backend
@@ -72,7 +72,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     def array(
         self,
-        array: Union[Sequence[Any], torch.Tensor, float, int],
+        array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         if isinstance(array, torch.Tensor):
@@ -89,7 +89,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     def asarray(
         self,
-        array: Union[Sequence[Any], torch.Tensor, float, int],
+        array: ArrayLike,
         dtype: Optional[Any] = None,
     ) -> torch.Tensor:
         if dtype is None and not isinstance(array, torch.Tensor):
@@ -465,7 +465,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         """Solve least squares problem min ||ax - b||_2."""
         result = torch.linalg.lstsq(a, b, rcond=rcond)
-        return result.solution
+        return cast(torch.Tensor, result.solution)
 
     @staticmethod
     def flip(
@@ -563,7 +563,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def jacobian(
         fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
     ) -> torch.Tensor:
-        return torch.autograd.functional.jacobian(fun, params)
+        return cast(torch.Tensor, torch.autograd.functional.jacobian(fun, params))
 
     @staticmethod
     def hvp(
@@ -571,7 +571,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         params: torch.Tensor,
         vec: torch.Tensor,
     ) -> torch.Tensor:
-        return torch.autograd.functional.hvp(fun, params, vec)[1]
+        return cast(torch.Tensor, torch.autograd.functional.hvp(fun, params, vec)[1])
 
     @staticmethod
     def jvp(
@@ -580,30 +580,30 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         vec: torch.Tensor,
     ) -> torch.Tensor:
         # set create_graph=True so that result is differentiable.
-        return torch.autograd.functional.jvp(
+        return cast(torch.Tensor, torch.autograd.functional.jvp(
             fun, params, vec, create_graph=True
-        )[1]
+        )[1])
 
     @staticmethod
     def hessian(
         fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
     ) -> torch.Tensor:
-        return torch.autograd.functional.hessian(fun, params)
+        return cast(torch.Tensor, torch.autograd.functional.hessian(fun, params))
 
     @staticmethod
     def cholesky(array: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.cholesky(array)
+        return cast(torch.Tensor, torch.linalg.cholesky(array))
 
     @staticmethod
     def solve_triangular(
-        matrix: NDArray[Any],
-        rhs: NDArray[Any],
+        matrix: torch.Tensor,
+        rhs: torch.Tensor,
         lower: bool = True,
         unit_diagonal: bool = False,
-    ) -> NDArray[Any]:
-        return torch.linalg.solve_triangular(
+    ) -> torch.Tensor:
+        return cast(torch.Tensor, torch.linalg.solve_triangular(
             matrix, rhs, upper=(not lower), unitriangular=unit_diagonal
-        )
+        ))
 
     @staticmethod
     def cholesky_solve(
@@ -611,11 +611,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         rhs: torch.Tensor,
         lower: bool = True,
     ) -> torch.Tensor:
-        return torch.cholesky_solve(rhs, matrix, upper=(not lower))
+        return cast(torch.Tensor, torch.cholesky_solve(rhs, matrix, upper=(not lower)))
 
     @staticmethod
     def eigvalsh(array: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.eigvalsh(array)
+        return cast(torch.Tensor, torch.linalg.eigvalsh(array))
 
     @staticmethod
     def trace(array: torch.Tensor) -> torch.Tensor:
@@ -623,11 +623,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def atleast_1d(array: torch.Tensor) -> torch.Tensor:
-        return torch.atleast_1d(array)
+        return cast(torch.Tensor, torch.atleast_1d(array))
 
     @staticmethod
     def atleast_2d(array: torch.Tensor) -> torch.Tensor:
-        return torch.atleast_2d(array)
+        return cast(torch.Tensor, torch.atleast_2d(array))
 
     @staticmethod
     def tile(array: torch.Tensor, reps: Tuple[int, ...]) -> torch.Tensor:
@@ -643,7 +643,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def unique(array: torch.Tensor) -> torch.Tensor:
-        return torch.unique(array)
+        return cast(torch.Tensor, torch.unique(array))
 
     @staticmethod
     def argmin(
@@ -697,11 +697,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def slogdet(
         array: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        return torch.linalg.slogdet(array)
+        result = torch.linalg.slogdet(array)
+        return cast(torch.Tensor, result.sign), cast(torch.Tensor, result.logabsdet)
 
     @staticmethod
     def det(array: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.det(array)
+        return cast(torch.Tensor, torch.linalg.det(array))
 
     @staticmethod
     def mean(
@@ -751,17 +752,26 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             array = array.T
         result = torch.cov(array, correction=ddof)
         # Ensure result is always 2D (torch.cov returns scalar for 1 variable)
-        return torch.atleast_2d(result)
+        return cast(torch.Tensor, torch.atleast_2d(result))
 
     @staticmethod
     def eigh(array: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        return torch.linalg.eigh(array)
+        result = torch.linalg.eigh(array)
+        return (
+            cast(torch.Tensor, result.eigenvalues),
+            cast(torch.Tensor, result.eigenvectors),
+        )
 
     @staticmethod
     def svd(
         array: torch.Tensor, full_matrices: bool = True
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return torch.linalg.svd(array, full_matrices=full_matrices)
+        result = torch.linalg.svd(array, full_matrices=full_matrices)
+        return (
+            cast(torch.Tensor, result.U),
+            cast(torch.Tensor, result.S),
+            cast(torch.Tensor, result.Vh),
+        )
 
     @staticmethod
     def rank(array: torch.Tensor) -> int:
@@ -813,7 +823,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def qr(
         array: torch.Tensor, mode: str = "reduced"
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        return torch.linalg.qr(array, mode=mode)
+        result = torch.linalg.qr(array, mode=mode)
+        return cast(torch.Tensor, result.Q), cast(torch.Tensor, result.R)
 
     @staticmethod
     def lu(
@@ -837,7 +848,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         U : torch.Tensor
             Upper triangular matrix.
         """
-        return torch.linalg.lu(array)
+        result = torch.linalg.lu(array)
+        return (
+            cast(torch.Tensor, result.P),
+            cast(torch.Tensor, result.L),
+            cast(torch.Tensor, result.U),
+        )
 
     @staticmethod
     def index_update(
@@ -886,4 +902,4 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def multidot(arrays: List[torch.Tensor]) -> torch.Tensor:
         """Compute the dot product of two or more arrays in a single call."""
-        return torch.linalg.multi_dot(arrays)
+        return cast(torch.Tensor, torch.linalg.multi_dot(arrays))
