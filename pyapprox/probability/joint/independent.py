@@ -87,17 +87,17 @@ class IndependentJoint(Generic[Array]):
         """
         # Check if all marginals have logpdf_jacobian
         if all(hasattr(m, "logpdf_jacobian") for m in self._marginals):
-            self.logpdf_jacobian = self._logpdf_jacobian  # type: ignore
-            self.logpdf_jacobian_batch = self._logpdf_jacobian_batch  # type: ignore
+            self.logpdf_jacobian = self._logpdf_jacobian
+            self.logpdf_jacobian_batch = self._logpdf_jacobian_batch
 
         # Check if all marginals have pdf_jacobian
         if all(hasattr(m, "pdf_jacobian") for m in self._marginals):
-            self.jacobian = self._jacobian  # type: ignore
-            self.jacobian_batch = self._jacobian_batch  # type: ignore
+            self.jacobian = self._jacobian
+            self.jacobian_batch = self._jacobian_batch
 
         # Check if all marginals have logpdf_jacobian_wrt_params
         if all(hasattr(m, "logpdf_jacobian_wrt_params") for m in self._marginals):
-            self.logpdf_jacobian_wrt_params = (  # type: ignore
+            self.logpdf_jacobian_wrt_params = (
                 self._logpdf_jacobian_wrt_params
             )
 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.contour import QuadContourSet
 from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+from mpl_toolkits.mplot3d import Axes3D
 
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,

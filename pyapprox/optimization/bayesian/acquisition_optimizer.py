@@ -402,7 +402,7 @@ class AcquisitionOptimizer(Generic[Array]):
             obj = _AcquisitionObjective(acquisition, ctx, domain)
 
             # Copy optimizer and bind
-            opt = self._optimizer.copy()  # type: ignore[union-attr]
+            opt = self._optimizer.copy()
             opt.bind(obj, bounds)
 
             try:
@@ -482,7 +482,7 @@ class AcquisitionOptimizer(Generic[Array]):
         for idx in top_indices:
             init_guess = bkd.reshape(raw_X[:, int(idx)], (nvars, 1))
 
-            opt = self._optimizer.copy()  # type: ignore[union-attr]
+            opt = self._optimizer.copy()
             opt.bind(obj, bounds)
 
             try:

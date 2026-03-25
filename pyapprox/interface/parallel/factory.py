@@ -56,16 +56,16 @@ class ParallelFunctionWrapper(Generic[Array]):
     def _setup_derivative_methods(self) -> None:
         """Auto-detect and set up derivative methods via hasattr."""
         if hasattr(self._function, "jacobian"):
-            self.jacobian = self._function.jacobian  # type: ignore
+            self.jacobian = self._function.jacobian
             self.jacobian_batch = self._jacobian_batch
         if hasattr(self._function, "hvp"):
-            self.hvp = self._function.hvp  # type: ignore
+            self.hvp = self._function.hvp
             self.hvp_batch = self._hvp_batch
         if hasattr(self._function, "whvp"):
-            self.whvp = self._function.whvp  # type: ignore
+            self.whvp = self._function.whvp
             self.whvp_batch = self._whvp_batch
         if hasattr(self._function, "hessian"):
-            self.hessian = self._function.hessian  # type: ignore
+            self.hessian = self._function.hessian
             self.hessian_batch = self._hessian_batch
 
     def bkd(self) -> Backend[Array]:

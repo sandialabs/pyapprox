@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.tri import Triangulation
-from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+from mpl_toolkits.mplot3d import Axes3D
 
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,

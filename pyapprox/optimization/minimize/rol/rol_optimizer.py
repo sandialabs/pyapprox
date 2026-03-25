@@ -274,12 +274,12 @@ class ROLOptimizer(Generic[Array]):
                     con, bkd
                 )
                 if is_eq:
-                    problem.addLinearConstraint(  # type: ignore[union-attr]
+                    problem.addLinearConstraint(
                         f"EqLinearConstraint_{neq_lin}", rol_con, emul
                     )
                     neq_lin += 1
                 else:
-                    problem.addLinearConstraint(  # type: ignore[union-attr]
+                    problem.addLinearConstraint(
                         f"IneqLinearConstraint_{nineq_lin}",
                         rol_con,
                         emul,
@@ -291,11 +291,11 @@ class ROLOptimizer(Generic[Array]):
                 rol_con_nl = make_rol_nonlinear_constraint(con, bkd)
                 nqoi = con.nqoi()  # type: ignore[union-attr]
                 emul = NumPyVector(np.zeros(nqoi))
-                lb = bkd.to_numpy(con.lb())  # type: ignore[union-attr]
-                ub = bkd.to_numpy(con.ub())  # type: ignore[union-attr]
+                lb = bkd.to_numpy(con.lb())
+                ub = bkd.to_numpy(con.ub())
                 is_eq = np.allclose(lb, ub)
                 if is_eq:
-                    problem.addConstraint(  # type: ignore[union-attr]
+                    problem.addConstraint(
                         f"EqNonLinearConstraint_{neq_nonlin}",
                         rol_con_nl,
                         emul,
@@ -305,7 +305,7 @@ class ROLOptimizer(Generic[Array]):
                     nl_bounds = pyrol.Bounds(
                         NumPyVector(lb.copy()), NumPyVector(ub.copy())
                     )
-                    problem.addConstraint(  # type: ignore[union-attr]
+                    problem.addConstraint(
                         f"IneqNonLinearConstraint_{nineq_nonlin}",
                         rol_con_nl,
                         emul,

@@ -144,12 +144,12 @@ class MultiOutputGP(Generic[Array]):
         clone = copy.deepcopy(self)
         clone._data = None
         clone._is_fitted = False
-        clone._cholesky = None  # type: ignore[attr-defined]
-        clone._alpha = None  # type: ignore[attr-defined]
+        clone._cholesky = None
+        clone._alpha = None
         if hasattr(clone, "_X_train_list"):
-            clone._X_train_list = None  # type: ignore[assignment]
+            clone._X_train_list = None
         if hasattr(clone, "_y_train_stacked"):
-            clone._y_train_stacked = None  # type: ignore[assignment]
+            clone._y_train_stacked = None
         return clone
 
     def _copy_fitted_state_from(self, other: "MultiOutputGP[Array]") -> None:

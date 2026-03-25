@@ -74,8 +74,8 @@ class SampleAverageConstraint(Generic[Array]):
         self._constraint_ub = constraint_ub
         self._bkd = bkd
 
-        self._nvars_full: int = model.nvars()  # type: ignore[union-attr]
-        self._nqoi: int = model.nqoi()  # type: ignore[union-attr]
+        self._nvars_full: int = model.nvars()
+        self._nqoi: int = model.nqoi()
         self._n_quad_pts: int = quad_samples.shape[1]
 
         # Compute random variable indices (complement of design)
@@ -86,7 +86,7 @@ class SampleAverageConstraint(Generic[Array]):
         if (
             hasattr(model, "jacobian")
             and hasattr(stat, "jacobian_implemented")
-            and stat.jacobian_implemented()  # type: ignore[union-attr]
+            and stat.jacobian_implemented()
         ):
             self.jacobian = self._jacobian
 
@@ -180,11 +180,11 @@ class SampleAverageConstraint(Generic[Array]):
         for qq in range(n_quad):
             single_sample = full_samples[:, qq : qq + 1]
             # Full jacobian: (nqoi, nvars_full)
-            jac_full = self._model.jacobian(single_sample)  # type: ignore[union-attr]
+            jac_full = self._model.jacobian(single_sample)
             # Extract design columns: (nqoi, n_design)
             jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         # Apply stat jacobian: (nqoi, n_quad, n_design), -> (nqoi, n_design)
-        return self._stat.jacobian(  # type: ignore[union-attr]
+        return self._stat.jacobian(
             model_values, jac_values, self._quad_weights
         )

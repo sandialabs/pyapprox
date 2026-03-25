@@ -236,7 +236,7 @@ class TrackedModel(Generic[Array]):
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
-        return self._model.bkd()  # type: ignore[no-any-return]
+        return self._model.bkd()
 
     def nvars(self) -> int:
         """Return the number of variables."""

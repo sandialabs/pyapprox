@@ -403,8 +403,8 @@ class ActiveSetFunction(Generic[Array]):
         self._nominal_values = nominal_values
         self._keep_indices = keep_indices
         self._bkd = bkd
-        self._nvars_full: int = function.nvars()  # type: ignore[union-attr]
-        self._nqoi: int = function.nqoi()  # type: ignore[union-attr]
+        self._nvars_full: int = function.nvars()
+        self._nqoi: int = function.nqoi()
 
         # Dynamic binding of derivative methods
         if hasattr(function, "jacobian"):
@@ -473,7 +473,7 @@ class ActiveSetFunction(Generic[Array]):
             Shape (nqoi, n_keep).
         """
         full = self._assemble(sample)
-        jac_full = self._function.jacobian(full)  # type: ignore[union-attr]
+        jac_full = self._function.jacobian(full)
         return jac_full[:, self._keep_indices]
 
     def _hvp(self, sample: Array, vec: Array) -> Array:
@@ -496,7 +496,7 @@ class ActiveSetFunction(Generic[Array]):
         full_vec = bkd.zeros((self._nvars_full, 1))
         for kk, idx in enumerate(self._keep_indices):
             full_vec[idx] = vec[kk]
-        result_full = self._function.hvp(full_sample, full_vec)  # type: ignore[union-attr]
+        result_full = self._function.hvp(full_sample, full_vec)
         return result_full[self._keep_indices, :]
 
     def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
@@ -521,5 +521,5 @@ class ActiveSetFunction(Generic[Array]):
         full_vec = bkd.zeros((self._nvars_full, 1))
         for kk, idx in enumerate(self._keep_indices):
             full_vec[idx] = vec[kk]
-        result_full = self._function.whvp(full_sample, full_vec, weights)  # type: ignore[union-attr]
+        result_full = self._function.whvp(full_sample, full_vec, weights)
         return result_full[self._keep_indices, :]

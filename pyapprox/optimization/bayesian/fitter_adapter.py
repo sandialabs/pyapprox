@@ -43,12 +43,12 @@ class GPFitterAdapter(Generic[Array]):
         SurrogateProtocol[Array]
             Fitted GP.
         """
-        result = self._fitter.fit(surrogate, X, y)  # type: ignore[union-attr]
-        return result.surrogate()  # type: ignore[return-value]
+        result = self._fitter.fit(surrogate, X, y)
+        return result.surrogate()
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
-        return self._fitter.bkd()  # type: ignore[union-attr,no-any-return]
+        return self._fitter.bkd()
 
 
 class GPFixedFitterAdapter(Generic[Array]):
@@ -94,7 +94,7 @@ class GPFixedFitterAdapter(Generic[Array]):
 
         fitter = GPFixedHyperparameterFitter(self._bkd)
         result = fitter.fit(surrogate, X, y)
-        return result.surrogate()  # type: ignore[return-value]
+        return result.surrogate()
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -148,7 +148,7 @@ class GPIncrementalFitterAdapter(Generic[Array]):
         result = fitter.fit(surrogate, X, y, self._prev_surrogate)
         fitted = result.surrogate()
         self._prev_surrogate = fitted
-        return fitted  # type: ignore[return-value]
+        return fitted
 
     def set_prev_surrogate(self, surrogate: SurrogateProtocol[Array]) -> None:
         """Seed the incremental cache after full HP optimization.

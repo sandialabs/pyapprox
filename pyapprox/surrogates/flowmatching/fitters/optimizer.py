@@ -85,7 +85,7 @@ class OptimizerFitter(Generic[Array]):
         objective = FlowMatchingObjective(fitted_vf, path, loss, quad_data, bkd)
 
         # Get bounds from VF hyperparameter list
-        bounds = fitted_vf.hyp_list().get_active_bounds()  # type: ignore[union-attr]
+        bounds = fitted_vf.hyp_list().get_active_bounds()
 
         # Get optimizer
         if self._optimizer is not None:
@@ -100,7 +100,7 @@ class OptimizerFitter(Generic[Array]):
         # Bind and minimize
         optimizer.bind(objective, bounds)
 
-        init_guess = fitted_vf.hyp_list().get_active_values()  # type: ignore[union-attr]
+        init_guess = fitted_vf.hyp_list().get_active_values()
         if len(init_guess.shape) == 1:
             init_guess = bkd.reshape(init_guess, (-1, 1))
 
@@ -110,8 +110,8 @@ class OptimizerFitter(Generic[Array]):
         optimal_params = opt_result.optima()
         if len(optimal_params.shape) == 2:
             optimal_params = optimal_params[:, 0]
-        fitted_vf.hyp_list().set_active_values(optimal_params)  # type: ignore[union-attr]
-        fitted_vf._sync_from_hyp_list()  # type: ignore[union-attr]
+        fitted_vf.hyp_list().set_active_values(optimal_params)
+        fitted_vf._sync_from_hyp_list()
 
         # Compute final loss
         qd = quad_data

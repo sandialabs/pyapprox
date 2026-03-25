@@ -206,7 +206,7 @@ class FlowMatchingObjective(Generic[Array]):
 
     def nvars(self) -> int:
         """Number of active parameters."""
-        return self._vf.hyp_list().nactive_params()  # type: ignore[union-attr]
+        return self._vf.hyp_list().nactive_params()
 
     def nqoi(self) -> int:
         """Always 1 (scalar loss)."""
@@ -218,7 +218,7 @@ class FlowMatchingObjective(Generic[Array]):
 
     def hyp_list(self) -> HyperParameterList:
         """Return the VF's hyperparameter list."""
-        return self._vf.hyp_list()  # type: ignore[union-attr]
+        return self._vf.hyp_list()
 
     def __call__(self, params: Array) -> Array:
         """Evaluate loss at given parameter values.
@@ -237,8 +237,8 @@ class FlowMatchingObjective(Generic[Array]):
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        self._vf.hyp_list().set_active_values(params)  # type: ignore[union-attr]
-        self._vf._sync_from_hyp_list()  # type: ignore[union-attr]
+        self._vf.hyp_list().set_active_values(params)
+        self._vf._sync_from_hyp_list()
 
         v_t = self._vf(self._vf_input)  # type: ignore[operator]
         diff = v_t - self._u_t
@@ -268,12 +268,12 @@ class FlowMatchingObjective(Generic[Array]):
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        self._vf.hyp_list().set_active_values(params)  # type: ignore[union-attr]
-        self._vf._sync_from_hyp_list()  # type: ignore[union-attr]
+        self._vf.hyp_list().set_active_values(params)
+        self._vf._sync_from_hyp_list()
 
         # Phi: (n_quad, nterms), coef: (nterms, d), U: (d, n_quad)
-        Phi = self._vf.basis_matrix(self._vf_input)  # type: ignore[union-attr]
-        coef = self._vf.get_coefficients()  # type: ignore[union-attr]
+        Phi = self._vf.basis_matrix(self._vf_input)
+        coef = self._vf.get_coefficients()
         Phi.shape[1]
         self._u_t.shape[0]
 
@@ -292,5 +292,5 @@ class FlowMatchingObjective(Generic[Array]):
         grad_flat = self._bkd.flatten(grad_full)
 
         # Extract active subset
-        active_grad = self._vf.hyp_list().extract_active(grad_flat)  # type: ignore[union-attr]
+        active_grad = self._vf.hyp_list().extract_active(grad_flat)
         return self._bkd.reshape(active_grad, (1, -1))

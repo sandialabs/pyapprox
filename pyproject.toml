@@ -118,6 +118,13 @@ ignore = ["E402"]  # intentional lazy imports to reduce module load times
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+# exclude applies when mypy discovers files via directory scanning.
+# It does NOT apply when files are passed explicitly on the command line
+# (e.g., mypy pyapprox/foo/tests/test_bar.py will still check that file).
+exclude = [
+    "pyapprox/.*/tests/",
+    "pyapprox/tutorial_figures/",
+]
 
 [[tool.mypy.overrides]]
 module = ["*"]

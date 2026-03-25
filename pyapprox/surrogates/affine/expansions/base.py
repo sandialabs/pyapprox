@@ -73,16 +73,16 @@ class BasisExpansion(Generic[Array]):
         """
         # Batch methods
         if isinstance(self._basis, BasisHasJacobianProtocol):
-            self.jacobian_batch = self._jacobian_batch  # type: ignore[method-assign]
+            self.jacobian_batch = self._jacobian_batch
             # Single-sample methods
-            self.jacobian = self._jacobian  # type: ignore[method-assign]
+            self.jacobian = self._jacobian
 
         # Hessian methods only available for nqoi=1
         if isinstance(self._basis, BasisHasHessianProtocol) and self._nqoi == 1:
-            self.hessian_batch = self._hessian_batch  # type: ignore[method-assign]
-            self.hessian = self._hessian  # type: ignore[method-assign]
-            self.hvp = self._hvp  # type: ignore[method-assign]
-            self.whvp = self._whvp  # type: ignore[method-assign]
+            self.hessian_batch = self._hessian_batch
+            self.hessian = self._hessian
+            self.hvp = self._hvp
+            self.whvp = self._whvp
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -312,7 +312,7 @@ class BasisExpansion(Generic[Array]):
         # basis.jacobian_batch(samples): (nsamples, nterms, nvars)
         # coef: (nterms, nqoi)
         # result: (nsamples, nqoi, nvars)
-        basis_jac = self._basis.jacobian_batch(samples)  # type: ignore[union-attr]
+        basis_jac = self._basis.jacobian_batch(samples)
         return self._bkd.einsum("ijk,jl->ilk", basis_jac, self._coef)
 
     def _hessian_batch(self, samples: Array) -> Array:
@@ -340,7 +340,7 @@ class BasisExpansion(Generic[Array]):
         # basis.hessian_batch(samples): (nsamples, nterms, nvars, nvars)
         # coef: (nterms, 1)
         # result: (nsamples, 1, nvars, nvars) -> squeeze to (nsamples, nvars, nvars)
-        basis_hess = self._basis.hessian_batch(samples)  # type: ignore[union-attr]
+        basis_hess = self._basis.hessian_batch(samples)
         result = self._bkd.einsum("ijkl,jm->imkl", basis_hess, self._coef)
         return result[:, 0, :, :]
 
@@ -447,7 +447,7 @@ class BasisExpansion(Generic[Array]):
         weighted_coef = self._bkd.reshape(weighted_coef, (-1, 1))  # (nterms, 1)
 
         # Compute basis Hessians
-        basis_hess = self._basis.hessian_batch(sample)  # type: ignore[union-attr]
+        basis_hess = self._basis.hessian_batch(sample)
         # (1, nterms, nvars, nvars)
 
         # Weighted Hessian: einsum over terms

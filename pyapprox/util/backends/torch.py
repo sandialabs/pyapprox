@@ -497,7 +497,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     ) -> torch.Tensor:
         if not sorted_array.is_contiguous():
             sorted_array = sorted_array.contiguous()
-        return torch.searchsorted(sorted_array, values, side=side)  # type: ignore
+        return torch.searchsorted(sorted_array, values, side=side)
 
     @staticmethod
     def clip(

@@ -355,7 +355,7 @@ def list_samplers() -> list:
 
 
 # Register built-in strategies
-register_sampler("gauss", GaussStrategy)  # type: ignore
-register_sampler("mc", MCStrategy)  # type: ignore
-register_sampler("halton", HaltonStrategy)  # type: ignore
-register_sampler("sobol", SobolStrategy)  # type: ignore
+register_sampler("gauss", GaussStrategy)
+register_sampler("mc", MCStrategy)
+register_sampler("halton", HaltonStrategy)
+register_sampler("sobol", SobolStrategy)

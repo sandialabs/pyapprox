@@ -39,7 +39,7 @@ class FlowMatchingFitResult(Generic[Array]):
 
     def bkd(self) -> Backend[Array]:
         """Return backend from surrogate."""
-        return self._surrogate.bkd()  # type: ignore[union-attr]
+        return self._surrogate.bkd()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate fitted VF at samples (delegates to surrogate)."""

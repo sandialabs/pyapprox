@@ -96,7 +96,7 @@ class LeastSquaresFitter(Generic[Array]):
         # Solve via BasisExpansion.fit() with weighted solver
         solver = LeastSquaresSolver(bkd)
         solver.set_weights(combined_w)
-        fitted_vf.fit(vf_input, u_t, solver=solver)  # type: ignore[union-attr]
+        fitted_vf.fit(vf_input, u_t, solver=solver)
 
         # Compute final loss
         final_loss_val = loss(fitted_vf, path, t, x0, x1, qd.weights(), qd.c())

@@ -132,14 +132,14 @@ class BayesianOptimizer(Generic[Array]):
         # Refit surrogate: full HP optimization or Cholesky-only
         if self._hp_schedule.should_optimize(self._tell_count):
             self._surrogate = self._fitter.fit(
-                self._surrogate_template, self._X_all, self._y_all  # type: ignore[arg-type]
+                self._surrogate_template, self._X_all, self._y_all
             )
             # Seed incremental cache with post-optimization GP
             if hasattr(self._fixed_fitter, 'set_prev_surrogate'):
-                self._fixed_fitter.set_prev_surrogate(self._surrogate)  # type: ignore[union-attr]
+                self._fixed_fitter.set_prev_surrogate(self._surrogate)
         else:
             self._surrogate = self._fixed_fitter.fit(
-                self._surrogate_template, self._X_all, self._y_all  # type: ignore[arg-type]
+                self._surrogate_template, self._X_all, self._y_all
             )
         self._tell_count += 1
 
@@ -374,7 +374,7 @@ class BayesianOptimizer(Generic[Array]):
 
         metadata: dict = {"tell_count": self._tell_count}
         if self._surrogate is not None and hasattr(self._surrogate, "hyp_list"):
-            hyp_list = self._surrogate.hyp_list()  # type: ignore[union-attr]
+            hyp_list = self._surrogate.hyp_list()
             metadata["hyperparameters"] = self._bkd.to_numpy(
                 hyp_list.get_values()
             ).tolist()
@@ -417,7 +417,7 @@ class BayesianOptimizer(Generic[Array]):
         if "hyperparameters" in state.metadata:
             hyp_values = state.metadata["hyperparameters"]
             if hasattr(surrogate_template, "hyp_list"):
-                surrogate_template.hyp_list().set_values(  # type: ignore[union-attr]
+                surrogate_template.hyp_list().set_values(
                     bkd.array(hyp_values)
                 )
 
@@ -543,8 +543,8 @@ class BayesianOptimizer(Generic[Array]):
         if not hasattr(self._surrogate_template, "hyp_list"):
             return
 
-        prev_values = self._surrogate.hyp_list().get_values()  # type: ignore[union-attr]
-        self._surrogate_template.hyp_list().set_values(prev_values)  # type: ignore[union-attr]
+        prev_values = self._surrogate.hyp_list().get_values()
+        self._surrogate_template.hyp_list().set_values(prev_values)
 
     def _random_sample(self, n: int) -> Array:
         """Generate initial samples within domain bounds.
