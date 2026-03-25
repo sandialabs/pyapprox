@@ -90,10 +90,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         bkd: Backend[Array],
         navier_stokes: bool = False,
         viscosity: float = 1.0,
-        vel_forcing: Optional[Callable] = None,
-        pres_forcing: Optional[Callable] = None,
-        vel_dirichlet_bcs: Optional[List[Tuple[str, Callable]]] = None,
-        pres_dirichlet_bcs: Optional[List[Tuple[str, Callable]]] = None,
+        vel_forcing: Optional[Callable[..., Any]] = None,
+        pres_forcing: Optional[Callable[..., Any]] = None,
+        vel_dirichlet_bcs: Optional[List[Tuple[str, Callable[..., Any]]]] = None,
+        pres_dirichlet_bcs: Optional[List[Tuple[str, Callable[..., Any]]]] = None,
     ):
         self._vel_basis = vel_basis
         self._pres_basis = pres_basis
@@ -125,7 +125,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         # Convert tuple BCs to CallableDirichletBC objects for mixin
         self._boundary_conditions = self._build_boundary_conditions()
 
-    def _build_boundary_conditions(self) -> List:
+    def _build_boundary_conditions(self) -> List[Any]:
         """Convert tuple-based BCs to CallableDirichletBC objects."""
         bcs = []
         nvars = self._ndim

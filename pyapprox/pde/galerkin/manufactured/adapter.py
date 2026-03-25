@@ -81,7 +81,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        functions: Dict[str, Callable],
+        functions: Dict[str, Callable[..., Any]],
         bkd: Backend[Array],
         time_dependent: bool = False,
         conservative: bool = False,
@@ -118,7 +118,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         else:
             raise ValueError(f"Unsupported dimension: {self._ndim}")
 
-    def solution_function(self) -> Callable:
+    def solution_function(self) -> Callable[..., Any]:
         """Return the exact solution function.
 
         Returns
@@ -128,7 +128,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         """
         return self._functions["solution"]
 
-    def forcing_function(self) -> Callable:
+    def forcing_function(self) -> Callable[..., Any]:
         """Return the forcing function.
 
         Returns
@@ -138,7 +138,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         """
         return self._functions["forcing"]
 
-    def velocity_for_galerkin(self) -> Optional[Callable]:
+    def velocity_for_galerkin(self) -> Optional[Callable[..., Any]]:
         """Return velocity function adapted for Galerkin physics interface.
 
         The Galerkin physics (skfem) expects velocity as a callable returning
@@ -169,7 +169,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         return adapted_velocity
 
-    def forcing_for_galerkin(self) -> Callable:
+    def forcing_for_galerkin(self) -> Callable[..., Any]:
         """Return forcing function adapted for Galerkin physics interface.
 
         The Galerkin physics expects forcing as f(x) returning shape (npts,).
@@ -201,7 +201,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
     def _eval_flux(
         self,
-        flux_func: Callable,
+        flux_func: Callable[..., Any],
         coords: np.ndarray,
         time: Optional[float] = None,
     ) -> np.ndarray:
@@ -437,7 +437,7 @@ def create_adr_manufactured_test(
     bkd: Backend[Array],
     time_dependent: bool = False,
     conservative: bool = False,
-) -> Tuple[Dict[str, Callable], int]:
+) -> Tuple[Dict[str, Callable[..., Any]], int]:
     """Create ADR manufactured solution functions for Galerkin tests.
 
     Parameters
@@ -491,7 +491,7 @@ def create_helmholtz_manufactured_test(
     sol_str: str,
     sqwavenum_str: str,
     bkd: Backend[Array],
-) -> Tuple[Dict[str, Callable], int]:
+) -> Tuple[Dict[str, Callable[..., Any]], int]:
     """Create Helmholtz manufactured solution functions for Galerkin tests.
 
     Parameters
@@ -531,7 +531,7 @@ def create_elasticity_manufactured_test(
     lambda_str: str,
     mu_str: str,
     bkd: Backend[Array],
-) -> Tuple[Dict[str, Callable], int]:
+) -> Tuple[Dict[str, Callable[..., Any]], int]:
     """Create linear elasticity manufactured solution functions for Galerkin tests.
 
     Parameters
@@ -574,7 +574,7 @@ def create_hyperelasticity_manufactured_test(
     sol_strs: List[str],
     stress_model: SymbolicStressModelProtocol,
     bkd: Backend[Array],
-) -> Tuple[Dict[str, Callable], int]:
+) -> Tuple[Dict[str, Callable[..., Any]], int]:
     """Create hyperelasticity manufactured solution functions for Galerkin tests.
 
     Parameters
@@ -635,7 +635,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        functions: Dict[str, Callable],
+        functions: Dict[str, Callable[..., Any]],
         bkd: Backend[Array],
         time_dependent: bool = False,
     ):
@@ -656,11 +656,11 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         else:
             raise ValueError(f"Unsupported dimension: {self._ndim}")
 
-    def solution_function(self) -> Callable:
+    def solution_function(self) -> Callable[..., Any]:
         """Return the exact solution function."""
         return self._functions["solution"]
 
-    def forcing_for_galerkin(self) -> Callable:
+    def forcing_for_galerkin(self) -> Callable[..., Any]:
         """Return body force adapted for Galerkin physics.
 
         The manufactured solution returns forcing as (npts, ncomponents).

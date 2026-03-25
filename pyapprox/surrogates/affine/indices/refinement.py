@@ -216,7 +216,7 @@ class CostWeightedRefinementCriteria(RefinementCriteria[Array], Generic[Array]):
         if cost_function is None:
             cost_function = UnitCostFunction(bkd)
         super().__init__(bkd, cost_function)
-        self._error_estimates: dict = {}
+        self._error_estimates: dict[str, Any] = {}
 
     def set_error_estimate(self, index_id: int, error: float) -> None:
         """Set error estimate for an index.

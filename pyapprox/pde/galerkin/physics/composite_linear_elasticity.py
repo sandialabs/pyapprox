@@ -101,7 +101,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         youngs_modulus: float,
         poisson_ratio: float,
         bkd: Backend[Array],
-        body_force: Optional[Callable] = None,
+        body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ) -> "CompositeLinearElasticity[Array]":
         """Create from uniform material properties.
@@ -141,7 +141,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         material_map: Dict[str, Tuple[float, float]],
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
-        body_force: Optional[Callable] = None,
+        body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
@@ -349,7 +349,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         """
         return -self.stiffness_matrix()
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a displacement field.
 
         Parameters

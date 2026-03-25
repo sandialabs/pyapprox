@@ -43,7 +43,7 @@ class GalerkinBasisProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def interpolate(self, func: Callable) -> Array:
+    def interpolate(self, func: Callable[..., Any]) -> Array:
         """Interpolate a function onto the finite element space.
 
         Parameters

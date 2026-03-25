@@ -203,7 +203,7 @@ def create_uniform_pce_functiontrain(
 
 
 def create_pce_functiontrain(
-    marginals: Sequence,
+    marginals: Sequence[Any],
     max_level: Union[int, Sequence[int]],
     ranks: Sequence[int],
     bkd: Backend[Array],

@@ -41,7 +41,7 @@ def create_linear_pressurized_cylinder_2d(
     poisson_ratio: float,
     inner_pressure: float,
     field_map: FieldMapProtocol,
-    forcing: Optional[Callable] = None,
+    forcing: Optional[Callable[..., Any]] = None,
     functional=None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 2D linear elastic pressurized cylinder forward model.

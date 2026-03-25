@@ -317,7 +317,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         return jacobian
 
-    def compute_flux(self, state: Array) -> list:
+    def compute_flux(self, state: Array) -> list[Any]:
         """Compute total conservative flux at all mesh points.
 
         Returns the sum of diffusive and advective flux:
@@ -351,7 +351,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             flux.append(flux_dim)
         return flux
 
-    def compute_flux_jacobian(self, state: Array) -> list:
+    def compute_flux_jacobian(self, state: Array) -> list[Any]:
         """Compute Jacobian of total conservative flux w.r.t. state.
 
         d(flux_d)/du = -D * D_d + diag(v_d)

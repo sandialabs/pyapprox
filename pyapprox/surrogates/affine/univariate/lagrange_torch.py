@@ -63,7 +63,7 @@ def lagrange_eval_torch(
 def _node_deriv_matrices_torch(
     abscissa: torch.Tensor,
     bary_weights: torch.Tensor,
-) -> tuple:
+) -> tuple[Any, ...]:
     """Precompute first and second derivative matrices at nodes.
 
     Returns (D1, D2) where D1[m,j] = L'_j(x_m), D2[m,j] = L''_j(x_m).

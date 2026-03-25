@@ -80,7 +80,7 @@ class DVineCopula(Generic[Array]):
         self._truncation_level = truncation_level
         self._bkd = bkd
 
-        all_hyps: list = []
+        all_hyps: list[Any] = []
         for t in range(1, truncation_level + 1):
             for copula in pair_copulas[t]:
                 all_hyps.extend(copula.hyp_list().hyperparameters())

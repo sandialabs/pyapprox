@@ -130,4 +130,4 @@ class BOState(Generic[Array]):
 
     X_all: Array
     y_all: Array
-    metadata: Dict = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)

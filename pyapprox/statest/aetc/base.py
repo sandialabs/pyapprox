@@ -532,7 +532,7 @@ class AETC(Generic[Array]):
         lf_model_subsets: Optional[List[Array]] = None,
         alpha: float = 4.0,
         random_states: Optional[Any] = None,
-    ) -> Tuple[Array, Array, Tuple]:
+    ) -> Tuple[Array, Array, Tuple[Any, ...]]:
         """Run exploration phase to find optimal model subset.
 
         Parameters
@@ -573,7 +573,7 @@ class AETC(Generic[Array]):
         nexplore_samples_prev = 0
         samples: Optional[Array] = None
         values: Optional[Array] = None
-        last_result: Optional[Tuple] = None
+        last_result: Optional[Tuple[Any, ...]] = None
 
         while nexplore_samples - nexplore_samples_prev > 0:
             nnew_samples = nexplore_samples - nexplore_samples_prev
@@ -602,7 +602,7 @@ class AETC(Generic[Array]):
         return samples, values, last_result
 
     def get_exploit_samples(
-        self, result: Tuple, random_states: Optional[Any] = None
+        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
     ) -> Array:
         """Get samples for exploitation phase.
 
@@ -610,21 +610,23 @@ class AETC(Generic[Array]):
         """
         raise NotImplementedError("Subclasses must implement get_exploit_samples")
 
-    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
+    def find_exploit_mean(
+        self, values_per_model: List[Array], result: Tuple[Any, ...]
+    ) -> Array:
         """Compute exploitation mean estimate.
 
         Must be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement find_exploit_mean")
 
-    def exploit(self, result: Tuple) -> Array:
+    def exploit(self, result: Tuple[Any, ...]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Must be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement exploit")
 
-    def _explore_result_to_dict(self, result: Tuple) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Must be implemented by subclasses.

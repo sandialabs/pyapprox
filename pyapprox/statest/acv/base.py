@@ -38,9 +38,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List, Array],
+        costs: Union[List[Any], Array],
         recursion_index: Array = None,
-        opt_criteria: Callable = None,
+        opt_criteria: Callable[..., Any] = None,
         tree_depth: int = None,
         allow_failures: bool = False,
         npartitions_lower_bound: float = 1e-2,
@@ -500,7 +500,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return acv_samples
 
     def generate_samples_per_model(
-        self, rvs: Callable, npilot_samples: int = 0
+        self, rvs: Callable[..., Any], npilot_samples: int = 0
     ) -> List[Array]:
         ntotal_independent_samples = self._bkd.to_int(
             self._bkd.sum(self._rounded_npartition_samples) - npilot_samples

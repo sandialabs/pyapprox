@@ -199,7 +199,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         nx: int,
         length: float,
         EI: Union[float, np.ndarray],
-        load_func: Callable,
+        load_func: Callable[..., Any],
         bkd: Backend[Array],
         dirichlet_dofs: Optional[List[int]] = None,
         dirichlet_values: Optional[List[float]] = None,
@@ -271,7 +271,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         self._stiffness = None
         self._solution = None
 
-    def set_load_func(self, load_func: Callable) -> None:
+    def set_load_func(self, load_func: Callable[..., Any]) -> None:
         """Update load function and invalidate cached solution."""
         self._load_func = load_func
         self._solution = None
@@ -427,8 +427,8 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
 
     def interpolate_manufactured(
         self,
-        w_func: Callable,
-        dwdx_func: Callable,
+        w_func: Callable[..., Any],
+        dwdx_func: Callable[..., Any],
     ) -> Array:
         """Build DOF vector from manufactured solution functions.
 

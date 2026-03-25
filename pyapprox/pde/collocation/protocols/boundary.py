@@ -39,8 +39,8 @@ class BCDofClassification:
         without row replacement.
     """
 
-    essential: list
-    row_replaced: list
+    essential: list[Any]
+    row_replaced: list[Any]
 
     def __post_init__(self):
         if not set(self.essential) <= set(self.row_replaced):

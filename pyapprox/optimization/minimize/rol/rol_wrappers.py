@@ -77,7 +77,8 @@ def _is_inexact_differentiable(obj: object) -> bool:
 
 
 def make_rol_objective(
-    objective: object, bkd: Backend[Array],
+    objective: object,
+    bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.Objective wrapping the given objective.
 
@@ -107,31 +108,37 @@ def make_rol_objective(
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_eval:
                 val = self._objective.inexact_value(  # type: ignore[attr-defined]
-                    x_col, float(tol),
+                    x_col,
+                    float(tol),
                 )
             else:
                 val = self._objective(x_col)
             return self._bkd.to_numpy(val)[0, 0]
 
     if has_jacobian or inexact_diff:
+
         def _gradient(self, g, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_diff:
                 jac = self._objective.inexact_jacobian(
-                    x_col, float(tol),
+                    x_col,
+                    float(tol),
                 )
             else:
                 jac = self._objective.jacobian(x_col)
             g[:] = self._bkd.to_numpy(jac[0, :])
             return g
+
         _Adapter.gradient = _gradient
 
     if has_hvp:
+
         def _hessVec(self, hv, v, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
             v_col = self._bkd.asarray(v.array)[:, None]
             hvp = self._objective.hvp(x_col, v_col)
             hv[:] = self._bkd.to_numpy(hvp[:, 0])
+
         _Adapter.hessVec = _hessVec
 
     return _Adapter()
@@ -144,7 +151,8 @@ class ROLNonlinearConstraintAdapter(Generic[Array]):
 
 
 def make_rol_nonlinear_constraint(
-    constraint: object, bkd: Backend[Array],
+    constraint: object,
+    bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.Constraint wrapping the given nonlinear constraint.
 
@@ -173,13 +181,15 @@ def make_rol_nonlinear_constraint(
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_eval:
                 vals = self._constraint.inexact_value(  # type: ignore[attr-defined]
-                    x_col, float(tol),
+                    x_col,
+                    float(tol),
                 )
             else:
                 vals = self._constraint(x_col)
             c[:] = self._bkd.to_numpy(vals[:, 0])
 
     if has_jacobian or inexact_diff:
+
         def _applyJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_diff:
@@ -189,6 +199,7 @@ def make_rol_nonlinear_constraint(
             else:
                 jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
             jv[:] = jac @ v[:]
+
         _Adapter.applyJacobian = _applyJacobian
 
         def _applyAdjointJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
@@ -200,22 +211,26 @@ def make_rol_nonlinear_constraint(
             else:
                 jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
             jv[:] = jac.T @ v[:]
+
         _Adapter.applyAdjointJacobian = _applyAdjointJacobian
 
     if has_whvp:
+
         def _applyAdjointHessian(self, hv, u, v, x, tol):  # type: ignore[no-untyped-def]
             x_col = self._bkd.asarray(x.array)[:, None]
             v_col = self._bkd.asarray(v.array)[:, None]
             u_col = self._bkd.asarray(u.array)[:, None]
             hvp = self._constraint.whvp(x_col, v_col, u_col)
             hv[:] = self._bkd.to_numpy(hvp[:, 0])
+
         _Adapter.applyAdjointHessian = _applyAdjointHessian
 
     return _Adapter()
 
 
 def make_rol_linear_operator(
-    A: Array, bkd: Backend[Array],
+    A: Array,
+    bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.LinearOperator from a coefficient matrix."""
     _require_pyrol()
@@ -238,8 +253,9 @@ def make_rol_linear_operator(
 
 
 def make_rol_linear_constraint(
-    constraint: object, bkd: Backend[Array],
-) -> tuple:
+    constraint: object,
+    bkd: Backend[Array],
+) -> tuple[Any, ...]:
     """Create ROL linear constraint components from a PyApproxLinearConstraint.
 
     Returns

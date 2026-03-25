@@ -37,7 +37,7 @@ def create_linear_elastic_bar_1d(
     npts: int,
     length: float,
     E_mean_field: Union[float, Array],
-    forcing: Callable,
+    forcing: Callable[..., Any],
     field_map: FieldMapProtocol,
     traction: Optional[float] = None,
     dirichlet_left: float = 0.0,

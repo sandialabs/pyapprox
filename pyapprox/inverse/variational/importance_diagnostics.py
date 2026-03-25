@@ -97,8 +97,8 @@ class ImportanceWeightedCheck(Generic[Array]):
     def __init__(
         self,
         var_distribution: Any,
-        log_likelihood_fn: Callable,
-        log_prior_fn: Callable,
+        log_likelihood_fn: Callable[..., Any],
+        log_prior_fn: Callable[..., Any],
         nlabel_dims: int,
         label_nodes: Optional[Array],
         bkd: Backend[Array],
@@ -134,17 +134,13 @@ class ImportanceWeightedCheck(Generic[Array]):
         nqoi = self._var_dist.nqoi()
 
         # Draw fresh base samples
-        base_samples = bkd.asarray(
-            np.random.normal(0, 1, (nqoi, self._n_samples))
-        )
+        base_samples = bkd.asarray(np.random.normal(0, 1, (nqoi, self._n_samples)))
 
         # Build label nodes
         if self._label_nodes is None:
             label_nodes = bkd.zeros((self._nlabel_dims, self._n_samples))
         else:
-            label_nodes = bkd.repeat(
-                self._label_nodes, self._n_samples, axis=1
-            )
+            label_nodes = bkd.repeat(self._label_nodes, self._n_samples, axis=1)
 
         # Reparameterize to get z samples
         z = self._var_dist.reparameterize(label_nodes, base_samples)
@@ -237,8 +233,7 @@ class ImportanceWeightedCheck(Generic[Array]):
         abs_improvement = abs(recent_elbo_improvement)
         if abs_improvement > 0:
             should_stop = (
-                metrics.evidence_gap
-                > self._gap_ratio_threshold * abs_improvement
+                metrics.evidence_gap > self._gap_ratio_threshold * abs_improvement
             )
         else:
             should_stop = False
@@ -267,7 +262,7 @@ class ImportanceWeightedCheck(Generic[Array]):
 
 def make_importance_check_from_elbo(
     elbo_objective: Any,
-    log_prior_fn: Callable,
+    log_prior_fn: Callable[..., Any],
     n_diagnostic_samples: int = 200,
     gap_ratio_threshold: float = 10.0,
 ) -> ImportanceWeightedCheck:

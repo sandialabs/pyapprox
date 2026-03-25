@@ -92,7 +92,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         youngs_modulus: float,
         poisson_ratio: float,
         bkd: Backend[Array],
-        body_force: Optional[Callable] = None,
+        body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ) -> "CompositeHyperelasticityPhysics[Array]":
         """Create from uniform material properties.
@@ -116,7 +116,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         material_map: Dict[str, Tuple[float, float]],
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
-        body_force: Optional[Callable] = None,
+        body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
@@ -454,7 +454,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a displacement field."""
         return self._basis.interpolate(func)
 

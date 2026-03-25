@@ -65,14 +65,14 @@ class DiscreteMarginalEntry:
 
 
 # Single source of truth for analytical marginal mappings
-ANALYTICAL_MARGINAL_REGISTRY: Dict[Type, AnalyticalMarginalEntry] = {}
+ANALYTICAL_MARGINAL_REGISTRY: Dict[Type[Any], AnalyticalMarginalEntry] = {}
 
 # Single source of truth for discrete marginal mappings
-DISCRETE_MARGINAL_REGISTRY: Dict[Type, DiscreteMarginalEntry] = {}
+DISCRETE_MARGINAL_REGISTRY: Dict[Type[Any], DiscreteMarginalEntry] = {}
 
 
 def register_analytical_marginal(
-    marginal_type: Type,
+    marginal_type: Type[Any],
     polynomial_factory: Callable[[Any, Backend[Array]], Any],
     transform_factory: Callable[[Any, Backend[Array]], Any],
 ) -> None:
@@ -109,7 +109,7 @@ def register_analytical_marginal(
 
 
 def register_discrete_marginal(
-    marginal_type: Type,
+    marginal_type: Type[Any],
     polynomial_factory: Callable[[Any, Backend[Array]], Any],
 ) -> None:
     """Register a discrete marginal with its polynomial factory.

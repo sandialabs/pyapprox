@@ -6,7 +6,7 @@ log-normal random field provides forcing. Parameters control the KLE
 coefficients, inlet velocity shape, and Reynolds number.
 """
 
-#TODO: Should benchmarks be defined here on in benchmarks module. Decide and document rule, and place in benchmarks.CONVENTIONS.md
+# TODO: Should benchmarks be defined here on in benchmarks module. Decide and document rule, and place in benchmarks.CONVENTIONS.md
 
 from typing import Generic, Tuple
 
@@ -215,7 +215,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         self._nadvec_diff_refine = nadvec_diff_refine
 
         # Build prior: [kle_params (10), vel_shape (2), reynolds (1)]
-        marginals: list = []
+        marginals: list[Any] = []
         for _ in range(nkle_terms):
             marginals.append(GaussianMarginal(0.0, 1.0, bkd))
         marginals.append(UniformMarginal(2.0, 3.0, bkd))

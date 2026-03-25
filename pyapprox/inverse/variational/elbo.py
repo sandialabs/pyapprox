@@ -56,7 +56,7 @@ class ELBOObjective(Generic[Array]):
     def __init__(
         self,
         var_distribution: Any,
-        log_likelihood_fn: Callable,
+        log_likelihood_fn: Callable[..., Any],
         prior: Any,
         joint_nodes: Array,
         joint_weights: Array,
@@ -164,7 +164,7 @@ class ELBOObjective(Generic[Array]):
 
 def make_single_problem_elbo(
     var_distribution: Any,
-    log_likelihood_fn: Callable,
+    log_likelihood_fn: Callable[..., Any],
     prior: Any,
     base_nodes: Array,
     base_weights: Array,
@@ -264,7 +264,7 @@ def _compute_normalized_labels(
 
 def make_discrete_group_elbo(
     var_distribution: Any,
-    log_likelihood_fns: List[Callable],
+    log_likelihood_fns: List[Callable[..., Any]],
     prior: Any,
     base_nodes: Array,
     base_weights: Array,
@@ -322,8 +322,7 @@ def make_discrete_group_elbo(
     if labels is None:
         if observations is None or summary is None:
             raise ValueError(
-                "Either 'labels' or both 'observations' and 'summary' "
-                "must be provided"
+                "Either 'labels' or both 'observations' and 'summary' must be provided"
             )
         if len(observations) != K:
             raise ValueError(
@@ -337,8 +336,7 @@ def make_discrete_group_elbo(
 
     if labels.shape[1] != K:
         raise ValueError(
-            f"Expected {K} label columns (one per group), "
-            f"got {labels.shape[1]}"
+            f"Expected {K} label columns (one per group), got {labels.shape[1]}"
         )
 
     # Build joint nodes: tile labels M times and base_nodes K times

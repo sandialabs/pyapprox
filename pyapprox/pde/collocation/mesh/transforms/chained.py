@@ -44,7 +44,7 @@ class ChainedTransform(Generic[Array]):
 
     def __init__(
         self,
-        transforms: List,
+        transforms: List[Any],
         bkd: Backend[Array],
     ):
         if len(transforms) == 0:
@@ -69,7 +69,7 @@ class ChainedTransform(Generic[Array]):
         """Return the number of spatial dimensions."""
         return self._ndim
 
-    def transforms(self) -> List:
+    def transforms(self) -> List[Any]:
         """Return the list of transforms."""
         return self._transforms
 

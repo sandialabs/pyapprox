@@ -145,7 +145,7 @@ class DtNResidual(Generic[Array]):
 
     def compute_interface_fluxes(
         self,
-    ) -> Dict[int, tuple]:
+    ) -> Dict[int, tuple[Any, ...]]:
         """Compute fluxes on both sides of all interfaces.
 
         Returns

@@ -104,7 +104,9 @@ def _get_allocation_matrix_nested(subsets: List[Array], bkd: Backend[Array]) -> 
     return allocation_mat
 
 
-def _nest_subsets(subsets: List[Array], nmodels: int, bkd: Backend[Array]) -> tuple:
+def _nest_subsets(
+    subsets: List[Array], nmodels: int, bkd: Backend[Array]
+) -> tuple[Any, ...]:
     """
     Reorder subsets for nested sampling configuration.
 

@@ -105,7 +105,7 @@ class OMPSolver(SingleQoiSolverMixin, LinearSystemSolver[Array], Generic[Array])
         # Initialize
         coef = bkd.zeros((nterms, 1))
         residual = bkd.copy(values)
-        active_indices: list = []
+        active_indices: list[Any] = []
         initial_norm = bkd.norm(values)
 
         # Precompute column norms for correlation
@@ -181,12 +181,12 @@ class BasisPursuitSolver(
     def __init__(
         self,
         bkd: Backend[Array],
-        options: Optional[dict] = None,
+        options: Optional[dict[str, Any]] = None,
     ):
         super().__init__(bkd)
         self._options = options or {}
 
-    def set_options(self, options: dict) -> None:
+    def set_options(self, options: dict[str, Any]) -> None:
         """Set solver options.
 
         Parameters

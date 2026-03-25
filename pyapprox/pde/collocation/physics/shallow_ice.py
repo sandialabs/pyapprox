@@ -116,7 +116,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             return self._forcing_func(time)
         return self._forcing_func
 
-    def _compute_surface_gradient(self, state: Array) -> tuple:
+    def _compute_surface_gradient(self, state: Array) -> tuple[Any, ...]:
         """Compute surface gradient components.
 
         Parameters

@@ -81,7 +81,7 @@ class AETCMC(AETC[Array]):
         return k2, 1 / exploit_cost * bkd.ones((1,))
 
     def get_exploit_samples(
-        self, result: Tuple, random_states: Optional[Any] = None
+        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
     ) -> Tuple[List[Array], List[int]]:
         """Get samples for exploitation phase.
 
@@ -123,7 +123,9 @@ class AETCMC(AETC[Array]):
 
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
+    def find_exploit_mean(
+        self, values_per_model: List[Array], result: Tuple[Any, ...]
+    ) -> Array:
         """Compute exploitation mean estimate using MC approach.
 
         Parameters
@@ -154,7 +156,7 @@ class AETCMC(AETC[Array]):
 
         return beta_Sp[0, 0] + product
 
-    def exploit(self, result: Tuple) -> Array:
+    def exploit(self, result: Tuple[Any, ...]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Parameters
@@ -177,7 +179,7 @@ class AETCMC(AETC[Array]):
 
         return self.find_exploit_mean(values_per_model, result)
 
-    def _explore_result_to_dict(self, result: Tuple) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Parameters

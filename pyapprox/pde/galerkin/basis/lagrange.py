@@ -127,7 +127,7 @@ class LagrangeBasis(Generic[Array]):
         """Return the underlying skfem Basis object."""
         return self._skfem_basis
 
-    def interpolate(self, func: Callable) -> Array:
+    def interpolate(self, func: Callable[..., Any]) -> Array:
         """Interpolate a function onto the finite element space.
 
         Parameters

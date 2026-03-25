@@ -149,7 +149,7 @@ class VectorLagrangeBasis(Generic[Array]):
         """Return the scalar Lagrange basis for components."""
         return self._scalar_basis
 
-    def interpolate(self, func: Callable) -> Array:
+    def interpolate(self, func: Callable[..., Any]) -> Array:
         """Interpolate a vector function onto the finite element space.
 
         Parameters

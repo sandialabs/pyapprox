@@ -200,7 +200,7 @@ class ValueAtRisk(RiskMeasureBase[Array]):
         idx = self._bkd.to_int(self._bkd.sum(ecdf < self._beta))
         return self._samples[idx]
 
-    def _value_with_index(self) -> tuple:
+    def _value_with_index(self) -> tuple[Any, ...]:
         """Compute VaR and return both value and index."""
         assert self._samples is not None and self._weights is not None
         weights_sum = self._bkd.sum(self._weights)

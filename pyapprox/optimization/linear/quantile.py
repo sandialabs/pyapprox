@@ -38,7 +38,7 @@ class QuantileRegressionSolver(
         self,
         bkd: Backend[Array],
         quantile: float,
-        options: Optional[dict] = None,
+        options: Optional[dict[str, Any]] = None,
     ):
         super().__init__(bkd)
         self._validate_quantile(quantile)
@@ -61,7 +61,7 @@ class QuantileRegressionSolver(
         self._validate_quantile(quantile)
         self._quantile = quantile
 
-    def set_options(self, options: dict) -> None:
+    def set_options(self, options: dict[str, Any]) -> None:
         """Set solver options.
 
         Parameters

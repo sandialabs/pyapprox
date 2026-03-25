@@ -52,11 +52,11 @@ def create_steady_diffusion_1d(
     bkd: Backend[Array],
     npts: int,
     domain: Tuple[float, float],
-    forcing: Callable,
+    forcing: Callable[..., Any],
     diffusion_base: Optional[float] = None,
     basis_funs: Optional[List[Array]] = None,
     field_map: Optional[FieldMapProtocol] = None,
-    bcs: Optional[list] = None,
+    bcs: Optional[list[Any]] = None,
     functional=None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady-state 1D diffusion forward model.
@@ -128,13 +128,13 @@ def create_transient_diffusion_1d(
     bkd: Backend[Array],
     npts: int,
     domain: Tuple[float, float],
-    init_state_func: Callable,
+    init_state_func: Callable[..., Any],
     time_config: TimeIntegrationConfig,
-    forcing: Optional[Callable] = None,
+    forcing: Optional[Callable[..., Any]] = None,
     diffusion_base: Optional[float] = None,
     basis_funs: Optional[List[Array]] = None,
     field_map: Optional[FieldMapProtocol] = None,
-    bcs: Optional[list] = None,
+    bcs: Optional[list[Any]] = None,
     functional=None,
 ) -> TransientForwardModel[Array]:
     """Create a transient 1D diffusion forward model.

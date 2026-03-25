@@ -267,7 +267,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
             self._quad_weights.append(bkd.reshape(weights, (-1,)))
 
         # Cache for computed integrals
-        self._cache: dict = {}
+        self._cache: dict[str, Any] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

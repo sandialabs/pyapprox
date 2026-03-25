@@ -403,7 +403,7 @@ def get_basis_from_marginal(
 
 
 def create_pce_from_marginals(
-    marginals: List,
+    marginals: List[Any],
     max_level: int,
     bkd: Backend[Array],
     pnorm: float = 1.0,

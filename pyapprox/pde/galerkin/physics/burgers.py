@@ -70,9 +70,9 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        viscosity: Union[float, Callable],
+        viscosity: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
-        forcing: Optional[Callable] = None,
+        forcing: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
@@ -215,7 +215,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a function.
 
         Parameters

@@ -32,7 +32,7 @@ class BasisPursuitFitter(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        options: Optional[dict] = None,
+        options: Optional[dict[str, Any]] = None,
     ):
         self._bkd = bkd
         self._options = options

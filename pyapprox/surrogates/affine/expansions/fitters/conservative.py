@@ -163,7 +163,7 @@ class ConservativeQuantileFitter(Generic[Array]):
         self,
         bkd: Backend[Array],
         quantile: float = 0.5,
-        options: Optional[dict] = None,
+        options: Optional[dict[str, Any]] = None,
     ):
         if not 0 <= quantile < 1:
             raise ValueError(f"quantile must be in [0, 1), got {quantile}")

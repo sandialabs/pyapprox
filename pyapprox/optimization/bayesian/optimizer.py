@@ -91,8 +91,8 @@ class BayesianOptimizer(Generic[Array]):
             hp_schedule if hp_schedule is not None else AlwaysOptimizeSchedule()
         )
         self._convergence = convergence
-        self._fixed_fitter: SurrogateFitterProtocol[Array] = (
-            GPIncrementalFitterAdapter(bkd)
+        self._fixed_fitter: SurrogateFitterProtocol[Array] = GPIncrementalFitterAdapter(
+            bkd
         )
 
         # Mutable state
@@ -135,7 +135,7 @@ class BayesianOptimizer(Generic[Array]):
                 self._surrogate_template, self._X_all, self._y_all
             )
             # Seed incremental cache with post-optimization GP
-            if hasattr(self._fixed_fitter, 'set_prev_surrogate'):
+            if hasattr(self._fixed_fitter, "set_prev_surrogate"):
                 self._fixed_fitter.set_prev_surrogate(self._surrogate)
         else:
             self._surrogate = self._fixed_fitter.fit(
@@ -291,9 +291,7 @@ class BayesianOptimizer(Generic[Array]):
             # at least as good as the best observed point. Use a small
             # relative tolerance to avoid false triggers from
             # floating-point noise.
-            polished_val = float(
-                self._bkd.to_numpy(polished_y[0:1, 0:1]).flat[0]
-            )
+            polished_val = float(self._bkd.to_numpy(polished_y[0:1, 0:1]).flat[0])
             observed_surr_val = float(
                 self._bkd.to_numpy(observed_surr_y[0:1, 0:1]).flat[0]
             )
@@ -372,7 +370,7 @@ class BayesianOptimizer(Generic[Array]):
         if self._X_all is None or self._y_all is None:
             raise RuntimeError("No data observed yet.")
 
-        metadata: dict = {"tell_count": self._tell_count}
+        metadata: dict[str, Any] = {"tell_count": self._tell_count}
         if self._surrogate is not None and hasattr(self._surrogate, "hyp_list"):
             hyp_list = self._surrogate.hyp_list()
             metadata["hyperparameters"] = self._bkd.to_numpy(
@@ -417,9 +415,7 @@ class BayesianOptimizer(Generic[Array]):
         if "hyperparameters" in state.metadata:
             hyp_values = state.metadata["hyperparameters"]
             if hasattr(surrogate_template, "hyp_list"):
-                surrogate_template.hyp_list().set_values(
-                    bkd.array(hyp_values)
-                )
+                surrogate_template.hyp_list().set_values(bkd.array(hyp_values))
 
         opt = cls(
             domain=domain,
@@ -470,9 +466,7 @@ class BayesianOptimizer(Generic[Array]):
             fantasy_y = self._surrogate.predict(pending_X)
             X_aug = self._bkd.hstack([self._X_all, pending_X])
             y_aug = self._bkd.hstack([self._y_all, fantasy_y])
-            surrogate = self._fitter.fit(
-                self._surrogate_template, X_aug, y_aug
-            )
+            surrogate = self._fitter.fit(self._surrogate_template, X_aug, y_aug)
         else:
             surrogate = self._surrogate
 

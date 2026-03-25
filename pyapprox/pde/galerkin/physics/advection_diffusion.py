@@ -130,11 +130,15 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        diffusivity: Union[float, Callable],
+        diffusivity: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
-        velocity: Optional[Union[Array, Callable]] = None,
-        reaction: Optional[Union[float, Callable, Tuple[Callable, Callable]]] = None,
-        forcing: Optional[Callable] = None,
+        velocity: Optional[Union[Array, Callable[..., Any]]] = None,
+        reaction: Optional[
+            Union[
+                float, Callable[..., Any], Tuple[Callable[..., Any], Callable[..., Any]]
+            ]
+        ] = None,
+        forcing: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
         conservative: bool = False,
     ):
@@ -460,7 +464,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             jacobian = jacobian + self._assemble_reaction_jacobian(state, time)
         return jacobian
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a function.
 
         Parameters

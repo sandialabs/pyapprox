@@ -35,9 +35,9 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List, Array],
+        costs: Union[List[Any], Array],
         lowfi_stats: Array = None,
-        opt_criteria: Callable = None,
+        opt_criteria: Callable[..., Any] = None,
     ):
         super().__init__(stat, costs, opt_criteria=opt_criteria)
         if lowfi_stats is not None:
@@ -283,7 +283,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             rounded_target_cost,
         )
 
-    def generate_samples_per_model(self, rvs: Callable) -> List[Array]:
+    def generate_samples_per_model(self, rvs: Callable[..., Any]) -> List[Array]:
         """
         Returns the samples needed to the model
 

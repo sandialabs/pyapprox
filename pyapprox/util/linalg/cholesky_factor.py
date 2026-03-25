@@ -22,7 +22,7 @@ class CholeskyFactor(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def shape(self) -> Tuple:
+    def shape(self) -> Tuple[Any, ...]:
         return self._L.shape
 
     def factor(self) -> Array:

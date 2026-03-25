@@ -96,7 +96,7 @@ class StructuredMeshProtocol(Protocol, Generic[Array]):
     def boundary_nodes(self, boundary_id: str) -> Array: ...
 
     # --- Structured mesh methods ---
-    def shape(self) -> tuple:
+    def shape(self) -> tuple[Any, ...]:
         """Return grid shape (number of nodes in each dimension).
 
         Returns

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 def _combine_acv_values(
     reorder_allocation_mat: Array,
     npartition_samples: Array,
-    acv_values: List,
+    acv_values: List[Any],
     bkd: Backend[Array],
 ) -> List[Array]:
     r"""
@@ -56,7 +56,7 @@ def _combine_acv_values(
 def _combine_acv_samples(
     reorder_allocation_mat: Array,
     npartition_samples: Array,
-    acv_samples: List,
+    acv_samples: List[Any],
     bkd: Backend[Array],
 ) -> List[Array]:
     r"""

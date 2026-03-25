@@ -84,9 +84,9 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        wavenumber: Union[float, Callable],
+        wavenumber: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
-        forcing: Optional[Callable] = None,
+        forcing: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
@@ -103,7 +103,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         self._stiffness_cached: Optional[Array] = None
         self._load_cached: Optional[Array] = None
 
-    def wavenumber(self) -> Union[float, Callable]:
+    def wavenumber(self) -> Union[float, Callable[..., Any]]:
         """Return the wavenumber k (scalar) or k^2(x) (callable)."""
         return self._wavenumber
 
@@ -250,7 +250,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a function.
 
         For Helmholtz (steady-state), this is typically used as a guess

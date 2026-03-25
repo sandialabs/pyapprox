@@ -58,7 +58,7 @@ class FixedSubsetStrategy(ModelSubsetStrategy):
         Indices of models to include. Must include 0 (high-fidelity).
     """
 
-    model_indices: tuple
+    model_indices: tuple[Any, ...]
 
     def __post_init__(self) -> None:
         if 0 not in self.model_indices:
@@ -111,7 +111,7 @@ class ListSubsetStrategy(ModelSubsetStrategy):
         Tuple of tuples, each containing model indices. All must include 0.
     """
 
-    model_subsets: tuple
+    model_subsets: tuple[Any, ...]
 
     def __post_init__(self) -> None:
         for subset in self.model_subsets:
@@ -171,7 +171,7 @@ class FixedQoIStrategy(QoISubsetStrategy):
         Indices of QoI to include.
     """
 
-    qoi_indices: tuple
+    qoi_indices: tuple[Any, ...]
 
     def subsets(self, nqoi: int) -> List[List[int]]:
         return [list(self.qoi_indices)]
@@ -196,7 +196,7 @@ class AllQoISubsetsStrategy(QoISubsetStrategy):
 
     min_qoi: int = 1
     max_qoi: Optional[int] = None
-    required_qoi: tuple = ()
+    required_qoi: tuple[Any, ...] = ()
 
     def subsets(self, nqoi: int) -> List[List[int]]:
         required = set(self.required_qoi)
@@ -235,7 +235,7 @@ class ListQoIStrategy(QoISubsetStrategy):
         Tuple of tuples, each containing QoI indices.
     """
 
-    qoi_subsets: tuple
+    qoi_subsets: tuple[Any, ...]
 
     def subsets(self, nqoi: int) -> List[List[int]]:
         return [list(subset) for subset in self.qoi_subsets]

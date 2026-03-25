@@ -19,8 +19,8 @@ class DiffusionMixin:
     _diff_str: str
     _sol_str: str
     _expressions: Dict[str, Any]
-    cartesian_symbols: Callable
-    _set_expression: Callable
+    cartesian_symbols: Callable[..., Any]
+    _set_expression: Callable[..., Any]
 
     def _sympy_diffusion_expressions(
         self, diff_str: str, sol_expr: sp.Expr
@@ -83,7 +83,7 @@ class ReactionMixin:
     _react_str: str
     _sol_str: str
     _expressions: Dict[str, Any]
-    _set_expression: Callable
+    _set_expression: Callable[..., Any]
 
     def _sympy_reaction_expressions(
         self, react_str: str, sol_str: str
@@ -131,8 +131,8 @@ class AdvectionMixin:
     _conservative: bool
     _sol_str: str
     _expressions: Dict[str, Any]
-    cartesian_symbols: Callable
-    _set_expression: Callable
+    cartesian_symbols: Callable[..., Any]
+    _set_expression: Callable[..., Any]
 
     def sympy_advection_expressions(self) -> None:
         """Build and store advection sympy expressions."""

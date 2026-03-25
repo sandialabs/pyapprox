@@ -56,7 +56,7 @@ class DirichletBC(Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
-        value_func: Union[Callable, float],
+        value_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
     ):
         self._basis = basis
@@ -239,7 +239,7 @@ class NeumannBC(Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
-        flux_func: Union[Callable, float],
+        flux_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
     ):
         self._basis = basis
@@ -393,7 +393,7 @@ class RobinBC(Generic[Array]):
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
         alpha: float,
-        value_func: Union[Callable, float],
+        value_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
     ):
         self._basis = basis

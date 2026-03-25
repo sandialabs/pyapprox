@@ -21,7 +21,7 @@ def plot_main_effects(
     max_slices: int = 5,
     rv: str = "z",
     qoi: int = 0,
-) -> list:
+) -> list[Any]:
     """Plot main effects as a pie chart.
 
     Shows the relative contribution of each variable to output variance.
@@ -98,7 +98,7 @@ def plot_total_effects(
     bkd: Backend[Array],
     rv: str = "z",
     qoi: int = 0,
-) -> list:
+) -> list[Any]:
     """Plot total effects as a bar chart.
 
     Shows the total sensitivity index for each variable.
@@ -144,7 +144,7 @@ def plot_interaction_values(
     max_slices: int = 5,
     rv: str = "z",
     qoi: int = 0,
-) -> list:
+) -> list[Any]:
     """Plot Sobol indices (including interactions) as a pie chart.
 
     Parameters
@@ -233,7 +233,7 @@ def plot_sensitivity_indices_with_confidence_intervals(
     max_val: np.ndarray,
     reference_values: Optional[np.ndarray] = None,
     fliers: Optional[Sequence[np.ndarray]] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Plot sensitivity indices with confidence intervals as boxplots.
 
     Creates a boxplot visualization with median, quartiles, and whiskers
@@ -316,7 +316,7 @@ def plot_morris_screening(
     rv: str = "z",
     qoi: int = 0,
     annotate: bool = True,
-) -> Tuple[list, list]:
+) -> Tuple[list[Any], list[Any]]:
     """Plot Morris screening results (mu_star vs sigma).
 
     Creates a scatter plot with mu_star (importance) on x-axis and

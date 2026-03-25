@@ -687,7 +687,7 @@ class SeparableProductKernel(Kernel, Generic[Array]):
 
     def __init__(
         self,
-        kernels_1d: list,
+        kernels_1d: list[Any],
         bkd: Backend[Array],
     ):
         super().__init__(bkd)

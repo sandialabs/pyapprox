@@ -77,7 +77,7 @@ class GeneralMaternKernel(Kernel):
     def __init__(
         self,
         nu: float,
-        lenscale: list,
+        lenscale: list[Any],
         lenscale_bounds: Tuple[float, float],
         nvars: int,
         fixed: bool = False,

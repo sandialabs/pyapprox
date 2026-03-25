@@ -112,9 +112,9 @@ class ObstructedMesh2D(Generic[Array]):
             & (x[1] <= (vertices[1, 2] + eps))
         )
 
-    def _build_boundary_defs(self) -> dict:
+    def _build_boundary_defs(self) -> dict[str, Any]:
         """Build boundary definitions for skfem with_boundaries."""
-        defs: dict = {
+        defs: dict[str, Any] = {
             "left": lambda x: np.isclose(x[0], self._xintervals[0]),
             "right": lambda x: np.isclose(x[0], self._xintervals[-1]),
             "bottom": lambda x: np.isclose(x[1], self._yintervals[0]),

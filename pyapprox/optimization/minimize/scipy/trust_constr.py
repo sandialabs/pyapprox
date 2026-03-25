@@ -76,7 +76,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         gtol: Optional[float] = None,
         xtol: Optional[float] = None,
         barrier_tol: Optional[float] = None,
-        callback: Optional[Callable] = None,
+        callback: Optional[Callable[..., Any]] = None,
     ):
         """Initialize the optimizer.
 

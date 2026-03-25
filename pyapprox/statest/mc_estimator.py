@@ -18,8 +18,8 @@ class MCEstimator(Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List, Array],
-        opt_criteria: Callable = None,
+        costs: Union[List[Any], Array],
+        opt_criteria: Callable[..., Any] = None,
     ):
         r"""
         Parameters
@@ -48,7 +48,7 @@ class MCEstimator(Generic[Array]):
         return self._bkd
 
     def _check_inputs(
-        self, stat: MultiOutputStatistic[Array], costs: Union[List, Array]
+        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
     ) -> Tuple[MultiOutputStatistic[Array], Array]:
         if not isinstance(stat, MultiOutputStatistic):
             raise ValueError("stat must be an instance of MultiOutputStatistic")
@@ -122,7 +122,7 @@ class MCEstimator(Generic[Array]):
         self._rounded_target_cost = self._costs[0] * self._rounded_nsamples_per_model[0]
         self._optimized_criteria = optimized_criteria
 
-    def generate_samples_per_model(self, rvs: Callable) -> List[Array]:
+    def generate_samples_per_model(self, rvs: Callable[..., Any]) -> List[Array]:
         """
         Returns the samples needed to the model
 

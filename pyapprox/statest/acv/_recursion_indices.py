@@ -14,10 +14,10 @@ from numpy.typing import NDArray
 
 
 class ModelTree:
-    def __init__(self, root: int, children: list | NDArray = []) -> None:
+    def __init__(self, root: int, children: list[Any] | NDArray[Any] = []) -> None:
         if isinstance(children, np.ndarray):
             children = list(children)
-        self.children: list = children
+        self.children: list[Any] = children
         for ii in range(len(self.children)):
             if not isinstance(self.children[ii], ModelTree):
                 self.children[ii] = ModelTree(self.children[ii])
@@ -32,7 +32,7 @@ class ModelTree:
                 nnodes += 1
         return nnodes
 
-    def to_index(self) -> NDArray:
+    def to_index(self) -> NDArray[Any]:
         index: List[Optional[int]] = [None for ii in range(self.num_nodes())]
         index[0] = self.root
         self._to_index_recusive(index, self)
@@ -48,14 +48,14 @@ class ModelTree:
 
 
 def _update_list_for_reduce(
-    mylist: tuple[list, list], indices: tuple[int, int]
-) -> tuple[list, list]:
+    mylist: tuple[list[Any], list[Any]], indices: tuple[int, int]
+) -> tuple[list[Any], list[Any]]:
     mylist[indices[0]].append(indices[1])
     return mylist
 
 
 def _generate_all_trees(
-    children: NDArray | list, root: int, tree_depth: int
+    children: NDArray[Any] | list[Any], root: int, tree_depth: int
 ) -> Generator[ModelTree, None, None]:
     if tree_depth < 2 or len(children) == 0:
         yield ModelTree(root, children)
@@ -85,7 +85,7 @@ def _generate_all_trees(
 
 def _get_acv_recursion_indices(
     nmodels: int, depth: int | None = None
-) -> Generator[NDArray, None, None]:
+) -> Generator[NDArray[Any], None, None]:
     if depth is None:
         depth = nmodels - 1
     if depth > nmodels - 1:

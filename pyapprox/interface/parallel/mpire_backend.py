@@ -94,7 +94,7 @@ class MpireBackend:
     def starmap(
         self,
         func: Callable[..., T],
-        items: Sequence[tuple],
+        items: Sequence[tuple[Any, ...]],
         n_jobs: int = -1,
     ) -> List[T]:
         """Apply function with unpacked tuple arguments in parallel.

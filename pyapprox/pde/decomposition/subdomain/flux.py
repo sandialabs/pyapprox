@@ -44,7 +44,7 @@ class FluxComputer(Generic[Array]):
             basis.derivative_matrix(1, dim) for dim in range(self._ndim)
         ]
 
-    def compute_gradient(self, state: Array) -> list:
+    def compute_gradient(self, state: Array) -> list[Any]:
         """Compute gradient of state at all mesh points.
 
         Parameters
@@ -124,9 +124,7 @@ class FluxComputer(Generic[Array]):
                 idx_int = self._bkd.to_int(idx)
                 for j in range(nstates):
                     n_d = self._bkd.to_float(normal[dim])
-                    flux_jac[i, j] = (
-                        flux_jac[i, j] + n_d * D_dim[idx_int, j]
-                    )
+                    flux_jac[i, j] = flux_jac[i, j] + n_d * D_dim[idx_int, j]
 
         return self._diffusion * flux_jac
 

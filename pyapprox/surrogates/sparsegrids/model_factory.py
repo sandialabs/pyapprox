@@ -23,7 +23,7 @@ from pyapprox.surrogates.sparsegrids.candidate_info import ConfigIdx
 class ModelFactoryProtocol(Protocol):
     """Protocol for model factories that map config indices to callables."""
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable:
+    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
         """Return callable model for a config.
 
         The returned callable should accept an Array of shape
@@ -51,10 +51,10 @@ class DictModelFactory:
         Mapping from config index to model callable.
     """
 
-    def __init__(self, models: Dict[ConfigIdx, Callable]) -> None:
+    def __init__(self, models: Dict[ConfigIdx, Callable[..., Any]]) -> None:
         self._models = models
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable:
+    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
         """Return model for config_idx.
 
         Raises
@@ -87,7 +87,7 @@ class TimedModelFactory:
         self._base = base
         self._timers: Dict[ConfigIdx, FunctionTimer] = {}
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable:
+    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
         """Return a timed wrapper around the base model.
 
         Each invocation of the returned callable records its elapsed

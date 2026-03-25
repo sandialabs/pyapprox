@@ -107,7 +107,7 @@ def _autolabel(ax, rects, labels):
 
 
 def plot_estimator_variance_reductions(
-    optimized_estimators: list,
+    optimized_estimators: list[Any],
     est_labels: List[str],
     ax: plt.Axes,
     ylabel: Optional[str] = None,

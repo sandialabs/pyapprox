@@ -58,8 +58,8 @@ def canonical_boundary_normal(boundary_index: int, samples: np.ndarray) -> np.nd
 
 
 def _compute_normal_flux(
-    flux_func: Callable,
-    normal_func: Callable,
+    flux_func: Callable[..., Any],
+    normal_func: Callable[..., Any],
     coords: np.ndarray,
     time: Optional[float] = None,
 ) -> np.ndarray:
@@ -130,8 +130,8 @@ class ManufacturedSolutionBC(Generic[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        solution_func: Callable,
-        flux_func: Callable,
+        solution_func: Callable[..., Any],
+        flux_func: Callable[..., Any],
         bkd: Backend[Array],
         time_dependent: bool = False,
     ):

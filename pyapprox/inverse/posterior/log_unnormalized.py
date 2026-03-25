@@ -319,7 +319,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         method: str = "L-BFGS-B",
         bounds: Optional[Array] = None,
         tol: float = 1e-8,
-        options: Optional[dict] = None,
+        options: Optional[dict[str, Any]] = None,
     ) -> Array:
         """
         Find the maximum a posteriori (MAP) point.
@@ -381,7 +381,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         map_point = self._bkd.asarray(result.x.reshape(self._nvars, 1))
         return map_point
 
-    #TODO: delete
+    # TODO: delete
     def _finite_diff_jacobian(
         self,
         fn: Callable[[Array], Array],

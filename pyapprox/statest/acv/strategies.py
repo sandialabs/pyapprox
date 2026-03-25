@@ -59,7 +59,7 @@ class DefaultRecursionStrategy(RecursionIndexStrategy):
 class FixedRecursionStrategy(RecursionIndexStrategy):
     """Use a single fixed recursion index."""
 
-    recursion_index: tuple
+    recursion_index: tuple[Any, ...]
 
     def indices(self, nmodels: int, bkd: Backend[Array]) -> List[Array]:
         return [bkd.array(self.recursion_index, dtype=int)]
@@ -72,7 +72,7 @@ class FixedRecursionStrategy(RecursionIndexStrategy):
 class ListRecursionStrategy(RecursionIndexStrategy):
     """Use a custom list of recursion indices."""
 
-    recursion_indices: tuple  # tuple of tuples for hashability
+    recursion_indices: tuple[Any, ...]  # tuple[Any, ...] of tuples for hashability
 
     def indices(self, nmodels: int, bkd: Backend[Array]) -> List[Array]:
         return [bkd.array(idx, dtype=int) for idx in self.recursion_indices]

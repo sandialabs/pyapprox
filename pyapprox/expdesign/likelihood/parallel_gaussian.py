@@ -238,7 +238,7 @@ class ParallelGaussianOEDInnerLoopLikelihood(Generic[Array]):
             n_jobs = os.cpu_count() or 1
         return max(1, n_jobs)
 
-    def _split_outer(self, n_chunks: int) -> List[tuple]:
+    def _split_outer(self, n_chunks: int) -> List[tuple[Any, ...]]:
         """Split observations and latent samples into chunks along outer dimension.
 
         Returns list of (obs_chunk, latent_chunk) tuples.

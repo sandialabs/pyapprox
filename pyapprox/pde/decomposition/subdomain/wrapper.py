@@ -249,7 +249,7 @@ class SubdomainWrapper(Generic[Array]):
 
     def _apply_all_bcs(
         self, residual: Array, jacobian: Array, state: Array, time: float
-    ) -> tuple:
+    ) -> tuple[Any, ...]:
         """Apply all boundary conditions (external and interface)."""
         # Apply external BCs
         for bc in self._external_bcs:

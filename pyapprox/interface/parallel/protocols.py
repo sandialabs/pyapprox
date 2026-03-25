@@ -60,7 +60,7 @@ class ParallelBackendProtocol(Protocol):
     def starmap(
         self,
         func: Callable[..., T],
-        items: Sequence[tuple],
+        items: Sequence[tuple[Any, ...]],
         n_jobs: int = -1,
     ) -> Sequence[T]:
         """Apply function with unpacked tuple arguments in parallel.

@@ -41,7 +41,7 @@ def create_hyperelastic_bar_1d(
     length: float,
     E_mean: float,
     poisson_ratio: float,
-    forcing: Callable,
+    forcing: Callable[..., Any],
     field_map: FieldMapProtocol,
     traction: Optional[float] = None,
     dirichlet_left: float = 0.0,

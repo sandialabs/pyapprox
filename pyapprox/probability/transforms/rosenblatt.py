@@ -26,6 +26,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 # so computational graph is not broken for autograd
 # TODO: Fix type errors in this file
 
+
 class RosenblattTransform(Generic[Array]):
     """
     Rosenblatt transform for joint distributions to independent uniform.
@@ -339,15 +340,15 @@ class _CDFInversionResidual(Generic[Array]):
 
     Finds x such that F(x) = target, i.e., residual = F(x) - target = 0.
     """
-    
+
     def __init__(
         self,
         bkd: Backend[Array],
         target: float,
         dim: int,
         current_x: np.ndarray,
-        marginal_cdf: Callable,
-        conditional_cdf: Callable,
+        marginal_cdf: Callable[..., Any],
+        conditional_cdf: Callable[..., Any],
     ):
         self._bkd = bkd
         self._target = target

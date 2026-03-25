@@ -646,7 +646,7 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         raise NotImplementedError
 
     @abstractmethod
-    def compute_pilot_quantities(self, pilot_values: List[Array]) -> Tuple:
+    def compute_pilot_quantities(self, pilot_values: List[Array]) -> Tuple[Any, ...]:
         raise NotImplementedError
 
     @abstractmethod
@@ -668,7 +668,7 @@ class MultiOutputStatistic(ABC, Generic[Array]):
     @abstractmethod
     def get_pilot_quantities_subset(
         self, nmodels: int, nqoi: int, model_idx: Array, qoi_idx: Array = None
-    ) -> Tuple:
+    ) -> Tuple[Any, ...]:
         raise NotImplementedError
 
     @abstractmethod

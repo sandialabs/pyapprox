@@ -588,7 +588,7 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         length: float,
         height: float,
         skin_thickness: float,
-        load_func: Callable,
+        load_func: Callable[..., Any],
         bkd: Backend[Array],
     ):
         from pyapprox.pde.galerkin.physics.euler_bernoulli import (
@@ -677,7 +677,7 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         length: float,
         height: float,
         EI_mean: float,
-        load_func: Callable,
+        load_func: Callable[..., Any],
         field_map,
         bkd: Backend[Array],
     ):
@@ -1928,4 +1928,4 @@ def _cantilever_beam_2d_neohookean_spde_factory(
     return cantilever_beam_2d_neohookean_spde(bkd)
 
 
-#TODO: This file it to long we need to split into meaningful smaller files, e.g. utils, 1d, 2d 
+# TODO: This file it to long we need to split into meaningful smaller files, e.g. utils, 1d, 2d

@@ -45,7 +45,7 @@ class InexactELBOObjective(Generic[Array]):
     def __init__(
         self,
         var_distribution: Any,
-        log_likelihood_fn: Callable,
+        log_likelihood_fn: Callable[..., Any],
         prior: Any,
         strategy: Any,
         nlabel_dims: int,
@@ -80,7 +80,8 @@ class InexactELBOObjective(Generic[Array]):
         return self._var_dist.hyp_list().get_active_bounds()
 
     def _build_joint(
-        self, tol: float,
+        self,
+        tol: float,
     ) -> Tuple[Array, Array]:
         """Build joint_nodes and joint_weights from strategy samples.
 
@@ -111,9 +112,13 @@ class InexactELBOObjective(Generic[Array]):
             labels_tiled = bkd.repeat(self._label_nodes, M, axis=1)
             base_tiled = bkd.tile(base_nodes, (1, K))
             joint_nodes = bkd.concatenate([labels_tiled, base_tiled], axis=0)
-            joint_weights = bkd.tile(
-                bkd.reshape(base_weights, (1, M)), (1, K),
-            ) / K
+            joint_weights = (
+                bkd.tile(
+                    bkd.reshape(base_weights, (1, M)),
+                    (1, K),
+                )
+                / K
+            )
 
         return joint_nodes, joint_weights
 
@@ -200,7 +205,9 @@ class InexactELBOObjective(Generic[Array]):
         return self._inexact_jacobian_autograd(params, 0.0)
 
     def _inexact_jacobian_autograd(
-        self, params: Array, tol: float,
+        self,
+        params: Array,
+        tol: float,
     ) -> Array:
         """Compute Jacobian via autograd with tol-dependent accuracy.
 
@@ -231,7 +238,7 @@ class InexactELBOObjective(Generic[Array]):
 
 def make_inexact_single_problem_elbo(
     var_distribution: Any,
-    log_likelihood_fn: Callable,
+    log_likelihood_fn: Callable[..., Any],
     prior: Any,
     strategy: Any,
     bkd: Backend,
@@ -278,7 +285,7 @@ def make_inexact_single_problem_elbo(
 
 def make_inexact_discrete_group_elbo(
     var_distribution: Any,
-    log_likelihood_fns: List[Callable],
+    log_likelihood_fns: List[Callable[..., Any]],
     prior: Any,
     strategy: Any,
     bkd: Backend,
@@ -328,8 +335,7 @@ def make_inexact_discrete_group_elbo(
     if labels is None:
         if observations is None or summary is None:
             raise ValueError(
-                "Either 'labels' or both 'observations' and 'summary' "
-                "must be provided"
+                "Either 'labels' or both 'observations' and 'summary' must be provided"
             )
         if len(observations) != K:
             raise ValueError(
@@ -342,8 +348,7 @@ def make_inexact_discrete_group_elbo(
 
     if labels.shape[1] != K:
         raise ValueError(
-            f"Expected {K} label columns (one per group), "
-            f"got {labels.shape[1]}"
+            f"Expected {K} label columns (one per group), got {labels.shape[1]}"
         )
 
     # The log-likelihood dispatcher needs to know M (samples per group)

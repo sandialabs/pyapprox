@@ -143,7 +143,7 @@ class AETCBLUE(AETC[Array]):
 
         return k2, nsamples_per_subset
 
-    def _create_exploit_estimator(self, result: Tuple) -> MLBLUEEstimator:
+    def _create_exploit_estimator(self, result: Tuple[Any, ...]) -> MLBLUEEstimator:
         """Create MLBLUEEstimator for exploitation phase.
 
         Parameters
@@ -189,7 +189,7 @@ class AETCBLUE(AETC[Array]):
         return est
 
     def get_exploit_samples(
-        self, result: Tuple, random_states: Optional[Any] = None
+        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
     ) -> Tuple[List[Array], List[int]]:
         """Get samples for exploitation phase.
 
@@ -221,7 +221,9 @@ class AETCBLUE(AETC[Array]):
 
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
+    def find_exploit_mean(
+        self, values_per_model: List[Array], result: Tuple[Any, ...]
+    ) -> Array:
         """Compute exploitation mean estimate using MLBLUE.
 
         Parameters
@@ -250,7 +252,7 @@ class AETCBLUE(AETC[Array]):
 
         return beta_Sp[0, 0] + product
 
-    def exploit(self, result: Tuple) -> Array:
+    def exploit(self, result: Tuple[Any, ...]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Parameters
@@ -273,7 +275,7 @@ class AETCBLUE(AETC[Array]):
 
         return self.find_exploit_mean(values_per_model, result)
 
-    def _explore_result_to_dict(self, result: Tuple) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Parameters

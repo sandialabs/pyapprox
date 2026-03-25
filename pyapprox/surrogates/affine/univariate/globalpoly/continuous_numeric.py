@@ -208,14 +208,12 @@ class UnboundedIntegrator(Generic[Array]):
         """Set the integrand function."""
         self._integrand = integrand
 
-    def _integrate_interval(
-        self, lb: float, ub: float, npoints: int
-    ) -> float:
+    def _integrate_interval(self, lb: float, ub: float, npoints: int) -> float:
         """Integrate over a single interval [lb, ub]."""
         points, weights = self._quad_rule(npoints)
         # Map from [-1, 1] to [lb, ub]
         mapped_points = (ub - lb) / 2.0 * points + (lb + ub) / 2.0
-        jacobian = (ub - lb)
+        jacobian = ub - lb
 
         vals = self._integrand(mapped_points)
         return self._bkd.to_float(self._bkd.sum(vals[:, 0] * weights[:, 0]) * jacobian)
@@ -359,9 +357,7 @@ class PredictorCorrector(Generic[Array]):
         # measure(x): (nsamples, 1)
         # pvals: (nsamples, nterms)
         measure_vals = self._measure(x)[:, 0]  # (nsamples,)
-        return (
-            measure_vals * pvals[:, self._idx] * pvals[:, self._idx - 1]
-        )[:, None]
+        return (measure_vals * pvals[:, self._idx] * pvals[:, self._idx - 1])[:, None]
 
     def _integrand_2(self, x: Array) -> Array:
         """Integrand for computing b_n: <p_n, p_n>."""
@@ -477,7 +473,7 @@ class _ContinuousNumericOrthonormalPolynomial1DBase(
         marginal,
         bkd: Backend[Array],
         nquad_points: int = 100,
-        integrator_options: Optional[dict] = None,
+        integrator_options: Optional[dict[str, Any]] = None,
     ):
         self._marginal = marginal
         self._nquad_points = nquad_points
@@ -557,6 +553,7 @@ class _ContinuousNumericOrthonormalPolynomial1DBase(
 
     def _setup_integration(self, bkd: Backend[Array]) -> None:
         """Setup numerical integration for the marginal."""
+
         # Setup measure (canonical PDF function)
         def measure(samples: Array) -> Array:
             # samples: (1, nsamples) in canonical domain
@@ -722,7 +719,7 @@ class UnboundedContinuousNumericOrthonormalPolynomial1D(
         marginal,
         bkd: Backend[Array],
         nquad_points: int = 100,
-        integrator_options: Optional[dict] = None,
+        integrator_options: Optional[dict[str, Any]] = None,
     ):
         if marginal.is_bounded():
             raise ValueError(
@@ -740,7 +737,7 @@ def ContinuousNumericOrthonormalPolynomial1D(
     marginal,
     bkd: Backend[Array],
     nquad_points: int = 100,
-    integrator_options: Optional[dict] = None,
+    integrator_options: Optional[dict[str, Any]] = None,
 ) -> _ContinuousNumericOrthonormalPolynomial1DBase[Array]:
     """Factory function for continuous numeric orthonormal polynomials.
 

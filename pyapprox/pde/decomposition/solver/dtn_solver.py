@@ -31,7 +31,7 @@ class DtNSolverResult(NamedTuple):
     residual_norm: float
     """Final residual norm."""
 
-    residual_history: list
+    residual_history: list[Any]
     """Residual norm at each iteration."""
 
 

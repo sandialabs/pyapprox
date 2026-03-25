@@ -136,7 +136,9 @@ class ModelTree(Generic[Array]):
         return f"{self.__class__.__name__}(root={self._root}, index={index_np})"
 
 
-def _update_list_for_reduce(mylist: tuple, indices: tuple) -> tuple:
+def _update_list_for_reduce(
+    mylist: tuple[Any, ...], indices: tuple[Any, ...]
+) -> tuple[Any, ...]:
     """Helper function for building sub-children lists.
 
     Used with functools.reduce to partition children into groups.

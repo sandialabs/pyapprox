@@ -31,7 +31,7 @@ class VariationalGPELBOLoss(Generic[Array]):
     def __init__(
         self,
         gp,  # VariationalGaussianProcess
-        fit_args: Tuple,
+        fit_args: Tuple[Any, ...],
     ) -> None:
         self._gp = gp
         self._fit_args = fit_args

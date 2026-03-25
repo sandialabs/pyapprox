@@ -28,7 +28,7 @@ PriorType = Union[
 def _extract_marginals(
     prior: PriorType,
     bkd: "Backend[Array]",
-) -> list:
+) -> list[Any]:
     """Extract independent Gaussian marginals from a prior distribution.
 
     For ``IndependentJoint``, delegates to ``marginals()``.  For

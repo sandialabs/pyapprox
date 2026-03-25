@@ -269,7 +269,7 @@ class LejaObjective(Generic[Array]):
         )
         return -jac[None, :]
 
-    def initial_iterates_and_bounds(self) -> Tuple[Array, list]:
+    def initial_iterates_and_bounds(self) -> Tuple[Array, list[Any]]:
         """Generate initial guesses and their bounds for optimization.
 
         Returns
@@ -459,7 +459,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         jac = -2 * determinant * determinant_jac
         return jac
 
-    def initial_iterates_and_bounds(self) -> Tuple[Array, list]:
+    def initial_iterates_and_bounds(self) -> Tuple[Array, list[Any]]:
         """Generate initial guesses as pairs of 1D interval midpoints.
 
         Returns
@@ -553,7 +553,7 @@ class LejaSequence1D(Generic[Array]):
         weighting: LejaWeightingProtocol[Array],
         bounds: Tuple[float, float],
         initial_points: Optional[Array] = None,
-        optimizer: Optional[Callable] = None,
+        optimizer: Optional[Callable[..., Any]] = None,
         objective_class: Optional[Type[LejaObjective]] = None,
     ):
         self._bkd = bkd

@@ -52,7 +52,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
     def __init__(
         self,
         gp,  # Union[ExactGaussianProcess, MultiOutputGP]
-        fit_args: Tuple,
+        fit_args: Tuple[Any, ...],
     ):
         self._gp = gp
         self._fit_args = fit_args

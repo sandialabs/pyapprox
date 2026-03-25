@@ -343,7 +343,7 @@ def get_sampler(name: str) -> Type[SamplerStrategy]:
     return _SAMPLER_STRATEGIES[name]
 
 
-def list_samplers() -> list:
+def list_samplers() -> list[Any]:
     """List all registered sampler names.
 
     Returns

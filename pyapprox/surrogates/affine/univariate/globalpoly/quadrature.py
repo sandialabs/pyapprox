@@ -37,7 +37,7 @@ class GaussQuadratureRule(Generic[Array]):
         self._poly = poly
         self._bkd = poly.bkd()
         self._store = store
-        self._cached_rules: dict = {}
+        self._cached_rules: dict[str, Any] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -98,7 +98,7 @@ class GaussLobattoQuadratureRule(Generic[Array]):
         self._poly = poly
         self._bkd = poly.bkd()
         self._store = store
-        self._cached_rules: dict = {}
+        self._cached_rules: dict[str, Any] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -173,7 +173,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         self._bkd = bkd
         self._store = store
         self._prob_measure = prob_measure
-        self._cached_rules: dict = {}
+        self._cached_rules: dict[str, Any] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

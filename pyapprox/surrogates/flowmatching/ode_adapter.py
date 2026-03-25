@@ -222,7 +222,7 @@ def _integrate_persample_fallback(
     dt: float,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type = ForwardEulerResidual,
+    stepper_cls: Type[Any] = ForwardEulerResidual,
 ) -> Array:
     """Per-sample integration fallback for non-standard steppers."""
     nsamples = x0_batch.shape[1]
@@ -260,7 +260,7 @@ def integrate_flow(
     n_steps: int,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type = ForwardEulerResidual,
+    stepper_cls: Type[Any] = ForwardEulerResidual,
 ) -> Array:
     """Integrate the flow ODE for a batch of initial conditions.
 

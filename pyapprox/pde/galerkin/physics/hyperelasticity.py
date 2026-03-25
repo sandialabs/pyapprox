@@ -83,7 +83,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         basis: VectorLagrangeBasis[Array],
         stress_model: StressModelProtocol[Array],
         bkd: Backend[Array],
-        body_force: Optional[Callable] = None,
+        body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
@@ -360,7 +360,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
-    def initial_condition(self, func: Callable) -> Array:
+    def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a displacement field.
 
         Parameters

@@ -175,7 +175,7 @@ def make_rol_convergence_status_test(
 def make_scipy_convergence_callback(
     monitor: VIConvergenceMonitor,
     bkd: Backend,
-) -> Callable:
+) -> Callable[..., Any]:
     """Create a scipy trust-constr callback from a VIConvergenceMonitor.
 
     The returned callback has signature ``callback(x, state) -> bool``
