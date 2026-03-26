@@ -25,7 +25,9 @@ if TYPE_CHECKING:
 Array = TypeVar("Array", bound="ArrayProtocol")
 
 # Input type for asarray/array — must be accepted by all backends
-ArrayLike = Union[Sequence[Any], float, int, "NDArray[Any]", "torch.Tensor"]
+ArrayLike = Union[
+    Sequence[Any], float, int, "NDArray[Any]", "torch.Tensor", "ArrayProtocol"
+]
 
 
 @runtime_checkable
@@ -80,13 +82,17 @@ class ArrayProtocol(Protocol):
 
     def __neg__(self: Array) -> Array: ...
 
-    def __getitem__(self: Array, index: Any) -> Any: ...
+    def __getitem__(self: Array, index: Any) -> Array: ...
 
     def __iter__(self: Array) -> Any: ...
 
     def __len__(self) -> int: ...
 
     def item(self) -> Any: ...
+
+    def __float__(self) -> float: ...
+
+    def __int__(self) -> int: ...
 
     def __invert__(self) -> "ArrayProtocol": ...
 
