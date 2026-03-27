@@ -12,6 +12,7 @@ from typing import (
 import numpy as np
 import torch
 from numpy.typing import NDArray
+from scipy.sparse import spmatrix
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend
 
@@ -438,7 +439,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
 
     @staticmethod
-    def solve_sparse(Amat, bvec: torch.Tensor) -> torch.Tensor:
+    def solve_sparse(Amat: spmatrix, bvec: torch.Tensor) -> torch.Tensor:
         """Solve A @ x = b where A is a sparse matrix.
 
         Raises

@@ -3,7 +3,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union, cast
 import numpy as np
 import scipy
 from numpy.typing import NDArray
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend
@@ -365,7 +365,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.linalg.solve(Amat, Bmat)
 
     @staticmethod
-    def solve_sparse(Amat, bvec: NDArray[Any]) -> NDArray[Any]:
+    def solve_sparse(Amat: spmatrix, bvec: NDArray[Any]) -> NDArray[Any]:
         """Solve A @ x = b where A is a scipy sparse matrix."""
         from scipy.sparse import issparse as _issparse
 

@@ -20,6 +20,7 @@ from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     import torch
+    from scipy.sparse import spmatrix
 
 # Define generic types for arrays
 Array = TypeVar("Array", bound="ArrayProtocol")
@@ -478,7 +479,7 @@ class Backend(Protocol, Generic[Array]):
     def solve(Amat: Array, Bmat: Array) -> Array: ...
 
     @staticmethod
-    def solve_sparse(Amat, bvec: Array) -> Array:
+    def solve_sparse(Amat: spmatrix, bvec: Array) -> Array:
         """Solve A @ x = b where A is a sparse matrix.
 
         Parameters
