@@ -11,6 +11,7 @@ from pyapprox.optimization.minimize.protocols import (
 )
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPOptimizedFitResult,
+    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -76,7 +77,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPOptimizedFitResult[Array]:
+    ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit GP to data and optimize active hyperparameters.
 
         1. Deep-copies the GP

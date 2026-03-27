@@ -11,6 +11,7 @@ from pyapprox.optimization.minimize.protocols import (
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
+    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -57,7 +58,7 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult[Array]:
+    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit variational GP without hyperparameter optimization.
 
         Parameters
@@ -137,7 +138,7 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPOptimizedFitResult[Array]:
+    ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit variational GP and optimize active hyperparameters.
 
         Parameters

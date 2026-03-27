@@ -18,7 +18,7 @@ class ODEBenchmarkWrapper:
     Satisfies: HasResidual, HasPrior, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner: ODEBenchmark[Array], estimated_cost: float) -> None:
+    def __init__(self, inner: ODEBenchmark[Array, ODEGroundTruth[Array]], estimated_cost: float) -> None:
         self._inner = inner
         self._estimated_cost = estimated_cost
 

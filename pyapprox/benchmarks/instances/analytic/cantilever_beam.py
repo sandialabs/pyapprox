@@ -22,7 +22,7 @@ def cantilever_beam_1d_analytical(
     height: float = 30.0,
     skin_thickness: float = 5.0,
     q0: float = 10.0,
-) -> BenchmarkWithPrior[Array]:
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
     """Create an analytical 1D cantilever beam benchmark.
 
     The model computes [tip_deflection, max_curvature] from (E1, E2)
@@ -102,5 +102,5 @@ def cantilever_beam_1d_analytical(
 )
 def _cantilever_beam_1d_analytical_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior[Array]:
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
     return cantilever_beam_1d_analytical(bkd)

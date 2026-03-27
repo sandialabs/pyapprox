@@ -60,7 +60,7 @@ class FunctionWithJVPFromHVP(Generic[Array]):
         self,
         function: Union[
             FunctionWithHVPAndJacobianOrJVPProtocol[Array],
-            FunctionWithJacobianAndWHVPProtocol,
+            FunctionWithJacobianAndWHVPProtocol[Array],
         ],
         weights: Optional[Array] = None,
     ):

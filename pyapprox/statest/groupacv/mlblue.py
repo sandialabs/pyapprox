@@ -122,6 +122,6 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         self._asketch = asketch
         return means
 
-    def default_objective(self) -> MLBLUEObjective:
+    def default_objective(self) -> MLBLUEObjective[Array]:
         """Return the default MLBLUE objective with analytical derivatives."""
         return MLBLUEObjective(self._bkd)

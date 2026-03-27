@@ -7,6 +7,7 @@ from typing import Generic, Optional
 
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
+    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -66,7 +67,7 @@ class GPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult[Array]:
+    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit GP to data without hyperparameter optimization.
 
         Creates a deep copy of the GP, applies transforms, computes

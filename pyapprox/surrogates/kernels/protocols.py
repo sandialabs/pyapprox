@@ -386,7 +386,7 @@ class Kernel(ABC, Generic[Array]):
         """
         raise NotImplementedError()
 
-    def __mul__(self, other: "Kernel[Array]") -> "ProductKernel":
+    def __mul__(self, other: "Kernel[Array]") -> "ProductKernel[Array]":
         """
         Multiply two kernels element-wise.
 
@@ -404,7 +404,7 @@ class Kernel(ABC, Generic[Array]):
 
         return ProductKernel(self, other)
 
-    def __add__(self, other: "Kernel[Array]") -> "SumKernel":
+    def __add__(self, other: "Kernel[Array]") -> "SumKernel[Array]":
         """
         Add two kernels element-wise.
 

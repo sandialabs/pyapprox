@@ -13,6 +13,7 @@ from pyapprox.optimization.minimize.protocols import (
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
+    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -40,7 +41,7 @@ class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPFitResult[Array]:
+    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit multi-output GP without hyperparameter optimization.
 
         Parameters
@@ -103,7 +104,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPOptimizedFitResult[Array]:
+    ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit multi-output GP and optimize active hyperparameters.
 
         Parameters

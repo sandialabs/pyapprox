@@ -84,7 +84,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         self,
         estimator: "MLBLUEEstimator[Array]",
         solver_name: Optional[str] = None,
-        objective: Optional[MLBLUEObjective] = None,
+        objective: Optional[MLBLUEObjective[Array]] = None,
     ):
         # Import cvxpy with helpful error message if not installed
         self._cvxpy = import_optional_dependency(

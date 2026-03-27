@@ -13,6 +13,7 @@ from typing import Generic, Optional
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
+    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
@@ -48,7 +49,7 @@ class GPIncrementalFitter(Generic[Array]):
         X_train: Array,
         y_train: Array,
         prev_gp=None,
-    ) -> GPFitResult[Array]:
+    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit GP to data, using incremental update if possible.
 
         If prev_gp is provided and exactly one new point was added,
@@ -92,7 +93,7 @@ class GPIncrementalFitter(Generic[Array]):
         n_new = X_train.shape[1]
         return n_new == n_prev + 1
 
-    def _fit_incremental(self, gp, X_train, y_train, prev_gp) -> Optional[GPFitResult[Array]]:
+    def _fit_incremental(self, gp, X_train, y_train, prev_gp) -> Optional[GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]]:
         """Perform rank-1 Cholesky update.
 
         Returns None if the update fails (e.g., non-positive diagonal),
@@ -169,7 +170,7 @@ class GPIncrementalFitter(Generic[Array]):
             neg_log_marginal_likelihood=nll,
         )
 
-    def _fit_full(self, gp, X_train, y_train) -> GPFitResult[Array]:
+    def _fit_full(self, gp, X_train, y_train) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fall back to full Cholesky factorization."""
         from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (  # noqa: E501
             GPFixedHyperparameterFitter,

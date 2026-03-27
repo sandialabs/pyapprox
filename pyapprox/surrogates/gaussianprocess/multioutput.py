@@ -106,10 +106,10 @@ class MultiOutputGP(Generic[Array]):
     def __init__(
         self,
         kernel: Union[
-            IndependentMultiOutputKernel,
-            LinearCoregionalizationKernel,
-            MultiLevelKernel,
-            DAGMultiOutputKernel,
+            IndependentMultiOutputKernel[Array],
+            LinearCoregionalizationKernel[Array],
+            MultiLevelKernel[Array],
+            DAGMultiOutputKernel[Array],
         ],
         nugget: float = 1e-6,
     ):

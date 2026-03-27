@@ -178,7 +178,7 @@ class MaternKernel(Kernel[Array]):
         return self._bkd.transpose(hvp_2d[:, None, :], (1, 2, 0))
 
 
-class SquaredExponentialKernel(MaternKernel):
+class SquaredExponentialKernel(MaternKernel[Array]):
     """
     Squared Exponential kernel, also known as RBF (Radial Basis Function).
 
@@ -256,7 +256,7 @@ class SquaredExponentialKernel(MaternKernel):
         phi_double_prime = (r**2 - 1) * exp_term
         return phi_prime, phi_double_prime
 
-    def get_kernel_1d(self, dim: int) -> "SquaredExponentialKernel":
+    def get_kernel_1d(self, dim: int) -> "SquaredExponentialKernel[Array]":
         """
         Get a 1D SE kernel for a specific dimension.
 
@@ -313,7 +313,7 @@ class SquaredExponentialKernel(MaternKernel):
         )
 
 
-class Matern52Kernel(MaternKernel):
+class Matern52Kernel(MaternKernel[Array]):
     """
     Matern kernel with nu=5/2, giving twice-differentiable sample paths.
 
@@ -437,7 +437,7 @@ class Matern52Kernel(MaternKernel):
         return f"Matern52Kernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
 
 
-class Matern32Kernel(MaternKernel):
+class Matern32Kernel(MaternKernel[Array]):
     """
     Matern kernel with nu=3/2, giving once-differentiable sample paths.
 
@@ -555,7 +555,7 @@ class Matern32Kernel(MaternKernel):
         return f"Matern32Kernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
 
 
-class ExponentialKernel(MaternKernel):
+class ExponentialKernel(MaternKernel[Array]):
     """
     Exponential kernel (Matern with nu=1/2, Ornstein-Uhlenbeck).
 
