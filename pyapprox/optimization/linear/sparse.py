@@ -6,7 +6,7 @@ This module provides solvers for sparse coefficient recovery:
 """
 
 from enum import IntEnum
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.optimization.linear.base import (
     LinearSystemSolver,

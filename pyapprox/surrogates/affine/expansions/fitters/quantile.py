@@ -1,6 +1,6 @@
 """Quantile regression fitter wrapping existing solver infrastructure."""
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.optimization.linear import QuantileRegressionSolver
 from pyapprox.surrogates.affine.expansions.fitters.results import (

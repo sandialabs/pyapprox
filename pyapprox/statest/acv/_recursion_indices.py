@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import reduce
 from itertools import product
-from typing import Generator, List, Optional
+from typing import Any, Generator, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray

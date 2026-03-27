@@ -18,7 +18,7 @@ where:
     C = friction coefficient
 """
 
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.protocols.basis import (

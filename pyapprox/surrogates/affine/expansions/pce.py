@@ -5,7 +5,7 @@ polynomial basis functions: f(x) ≈ Σ_i c_i ψ_i(x), where ψ_i are
 orthonormal with respect to the input probability measure.
 """
 
-from typing import Generic, List, Optional, Union
+from typing import Any, Generic, List, Optional, Union
 
 from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,

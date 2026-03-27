@@ -5,7 +5,7 @@ combined mean+variance from model evaluations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, Tuple
+from typing import Any, Generic, List, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 

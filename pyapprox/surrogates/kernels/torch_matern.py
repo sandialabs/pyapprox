@@ -12,7 +12,7 @@ Use with TorchExactGaussianProcess which computes derivatives via autograd.
 """
 
 import math
-from typing import Tuple
+from typing import Any, Tuple
 
 from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.protocols import Array

@@ -10,7 +10,7 @@ where:
 - f: forcing/source term (field)
 """
 
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from pyapprox.pde.collocation.operators.differential import (
     Divergence,

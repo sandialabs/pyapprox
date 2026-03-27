@@ -4,7 +4,7 @@ This module provides standalone plotting functions for visualising
 allocation matrices, variance reductions, and recursion DAGs.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np

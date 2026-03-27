@@ -1,7 +1,7 @@
 """Bayesian Optimization orchestrator with ask/tell/step/run workflows."""
 
 import warnings
-from typing import Callable, Generic, List, Optional
+from typing import Any, Callable, Generic, List, Optional
 
 from pyapprox.optimization.bayesian.batch.greedy import KrigingBeliever
 from pyapprox.optimization.bayesian.convergence import (

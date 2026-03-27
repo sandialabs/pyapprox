@@ -5,7 +5,7 @@ best-so-far tracking, and optimizer state snapshots.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Generic, List, Optional
+from typing import Any, Dict, Generic, List, Optional
 
 from pyapprox.util.backends.protocols import Array
 

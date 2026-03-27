@@ -1,6 +1,6 @@
 """Basis Pursuit fitter wrapping existing solver infrastructure."""
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.optimization.linear.sparse import BasisPursuitSolver
 from pyapprox.surrogates.affine.expansions.fitters.results import (

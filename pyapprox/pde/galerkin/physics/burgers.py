@@ -15,7 +15,7 @@ Linear form (residual/load):
     f*v - ν*grad(u_prev)·grad(v) - v*u_prev*du_prev/dx
 """
 
-from typing import Callable, Generic, List, Optional, Union
+from typing import Any, Callable, Generic, List, Optional, Union
 
 import numpy as np
 from scipy.sparse import csr_matrix

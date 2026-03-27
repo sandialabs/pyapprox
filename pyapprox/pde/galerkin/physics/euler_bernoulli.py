@@ -15,7 +15,7 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import Callable, Generic, List, Optional, Union
+from typing import Any, Callable, Generic, List, Optional, Union
 
 import numpy as np
 

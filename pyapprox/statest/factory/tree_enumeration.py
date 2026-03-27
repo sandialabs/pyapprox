@@ -8,7 +8,7 @@ This module ports the tree enumeration logic from the legacy module
 """
 
 from itertools import product
-from typing import Generic, Iterator, List, Optional, Union
+from typing import Any, Generic, Iterator, List, Optional, Union
 
 import numpy as np
 

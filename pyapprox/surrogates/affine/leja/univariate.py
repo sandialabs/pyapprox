@@ -26,7 +26,7 @@ Example with custom optimizer settings:
     leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
 """
 
-from typing import Callable, Dict, Generic, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Generic, Optional, Tuple, Type
 
 import numpy as np
 

@@ -8,7 +8,7 @@ over outer samples (observations).
 # TODO: This was experimental and its continued existance needs to be justified.
 # E.g. by mkaing sure it speeds up computation, now we have dispatch to numba and# pytorch I suspect that this will not beat those.
 
-from typing import Generic, List, Optional
+from typing import Any, Generic, List, Optional
 
 import numpy as np
 

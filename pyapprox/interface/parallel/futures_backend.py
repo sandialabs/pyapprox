@@ -7,7 +7,7 @@ closures and local functions).
 """
 
 import os
-from typing import Callable, List, Sequence, TypeVar
+from typing import Any, Callable, List, Sequence, TypeVar
 
 T = TypeVar("T")
 

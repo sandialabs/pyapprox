@@ -12,7 +12,7 @@ Uses Taylor-Hood elements: P2 velocity, P1 pressure.
 State vector layout: [vel_dofs | pres_dofs].
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Any, Callable, Generic, List, Optional, Tuple
 
 import numpy as np
 from scipy.sparse import block_diag as sp_block_diag

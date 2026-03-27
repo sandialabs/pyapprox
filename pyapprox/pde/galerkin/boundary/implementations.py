@@ -4,7 +4,7 @@ Provides implementations of Dirichlet, Neumann, and Robin boundary conditions
 that integrate with scikit-fem for assembly.
 """
 
-from typing import Callable, Generic, List, Optional, Union
+from typing import Any, Callable, Generic, List, Optional, Union
 
 import numpy as np
 from scipy.sparse import issparse

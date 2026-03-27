@@ -9,7 +9,7 @@ For model subset strategies, see pyapprox.statest.strategies.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import permutations
-from typing import Generic, List
+from typing import Any, Generic, List
 
 from pyapprox.statest.factory.tree_enumeration import (
     get_acv_recursion_indices,

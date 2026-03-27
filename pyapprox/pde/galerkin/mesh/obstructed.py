@@ -6,7 +6,7 @@ rectangular obstacles. Boundaries are automatically named: "left",
 """
 
 from functools import partial
-from typing import Generic, List
+from typing import Any, Generic, List
 
 import numpy as np
 

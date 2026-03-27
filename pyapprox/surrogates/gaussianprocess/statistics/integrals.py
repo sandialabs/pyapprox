@@ -35,7 +35,7 @@ Users should create quadrature rules using the sparse grid infrastructure:
     calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
 """
 
-from typing import Callable, Generic, List, Optional
+from typing import Any, Callable, Generic, List, Optional
 
 from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.surrogates.affine.protocols.quadrature import (

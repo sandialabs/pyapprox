@@ -17,7 +17,7 @@ When used with a single material covering all elements, this class
 is functionally equivalent to the legacy LinearElasticity class.
 """
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 

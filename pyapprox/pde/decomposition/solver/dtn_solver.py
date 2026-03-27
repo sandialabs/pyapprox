@@ -4,7 +4,7 @@ High-level Newton solver for finding interface values that satisfy
 flux conservation across all interfaces.
 """
 
-from typing import Dict, Generic, NamedTuple, Optional
+from typing import Any, Dict, Generic, NamedTuple, Optional
 
 from pyapprox.pde.decomposition.solver.dtn_jacobian import (
     create_jacobian,

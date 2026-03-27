@@ -5,7 +5,7 @@ first Piola-Kirchhoff stress. Young's modulus E(x) is parameterized via
 a field map (e.g., KLE), converted to Lame parameters with fixed Poisson ratio.
 """
 
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (

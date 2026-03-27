@@ -6,7 +6,7 @@ A ChainedTransform composes multiple transforms in sequence:
 The Jacobian of the composition is the product of individual Jacobians.
 """
 
-from typing import Generic, List
+from typing import Any, Generic, List
 
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -6,7 +6,7 @@ inner and outer loops of the OED double-loop estimator, and for
 constructing joint prior-noise distributions.
 """
 
-from typing import Generic, Optional, Tuple, Union
+from typing import Any, Generic, Optional, Tuple, Union
 
 import numpy as np
 

@@ -6,7 +6,7 @@ and multi-output GPs by exploiting the fact that NLL computation is identical
 once the kernel matrix is formed.
 """
 
-from typing import Generic, Tuple
+from typing import Any, Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList

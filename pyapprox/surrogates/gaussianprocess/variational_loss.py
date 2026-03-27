@@ -5,7 +5,7 @@ This module provides the VariationalGPELBOLoss class which wraps
 the variational GP's negative ELBO for use with optimizers.
 """
 
-from typing import Generic, Tuple
+from typing import Any, Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList

@@ -15,7 +15,7 @@ for a batch of initial conditions.
     pragmatic short-term fix for the O(nsamples) Python-loop bottleneck.
 """
 
-from typing import Generic, Optional, Type
+from typing import Any, Generic, Optional, Type
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.explicit_steppers.forward_euler import (

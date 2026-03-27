@@ -11,7 +11,7 @@ Classes
 """
 
 import time
-from typing import Callable, Dict, Protocol, runtime_checkable
+from typing import Any, Callable, Dict, Protocol, runtime_checkable
 
 from pyapprox.interface.functions.timing import (
     FunctionTimer,

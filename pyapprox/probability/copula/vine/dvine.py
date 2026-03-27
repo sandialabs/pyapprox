@@ -5,7 +5,7 @@ Provides the DVineCopula class which chains bivariate pair copulas
 across tree levels using h-functions for density evaluation and sampling.
 """
 
-from typing import Dict, Generic, List
+from typing import Any, Dict, Generic, List
 
 import numpy as np
 

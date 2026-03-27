@@ -4,7 +4,7 @@ This module provides specialized ACV estimator variants with different
 sample allocation strategies.
 """
 
-from typing import Generic, List, Union
+from typing import Any, Generic, List, Union
 
 import numpy as np
 

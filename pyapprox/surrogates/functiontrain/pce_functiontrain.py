@@ -6,7 +6,7 @@ This module provides:
 - create_uniform_pce_functiontrain: factory for rank-r FT with uniform PCE cores
 """
 
-from typing import Generic, List, Sequence, Union
+from typing import Any, Generic, List, Sequence, Union
 
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore

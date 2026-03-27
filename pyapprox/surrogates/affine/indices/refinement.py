@@ -10,7 +10,7 @@ Criteria:
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Tuple
+from typing import Any, Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 

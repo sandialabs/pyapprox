@@ -5,7 +5,7 @@ to steady diffusion. This factory reuses AdvectionDiffusionReaction with
 diffusion = E(x), providing a mechanics-oriented interface.
 """
 
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (

@@ -11,7 +11,7 @@ to independent uniform [0,1] samples using the conditional CDFs:
 Combined with the inverse normal CDF, this gives independent standard normals.
 """
 
-from typing import Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional
 
 import numpy as np
 from scipy import stats

@@ -4,7 +4,7 @@ This module provides the base MCEstimator class for computing statistics
 using standard Monte Carlo sampling.
 """
 
-from typing import Callable, Generic, List, Tuple, Union
+from typing import Any, Callable, Generic, List, Tuple, Union
 
 import numpy as np
 

@@ -5,7 +5,7 @@ which offers a modern API with built-in progress bars and
 better worker state management.
 """
 
-from typing import Callable, List, Sequence, TypeVar
+from typing import Any, Callable, List, Sequence, TypeVar
 
 T = TypeVar("T")
 

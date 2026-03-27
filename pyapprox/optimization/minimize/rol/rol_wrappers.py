@@ -5,7 +5,7 @@ pyrol is not installed.  The actual pyrol dependency is only needed at
 instantiation time.
 """
 
-from typing import Generic
+from typing import Any, Generic
 
 import numpy as np
 

@@ -5,6 +5,7 @@ can trace and optimize the computation graph without graph breaks.
 """
 
 import torch
+from typing import Any
 
 
 def lagrange_eval_torch(

@@ -4,7 +4,7 @@ This module provides solvers for quantile regression:
 - QuantileRegressionSolver: Quantile regression via linear programming
 """
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.optimization.linear.base import (
     LinearSystemSolver,

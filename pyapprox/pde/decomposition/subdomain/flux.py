@@ -4,7 +4,7 @@ Provides helper functions and classes for computing interface fluxes
 in DtN domain decomposition.
 """
 
-from typing import Generic
+from typing import Any, Generic
 
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend

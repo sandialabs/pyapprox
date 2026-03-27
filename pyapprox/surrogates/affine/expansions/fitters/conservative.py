@@ -12,7 +12,7 @@ The conservative pattern requires risk measures that are:
 This allows adjusting the constant coefficient to achieve conservativeness.
 """
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.probability.risk import (
     AverageValueAtRisk,

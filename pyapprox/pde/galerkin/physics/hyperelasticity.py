@@ -21,7 +21,7 @@ Uses the NeoHookeanStress model from the collocation module for stress
 and tangent computation at quadrature points.
 """
 
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 import numpy as np
 from scipy.sparse import csr_matrix

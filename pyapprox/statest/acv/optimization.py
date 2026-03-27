@@ -7,7 +7,7 @@ This module provides:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, List
+from typing import Any, TYPE_CHECKING, Generic, List
 
 import numpy as np
 

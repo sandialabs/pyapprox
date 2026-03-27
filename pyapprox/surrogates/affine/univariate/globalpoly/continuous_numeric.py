@@ -20,7 +20,7 @@ algorithm instead.
 """
 
 import math
-from typing import Callable, Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Callable, Generic, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 

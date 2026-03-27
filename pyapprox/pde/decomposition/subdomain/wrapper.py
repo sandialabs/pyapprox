@@ -7,7 +7,7 @@ Wraps an existing PDE physics solver to provide DtN-specific capabilities:
 - Computing flux Jacobian w.r.t. interface DOFs (for Newton solver)
 """
 
-from typing import Dict, Generic, List, Optional
+from typing import Any, Dict, Generic, List, Optional
 
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.protocols.physics import PhysicsProtocol

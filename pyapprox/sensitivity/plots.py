@@ -4,7 +4,7 @@ This module provides plotting functions for visualizing sensitivity
 analysis results including main effects, total effects, and Sobol indices.
 """
 
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 from matplotlib.axes import Axes

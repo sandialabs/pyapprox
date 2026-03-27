@@ -5,7 +5,7 @@ which is commonly used in the scikit-learn ecosystem and provides
 good numpy array handling and caching capabilities.
 """
 
-from typing import Callable, List, Sequence, TypeVar
+from typing import Any, Callable, List, Sequence, TypeVar
 
 T = TypeVar("T")
 

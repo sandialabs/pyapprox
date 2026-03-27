@@ -1,4 +1,4 @@
-from typing import Callable, Generic, Optional, Self, Union, cast
+from typing import Any, Callable, Generic, Optional, Self, Union, cast
 
 import numpy as np
 from scipy.optimize import Bounds

@@ -5,7 +5,7 @@ This module provides kernel composition operations (product and sum) that enable
 building sophisticated kernels from simpler building blocks.
 """
 
-from typing import Generic
+from typing import Any, Generic
 
 from pyapprox.surrogates.kernels.protocols import (
     Kernel,

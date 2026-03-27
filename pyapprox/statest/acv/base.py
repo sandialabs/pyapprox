@@ -6,8 +6,8 @@ optimization.
 """
 
 from abc import abstractmethod
-from typing import (
-    TYPE_CHECKING,
+from typing import (    Any,
+TYPE_CHECKING,
     Callable,
     Generic,
     List,

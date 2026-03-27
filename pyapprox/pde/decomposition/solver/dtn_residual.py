@@ -6,7 +6,7 @@ The residual is the flux mismatch across all interfaces:
 At convergence, R = 0 (flux conservation).
 """
 
-from typing import Dict, Generic, List
+from typing import Any, Dict, Generic, List
 
 from pyapprox.pde.decomposition.protocols.interface import InterfaceProtocol
 from pyapprox.pde.decomposition.subdomain.wrapper import SubdomainWrapper

@@ -20,7 +20,7 @@ where:
     f = forcing/source term
 """
 
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.sparse import csr_matrix

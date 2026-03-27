@@ -9,7 +9,7 @@ converted to Lame parameters with fixed Poisson ratio.
 """
 
 import math
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (

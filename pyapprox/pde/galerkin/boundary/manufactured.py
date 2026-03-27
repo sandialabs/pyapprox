@@ -4,7 +4,7 @@ Provides functions to create boundary conditions from manufactured solutions
 for verifying Galerkin finite element implementations.
 """
 
-from typing import Callable, Generic, List, Optional
+from typing import Any, Callable, Generic, List, Optional
 
 import numpy as np
 

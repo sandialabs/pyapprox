@@ -9,8 +9,8 @@ The registry pattern allows new strategies to be added without modifying
 existing code.
 """
 
-from typing import (
-    Dict,
+from typing import (    Any,
+Dict,
     Generic,
     Optional,
     Protocol,

@@ -7,7 +7,7 @@ This module provides quadrature rule classes including:
 """
 
 import math
-from typing import Generic, Tuple
+from typing import Any, Generic, Tuple
 
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,

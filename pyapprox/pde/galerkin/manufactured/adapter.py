@@ -5,7 +5,7 @@ Bridges the existing manufactured solution infrastructure in
 Galerkin boundary conditions and physics implementations.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
 

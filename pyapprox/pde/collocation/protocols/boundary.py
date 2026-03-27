@@ -5,7 +5,7 @@ and Jacobians.
 """
 
 from dataclasses import dataclass
-from typing import Generic, List, Protocol, runtime_checkable
+from typing import Any, Generic, List, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

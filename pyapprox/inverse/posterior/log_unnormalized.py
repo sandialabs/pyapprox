@@ -10,7 +10,7 @@ Used for:
 - Laplace approximation (via Hessian at MAP)
 """
 
-from typing import Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional
 
 import numpy as np
 from scipy import optimize

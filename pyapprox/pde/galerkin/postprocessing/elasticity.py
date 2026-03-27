@@ -15,6 +15,7 @@ von_mises_stress_2d
 """
 
 import numpy as np
+from typing import Any
 
 
 def _shape_function_derivatives_quad(xi: float, eta: float) -> tuple[Any, ...]:

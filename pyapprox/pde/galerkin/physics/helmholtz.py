@@ -11,7 +11,7 @@ This is a frequency-domain wave equation that arises in acoustics,
 electromagnetics, and other wave phenomena.
 """
 
-from typing import Callable, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 
 import numpy as np
 

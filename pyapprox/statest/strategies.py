@@ -8,7 +8,7 @@ This module provides strategy classes for generating subsets to search:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import combinations
-from typing import List, Optional
+from typing import Any, List, Optional
 
 
 class ModelSubsetStrategy(ABC):
