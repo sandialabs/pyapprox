@@ -105,7 +105,7 @@ class DVineCopula(Generic[Array]):
         """Return the truncation level."""
         return self._truncation_level
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
 

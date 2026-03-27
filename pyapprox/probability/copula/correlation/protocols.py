@@ -66,13 +66,13 @@ class CorrelationParameterizationProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the hyperparameter list for optimization.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Hyperparameter list containing correlation parameters.
         """
         ...

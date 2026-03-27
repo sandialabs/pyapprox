@@ -68,7 +68,7 @@ class GaussianCopula(Generic[Array]):
         """Return the number of free parameters."""
         return self._corr_param.nparams()
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list for optimization."""
         return self._corr_param.hyp_list()
 

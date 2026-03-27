@@ -4,19 +4,23 @@ Standard Sobol G-function benchmarks for sensitivity analysis with known
 analytical Sobol indices.
 """
 
+from typing import Generic, Optional
+
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
     SobolGSensitivityIndices,
 )
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.protocols import DomainProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class SobolGBenchmark:
+class SobolGBenchmark(Generic[Array]):
     """Sobol G-function benchmark wrapper.
 
     Satisfies: HasForwardModel, HasPrior, HasJacobian,
@@ -24,49 +28,49 @@ class SobolGBenchmark:
     HasTotalEffects, HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]) -> None:
         self._inner = inner
 
-    def name(self):
+    def name(self) -> str:
         return self._inner.name()
 
-    def function(self):
+    def function(self) -> FunctionProtocol[Array]:
         return self._inner.function()
 
-    def domain(self):
+    def domain(self) -> DomainProtocol[Array]:
         return self._inner.domain()
 
-    def prior(self):
+    def prior(self) -> IndependentJoint[Array]:
         return self._inner.prior()
 
-    def ground_truth(self):
+    def ground_truth(self) -> SensitivityGroundTruth[Array]:
         return self._inner.ground_truth()
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         return self._inner.function().jacobian(sample)
 
-    def smoothness(self):
+    def smoothness(self) -> str:
         return "analytic"
 
-    def estimated_evaluation_cost(self):
+    def estimated_evaluation_cost(self) -> float:
         return 6.5e-05
 
-    def reference_mean(self):
+    def reference_mean(self) -> Optional[float]:
         return self._inner.ground_truth().mean
 
-    def reference_variance(self):
+    def reference_variance(self) -> Optional[float]:
         return self._inner.ground_truth().variance
 
-    def main_effects(self):
+    def main_effects(self) -> Optional[Array]:
         return self._inner.ground_truth().main_effects
 
-    def total_effects(self):
+    def total_effects(self) -> Optional[Array]:
         return self._inner.ground_truth().total_effects
 
 
 def sobol_g_6d(
     bkd: Backend[Array],
-) -> SobolGBenchmark:
+) -> SobolGBenchmark[Array]:
     """Create the standard 6D Sobol G-function benchmark.
 
     Standard configuration with a = [0, 1, 4.5, 9, 99, 99].
@@ -129,7 +133,7 @@ def sobol_g_6d(
 
 def sobol_g_4d(
     bkd: Backend[Array],
-) -> SobolGBenchmark:
+) -> SobolGBenchmark[Array]:
     """Create a 4D Sobol G-function benchmark.
 
     Configuration with a = [0, 0, 0, 0] giving equal importance.
@@ -189,7 +193,7 @@ def sobol_g_4d(
     category="analytic",
     description="Standard 6D Sobol G-function for sensitivity analysis",
 )
-def _sobol_g_6d_factory(bkd: Backend[Array]) -> SobolGBenchmark:
+def _sobol_g_6d_factory(bkd: Backend[Array]) -> SobolGBenchmark[Array]:
     return sobol_g_6d(bkd)
 
 
@@ -198,5 +202,5 @@ def _sobol_g_6d_factory(bkd: Backend[Array]) -> SobolGBenchmark:
     category="analytic",
     description="4D Sobol G-function with equal importance",
 )
-def _sobol_g_4d_factory(bkd: Backend[Array]) -> SobolGBenchmark:
+def _sobol_g_4d_factory(bkd: Backend[Array]) -> SobolGBenchmark[Array]:
     return sobol_g_4d(bkd)

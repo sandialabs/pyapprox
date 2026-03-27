@@ -4,6 +4,8 @@ Standard 2D Branin (Branin-Hoo) function for optimization with three
 known global minima.
 """
 
+from typing import Generic, Optional
+
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
 from pyapprox.benchmarks.functions.algebraic.branin import (
     BRANIN_GLOBAL_MINIMUM,
@@ -11,51 +13,53 @@ from pyapprox.benchmarks.functions.algebraic.branin import (
     BraninFunction,
 )
 from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
+from pyapprox.benchmarks.protocols import DomainProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class BraninBenchmark:
+class BraninBenchmark(Generic[Array]):
     """Branin benchmark wrapper.
 
     Satisfies: HasForwardModel, HasJacobian, HasGlobalMinimum,
     HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: Benchmark[Array, OptimizationGroundTruth[Array]]) -> None:
         self._inner = inner
 
-    def name(self):
+    def name(self) -> str:
         return self._inner.name()
 
-    def function(self):
+    def function(self) -> FunctionProtocol[Array]:
         return self._inner.function()
 
-    def domain(self):
+    def domain(self) -> DomainProtocol[Array]:
         return self._inner.domain()
 
-    def ground_truth(self):
+    def ground_truth(self) -> OptimizationGroundTruth[Array]:
         return self._inner.ground_truth()
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         return self._inner.function().jacobian(sample)
 
-    def smoothness(self):
+    def smoothness(self) -> str:
         return "analytic"
 
-    def estimated_evaluation_cost(self):
+    def estimated_evaluation_cost(self) -> float:
         return 1.7e-05
 
-    def global_minimum(self):
+    def global_minimum(self) -> Optional[float]:
         return self._inner.ground_truth().global_minimum
 
-    def global_minimizers(self):
+    def global_minimizers(self) -> Optional[Array]:
         return self._inner.ground_truth().global_minimizers
 
 
 def branin_2d(
     bkd: Backend[Array],
-) -> BraninBenchmark:
+) -> BraninBenchmark[Array]:
     """Create the standard 2D Branin benchmark.
 
     The Branin (Branin-Hoo) function is a classic benchmark for optimization
@@ -115,5 +119,5 @@ def branin_2d(
     category="analytic",
     description="Standard 2D Branin function with three global minima",
 )
-def _branin_2d_factory(bkd: Backend[Array]) -> BraninBenchmark:
+def _branin_2d_factory(bkd: Backend[Array]) -> BraninBenchmark[Array]:
     return branin_2d(bkd)

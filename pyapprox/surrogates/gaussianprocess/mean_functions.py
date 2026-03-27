@@ -40,13 +40,13 @@ class MeanFunction(Protocol, Generic[Array]):
         """
         ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the list of hyperparameters.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             List of hyperparameters for this mean function.
         """
         ...
@@ -130,13 +130,13 @@ class ZeroMean(Generic[Array]):
         n_points = X.shape[1]
         return self._bkd.zeros((1, n_points))
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return empty hyperparameter list.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Empty list (zero mean has no hyperparameters).
         """
         return self._hyp_list
@@ -247,13 +247,13 @@ class ConstantMean(Generic[Array]):
         constant_value = self._constant.get_values()[0]
         return self._bkd.full((1, n_points), constant_value)
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return hyperparameter list.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             List containing the constant hyperparameter.
         """
         return self._hyp_list

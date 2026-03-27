@@ -75,7 +75,7 @@ class ConditionalCopulaSAS(Generic[Array]):
         """Dimension of the latent space."""
         return self._d
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
 

@@ -293,13 +293,13 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
     - Set all hyperparameters inactive to skip optimization
     """
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the list of hyperparameters.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             List containing all kernel and GP hyperparameters.
         """
         ...

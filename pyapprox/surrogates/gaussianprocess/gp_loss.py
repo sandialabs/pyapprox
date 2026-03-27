@@ -72,7 +72,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list."""
         return self._hyp_list
 

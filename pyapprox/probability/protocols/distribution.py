@@ -312,7 +312,7 @@ class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
     - Maximum likelihood estimation (MLE)
     - Variational inference (VI)
 
-    The HyperParameterList manages parameter transformations (e.g., log-space
+    The HyperParameterList[Array] manages parameter transformations (e.g., log-space
     for positive parameters) to enable unconstrained optimization.
 
     Methods
@@ -347,7 +347,7 @@ class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
 
     def invcdf_jacobian(self, probs: Array) -> Array: ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the hyperparameter list for parameter optimization.
 
@@ -358,7 +358,7 @@ class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Hyperparameter list containing distribution parameters.
         """
         ...

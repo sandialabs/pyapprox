@@ -78,13 +78,13 @@ class IIDGaussianNoise(Kernel[Array]):
         )
         self._hyp_list = HyperParameterList([self._log_noise_variance])
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the list of hyperparameters associated with the kernel.
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             List of hyperparameters.
         """
         return self._hyp_list

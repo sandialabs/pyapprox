@@ -117,7 +117,7 @@ class MFNetNode(Generic[Array]):
     def is_root(self) -> bool:
         return len(self._parent_ids) == 0
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Aggregate of model hyp_list + noise_std hyperparameter."""
         model_hyps = self._model.hyp_list().hyperparameters()
         return HyperParameterList(model_hyps + [self._noise_std_hyp], self._bkd)

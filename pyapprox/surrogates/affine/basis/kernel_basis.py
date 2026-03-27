@@ -74,7 +74,7 @@ class KernelBasis(Generic[Array]):
         """Return the center points. Shape: (nvars, ncenters)."""
         return self._centers
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the kernel's hyperparameter list."""
         return self._kernel.hyp_list()
 

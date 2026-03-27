@@ -226,7 +226,7 @@ class VariationalGaussianProcess(Generic[Array]):
         """Return the inducing samples manager."""
         return self._inducing_samples
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return combined hyperparameter list (kernel + mean + inducing)."""
         kernel_hyps = self._kernel.hyp_list().hyperparameters()
         mean_hyps = self._mean.hyp_list().hyperparameters()

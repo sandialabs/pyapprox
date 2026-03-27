@@ -120,13 +120,13 @@ class IndependentMultiOutputKernel(Generic[Array]):
         """
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the combined list of hyperparameters from all kernels.
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             Combined hyperparameter list.
         """
         return self._hyp_list

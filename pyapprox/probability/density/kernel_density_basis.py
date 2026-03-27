@@ -61,7 +61,7 @@ class KernelDensityBasis(Generic[Array]):
         """Return the underlying KernelBasis."""
         return self._kernel_basis
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the kernel's hyperparameter list."""
         return self._kernel_basis.hyp_list()
 

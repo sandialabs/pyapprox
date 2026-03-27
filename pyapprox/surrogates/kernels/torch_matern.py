@@ -119,7 +119,7 @@ class GeneralMaternKernel(Kernel[Array]):
         """Return the smoothness parameter nu."""
         return self._nu
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the list of hyperparameters."""
         return self._hyp_list
 

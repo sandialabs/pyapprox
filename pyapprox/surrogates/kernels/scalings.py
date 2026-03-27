@@ -58,7 +58,7 @@ class ScalingFunctionProtocol(Protocol, Generic[Array]):
         """Return the backend."""
         ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list."""
         ...
 
@@ -193,7 +193,7 @@ class PolynomialScaling(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list."""
         return self._hyp_list
 
@@ -529,7 +529,7 @@ class ScalingKernel(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return hyperparameter list."""
         return self._hyp_list
 

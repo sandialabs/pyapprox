@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Generic, List, Optional
 
 from pyapprox.util.backends.protocols import (
     Array,
@@ -9,7 +9,7 @@ from pyapprox.util.backends.validation import validate_backends
 from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
 
 
-class HyperParameterList:
+class HyperParameterList(Generic[Array]):
     """
     A list of hyperparameters to be used with optimization.
 
@@ -27,7 +27,7 @@ class HyperParameterList:
         hyperparam_list: List[HyperParameter[Array]],
         bkd: Optional[Backend[Array]] = None,
     ):
-        """Initialize the HyperParameterList."""
+        """Initialize the HyperParameterList[Array]."""
         self._validate_hyperparameters(hyperparam_list, bkd)
         self._hyperparam_list = hyperparam_list
         if hyperparam_list:
@@ -309,41 +309,41 @@ class HyperParameterList:
             hyp.set_active_values(active_params[cnt : cnt + hyp.nactive_params()])
             cnt += hyp.nactive_params()
 
-    def __add__(self, hyp_list: "HyperParameterList") -> "HyperParameterList":
+    def __add__(self, hyp_list: "HyperParameterList[Array]") -> "HyperParameterList[Array]":
         """
         Add two HyperParameterLists.
 
         Parameters
         ----------
-        hyp_list : HyperParameterList
-            Another HyperParameterList to add.
+        hyp_list : HyperParameterList[Array]
+            Another HyperParameterList[Array] to add.
 
         Returns
         -------
-        result : HyperParameterList
-            Combined HyperParameterList.
+        result : HyperParameterList[Array]
+            Combined HyperParameterList[Array].
         """
         return self.__class__(self._hyperparam_list + hyp_list.hyperparameters())
 
-    def __radd__(self, hyp_list: "HyperParameterList") -> "HyperParameterList":
+    def __radd__(self, hyp_list: "HyperParameterList[Array]") -> "HyperParameterList[Array]":
         """
         Add two HyperParameterLists (reverse addition).
 
         Parameters
         ----------
-        hyp_list : Union[int, HyperParameterList]
-            Another HyperParameterList to add.
+        hyp_list : Union[int, HyperParameterList[Array]]
+            Another HyperParameterList[Array] to add.
 
         Returns
         -------
-        result : HyperParameterList
-            Combined HyperParameterList.
+        result : HyperParameterList[Array]
+            Combined HyperParameterList[Array].
         """
         return self.__class__(hyp_list.hyperparameters() + self._hyperparam_list)
 
     def __str__(self) -> str:
         """
-        Return a short string representation of the HyperParameterList.
+        Return a short string representation of the HyperParameterList[Array].
 
         Returns
         -------
@@ -359,7 +359,7 @@ class HyperParameterList:
 
     def __repr__(self) -> str:
         """
-        Return a detailed string representation of the HyperParameterList.
+        Return a detailed string representation of the HyperParameterList[Array].
 
         Returns
         -------

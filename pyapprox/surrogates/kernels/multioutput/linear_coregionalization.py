@@ -158,7 +158,7 @@ class LinearCoregionalizationKernel(Generic[Array]):
         """
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the combined list of hyperparameters from all base kernels.
 
@@ -167,7 +167,7 @@ class LinearCoregionalizationKernel(Generic[Array]):
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             Combined hyperparameter list from base kernels.
         """
         return self._hyp_list

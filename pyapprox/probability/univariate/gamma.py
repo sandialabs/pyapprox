@@ -205,7 +205,7 @@ class GammaMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list for parameter optimization."""
         return self._hyp_list
 

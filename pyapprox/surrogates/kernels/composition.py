@@ -34,7 +34,7 @@ class CompositionKernel(Kernel[Array], Generic[Array]):
         First kernel.
     _kernel2 : Kernel
         Second kernel.
-    _hyp_list : HyperParameterList
+    _hyp_list : HyperParameterList[Array]
         Combined hyperparameter list from both kernels.
 
     Optional Methods
@@ -119,13 +119,13 @@ class CompositionKernel(Kernel[Array], Generic[Array]):
             self.hvp_wrt_params = self._hvp_wrt_params
         # Otherwise, hvp_wrt_params will not exist on this instance
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the combined hyperparameter list.
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             Combined hyperparameters from both kernels.
         """
         return self._hyp_list
@@ -706,7 +706,7 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
             combined = combined + hl
         self._hyp_list = combined
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
 

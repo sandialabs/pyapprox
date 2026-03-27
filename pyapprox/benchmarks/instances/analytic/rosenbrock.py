@@ -4,56 +4,60 @@ Standard Rosenbrock function benchmarks for optimization with known
 global minimum.
 """
 
+from typing import Generic, Optional
+
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
 from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
     RosenbrockFunction,
 )
 from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
+from pyapprox.benchmarks.protocols import DomainProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class RosenbrockBenchmark:
+class RosenbrockBenchmark(Generic[Array]):
     """Rosenbrock benchmark wrapper.
 
     Satisfies: HasForwardModel, HasJacobian, HasGlobalMinimum,
     HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: Benchmark[Array, OptimizationGroundTruth[Array]]) -> None:
         self._inner = inner
 
-    def name(self):
+    def name(self) -> str:
         return self._inner.name()
 
-    def function(self):
+    def function(self) -> FunctionProtocol[Array]:
         return self._inner.function()
 
-    def domain(self):
+    def domain(self) -> DomainProtocol[Array]:
         return self._inner.domain()
 
-    def ground_truth(self):
+    def ground_truth(self) -> OptimizationGroundTruth[Array]:
         return self._inner.ground_truth()
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         return self._inner.function().jacobian(sample)
 
-    def smoothness(self):
+    def smoothness(self) -> str:
         return "analytic"
 
-    def estimated_evaluation_cost(self):
+    def estimated_evaluation_cost(self) -> float:
         return 3.5e-05
 
-    def global_minimum(self):
+    def global_minimum(self) -> Optional[float]:
         return self._inner.ground_truth().global_minimum
 
-    def global_minimizers(self):
+    def global_minimizers(self) -> Optional[Array]:
         return self._inner.ground_truth().global_minimizers
 
 
 def rosenbrock_2d(
     bkd: Backend[Array],
-) -> RosenbrockBenchmark:
+) -> RosenbrockBenchmark[Array]:
     """Create the standard 2D Rosenbrock benchmark.
 
     Standard 2D Rosenbrock benchmark for unconstrained optimization.
@@ -94,7 +98,7 @@ def rosenbrock_2d(
 
 def rosenbrock_10d(
     bkd: Backend[Array],
-) -> RosenbrockBenchmark:
+) -> RosenbrockBenchmark[Array]:
     """Create the 10D Rosenbrock benchmark.
 
     10D Rosenbrock benchmark for high-dimensional optimization.
@@ -139,7 +143,7 @@ def rosenbrock_10d(
     category="analytic",
     description="Standard 2D Rosenbrock function for optimization",
 )
-def _rosenbrock_2d_factory(bkd: Backend[Array]) -> RosenbrockBenchmark:
+def _rosenbrock_2d_factory(bkd: Backend[Array]) -> RosenbrockBenchmark[Array]:
     return rosenbrock_2d(bkd)
 
 
@@ -148,5 +152,5 @@ def _rosenbrock_2d_factory(bkd: Backend[Array]) -> RosenbrockBenchmark:
     category="analytic",
     description="High-dimensional 10D Rosenbrock function",
 )
-def _rosenbrock_10d_factory(bkd: Backend[Array]) -> RosenbrockBenchmark:
+def _rosenbrock_10d_factory(bkd: Backend[Array]) -> RosenbrockBenchmark[Array]:
     return rosenbrock_10d(bkd)

@@ -36,13 +36,13 @@ class MultiOutputKernelProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the list of hyperparameters associated with the kernel.
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             List of hyperparameters.
         """
         ...

@@ -67,7 +67,7 @@ class FrankCopula(Generic[Array]):
         """Return the number of free parameters."""
         return 1
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list for optimization."""
         return self._hyp_list
 

@@ -216,7 +216,7 @@ class FlowMatchingObjective(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the VF's hyperparameter list."""
         return self._vf.hyp_list()
 

@@ -104,7 +104,7 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             self.hyp_list = self._get_hyp_list
             self.nparams = self._get_nparams
 
-    def _get_hyp_list(self) -> HyperParameterList:
+    def _get_hyp_list(self) -> HyperParameterList[Array]:
         return self._hyp_list
 
     def _get_nparams(self) -> int:
@@ -439,7 +439,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             self.hyp_list = self._get_hyp_list
             self.nparams = self._get_nparams
 
-    def _get_hyp_list(self) -> HyperParameterList:
+    def _get_hyp_list(self) -> HyperParameterList[Array]:
         return self._hyp_list
 
     def _get_nparams(self) -> int:

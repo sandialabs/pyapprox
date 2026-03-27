@@ -344,13 +344,13 @@ class ExactGaussianProcess(Generic[Array]):
         """
         return self._input_transform
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return combined hyperparameter list.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Combined list of kernel and mean function hyperparameters.
         """
         kernel_hyps = self._kernel.hyp_list()

@@ -109,7 +109,7 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
     def nscaled_qoi(self) -> int:
         return self._nscaled_qoi
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         return self._hyp_list
 
     def __call__(self, samples: Array) -> Array:

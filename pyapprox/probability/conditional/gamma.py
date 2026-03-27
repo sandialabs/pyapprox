@@ -108,7 +108,7 @@ class ConditionalGamma(Generic[Array]):
         ):
             self.logpdf_jacobian_wrt_params = self._logpdf_jacobian_wrt_params
 
-    def _get_hyp_list(self) -> HyperParameterList:
+    def _get_hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
 

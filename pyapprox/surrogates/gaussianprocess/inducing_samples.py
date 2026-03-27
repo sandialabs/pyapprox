@@ -97,7 +97,7 @@ class InducingSamples(Generic[Array]):
 
         self._hyp_list = HyperParameterList([self._noise, self._inducing_samples])
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list."""
         return self._hyp_list
 

@@ -83,15 +83,15 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _create_subdomain_kle_field_maps(
-    skfem_mesh,
+    skfem_mesh: Any,
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
-    bkd,
+    bkd: Backend[Array],
     num_kle_terms: int,
     sigma: float,
     correlation_length: float,
     mean_log_E: float,
-):
+) -> Tuple[List[TransformedFieldMap[Array]], List[np.ndarray]]:
     """Create a lognormal KLE field map per subdomain at mesh nodes.
 
     Uses the Nystrom method at FEM mesh nodes (not quadrature points)
@@ -204,7 +204,7 @@ class _SkfemSubmesh(Generic[Array]):
     ``LagrangeBasis``.
     """
 
-    def __init__(self, skfem_submesh, bkd: Backend[Array]):
+    def __init__(self, skfem_submesh: Any, bkd: Backend[Array]) -> None:
         self._skfem_mesh = skfem_submesh
         self._bkd = bkd
         self._nodes = bkd.asarray(

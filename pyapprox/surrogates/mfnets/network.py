@@ -43,7 +43,7 @@ class MFNet(Generic[Array]):
         self._topo_order: List[int] = []
         self._root_ids: List[int] = []
         self._leaf_ids: List[int] = []
-        self._hyp_list: Optional[HyperParameterList] = None
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
         self._train_samples: Optional[List[Array]] = None
         self._train_values: Optional[List[Array]] = None
 
@@ -143,7 +143,7 @@ class MFNet(Generic[Array]):
 
         self._validated = True
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return aggregated hyperparameter list (all nodes, topo order)."""
         self._check_validated()
         assert self._hyp_list is not None

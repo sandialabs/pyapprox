@@ -1,6 +1,6 @@
 """Additive FunctionTrain factory - creates f(x) = Σ f_i(x_i) structure."""
 
-from typing import List
+from typing import Generic, List
 
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
@@ -8,7 +8,7 @@ from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class ConstantExpansion:
+class ConstantExpansion(Generic[Array]):
     """A constant function that returns a fixed value.
 
     This is used for the structural constants (0 and 1) in the additive

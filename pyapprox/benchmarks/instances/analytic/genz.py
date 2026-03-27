@@ -4,6 +4,8 @@ Standard Genz family functions for quadrature/integration testing with
 known analytical integrals.
 """
 
+from typing import Generic, Optional
+
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
 from pyapprox.benchmarks.functions.genz import (
     CornerPeakFunction,
@@ -12,42 +14,44 @@ from pyapprox.benchmarks.functions.genz import (
     ProductPeakFunction,
 )
 from pyapprox.benchmarks.ground_truth import QuadratureGroundTruth
+from pyapprox.benchmarks.protocols import DomainProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class GenzBenchmark:
+class GenzBenchmark(Generic[Array]):
     """Genz benchmark wrapper.
 
     Satisfies: HasForwardModel, HasJacobian, HasReferenceIntegral,
     HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: Benchmark[Array, QuadratureGroundTruth]) -> None:
         self._inner = inner
 
-    def name(self):
+    def name(self) -> str:
         return self._inner.name()
 
-    def function(self):
+    def function(self) -> FunctionProtocol[Array]:
         return self._inner.function()
 
-    def domain(self):
+    def domain(self) -> DomainProtocol[Array]:
         return self._inner.domain()
 
-    def ground_truth(self):
+    def ground_truth(self) -> QuadratureGroundTruth:
         return self._inner.ground_truth()
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         return self._inner.function().jacobian(sample)
 
-    def smoothness(self):
+    def smoothness(self) -> str:
         return "analytic"
 
-    def estimated_evaluation_cost(self):
+    def estimated_evaluation_cost(self) -> float:
         return 8.0e-06
 
-    def reference_integral(self):
+    def reference_integral(self) -> Optional[float]:
         return self._inner.ground_truth().integral
 
 
@@ -82,7 +86,7 @@ def _get_genz_coefficients(nvars: int, decay: str = "none") -> list[float]:
 
 def genz_oscillatory_2d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 2D oscillatory Genz benchmark.
 
     Standard 2D oscillatory function for quadrature testing.
@@ -122,7 +126,7 @@ def genz_oscillatory_2d(
 
 def genz_product_peak_2d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 2D product peak Genz benchmark.
 
     Standard 2D product peak function for quadrature testing.
@@ -162,7 +166,7 @@ def genz_product_peak_2d(
 
 def genz_corner_peak_2d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 2D corner peak Genz benchmark.
 
     Standard 2D corner peak function for quadrature testing.
@@ -201,7 +205,7 @@ def genz_corner_peak_2d(
 
 def genz_gaussian_peak_2d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 2D Gaussian peak Genz benchmark.
 
     Standard 2D Gaussian peak function for quadrature testing.
@@ -241,7 +245,7 @@ def genz_gaussian_peak_2d(
 
 def genz_oscillatory_5d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 5D oscillatory Genz benchmark.
 
     Higher-dimensional oscillatory function for quadrature testing.
@@ -281,7 +285,7 @@ def genz_oscillatory_5d(
 
 def genz_gaussian_peak_5d(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     """Create a 5D Gaussian peak Genz benchmark.
 
     Higher-dimensional Gaussian peak function for quadrature testing.
@@ -334,7 +338,7 @@ def genz_gaussian_peak_5d(
 )
 def _genz_oscillatory_2d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_oscillatory_2d(bkd)
 
 
@@ -345,7 +349,7 @@ def _genz_oscillatory_2d_factory(
 )
 def _genz_product_peak_2d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_product_peak_2d(bkd)
 
 
@@ -356,7 +360,7 @@ def _genz_product_peak_2d_factory(
 )
 def _genz_corner_peak_2d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_corner_peak_2d(bkd)
 
 
@@ -367,7 +371,7 @@ def _genz_corner_peak_2d_factory(
 )
 def _genz_gaussian_peak_2d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_gaussian_peak_2d(bkd)
 
 
@@ -378,7 +382,7 @@ def _genz_gaussian_peak_2d_factory(
 )
 def _genz_oscillatory_5d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_oscillatory_5d(bkd)
 
 
@@ -389,5 +393,5 @@ def _genz_oscillatory_5d_factory(
 )
 def _genz_gaussian_peak_5d_factory(
     bkd: Backend[Array],
-) -> GenzBenchmark:
+) -> GenzBenchmark[Array]:
     return genz_gaussian_peak_5d(bkd)

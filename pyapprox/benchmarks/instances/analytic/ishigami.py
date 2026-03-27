@@ -5,6 +5,7 @@ analytical Sobol indices.
 """
 
 import math
+from typing import Generic, Optional
 
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
@@ -12,7 +13,9 @@ from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiSensitivityIndices,
 )
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.protocols import DomainProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
@@ -23,7 +26,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 # do we need this light weight wrappers, if we make this
 # a sensitivity benchmark cant user just access the SensitivityGroundTruth
 # which is gurateneed to be provided by such benchmarks?
-class IshigamiBenchmark:
+class IshigamiBenchmark(Generic[Array]):
     """Ishigami benchmark wrapper.
 
     Satisfies: HasForwardModel, HasPrior, HasJacobian,
@@ -31,49 +34,49 @@ class IshigamiBenchmark:
     HasTotalEffects, HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]) -> None:
         self._inner = inner
 
-    def name(self):
+    def name(self) -> str:
         return self._inner.name()
 
-    def function(self):
+    def function(self) -> FunctionProtocol[Array]:
         return self._inner.function()
 
-    def domain(self):
+    def domain(self) -> DomainProtocol[Array]:
         return self._inner.domain()
 
-    def prior(self):
+    def prior(self) -> IndependentJoint[Array]:
         return self._inner.prior()
 
-    def ground_truth(self):
+    def ground_truth(self) -> SensitivityGroundTruth[Array]:
         return self._inner.ground_truth()
 
-    def jacobian(self, sample):
+    def jacobian(self, sample: Array) -> Array:
         return self._inner.function().jacobian(sample)
 
-    def smoothness(self):
+    def smoothness(self) -> str:
         return "analytic"
 
-    def estimated_evaluation_cost(self):
+    def estimated_evaluation_cost(self) -> float:
         return 2.6e-05
 
-    def reference_mean(self):
+    def reference_mean(self) -> Optional[float]:
         return self._inner.ground_truth().mean
 
-    def reference_variance(self):
+    def reference_variance(self) -> Optional[float]:
         return self._inner.ground_truth().variance
 
-    def main_effects(self):
+    def main_effects(self) -> Optional[Array]:
         return self._inner.ground_truth().main_effects
 
-    def total_effects(self):
+    def total_effects(self) -> Optional[Array]:
         return self._inner.ground_truth().total_effects
 
 
 def ishigami_3d(
     bkd: Backend[Array],
-) -> IshigamiBenchmark:
+) -> IshigamiBenchmark[Array]:
     """Create the standard Ishigami benchmark.
 
     Standard Ishigami benchmark with a=7, b=0.1 on [-pi, pi]^3.
@@ -154,5 +157,5 @@ def ishigami_3d(
     category="analytic",
     description="Standard 3D Ishigami function for sensitivity analysis",
 )
-def _ishigami_3d_factory(bkd: Backend[Array]) -> IshigamiBenchmark:
+def _ishigami_3d_factory(bkd: Backend[Array]) -> IshigamiBenchmark[Array]:
     return ishigami_3d(bkd)

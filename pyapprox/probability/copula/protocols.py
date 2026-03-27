@@ -68,13 +68,13 @@ class CopulaProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the hyperparameter list for parameter optimization.
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Hyperparameter list containing copula parameters.
         """
         ...
@@ -131,7 +131,7 @@ class CopulaWithKLProtocol(Protocol, Generic[Array]):
 
     def nparams(self) -> int: ...
 
-    def hyp_list(self) -> HyperParameterList: ...
+    def hyp_list(self) -> HyperParameterList[Array]: ...
 
     def logpdf(self, u: Array) -> Array: ...
 

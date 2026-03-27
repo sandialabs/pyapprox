@@ -69,7 +69,7 @@ class IndependentJoint(Generic[Array]):
 
         Only available if all marginals have hyp_list() method.
         """
-        self._hyp_list: Optional[HyperParameterList] = None
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
         if all(hasattr(m, "hyp_list") for m in self._marginals):
             hyp_lists = [m.hyp_list() for m in self._marginals]  # type: ignore
             if hyp_lists:
@@ -116,7 +116,7 @@ class IndependentJoint(Generic[Array]):
         """
         return self._nvars
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the aggregated hyperparameter list.
 
@@ -124,7 +124,7 @@ class IndependentJoint(Generic[Array]):
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Combined hyperparameter list from all marginals.
 
         Raises

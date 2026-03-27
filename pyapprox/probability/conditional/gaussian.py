@@ -125,7 +125,7 @@ class ConditionalGaussian(Generic[Array]):
         if hasattr(self._log_stdev_func, "_sync_from_hyp_list"):
             self._log_stdev_func._sync_from_hyp_list()
 
-    def _get_hyp_list(self) -> HyperParameterList:
+    def _get_hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
 

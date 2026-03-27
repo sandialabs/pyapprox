@@ -83,13 +83,13 @@ class CopulaDistribution(Generic[Array]):
         """Return the marginal distributions."""
         return self._marginals
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return concatenated hyperparameter list (copula + marginals).
 
         Returns
         -------
-        HyperParameterList
+        HyperParameterList[Array]
             Combined hyperparameter list.
         """
         combined = self._copula.hyp_list()

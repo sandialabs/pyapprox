@@ -53,8 +53,8 @@ class BasisExpansion(Generic[Array]):
         self._coef: Optional[Array] = None
         self._initialize_coefficients()
 
-        # HyperParameterList for optimization (created lazily)
-        self._hyp_list: Optional[HyperParameterList] = None
+        # HyperParameterList[Array] for optimization (created lazily)
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
 
         # Dynamically bind derivative methods based on basis capabilities
         self._setup_derivative_methods()
@@ -168,7 +168,7 @@ class BasisExpansion(Generic[Array]):
         new_expansion.set_coefficients(params)
         return new_expansion
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return the hyperparameter list for coefficient optimization.
 
         The coefficients are stored as a single HyperParameter with shape

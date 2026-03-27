@@ -156,13 +156,13 @@ class MultiLevelKernel(Generic[Array]):
         """
         return self._dag_kernel.bkd()
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the combined list of hyperparameters.
 
         Returns
         -------
-        hyp_list : HyperParameterList
+        hyp_list : HyperParameterList[Array]
             Combined hyperparameters from all kernels and scalings.
         """
         return self._dag_kernel.hyp_list()
