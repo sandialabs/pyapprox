@@ -66,7 +66,7 @@ class GPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult:
+    ) -> GPFitResult[Array]:
         """Fit GP to data without hyperparameter optimization.
 
         Creates a deep copy of the GP, applies transforms, computes

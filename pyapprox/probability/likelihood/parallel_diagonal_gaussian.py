@@ -14,7 +14,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ParallelDiagonalGaussianLogLikelihood(
-    DiagonalGaussianLogLikelihood, Generic[Array]
+    DiagonalGaussianLogLikelihood[Array], Generic[Array]
 ):
     """
     Diagonal Gaussian likelihood with parallel observation processing.

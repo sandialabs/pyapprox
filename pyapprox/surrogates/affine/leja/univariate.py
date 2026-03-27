@@ -554,7 +554,7 @@ class LejaSequence1D(Generic[Array]):
         bounds: Tuple[float, float],
         initial_points: Optional[Array] = None,
         optimizer: Optional[Callable[..., Any]] = None,
-        objective_class: Optional[Type[LejaObjective]] = None,
+        objective_class: Optional[Type[LejaObjective[Array]]] = None,
     ):
         self._bkd = bkd
         self._basis = basis

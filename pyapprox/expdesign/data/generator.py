@@ -26,7 +26,7 @@ PriorType = Union[
 
 
 def _extract_marginals(
-    prior: PriorType,
+    prior: PriorType[Array],
     bkd: "Backend[Array]",
 ) -> list[Any]:
     """Extract independent Gaussian marginals from a prior distribution.
@@ -70,7 +70,7 @@ class OEDDataGenerator(Generic[Array]):
 
     def joint_prior_noise_variable(
         self,
-        prior: PriorType,
+        prior: PriorType[Array],
         noise_cov_diag: Array,
     ) -> IndependentJoint[Array]:
         """
@@ -113,7 +113,7 @@ class OEDDataGenerator(Generic[Array]):
     def setup_quadrature_data(
         self,
         quadrature_type: str,
-        variable: PriorType,
+        variable: PriorType[Array],
         nsamples: int,
         loop: str,
         seed: Optional[int] = None,

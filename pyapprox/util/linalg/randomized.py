@@ -201,11 +201,11 @@ class DenseMatVecOperator(MatVecOperator[Array]):
 
     def nrows(self) -> int:
         """Return the number of rows."""
-        return self._mat.shape[0]
+        return int(self._mat.shape[0])
 
     def ncols(self) -> int:
         """Return the number of columns."""
-        return self._mat.shape[1]
+        return int(self._mat.shape[1])
 
 
 class DenseSymmetricMatVecOperator(SymmetricMatVecOperator[Array]):

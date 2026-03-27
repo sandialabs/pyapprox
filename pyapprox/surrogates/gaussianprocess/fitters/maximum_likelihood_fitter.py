@@ -76,7 +76,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPOptimizedFitResult:
+    ) -> GPOptimizedFitResult[Array]:
         """Fit GP to data and optimize active hyperparameters.
 
         1. Deep-copies the GP

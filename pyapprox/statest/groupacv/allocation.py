@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     )
 
 
-def default_groupacv_optimizer() -> "ChainedOptimizer":
+def default_groupacv_optimizer() -> "ChainedOptimizer[Array]":
     """Create the default optimizer for GroupACV sample allocation.
 
     Returns

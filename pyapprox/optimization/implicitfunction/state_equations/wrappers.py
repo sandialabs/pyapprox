@@ -12,7 +12,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
     def __init__(
         self,
-        state_equations: ParameterizedStateEquationWithJacobianProtocol,
+        state_equations: ParameterizedStateEquationWithJacobianProtocol[Array],
         param: Array,
     ) -> None:
         """
@@ -32,7 +32,7 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
 
     def _validate_state_equations(
         self,
-        state_equations: ParameterizedStateEquationWithJacobianProtocol,
+        state_equations: ParameterizedStateEquationWithJacobianProtocol[Array],
     ) -> None:
         """
         Validate that the provided state equations conform to the required

@@ -57,7 +57,7 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult:
+    ) -> GPFitResult[Array]:
         """Fit variational GP without hyperparameter optimization.
 
         Parameters
@@ -137,7 +137,7 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train: Array,
         y_train: Array,
-    ) -> GPOptimizedFitResult:
+    ) -> GPOptimizedFitResult[Array]:
         """Fit variational GP and optimize active hyperparameters.
 
         Parameters

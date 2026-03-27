@@ -40,7 +40,7 @@ class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
         gp,
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPFitResult:
+    ) -> GPFitResult[Array]:
         """Fit multi-output GP without hyperparameter optimization.
 
         Parameters
@@ -103,7 +103,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         gp,
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPOptimizedFitResult:
+    ) -> GPOptimizedFitResult[Array]:
         """Fit multi-output GP and optimize active hyperparameters.
 
         Parameters

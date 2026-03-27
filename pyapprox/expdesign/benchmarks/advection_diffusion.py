@@ -469,5 +469,5 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 )
 def _obstructed_advection_diffusion_oed_factory(
     bkd: Backend[Array],
-) -> ObstructedAdvectionDiffusionOEDBenchmark:
+) -> ObstructedAdvectionDiffusionOEDBenchmark[Array]:
     return ObstructedAdvectionDiffusionOEDBenchmark(bkd)

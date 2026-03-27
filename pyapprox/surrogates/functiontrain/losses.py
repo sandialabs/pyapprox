@@ -54,7 +54,7 @@ class FunctionTrainMSELoss(Generic[Array]):
         self._nqoi = surrogate.nqoi()
 
         # Cache basis matrices (samples are fixed during training)
-        self._basis_cache: BasisCache = cache_basis_matrices(
+        self._basis_cache: BasisCache[Array] = cache_basis_matrices(
             surrogate.cores(), train_samples, bkd
         )
 

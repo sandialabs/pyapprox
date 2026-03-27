@@ -50,7 +50,7 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
         kernel,
         nvars: int,
         inducing_samples: InducingSamples[torch.Tensor],
-        mean_function: Optional[MeanFunction] = None,
+        mean_function: Optional[MeanFunction[Array]] = None,
         nugget: float = 1e-6,
     ) -> None:
         bkd = TorchBkd()

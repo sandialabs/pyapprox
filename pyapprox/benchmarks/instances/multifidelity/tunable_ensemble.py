@@ -32,8 +32,8 @@ class TunableEnsembleBenchmark(Generic[Array]):
 
     def __init__(
         self,
-        inner_ensemble: TunableModelEnsemble,
-        domain: BoxDomain,
+        inner_ensemble: TunableModelEnsemble[Array],
+        domain: BoxDomain[Array],
         prior,
         name: str,
         estimated_cost: float,

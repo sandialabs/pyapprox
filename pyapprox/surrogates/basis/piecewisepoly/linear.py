@@ -17,7 +17,7 @@ class PiecewiseLinear(Generic[Array]):
         Backend used for computations (e.g., NumPy or PyTorch)
     """
 
-    def __init__(self, nodes: Array, bkd: Backend):
+    def __init__(self, nodes: Array, bkd: Backend[Array]):
         """
         Initialize the PiecewiseLinear object.
 

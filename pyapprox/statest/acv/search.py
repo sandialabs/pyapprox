@@ -45,7 +45,7 @@ class SearchResult(Generic[Array]):
 
     # Strategies and config used (for traceability)
     estimator_classes: List[Type["ACVEstimator[Array]"]]
-    recursion_strategy: RecursionIndexStrategy
+    recursion_strategy: RecursionIndexStrategy[Array]
     model_strategy: ModelSubsetStrategy
     qoi_strategy: QoISubsetStrategy
 
@@ -110,7 +110,7 @@ class ACVSearch(Generic[Array]):
         estimator_classes: Optional[List[Type["ACVEstimator[Array]"]]] = None,
         model_strategy: Optional[ModelSubsetStrategy] = None,
         qoi_strategy: Optional[QoISubsetStrategy] = None,
-        recursion_strategy: Optional[RecursionIndexStrategy] = None,
+        recursion_strategy: Optional[RecursionIndexStrategy[Array]] = None,
         allocator_factory: Optional[
             Callable[["ACVEstimator[Array]"], Allocator[Array]]
         ] = None,

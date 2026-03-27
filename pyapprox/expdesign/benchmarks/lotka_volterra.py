@@ -198,5 +198,5 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
 )
 def _lotka_volterra_oed_factory(
     bkd: Backend[Array],
-) -> LotkaVolterraOEDBenchmark:
+) -> LotkaVolterraOEDBenchmark[Array]:
     return LotkaVolterraOEDBenchmark(bkd)

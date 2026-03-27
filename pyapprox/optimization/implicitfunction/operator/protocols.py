@@ -50,7 +50,7 @@ class AdjointOperatorWithJacobianProtocol(Generic[Array], Protocol):
         """
         ...
 
-    def storage(self) -> AdjointOperatorStorage:
+    def storage(self) -> AdjointOperatorStorage[Array]:
         """
         Return the storage object for adjoint operator data.
 

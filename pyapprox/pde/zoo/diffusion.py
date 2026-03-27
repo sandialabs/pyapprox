@@ -34,8 +34,8 @@ def _build_field_map(
     bkd: Backend[Array],
     diffusion_base: Optional[float],
     basis_funs: Optional[List[Array]],
-    field_map: Optional[FieldMapProtocol],
-) -> FieldMapProtocol:
+    field_map: Optional[FieldMapProtocol[Array]],
+) -> FieldMapProtocol[Array]:
     """Resolve field map from either explicit field_map or basis_funs args."""
     if field_map is not None:
         if basis_funs is not None:
@@ -55,7 +55,7 @@ def create_steady_diffusion_1d(
     forcing: Callable[..., Any],
     diffusion_base: Optional[float] = None,
     basis_funs: Optional[List[Array]] = None,
-    field_map: Optional[FieldMapProtocol] = None,
+    field_map: Optional[FieldMapProtocol[Array]] = None,
     bcs: Optional[list[Any]] = None,
     functional=None,
 ) -> SteadyForwardModel[Array]:
@@ -133,7 +133,7 @@ def create_transient_diffusion_1d(
     forcing: Optional[Callable[..., Any]] = None,
     diffusion_base: Optional[float] = None,
     basis_funs: Optional[List[Array]] = None,
-    field_map: Optional[FieldMapProtocol] = None,
+    field_map: Optional[FieldMapProtocol[Array]] = None,
     bcs: Optional[list[Any]] = None,
     functional=None,
 ) -> TransientForwardModel[Array]:

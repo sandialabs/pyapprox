@@ -324,7 +324,7 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
 )
 def _linear_gaussian_oed_factory(
     bkd: Backend[Array],
-) -> LinearGaussianOEDBenchmark:
+) -> LinearGaussianOEDBenchmark[Array]:
     return LinearGaussianOEDBenchmark(
         nobs=10,
         degree=3,

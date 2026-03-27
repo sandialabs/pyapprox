@@ -29,8 +29,8 @@ class PolynomialEnsembleBenchmark(Generic[Array]):
 
     def __init__(
         self,
-        inner_ensemble: PolynomialEnsemble,
-        domain: BoxDomain,
+        inner_ensemble: PolynomialEnsemble[Array],
+        domain: BoxDomain[Array],
         prior,
         name: str,
         estimated_cost: float,

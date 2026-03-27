@@ -143,7 +143,7 @@ class AETCBLUE(AETC[Array]):
 
         return k2, nsamples_per_subset
 
-    def _create_exploit_estimator(self, result: Tuple[Any, ...]) -> MLBLUEEstimator:
+    def _create_exploit_estimator(self, result: Tuple[Any, ...]) -> MLBLUEEstimator[Array]:
         """Create MLBLUEEstimator for exploitation phase.
 
         Parameters

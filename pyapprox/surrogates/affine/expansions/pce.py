@@ -329,7 +329,7 @@ _PhysicalDomainBasis1D = Union[TransformedBasis1D[Array], NativeBasis1D[Array]]
 
 
 def create_pce(
-    bases_1d: List[_PhysicalDomainBasis1D],
+    bases_1d: List[_PhysicalDomainBasis1D[Array]],
     max_level: int,
     bkd: Backend[Array],
     pnorm: float = 1.0,
@@ -368,7 +368,7 @@ def create_pce(
 def get_basis_from_marginal(
     marginal,
     bkd: Backend[Array],
-) -> _PhysicalDomainBasis1D:
+) -> _PhysicalDomainBasis1D[Array]:
     """Get physical-domain basis for a marginal distribution.
 
     Uses the marginal registry to select the optimal polynomial family

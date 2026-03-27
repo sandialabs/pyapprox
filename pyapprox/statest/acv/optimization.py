@@ -151,7 +151,7 @@ class ACVObjective(ABC, Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def set_estimator(self, est: "ACVEstimator"):
+    def set_estimator(self, est: "ACVEstimator[Array]"):
         from pyapprox.statest.acv.base import ACVEstimator
 
         if not isinstance(est, ACVEstimator):
@@ -199,7 +199,7 @@ class ACVPartitionConstraint(Generic[Array]):
 
     def __init__(
         self,
-        est: "ACVEstimator",
+        est: "ACVEstimator[Array]",
         target_cost: float,
     ):
         from pyapprox.statest.acv.base import ACVEstimator

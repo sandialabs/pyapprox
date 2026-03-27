@@ -22,7 +22,7 @@ def cache_basis_matrices(
     cores: List[FunctionTrainCore[Array]],
     samples: Array,
     bkd: Backend[Array],
-) -> BasisCache:
+) -> BasisCache[Array]:
     """Build a deduplicated cache of basis matrices for all cores.
 
     Iterates all expansion positions across all cores and evaluates each
@@ -43,7 +43,7 @@ def cache_basis_matrices(
     BasisCache
         Dict mapping id(basis) to basis_matrix of shape (nsamples, nterms).
     """
-    cache: BasisCache = {}
+    cache: BasisCache[Array] = {}
     for kk, core in enumerate(cores):
         sample_1d = samples[kk : kk + 1]
         r_left, r_right = core.ranks()
@@ -62,7 +62,7 @@ def cache_basis_matrices(
 def core_eval_cached(
     core: FunctionTrainCore[Array],
     sample_1d: Array,
-    cache: BasisCache,
+    cache: BasisCache[Array],
     bkd: Backend[Array],
 ) -> Array:
     """Evaluate core tensor using cached basis matrices.
@@ -140,7 +140,7 @@ def core_eval_cached(
 def ft_eval_cached(
     cores: List[FunctionTrainCore[Array]],
     samples: Array,
-    cache: BasisCache,
+    cache: BasisCache[Array],
     bkd: Backend[Array],
 ) -> Array:
     """Evaluate FunctionTrain using cached basis matrices.
@@ -174,7 +174,7 @@ def ft_eval_cached(
 def _forward_backward_sweep(
     cores: List[FunctionTrainCore[Array]],
     samples: Array,
-    cache: BasisCache,
+    cache: BasisCache[Array],
     bkd: Backend[Array],
 ) -> Tuple[List[Array], List[Array]]:
     """Compute forward/backward sweep products using cached basis matrices.
@@ -226,7 +226,7 @@ def _forward_backward_sweep(
 def _core_jacobian_direct(
     core: FunctionTrainCore[Array],
     sample_1d: Array,
-    cache: BasisCache,
+    cache: BasisCache[Array],
     L_weight: Array,
     R_weight: Array,
     bkd: Backend[Array],
@@ -306,7 +306,7 @@ def _core_jacobian_direct(
 def ft_jacobian_wrt_params_cached(
     cores: List[FunctionTrainCore[Array]],
     samples: Array,
-    cache: BasisCache,
+    cache: BasisCache[Array],
     bkd: Backend[Array],
 ) -> Array:
     """Compute FT Jacobian w.r.t. params using cached basis matrices.

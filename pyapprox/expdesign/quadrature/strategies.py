@@ -303,10 +303,10 @@ class SobolStrategy(Generic[Array]):
 
 
 # Registry for sampler strategies
-_SAMPLER_STRATEGIES: Dict[str, Type[SamplerStrategy]] = {}
+_SAMPLER_STRATEGIES: Dict[str, Type[SamplerStrategy[Array]]] = {}
 
 
-def register_sampler(name: str, strategy: Type[SamplerStrategy]) -> None:
+def register_sampler(name: str, strategy: Type[SamplerStrategy[Array]]) -> None:
     """Register a sampler strategy.
 
     Parameters
@@ -319,7 +319,7 @@ def register_sampler(name: str, strategy: Type[SamplerStrategy]) -> None:
     _SAMPLER_STRATEGIES[name] = strategy
 
 
-def get_sampler(name: str) -> Type[SamplerStrategy]:
+def get_sampler(name: str) -> Type[SamplerStrategy[Array]]:
     """Get a registered sampler strategy.
 
     Parameters

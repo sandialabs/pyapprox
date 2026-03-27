@@ -356,13 +356,13 @@ class PolynomialScaling(Generic[Array]):
         n2 = X2.shape[1]
         return self._bkd.zeros((n1, n2, nvars))
 
-    def __mul__(self, other: "PolynomialScaling") -> "ProductKernel":
+    def __mul__(self, other: "PolynomialScaling[Array]") -> "ProductKernel":
         """Multiply two kernels."""
         from pyapprox.surrogates.kernels.composition import ProductKernel
 
         return ProductKernel(self, other)
 
-    def __add__(self, other: "PolynomialScaling") -> "SumKernel":
+    def __add__(self, other: "PolynomialScaling[Array]") -> "SumKernel":
         """Add two kernels."""
         from pyapprox.surrogates.kernels.composition import SumKernel
 
@@ -519,7 +519,7 @@ class ScalingKernel(Generic[Array]):
     >>> kernel = ScalingKernel(scaling)
     """
 
-    def __init__(self, scaling: PolynomialScaling):
+    def __init__(self, scaling: PolynomialScaling[Array]):
         """Initialize ScalingKernel."""
         self._scaling = scaling
         self._bkd = scaling.bkd()
@@ -650,13 +650,13 @@ class ScalingKernel(Generic[Array]):
         # For polynomial scaling (degree 0 or 1), second derivative is zero
         return self._bkd.zeros((nvars, n1, n2))
 
-    def __mul__(self, other: "ScalingKernel") -> "ProductKernel":
+    def __mul__(self, other: "ScalingKernel[Array]") -> "ProductKernel":
         """Multiply two kernels."""
         from pyapprox.surrogates.kernels.composition import ProductKernel
 
         return ProductKernel(self, other)
 
-    def __add__(self, other: "ScalingKernel") -> "SumKernel":
+    def __add__(self, other: "ScalingKernel[Array]") -> "SumKernel":
         """Add two kernels."""
         from pyapprox.surrogates.kernels.composition import SumKernel
 

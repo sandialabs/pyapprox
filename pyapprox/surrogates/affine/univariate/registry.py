@@ -220,7 +220,7 @@ def _register_builtins() -> None:
     )
 
     # Discrete marginals (physical domain polynomials, no transform)
-    def _scipy_discrete_poly_factory(m: ScipyDiscreteMarginal, bkd):
+    def _scipy_discrete_poly_factory(m: ScipyDiscreteMarginal[Array], bkd):
         if m.name == "poisson":
             return CharlierPolynomial1D(bkd, mu=m.shapes["mu"])
         else:

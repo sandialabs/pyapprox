@@ -117,8 +117,8 @@ class DAGMultiOutputKernel(Generic[Array]):
     def __init__(
         self,
         dag: nx.DiGraph,
-        discrepancy_kernels: List[Kernel],
-        edge_scalings: Optional[Dict[Tuple[int, int], ScalingFunctionProtocol]] = None,
+        discrepancy_kernels: List[Kernel[Array]],
+        edge_scalings: Optional[Dict[Tuple[int, int], ScalingFunctionProtocol[Array]]] = None,
     ):
         """
         Initialize the DAGMultiOutputKernel.
@@ -185,7 +185,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         self._discrepancy_kernels = discrepancy_kernels
 
         # Set up edge scalings (default to constant 1.0 if not provided)
-        self._edge_scalings: Dict[Tuple[int, int], ScalingFunctionProtocol] = {}
+        self._edge_scalings: Dict[Tuple[int, int], ScalingFunctionProtocol[Array]] = {}
         if edge_scalings is None:
             edge_scalings = {}
 

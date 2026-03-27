@@ -168,8 +168,8 @@ def make_single_problem_elbo(
     prior: Any,
     base_nodes: Array,
     base_weights: Array,
-    bkd: Backend,
-) -> ELBOObjective:
+    bkd: Backend[Array],
+) -> ELBOObjective[Array]:
     """Create ELBO for single-problem VI (no labels).
 
     For conditional distributions that require a conditioning input x
@@ -221,8 +221,8 @@ def make_single_problem_elbo(
 
 def _compute_normalized_labels(
     observations: List[Array],
-    summary: SummaryStatistic,
-    bkd: Backend,
+    summary: SummaryStatistic[Array],
+    bkd: Backend[Array],
 ) -> Tuple[Array, Array, Array]:
     """Compute labels from observations via summary and normalize to [-1, 1].
 
@@ -268,12 +268,12 @@ def make_discrete_group_elbo(
     prior: Any,
     base_nodes: Array,
     base_weights: Array,
-    bkd: Backend,
+    bkd: Backend[Array],
     *,
     observations: Optional[List[Array]] = None,
-    summary: Optional[SummaryStatistic] = None,
+    summary: Optional[SummaryStatistic[Array]] = None,
     labels: Optional[Array] = None,
-) -> ELBOObjective:
+) -> ELBOObjective[Array]:
     """Create ELBO for discrete-group amortized VI.
 
     Computes per-group labels by applying ``summary`` to each group's

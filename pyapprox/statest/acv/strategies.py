@@ -45,7 +45,7 @@ class RecursionIndexStrategy(ABC, Generic[Array]):
 
 
 @dataclass(frozen=True)
-class DefaultRecursionStrategy(RecursionIndexStrategy):
+class DefaultRecursionStrategy(RecursionIndexStrategy[Array]):
     """Use the default recursion index [0, 1, 2, ..., nmodels-2]."""
 
     def indices(self, nmodels: int, bkd: Backend[Array]) -> List[Array]:
@@ -56,7 +56,7 @@ class DefaultRecursionStrategy(RecursionIndexStrategy):
 
 
 @dataclass(frozen=True)
-class FixedRecursionStrategy(RecursionIndexStrategy):
+class FixedRecursionStrategy(RecursionIndexStrategy[Array]):
     """Use a single fixed recursion index."""
 
     recursion_index: tuple[Any, ...]
@@ -69,7 +69,7 @@ class FixedRecursionStrategy(RecursionIndexStrategy):
 
 
 @dataclass(frozen=True)
-class ListRecursionStrategy(RecursionIndexStrategy):
+class ListRecursionStrategy(RecursionIndexStrategy[Array]):
     """Use a custom list of recursion indices."""
 
     recursion_indices: tuple[Any, ...]  # tuple[Any, ...] of tuples for hashability
@@ -82,7 +82,7 @@ class ListRecursionStrategy(RecursionIndexStrategy):
 
 
 @dataclass(frozen=True)
-class TreeDepthRecursionStrategy(RecursionIndexStrategy):
+class TreeDepthRecursionStrategy(RecursionIndexStrategy[Array]):
     """Search all recursion trees up to a maximum depth."""
 
     max_depth: int
@@ -96,7 +96,7 @@ class TreeDepthRecursionStrategy(RecursionIndexStrategy):
 
 
 @dataclass(frozen=True)
-class HierarchicalPermutationRecursionStrategy(RecursionIndexStrategy):
+class HierarchicalPermutationRecursionStrategy(RecursionIndexStrategy[Array]):
     """Search all permutations of hierarchical recursion indices.
 
     For nmodels=5, the base hierarchical index is [0, 1, 2, 3].

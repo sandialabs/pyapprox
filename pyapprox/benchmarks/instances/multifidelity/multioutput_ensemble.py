@@ -35,7 +35,7 @@ class MultiOutputEnsembleBenchmark(Generic[Array]):
     def __init__(
         self,
         inner_ensemble,
-        domain: BoxDomain,
+        domain: BoxDomain[Array],
         prior,
         name: str,
         estimated_cost: float,

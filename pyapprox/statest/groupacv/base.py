@@ -62,7 +62,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def __init__(
         self,
-        stat: "MultiOutputStatistic",
+        stat: "MultiOutputStatistic[Array]",
         costs: Array,
         reg_blue: float = 0,
         model_subsets: List[Array] = None,
@@ -526,11 +526,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
         return asketch
 
-    def default_objective(self) -> GroupACVObjective:
+    def default_objective(self) -> GroupACVObjective[Array]:
         """Return the default objective function."""
         return GroupACVLogDetObjective(self._bkd)
 
-    def set_objective(self, objective: GroupACVObjective):
+    def set_objective(self, objective: GroupACVObjective[Array]):
         """Set the objective function."""
         self._objective = objective
 

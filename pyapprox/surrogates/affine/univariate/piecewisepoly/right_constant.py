@@ -9,7 +9,7 @@ class PiecewiseConstantRight(Generic[Array]):
     quadrature rules.
     """
 
-    def __init__(self, nodes: Array, bkd: Backend):
+    def __init__(self, nodes: Array, bkd: Backend[Array]):
         """
         Initialize the PiecewiseConstantRight object.
 

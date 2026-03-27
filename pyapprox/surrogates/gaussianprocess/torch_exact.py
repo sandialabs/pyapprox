@@ -92,7 +92,7 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
         self,
         kernel,
         nvars: int,
-        mean_function: Optional[MeanFunction] = None,
+        mean_function: Optional[MeanFunction[Array]] = None,
         nugget: float = 1e-6,
     ):
         bkd = TorchBkd()

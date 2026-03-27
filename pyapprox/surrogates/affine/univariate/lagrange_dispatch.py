@@ -36,7 +36,7 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _make_numba_lagrange_eval() -> LagrangeEvalImpl:
+def _make_numba_lagrange_eval() -> LagrangeEvalImpl[Array]:
     """Create a numba-backed Lagrange evaluation implementation."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_eval_numba,
@@ -112,7 +112,7 @@ def _generic_lagrange_eval(
     return values
 
 
-def _make_compiled_lagrange_eval() -> LagrangeEvalImpl:
+def _make_compiled_lagrange_eval() -> LagrangeEvalImpl[Array]:
     """Create a torch.compile-wrapped Lagrange evaluation implementation."""
     import torch
 
@@ -133,7 +133,7 @@ def _make_compiled_lagrange_eval() -> LagrangeEvalImpl:
     return impl
 
 
-def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl:
+def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl[Array]:
     """Get the Lagrange evaluation implementation for the given backend.
 
     Automatically selects the best strategy based on the backend type:
@@ -245,7 +245,7 @@ def _generic_lagrange_jacobian(
     return derivs
 
 
-def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl:
+def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
     """Create a numba-backed first derivative implementation."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_jacobian_numba,
@@ -266,7 +266,7 @@ def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl:
     return impl
 
 
-def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl:
+def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
     """Create a torch.compile-wrapped first derivative implementation."""
     import torch
 
@@ -287,7 +287,7 @@ def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl:
     return impl
 
 
-def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
+def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
     """Get the first derivative implementation for the given backend.
 
     Parameters
@@ -401,7 +401,7 @@ def _generic_lagrange_hessian(
     return derivs
 
 
-def _make_numba_lagrange_hessian() -> LagrangeDerivImpl:
+def _make_numba_lagrange_hessian() -> LagrangeDerivImpl[Array]:
     """Create a numba-backed second derivative implementation."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_hessian_numba,
@@ -422,7 +422,7 @@ def _make_numba_lagrange_hessian() -> LagrangeDerivImpl:
     return impl
 
 
-def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl:
+def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl[Array]:
     """Create a torch.compile-wrapped second derivative implementation."""
     import torch
 
@@ -443,7 +443,7 @@ def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl:
     return impl
 
 
-def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
+def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
     """Get the second derivative implementation for the given backend.
 
     Parameters

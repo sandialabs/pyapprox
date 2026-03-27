@@ -155,7 +155,7 @@ def _make_functional(
 def _make_hyperelastic_functional(
     bkd: Backend[Array],
     qoi: str,
-    stress_model: NeoHookeanStress,
+    stress_model: NeoHookeanStress[Array],
     basis: ChebyshevBasis2D[Array],
     mesh: TransformedMesh2D[Array],
     transform: PolarTransform[Array],
@@ -231,7 +231,7 @@ def pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
     """Create a 2D pressurized cylinder benchmark for UQ workflows.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
@@ -381,7 +381,7 @@ def hyperelastic_pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
     """Create a 2D hyperelastic pressurized cylinder benchmark for UQ.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a

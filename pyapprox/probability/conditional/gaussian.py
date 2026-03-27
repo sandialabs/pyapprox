@@ -344,7 +344,7 @@ class ConditionalGaussian(Generic[Array]):
         log_s = self._log_stdev_func(x)  # (1, nsamples)
         return mean + self._bkd.exp(log_s) * base_samples
 
-    def kl_divergence(self, x: Array, prior: "GaussianMarginal") -> Array:
+    def kl_divergence(self, x: Array, prior: "GaussianMarginal[Array]") -> Array:
         """Compute KL(q(.|x) || prior) per sample.
 
         Parameters
@@ -372,7 +372,7 @@ class ConditionalGaussian(Generic[Array]):
             - 0.5
         )
 
-    def base_distribution(self) -> "GaussianMarginal":
+    def base_distribution(self) -> "GaussianMarginal[Array]":
         """Return the base distribution for reparameterization (standard normal)."""
         from pyapprox.probability.univariate.gaussian import (
             GaussianMarginal,

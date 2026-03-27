@@ -77,7 +77,7 @@ class MeshKLE(Generic[Array]):
     def __init__(
         self,
         mesh_coords: Array,
-        kernel: KernelProtocol,
+        kernel: KernelProtocol[Array],
         sigma: float = 1.0,
         mean_field: Union[float, Array] = 0.0,
         use_log: bool = False,

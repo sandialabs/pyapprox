@@ -4,7 +4,7 @@ from pyapprox.optimization.implicitfunction.functionals.mean_squared_error impor
 from pyapprox.util.backends.protocols import Array
 
 
-class TikhonovMSEFunctional(MSEFunctional):
+class TikhonovMSEFunctional(MSEFunctional[Array]):
     """
     Tikhonov regularized Mean Squared Error (MSE) functional.
     """

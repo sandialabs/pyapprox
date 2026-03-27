@@ -213,7 +213,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         """
         return -self._cov_op.covariance_inverse()
 
-    def kl_divergence(self, other: "DenseCholeskyMultivariateGaussian") -> float:
+    def kl_divergence(self, other: "DenseCholeskyMultivariateGaussian[Array]") -> float:
         """
         Compute KL divergence KL(self || other).
 

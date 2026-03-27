@@ -302,7 +302,7 @@ def make_parallel(
     function: object,
     backend: str = "joblib_processes",
     n_jobs: int = -1,
-) -> ParallelFunctionWrapper:
+) -> ParallelFunctionWrapper[Array]:
     """Create parallel wrapper for a function.
 
     Auto-detects jacobian, hvp, whvp methods and adds batch versions.

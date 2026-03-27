@@ -563,7 +563,7 @@ class _ContinuousNumericOrthonormalPolynomial1DBase(
 
         # Choose integrator based on domain boundedness
         if self._marginal.is_bounded():
-            integrator: IntegratorProtocol = GaussLegendreIntegrator(
+            integrator: IntegratorProtocol[Array] = GaussLegendreIntegrator(
                 bkd, self._nquad_points
             )
         else:

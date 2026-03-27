@@ -101,8 +101,8 @@ class MultiLevelKernel(Generic[Array]):
 
     def __init__(
         self,
-        kernels: List[Kernel],
-        scalings: List[ScalingFunctionProtocol],
+        kernels: List[Kernel[Array]],
+        scalings: List[ScalingFunctionProtocol[Array]],
     ):
         """
         Initialize the MultiLevelKernel.
@@ -138,7 +138,7 @@ class MultiLevelKernel(Generic[Array]):
         dag.add_edges_from(edges)
 
         # Map scalings to edges
-        edge_scalings: Dict[Tuple[int, int], ScalingFunctionProtocol] = {}
+        edge_scalings: Dict[Tuple[int, int], ScalingFunctionProtocol[Array]] = {}
         for i, scaling in enumerate(scalings):
             edge_scalings[(i, i + 1)] = scaling
 

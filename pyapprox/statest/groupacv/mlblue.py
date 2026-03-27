@@ -46,7 +46,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
 
     def __init__(
         self,
-        stat: "MultiOutputStatistic",
+        stat: "MultiOutputStatistic[Array]",
         costs: Array,
         reg_blue: float = 0,
         model_subsets: List[Array] = None,

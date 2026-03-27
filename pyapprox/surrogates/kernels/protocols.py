@@ -328,7 +328,7 @@ class Kernel(ABC, Generic[Array]):
         List of hyperparameters associated with the kernel.
     """
 
-    def __init__(self, backend: Backend):
+    def __init__(self, backend: Backend[Array]):
         """
         Initialize the Kernel.
 
@@ -386,7 +386,7 @@ class Kernel(ABC, Generic[Array]):
         """
         raise NotImplementedError()
 
-    def __mul__(self, other: "Kernel") -> "ProductKernel":
+    def __mul__(self, other: "Kernel[Array]") -> "ProductKernel":
         """
         Multiply two kernels element-wise.
 
@@ -404,7 +404,7 @@ class Kernel(ABC, Generic[Array]):
 
         return ProductKernel(self, other)
 
-    def __add__(self, other: "Kernel") -> "SumKernel":
+    def __add__(self, other: "Kernel[Array]") -> "SumKernel":
         """
         Add two kernels element-wise.
 

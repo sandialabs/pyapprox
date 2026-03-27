@@ -9,7 +9,7 @@ class PiecewiseCubic(Generic[Array]):
     quadrature weights.
     """
 
-    def __init__(self, nodes: Array, bkd: Backend):
+    def __init__(self, nodes: Array, bkd: Backend[Array]):
         """
         Initialize the PiecewiseCubic object.
 

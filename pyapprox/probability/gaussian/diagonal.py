@@ -208,7 +208,7 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         residuals = samples - self._mean
         return self._logpdf_core.compute_gradient(residuals)
 
-    def kl_divergence(self, other: "DiagonalMultivariateGaussian") -> float:
+    def kl_divergence(self, other: "DiagonalMultivariateGaussian[Array]") -> float:
         """
         Compute KL divergence KL(self || other).
 

@@ -42,7 +42,7 @@ class TimeIntegrator(Generic[Array]):
         init_time: float,
         final_time: float,
         deltat: float,
-        newton_solver: NewtonSolver,
+        newton_solver: NewtonSolver[Array],
         verbosity: int = 0,
     ):
         time_residual = newton_solver.residual()
@@ -60,7 +60,7 @@ class TimeIntegrator(Generic[Array]):
         return self._bkd
 
     def set_functional(
-        self, functional: TransientFunctionalWithJacobianProtocol
+        self, functional: TransientFunctionalWithJacobianProtocol[Array]
     ) -> None:
         """
         Set the functional for gradient computation.

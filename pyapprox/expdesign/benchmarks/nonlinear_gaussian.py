@@ -347,7 +347,7 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
 )
 def _nonlinear_gaussian_oed_factory(
     bkd: Backend[Array],
-) -> NonLinearGaussianOEDBenchmark:
+) -> NonLinearGaussianOEDBenchmark[Array]:
     return NonLinearGaussianOEDBenchmark(
         nobs=10,
         degree=3,

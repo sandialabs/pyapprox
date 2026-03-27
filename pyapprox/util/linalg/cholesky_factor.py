@@ -15,7 +15,7 @@ class CholeskyFactor(Generic[Array]):
         Backend for numerical computations
     """
 
-    def __init__(self, L: Array, bkd: Backend) -> None:
+    def __init__(self, L: Array, bkd: Backend[Array]) -> None:
         self._L = L
         self._bkd = bkd
 

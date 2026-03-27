@@ -61,7 +61,7 @@ class IndependentMultiOutputKernel(Generic[Array]):
     >>> K_blocks = mo_kernel(X1, block_format=True)  # List of blocks
     """
 
-    def __init__(self, kernels: List[Kernel]):
+    def __init__(self, kernels: List[Kernel[Array]]):
         """
         Initialize the IndependentMultiOutputKernel.
 

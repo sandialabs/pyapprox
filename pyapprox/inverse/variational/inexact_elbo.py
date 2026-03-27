@@ -241,8 +241,8 @@ def make_inexact_single_problem_elbo(
     log_likelihood_fn: Callable[..., Any],
     prior: Any,
     strategy: Any,
-    bkd: Backend,
-) -> InexactELBOObjective:
+    bkd: Backend[Array],
+) -> InexactELBOObjective[Array]:
     """Create inexact ELBO for single-problem VI (no labels).
 
     Like ``make_single_problem_elbo`` but uses a strategy for
@@ -288,12 +288,12 @@ def make_inexact_discrete_group_elbo(
     log_likelihood_fns: List[Callable[..., Any]],
     prior: Any,
     strategy: Any,
-    bkd: Backend,
+    bkd: Backend[Array],
     *,
     observations: Optional[List[Array]] = None,
-    summary: Optional[SummaryStatistic] = None,
+    summary: Optional[SummaryStatistic[Array]] = None,
     labels: Optional[Array] = None,
-) -> InexactELBOObjective:
+) -> InexactELBOObjective[Array]:
     """Create inexact ELBO for discrete-group amortized VI.
 
     Like ``make_discrete_group_elbo`` but uses a strategy for

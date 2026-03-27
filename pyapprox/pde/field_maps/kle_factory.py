@@ -53,7 +53,7 @@ def create_lognormal_kle_field_map(
     mesh_coords: Array,
     mean_log_field: Array,
     bkd: Backend[Array],
-    kernel: Optional[KernelProtocol] = None,
+    kernel: Optional[KernelProtocol[Array]] = None,
     correlation_length: float = 0.3,
     num_kle_terms: int = 2,
     sigma: float = 0.3,
@@ -152,11 +152,11 @@ def _build_phi_matrix(skfem_basis) -> np.ndarray:
 
 def create_fem_galerkin_kle(
     skfem_basis,
-    kernel: KernelProtocol,
+    kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
     bkd: Backend[Array],
-) -> GalerkinKLE:
+) -> GalerkinKLE[Array]:
     """Create a KLE via Galerkin projection: C_h Phi = M Phi Lambda.
 
     Assembles the covariance matrix C_h by evaluating the kernel at
@@ -214,11 +214,11 @@ def create_fem_galerkin_kle(
 
 def create_fem_nystrom_nodes_kle(
     skfem_basis,
-    kernel: KernelProtocol,
+    kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
     bkd: Backend[Array],
-) -> MeshKLE:
+) -> MeshKLE[Array]:
     """Create a KLE via Nystrom method at FEM nodes with lumped mass weights.
 
     Uses the mesh nodal coordinates as collocation points and lumped mass
@@ -263,11 +263,11 @@ def create_fem_nystrom_nodes_kle(
 
 def create_fem_nystrom_quadrature_kle(
     skfem_basis,
-    kernel: KernelProtocol,
+    kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
     bkd: Backend[Array],
-) -> MeshKLE:
+) -> MeshKLE[Array]:
     """Create a KLE via Nystrom method at Gauss quadrature points.
 
     Uses the FEM quadrature points as collocation points and the
@@ -373,7 +373,7 @@ def create_spde_matern_kle(
     bkd: Backend[Array],
     xi: Optional[float] = None,
     mean_field: Union[float, Array] = 0.0,
-) -> SPDEMaternKLE:
+) -> SPDEMaternKLE[Array]:
     r"""Create a KLE via the SPDE representation of a Matern random field.
 
     Uses :class:`BiLaplacianPrior` to assemble the sparse precision

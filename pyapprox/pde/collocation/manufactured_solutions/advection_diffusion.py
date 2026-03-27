@@ -22,7 +22,7 @@ class ManufacturedAdvectionDiffusionReaction(
     DiffusionMixin,
     ReactionMixin,
     AdvectionMixin,
-    ManufacturedSolution,
+    ManufacturedSolution[Array],
     Generic[Array],
 ):
     """Manufactured solution for advection-diffusion-reaction equations.

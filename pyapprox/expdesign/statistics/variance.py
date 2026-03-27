@@ -111,7 +111,7 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         return "SampleAverageVariance()"
 
 
-class SampleAverageStdev(SampleAverageVariance, Generic[Array]):
+class SampleAverageStdev(SampleAverageVariance[Array], Generic[Array]):
     """
     Compute weighted standard deviation: StdDev[f] = sqrt(Var[f]).
 

@@ -40,7 +40,7 @@ def create_linear_pressurized_cylinder_2d(
     E_mean: float,
     poisson_ratio: float,
     inner_pressure: float,
-    field_map: FieldMapProtocol,
+    field_map: FieldMapProtocol[Array],
     forcing: Optional[Callable[..., Any]] = None,
     functional=None,
 ) -> SteadyForwardModel[Array]:

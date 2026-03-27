@@ -145,7 +145,7 @@ class VectorLagrangeBasis(Generic[Array]):
         """Return the underlying skfem Basis object (vector-valued)."""
         return self._skfem_basis
 
-    def scalar_basis(self) -> LagrangeBasis:
+    def scalar_basis(self) -> LagrangeBasis[Array]:
         """Return the scalar Lagrange basis for components."""
         return self._scalar_basis
 

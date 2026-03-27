@@ -151,10 +151,10 @@ class MaxIndicesCriteria(AdmissibilityCriteria[Array], Generic[Array]):
     def __init__(self, max_nindices: int, bkd: Backend[Array]):
         self._max_nindices = max_nindices
         self._bkd = bkd
-        self._generator: Optional["IterativeIndexGenerator"] = None
+        self._generator: Optional["IterativeIndexGenerator[Array]"] = None
         self._count: int = 0
 
-    def set_generator(self, generator: "IterativeIndexGenerator") -> None:
+    def set_generator(self, generator: "IterativeIndexGenerator[Array]") -> None:
         """Set the index generator to track index count."""
         self._generator = generator
         self._count = generator.nindices()

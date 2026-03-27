@@ -21,7 +21,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
-class MaternKernel(Kernel):
+class MaternKernel(Kernel[Array]):
     """
     Abstract base class for Matern kernel family.
 

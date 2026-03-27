@@ -360,7 +360,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic,
+        stat: MultiOutputStatistic[Array],
         costs: Union[List[Any], Array],
         opt_criteria=None,
         opt_qoi: int = 0,
@@ -434,7 +434,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic,
+        stat: MultiOutputStatistic[Array],
         costs: Union[List[Any], Array],
         opt_criteria=None,
         opt_qoi: int = 0,

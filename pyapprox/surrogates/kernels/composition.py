@@ -15,7 +15,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
 
-class CompositionKernel(Kernel, Generic[Array]):
+class CompositionKernel(Kernel[Array], Generic[Array]):
     """
     Base class for kernel compositions.
 
@@ -57,7 +57,7 @@ class CompositionKernel(Kernel, Generic[Array]):
     each component kernel's capabilities and conditionally assigns public methods.
     """
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
+    def __init__(self, kernel1: Kernel[Array], kernel2: Kernel[Array]):
         """
         Initialize the CompositionKernel.
 
@@ -144,7 +144,7 @@ class CompositionKernel(Kernel, Generic[Array]):
         return self._kernel1.nvars()
 
 
-class ProductKernel(CompositionKernel):
+class ProductKernel(CompositionKernel[Array]):
     """
     Product of two kernels (element-wise multiplication).
 
@@ -444,7 +444,7 @@ class ProductKernel(CompositionKernel):
         return term1 + term2 + term3 + term4
 
 
-class SumKernel(CompositionKernel):
+class SumKernel(CompositionKernel[Array]):
     """
     Sum of two kernels (element-wise addition).
 
@@ -651,7 +651,7 @@ class SumKernel(CompositionKernel):
         return HK1_V + HK2_V
 
 
-class SeparableProductKernel(Kernel, Generic[Array]):
+class SeparableProductKernel(Kernel[Array], Generic[Array]):
     """
     Product kernel constructed from 1D kernels, one per dimension.
 
@@ -714,7 +714,7 @@ class SeparableProductKernel(Kernel, Generic[Array]):
         """Return the number of input dimensions."""
         return self._nvars
 
-    def get_kernel_1d(self, dim: int) -> Kernel:
+    def get_kernel_1d(self, dim: int) -> Kernel[Array]:
         """
         Get the 1D kernel for a specific dimension.
 

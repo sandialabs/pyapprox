@@ -43,8 +43,8 @@ class ForresterEnsembleBenchmark(Generic[Array]):
     def __init__(
         self,
         inner_ensemble: ForresterEnsemble[Array],
-        domain: BoxDomain,
-        prior: IndependentJoint,
+        domain: BoxDomain[Array],
+        prior: IndependentJoint[Array],
         name: str,
         estimated_cost: float,
     ) -> None:
@@ -63,10 +63,10 @@ class ForresterEnsembleBenchmark(Generic[Array]):
     def nmodels(self) -> int:
         return self._ensemble.nmodels()
 
-    def domain(self) -> BoxDomain:
+    def domain(self) -> BoxDomain[Array]:
         return self._domain
 
-    def prior(self) -> IndependentJoint:
+    def prior(self) -> IndependentJoint[Array]:
         return self._prior
 
     def costs(self) -> Array:

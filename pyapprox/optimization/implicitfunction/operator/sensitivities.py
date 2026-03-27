@@ -113,7 +113,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         """
         return self._bkd
 
-    def storage(self) -> AdjointOperatorStorage:
+    def storage(self) -> AdjointOperatorStorage[Array]:
         """
         Return the adjoint operator storage.
 

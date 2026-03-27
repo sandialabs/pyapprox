@@ -33,7 +33,7 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 TpEvalImpl = Callable[[List[Array], Array, List[int], Backend[Array]], Array]
 
 
-def _make_numba_tp_eval() -> TpEvalImpl:
+def _make_numba_tp_eval() -> TpEvalImpl[Array]:
     """Create a Numba-backed tp_eval implementation.
 
     Wraps the raw Numba kernel by converting List[Array] to padded
@@ -74,7 +74,7 @@ def _make_numba_tp_eval() -> TpEvalImpl:
     return impl
 
 
-def _make_compiled_tp_eval() -> TpEvalImpl:
+def _make_compiled_tp_eval() -> TpEvalImpl[Array]:
     """Create a torch.compile-wrapped tp_eval implementation.
 
     Uses torch.einsum directly (bypassing bkd.*) to avoid graph breaks
@@ -99,7 +99,7 @@ def _make_compiled_tp_eval() -> TpEvalImpl:
     return impl
 
 
-def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl:
+def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl[Array]:
     """Get the tensor product evaluation implementation for the given backend.
 
     Automatically selects the best strategy based on the backend type:

@@ -265,7 +265,7 @@ def make_importance_check_from_elbo(
     log_prior_fn: Callable[..., Any],
     n_diagnostic_samples: int = 200,
     gap_ratio_threshold: float = 10.0,
-) -> ImportanceWeightedCheck:
+) -> ImportanceWeightedCheck[Array]:
     """Create an ImportanceWeightedCheck from an existing ELBO objective.
 
     Extracts the variational distribution, log-likelihood function,
@@ -310,7 +310,7 @@ class _NullContext:
         pass
 
 
-def _get_no_grad_context(bkd: Backend) -> type:
+def _get_no_grad_context(bkd: Backend[Array]) -> type:
     """Return torch.no_grad if using TorchBkd, else a no-op context."""
     if hasattr(bkd, "jacobian"):
         import torch

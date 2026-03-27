@@ -508,7 +508,7 @@ class ConditionalBeta(Generic[Array]):
         # Scale from [0, 1] to [lb, ub]
         return self._bkd.reshape(self._lb + x1 * self._scale, (1, -1))
 
-    def kl_divergence(self, x: Array, prior: "BetaMarginal") -> Array:
+    def kl_divergence(self, x: Array, prior: "BetaMarginal[Array]") -> Array:
         """Compute KL(q(.|x) || prior) per sample.
 
         Parameters

@@ -143,7 +143,7 @@ def _grouped_acv_sigma_block(
     nsamples_intersect: int,
     nsamples_subset0: int,
     nsamples_subset1: int,
-    stat: "MultiOutputStatistic",
+    stat: "MultiOutputStatistic[Array]",
 ) -> Array:
     """
     Compute a single block of the grouped ACV covariance matrix.
@@ -194,7 +194,7 @@ def _grouped_acv_sigma(
     nmodels: int,
     nsamples_intersect: Array,
     subsets: List[Array],
-    stat: "MultiOutputStatistic",
+    stat: "MultiOutputStatistic[Array]",
 ) -> List[List[Array]]:
     """
     Compute the full grouped ACV covariance matrix as nested lists of blocks.

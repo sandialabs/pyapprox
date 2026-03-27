@@ -22,7 +22,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 def cantilever_beam_2d_analytical(
     bkd: Backend[Array],
     length: float = 100.0,
-) -> BenchmarkWithPrior:
+) -> BenchmarkWithPrior[Array]:
     """Create an analytical 2D cantilever beam benchmark.
 
     The model computes [max_stress, tip_displacement] from
@@ -93,5 +93,5 @@ def cantilever_beam_2d_analytical(
 )
 def _cantilever_beam_2d_analytical_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior:
+) -> BenchmarkWithPrior[Array]:
     return cantilever_beam_2d_analytical(bkd)

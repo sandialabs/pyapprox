@@ -24,7 +24,7 @@ class HyperParameterList:
 
     def __init__(
         self,
-        hyperparam_list: List[HyperParameter],
+        hyperparam_list: List[HyperParameter[Array]],
         bkd: Optional[Backend[Array]] = None,
     ):
         """Initialize the HyperParameterList."""
@@ -49,7 +49,7 @@ class HyperParameterList:
         return self._bkd
 
     def _validate_hyperparameters(
-        self, hyperparam_list: List[HyperParameter], bkd: Optional[Backend[Array]]
+        self, hyperparam_list: List[HyperParameter[Array]], bkd: Optional[Backend[Array]]
     ) -> None:
         """
         Validate the list of hyperparameters.
@@ -63,7 +63,7 @@ class HyperParameterList:
         if hyperparam_list:
             validate_backends([hyperparam.bkd() for hyperparam in hyperparam_list])
 
-    def hyperparameters(self) -> List[HyperParameter]:
+    def hyperparameters(self) -> List[HyperParameter[Array]]:
         """
         Return the list of hyperparameters.
 

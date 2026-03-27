@@ -147,7 +147,7 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         return self._bkd.hstack((logdet,))[:, None]
 
 
-class MLBLUEObjective(GroupACVTraceObjective):
+class MLBLUEObjective(GroupACVTraceObjective[Array]):
     """MLBLUE-specific trace objective with analytical derivatives.
 
     Provides analytical Jacobian and Hessian for MLBLUE optimization.

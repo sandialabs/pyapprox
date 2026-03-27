@@ -283,7 +283,7 @@ class UnboundedAffineTransform1D(Generic[Array]):
 
 def get_transform_from_marginal(
     marginal, bkd: Backend[Array]
-) -> Univariate1DTransformProtocol:
+) -> Univariate1DTransformProtocol[Array]:
     """Get the appropriate transform for a marginal distribution.
 
     This function uses the marginal registry to determine the correct

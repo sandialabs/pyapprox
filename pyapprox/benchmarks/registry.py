@@ -25,7 +25,7 @@ class BenchmarkRegistry(Generic[Array]):
     >>> benchmark = BenchmarkRegistry.get("ishigami_3d", bkd)
     """
 
-    _benchmarks: Dict[str, BenchmarkFactory] = {}
+    _benchmarks: Dict[str, BenchmarkFactory[Array]] = {}
     _categories: Dict[str, List[str]] = {}
     _descriptions: Dict[str, str] = {}
 
@@ -35,7 +35,7 @@ class BenchmarkRegistry(Generic[Array]):
         name: str,
         category: str,
         description: str = "",
-    ) -> Callable[[BenchmarkFactory], BenchmarkFactory]:
+    ) -> Callable[[BenchmarkFactory[Array]], BenchmarkFactory[Array]]:
         """Decorator to register a benchmark factory.
 
         Parameters
@@ -53,7 +53,7 @@ class BenchmarkRegistry(Generic[Array]):
             Decorator function.
         """
 
-        def decorator(factory: BenchmarkFactory) -> BenchmarkFactory:
+        def decorator(factory: BenchmarkFactory[Array]) -> BenchmarkFactory[Array]:
             cls._benchmarks[name] = factory
             if category not in cls._categories:
                 cls._categories[category] = []

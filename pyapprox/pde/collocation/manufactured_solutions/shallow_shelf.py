@@ -199,7 +199,7 @@ class ManufacturedShallowShelfVelocityEquations(
 
 
 class ManufacturedShallowShelfVelocityAndDepthEquations(
-    ManufacturedShallowShelfVelocityEquations
+    ManufacturedShallowShelfVelocityEquations[Array]
 ):
     """Manufactured solution for SSA with both velocity and depth evolution.
 

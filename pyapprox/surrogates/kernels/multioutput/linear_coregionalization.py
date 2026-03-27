@@ -74,7 +74,7 @@ class LinearCoregionalizationKernel(Generic[Array]):
 
     def __init__(
         self,
-        kernels: List[Kernel],
+        kernels: List[Kernel[Array]],
         coregionalization_matrices: List[Array],
         noutputs: int,
     ):

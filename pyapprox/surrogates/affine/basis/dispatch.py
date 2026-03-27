@@ -77,7 +77,7 @@ def _stack_1d_arrays_for_numba(
 # --- Public dispatch functions ---
 
 
-def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl:
+def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl[Array]:
     """Get the basis evaluation implementation for the given backend.
 
     Automatically selects the best implementation based on backend type.
@@ -124,7 +124,7 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl:
     return basis_eval_vectorized
 
 
-def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl:
+def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
     """Get the basis Jacobian implementation for the given backend.
 
     Parameters
@@ -172,7 +172,7 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl:
     return basis_jacobian_vectorized
 
 
-def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl:
+def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
     """Get the basis Hessian implementation for the given backend.
 
     Parameters
@@ -226,7 +226,7 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl:
 # --- torch.compile wrapper factories ---
 
 
-def _make_compiled_eval() -> BasisEvalImpl:
+def _make_compiled_eval() -> BasisEvalImpl[Array]:
     """Create a torch.compile-wrapped basis eval implementation."""
     import torch
 
@@ -247,7 +247,7 @@ def _make_compiled_eval() -> BasisEvalImpl:
     return impl
 
 
-def _make_compiled_jacobian() -> BasisJacobianImpl:
+def _make_compiled_jacobian() -> BasisJacobianImpl[Array]:
     """Create a torch.compile-wrapped basis Jacobian implementation."""
     import torch
 
@@ -269,7 +269,7 @@ def _make_compiled_jacobian() -> BasisJacobianImpl:
     return impl
 
 
-def _make_compiled_hessian() -> BasisHessianImpl:
+def _make_compiled_hessian() -> BasisHessianImpl[Array]:
     """Create a torch.compile-wrapped basis Hessian implementation."""
     import torch
 

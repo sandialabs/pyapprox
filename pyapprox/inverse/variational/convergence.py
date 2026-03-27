@@ -132,8 +132,8 @@ class VIConvergenceMonitor(Generic[Array]):
 
 
 def make_rol_convergence_status_test(
-    monitor: VIConvergenceMonitor,
-    bkd: Backend,
+    monitor: VIConvergenceMonitor[Array],
+    bkd: Backend[Array],
 ) -> object:
     """Create a ROL StatusTest that delegates to a VIConvergenceMonitor.
 
@@ -154,8 +154,8 @@ def make_rol_convergence_status_test(
     class _ROLStatusTest(pyrol.pyrol.ROL.StatusTest_double_t):
         def __init__(
             self,
-            mon: VIConvergenceMonitor,
-            backend: Backend,
+            mon: VIConvergenceMonitor[Array],
+            backend: Backend[Array],
         ) -> None:
             super().__init__()
             self._monitor = mon
@@ -173,8 +173,8 @@ def make_rol_convergence_status_test(
 
 
 def make_scipy_convergence_callback(
-    monitor: VIConvergenceMonitor,
-    bkd: Backend,
+    monitor: VIConvergenceMonitor[Array],
+    bkd: Backend[Array],
 ) -> Callable[..., Any]:
     """Create a scipy trust-constr callback from a VIConvergenceMonitor.
 

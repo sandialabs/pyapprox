@@ -19,7 +19,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
     rather than computing all these individual jacobians and HVPs
     """
 
-    def __init__(self, backend: Backend):
+    def __init__(self, backend: Backend[Array]):
         """
         Initialize the StateEquationsWithAutoGrad object.
 
@@ -32,7 +32,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         self._bkd = backend
         self._param = self._bkd.zeros((self.nparams(),))
 
-    def _validate_backend(self, backend: Backend) -> None:
+    def _validate_backend(self, backend: Backend[Array]) -> None:
         """
         Validate the backend.
 

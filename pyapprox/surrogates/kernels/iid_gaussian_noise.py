@@ -12,7 +12,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
-class IIDGaussianNoise(Kernel):
+class IIDGaussianNoise(Kernel[Array]):
     """
     IID Gaussian noise kernel for modeling independent observation noise.
 

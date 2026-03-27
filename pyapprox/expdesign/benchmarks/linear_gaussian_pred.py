@@ -338,7 +338,7 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
 )
 def _linear_gaussian_pred_oed_factory(
     bkd: Backend[Array],
-) -> LinearGaussianPredOEDBenchmark:
+) -> LinearGaussianPredOEDBenchmark[Array]:
     return LinearGaussianPredOEDBenchmark(
         nobs=10,
         degree=3,

@@ -97,7 +97,7 @@ def _check_torch_compile_available() -> None:
     )
 
 
-def _make_compiled_logpdf() -> LogpdfMatrixImpl:
+def _make_compiled_logpdf() -> LogpdfMatrixImpl[Array]:
     """Create a torch.compile-wrapped logpdf_matrix implementation."""
     import torch
 
@@ -120,7 +120,7 @@ def _make_compiled_logpdf() -> LogpdfMatrixImpl:
     return impl
 
 
-def _make_compiled_jacobian() -> JacobianMatrixImpl:
+def _make_compiled_jacobian() -> JacobianMatrixImpl[Array]:
     """Create a torch.compile-wrapped jacobian_matrix implementation."""
     import torch
 
@@ -158,7 +158,7 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl:
     return impl
 
 
-def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
+def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl[Array]:
     """Create a torch.compile-wrapped evidence jacobian implementation."""
     import torch
 
@@ -205,7 +205,7 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
 
 def get_logpdf_matrix_impl(
     bkd: Backend[Array],
-) -> LogpdfMatrixImpl:
+) -> LogpdfMatrixImpl[Array]:
     """Get the logpdf_matrix implementation for the given backend.
 
     Dispatch order:
@@ -248,7 +248,7 @@ def get_logpdf_matrix_impl(
 
 def get_jacobian_matrix_impl(
     bkd: Backend[Array],
-) -> JacobianMatrixImpl:
+) -> JacobianMatrixImpl[Array]:
     """Get the jacobian_matrix implementation for the given backend.
 
     Dispatch order:
@@ -300,7 +300,7 @@ def get_jacobian_matrix_impl(
 
 def get_evidence_jacobian_impl(
     bkd: Backend[Array],
-) -> EvidenceJacobianImpl:
+) -> EvidenceJacobianImpl[Array]:
     """Get the fused evidence jacobian implementation for the given backend.
 
     For NumPy+Numba: uses the fused kernel that avoids 3D materialization.

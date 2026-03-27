@@ -256,7 +256,7 @@ def elastic_bar_1d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
     """Create a 1D elastic bar benchmark for UQ workflows.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a

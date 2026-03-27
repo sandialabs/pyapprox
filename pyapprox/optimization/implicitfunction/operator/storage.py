@@ -14,7 +14,7 @@ class AdjointOperatorStorage(Generic[Array]):
     including state and QoI Jacobians, forward states, and adjoint states.
     """
 
-    def __init__(self, nstates: int, nparams: int, bkd: Backend):
+    def __init__(self, nstates: int, nparams: int, bkd: Backend[Array]):
         """
         Initialize the AdjointOperatorStorage object.
 

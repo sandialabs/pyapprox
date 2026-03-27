@@ -19,7 +19,7 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
-class GeneralMaternKernel(Kernel):
+class GeneralMaternKernel(Kernel[Array]):
     """
     General Matern kernel with arbitrary smoothness parameter nu.
 
