@@ -12,7 +12,11 @@ Uses Taylor-Hood elements: P2 velocity, P1 pressure.
 State vector layout: [vel_dofs | pres_dofs].
 """
 
-from typing import Any, Callable, Generic, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+    from skfem.element.discrete_field import DiscreteField
 
 import numpy as np
 from scipy.sparse import block_diag as sp_block_diag
@@ -143,8 +147,12 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
                 dof_arr = np.asarray(bndry_dofs).flatten()
                 coords = self._vel_skfem_basis.doflocs[:, dof_arr]
 
-                def _make_vel_value_func(func, crds, comp_idx):
-                    def value_func(time):
+                def _make_vel_value_func(
+                    func: Callable[..., np.ndarray],
+                    crds: np.ndarray,
+                    comp_idx: int,
+                ) -> Callable[[float], np.ndarray]:
+                    def value_func(time: float) -> np.ndarray:
                         try:
                             vals = func(crds, time)
                         except TypeError:
@@ -169,8 +177,11 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             shifted_p_dofs = p_dofs_arr + self.vel_ndofs()
             coords = self._pres_skfem_basis.doflocs[:, p_dofs_arr]
 
-            def _make_pres_value_func(func, crds):
-                def value_func(time):
+            def _make_pres_value_func(
+                func: Callable[..., np.ndarray],
+                crds: np.ndarray,
+            ) -> Callable[[float], np.ndarray]:
+                def value_func(time: float) -> np.ndarray:
                     try:
                         vals = func(crds, time)
                     except TypeError:
@@ -215,7 +226,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     # Assembly
     # ------------------------------------------------------------------
 
-    def _assemble_viscous_stiffness(self):
+    def _assemble_viscous_stiffness(self) -> csr_matrix:
         """Assemble viscous stiffness A = viscosity * vector_laplace."""
         if self._A_cached is None:
             self._A_cached = self._viscosity * asm(
@@ -223,7 +234,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             )
         return self._A_cached
 
-    def _assemble_divergence(self):
+    def _assemble_divergence(self) -> csr_matrix:
         """Assemble divergence operator B = -divergence(vel, pres)."""
         if self._B_cached is None:
             self._B_cached = -asm(
@@ -231,7 +242,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             )
         return self._B_cached
 
-    def _assemble_block_stiffness(self, state_np=None):
+    def _assemble_block_stiffness(
+        self, state_np: Optional[np.ndarray] = None,
+    ) -> csr_matrix:
         """Assemble the full block stiffness matrix.
 
         For Stokes: K = [[A, B^T], [B, 0]]
@@ -254,7 +267,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
         return bmat([[A, B.T], [B, None]], "csr")
 
-    def _prepare_points(self, x_np: np.ndarray):
+    def _prepare_points(
+        self, x_np: np.ndarray,
+    ) -> Tuple[np.ndarray, Optional[Tuple[int, int]]]:
         """Convert skfem quadrature points to manufactured solution format.
 
         Parameters
@@ -296,7 +311,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         current_time = time
         prepare_points = self._prepare_points
 
-        def vel_load_form(v, w):
+        def vel_load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x_np = np.asarray(w.x)
             x_eval, orig_shape = prepare_points(x_np)
 
@@ -324,7 +339,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         current_time = time
         prepare_points = self._prepare_points
 
-        def pres_load_form(v, w):
+        def pres_load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x_np = np.asarray(w.x)
             x_eval, orig_shape = prepare_points(x_np)
 
@@ -353,7 +368,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _ns_linearized_form(u, v, w):
+    def _ns_linearized_form(
+        u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams",
+    ) -> np.ndarray:
         """Linearized Navier-Stokes convective term for Jacobian.
 
         Computes v_i*(u_j*dz_i/dx_j + z_j*du_i/dx_j) where z = u_prev.
@@ -373,7 +390,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         raise NotImplementedError("Only 1D and 2D Navier-Stokes supported")
 
     @staticmethod
-    def _ns_nonlinear_residual_form(v, w):
+    def _ns_nonlinear_residual_form(
+        v: "DiscreteField", w: "FormExtraParams",
+    ) -> np.ndarray:
         """Nonlinear Navier-Stokes residual contribution.
 
         Computes v_i*(u_j*du_i/dx_j) where u = u_prev.
@@ -508,7 +527,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         if self._vel_mass_cached is not None:
             return self._vel_mass_cached
 
-        def vector_mass_form(u, v, w):
+        def vector_mass_form(
+            u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams",
+        ) -> np.ndarray:
             return sum(u[i] * v[i] for i in range(len(u)))
 
         self._vel_mass_cached = asm(

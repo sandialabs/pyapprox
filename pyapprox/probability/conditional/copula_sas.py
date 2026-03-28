@@ -11,8 +11,15 @@ logpdf:
   both marginal logpdf and copula density
 """
 
+from __future__ import annotations
+
 import math
-from typing import Generic, List
+from typing import TYPE_CHECKING, Generic, List
+
+if TYPE_CHECKING:
+    from pyapprox.probability.joint.independent import (
+        IndependentJoint,
+    )
 
 import numpy as np
 
@@ -185,7 +192,7 @@ class ConditionalCopulaSAS(Generic[Array]):
         )
         return self.reparameterize(x, base)
 
-    def base_distribution(self):
+    def base_distribution(self) -> IndependentJoint[Array]:
         """Return the base distribution: N(0, I_d)."""
         from pyapprox.probability.joint.independent import IndependentJoint
         from pyapprox.probability.univariate.gaussian import GaussianMarginal

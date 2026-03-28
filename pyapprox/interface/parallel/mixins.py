@@ -6,6 +6,8 @@ capabilities to classes that implement single-sample methods.
 
 from typing import Generic, Optional, Union
 
+from numpy.typing import NDArray
+
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
 from pyapprox.interface.parallel.config import (
     ParallelConfig,
@@ -266,7 +268,9 @@ class ParallelWHVPMixin(Generic[Array]):
 
         weights_np = transfer.to_numpy(weights)
 
-        def whvp_with_weights(sample_np, vec_np):
+        def whvp_with_weights(
+            sample_np: NDArray, vec_np: NDArray,
+        ) -> NDArray:
             sample = transfer.from_numpy(sample_np)
             vec = transfer.from_numpy(vec_np)
             w = transfer.from_numpy(weights_np)

@@ -6,8 +6,9 @@ optimization.
 """
 
 from abc import abstractmethod
-from typing import (    Any,
-TYPE_CHECKING,
+from typing import (
+    TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     List,
@@ -29,6 +30,9 @@ from pyapprox.statest.statistics import (
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
+    from pyapprox.optimization.minimize.protocols import (
+        BindableOptimizerProtocol,
+    )
     from pyapprox.statest.acv.allocation import ACVAllocationResult
 
 
@@ -582,7 +586,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             acv_values, weights, len(values_per_model)
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._optimized_criteria is None:
             if not hasattr(self, "_recursion_index"):
                 return "{0}(stat={1})".format(self.__class__.__name__, self._stat)
@@ -614,7 +618,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """return allocation matrix as backend array"""
         return self._bkd.asarray(self._allocation_mat)
 
-    def _set_recursion_index(self, index: Array):
+    def _set_recursion_index(self, index: Array) -> None:
         """Set the recursion index of the parameterically defined ACV
         Estimator.
         """
@@ -659,7 +663,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         )
         return bounds
 
-    def get_default_optimizer(self):
+    def get_default_optimizer(
+        self,
+    ) -> "BindableOptimizerProtocol[Array]":
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
@@ -677,14 +683,19 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
         return optimizer
 
-    def set_optimizer(self, optimizer):
+    def set_optimizer(
+        self,
+        optimizer: "BindableOptimizerProtocol[Array]",
+    ) -> None:
         self._optimizer = optimizer
 
     def _estimator_cost(self, npartition_samples: Array) -> float:
         nsamples_per_model = self._compute_nsamples_per_model(npartition_samples)
         return (nsamples_per_model * self._costs).sum()
 
-    def _allocate_samples_for_single_recursion(self, target_cost: float):
+    def _allocate_samples_for_single_recursion(
+        self, target_cost: float,
+    ) -> None:
         from pyapprox.statest.acv.allocation import (
             ACVAllocator,
             default_allocator_factory,
@@ -722,7 +733,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
 
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
-    def _allocate_samples_for_all_recursion_indices(self, target_cost: float):
+    def _allocate_samples_for_all_recursion_indices(
+        self, target_cost: float,
+    ) -> None:
         from pyapprox.statest.acv.allocation import (
             ACVAllocator,
             default_allocator_factory,
@@ -765,7 +778,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self._set_recursion_index(best_index)
         self.set_allocation(best_result)
 
-    def allocate_samples(self, target_cost: float):
+    def allocate_samples(self, target_cost: float) -> None:
         if self._tree_depth is not None:
             return self._allocate_samples_for_all_recursion_indices(target_cost)
         return self._allocate_samples_for_single_recursion(target_cost)

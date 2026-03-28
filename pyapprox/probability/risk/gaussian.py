@@ -116,6 +116,8 @@ class GaussianAnalyticalRiskMeasures:
         "Calculating AVaR and bPOE for common probability distributions
         with application to portfolio optimization and density estimation"
         """
-        return self._mu + self._sigma * stats.norm.pdf(stats.norm.ppf(beta)) / (
-            1.0 - beta
+        return float(
+            self._mu + self._sigma * stats.norm.pdf(stats.norm.ppf(beta)) / (
+                1.0 - beta
+            )
         )

@@ -11,7 +11,11 @@ This is a frequency-domain wave equation that arises in acoustics,
 electromagnetics, and other wave phenomena.
 """
 
-from typing import Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING,  Any, Callable, List, Optional, Union
+if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+    from skfem.element.discrete_field import DiscreteField
+
 
 import numpy as np
 
@@ -133,7 +137,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         skfem_basis = self._basis.skfem_basis()
 
         # Laplacian stiffness
-        def laplacian_form(u, v, w):
+        def laplacian_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             return dot(grad(u), grad(v))
 
         laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis)
@@ -142,7 +146,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         if self._wavenumber_is_callable:
             sqwavenum_func = self._wavenumber
 
-            def mass_form(u, v, w):
+            def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 x_np = np.asarray(w.x)
                 x_shape = x_np.shape
                 if len(x_shape) == 3:
@@ -156,7 +160,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         else:
             k = self._wavenumber
 
-            def mass_form(u, v, w):
+            def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 return k * k * u * v
 
         mass_np = asm(BilinearForm(mass_form), skfem_basis)
@@ -185,7 +189,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         else:
             forcing_func = self._forcing
 
-            def linear_form(v, w):
+            def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 # w.x shape: (ndim, nelem, nquad)
                 x_shape = w.x.shape
                 if len(x_shape) == 3:

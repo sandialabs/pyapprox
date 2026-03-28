@@ -87,7 +87,7 @@ class ClenshawCurtisGrowthRule(IndexGrowthRule):
     def __call__(self, level: int) -> int:
         if level == 0:
             return 1
-        return 2**level + 1
+        return int(2**level) + 1
 
     def __repr__(self) -> str:
         return "ClenshawCurtisGrowthRule()"
@@ -131,7 +131,7 @@ class ExponentialGrowthRule(IndexGrowthRule):
         self._base = base
 
     def __call__(self, level: int) -> int:
-        return self._base**level
+        return int(self._base**level)
 
     def __repr__(self) -> str:
         return f"ExponentialGrowthRule(base={self._base})"
@@ -161,7 +161,7 @@ class CubicNestedGrowthRule(IndexGrowthRule):
     def __call__(self, level: int) -> int:
         if level == 0:
             return 1
-        return 3 * (2 ** (level - 1)) + 1
+        return 3 * int(2 ** (level - 1)) + 1
 
     def __repr__(self) -> str:
         return "CubicNestedGrowthRule()"

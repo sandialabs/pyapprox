@@ -89,7 +89,9 @@ class Plotter2DRectangularDomain(Generic[Array]):
         self._validate_plot_limits(plot_limits)
         self._plot_limits = plot_limits
 
-    def _validate_plot_limits(self, plot_limits: Union[Sequence[Any], Array]):
+    def _validate_plot_limits(
+        self, plot_limits: Union[Sequence[float], Array],
+    ) -> None:
         if len(plot_limits) != 4:
             raise ValueError(
                 "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."

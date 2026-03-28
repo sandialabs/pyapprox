@@ -4,10 +4,15 @@ Provides implementations of Dirichlet, Neumann, and Robin boundary conditions
 that integrate with scikit-fem for assembly.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Union
+
+if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+    from skfem.element.discrete_field import DiscreteField
 
 import numpy as np
-from scipy.sparse import issparse
+import numpy.typing as npt
+from scipy.sparse import issparse, spmatrix
 
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
@@ -147,7 +152,12 @@ class DirichletBC(Generic[Array]):
 
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(self, jacobian, state: Array, time: float):
+    def apply_to_jacobian(
+        self,
+        jacobian: Union[spmatrix, Array],
+        state: Array,
+        time: float,
+    ) -> Union[spmatrix, Array]:
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.
@@ -327,7 +337,7 @@ class NeumannBC(Generic[Array]):
         flux_func = self._flux_func
         current_time = time
 
-        def neumann_form(v, w):
+        def neumann_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x_np = np.asarray(w.x)
             x_shape = x_np.shape
             if len(x_shape) == 3:
@@ -447,7 +457,11 @@ class RobinBC(Generic[Array]):
             self._boundary_basis = skfem_basis.boundary(self._boundary_name)
         return self._boundary_basis
 
-    def apply_to_stiffness(self, stiffness, time: float):
+    def apply_to_stiffness(
+        self,
+        stiffness: Union[spmatrix, Array],
+        time: float,
+    ) -> Union[spmatrix, Array]:
         """Apply Robin BC contribution to stiffness matrix.
 
         Adds: alpha * integral_{Gamma} u . phi ds
@@ -473,11 +487,19 @@ class RobinBC(Generic[Array]):
 
         if ncomps > 1:
 
-            def robin_bilinear(u, v, w):
+            def robin_bilinear(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 return alpha * sum(u[i] * v[i] for i in range(ncomps))
         else:
 
-            def robin_bilinear(u, v, w):
+            def robin_bilinear(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 return alpha * u * v
 
         contribution_sparse = asm(BilinearForm(robin_bilinear), bndry_basis)
@@ -515,7 +537,7 @@ class RobinBC(Generic[Array]):
         value_func = self._value_func
         current_time = time
 
-        def robin_linear(v, w):
+        def robin_linear(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x_np = np.asarray(w.x)
             x_shape = x_np.shape
             if len(x_shape) == 3:
@@ -567,7 +589,7 @@ class RobinBC(Generic[Array]):
         current_time = time
 
         # Add alpha * u * phi contribution to residual
-        def robin_residual_u(v, w):
+        def robin_residual_u(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             return alpha * w.u_prev * v
 
         # Need to interpolate state onto boundary
@@ -578,7 +600,7 @@ class RobinBC(Generic[Array]):
         res_np += contribution_u
 
         # Subtract g * phi contribution
-        def robin_residual_g(v, w):
+        def robin_residual_g(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             # Note: w.x may be a DiscreteField, so convert to ndarray
             x_np = np.asarray(w.x)
             x_shape = x_np.shape
@@ -781,10 +803,10 @@ class DirectDirichletBC(Generic[Array]):
 
     def __init__(
         self,
-        dof_indices,
-        values,
+        dof_indices: npt.ArrayLike,
+        values: npt.ArrayLike,
         bkd: Backend[Array],
-    ):
+    ) -> None:
         self._bkd = bkd
         self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
         self._values = bkd.asarray(np.asarray(values, dtype=np.float64))
@@ -813,7 +835,12 @@ class DirectDirichletBC(Generic[Array]):
         res_np[dofs_np] = state_np[dofs_np] - vals_np
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(self, jacobian, state: Array, time: float):
+    def apply_to_jacobian(
+        self,
+        jacobian: Union[spmatrix, Array],
+        state: Array,
+        time: float,
+    ) -> Union[spmatrix, Array]:
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.
@@ -855,10 +882,10 @@ class CallableDirichletBC(Generic[Array]):
 
     def __init__(
         self,
-        dof_indices,
+        dof_indices: npt.ArrayLike,
         value_func: Callable[[float], np.ndarray],
         bkd: Backend[Array],
-    ):
+    ) -> None:
         self._bkd = bkd
         self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
         self._value_func = value_func
@@ -888,7 +915,12 @@ class CallableDirichletBC(Generic[Array]):
         res_np[dofs_np] = state_np[dofs_np] - vals_np
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(self, jacobian, state: Array, time: float):
+    def apply_to_jacobian(
+        self,
+        jacobian: Union[spmatrix, Array],
+        state: Array,
+        time: float,
+    ) -> Union[spmatrix, Array]:
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.

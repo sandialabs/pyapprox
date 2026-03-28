@@ -20,7 +20,11 @@ where:
     f = forcing/source term
 """
 
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+    from skfem.element.discrete_field import DiscreteField
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -241,7 +245,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # For linear reaction, include in stiffness matrix
         react_coeff = self._reaction_coeff if self._reaction_is_linear else None
 
-        def bilinear_form(u, v, w):
+        def bilinear_form(
+            u: "DiscreteField", v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             # Diffusion coefficient
             if diff_const is not None:
                 diff = diff_const
@@ -270,7 +277,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
             conservative = self._conservative
 
-            def advection_form(u, v, w):
+            def advection_form(
+                u: "DiscreteField", v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 if vel_np is not None:
                     vel = vel_np
                 else:
@@ -325,7 +335,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             forcing_func = self._forcing
             current_time = time
 
-            def forcing_form(v, w):
+            def forcing_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 x_np = np.asarray(w.x)
                 x_shape = x_np.shape
                 if len(x_shape) == 3:
@@ -352,7 +362,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             # Interpolate state to get u values at quadrature points
             state_interp = skfem_basis.interpolate(state_np)
 
-            def reaction_form(v, w):
+            def reaction_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 x_np = np.asarray(w.x)
                 u_prev = w.u_prev  # Interpolated state values
 
@@ -390,7 +400,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # Interpolate state
         state_interp = skfem_basis.interpolate(state_np)
 
-        def reaction_jacobian_form(u, v, w):
+        def reaction_jacobian_form(
+            u: "DiscreteField", v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             x_np = np.asarray(w.x)
             u_prev = w.u_prev
 
@@ -411,7 +424,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             BilinearForm(reaction_jacobian_form), skfem_basis, u_prev=state_interp
         )
 
-    def mass_matrix(self):
+    def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()
 

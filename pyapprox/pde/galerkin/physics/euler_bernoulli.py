@@ -15,7 +15,11 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING,  Any, Callable, Generic, List, Optional, Union
+if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+    from skfem.element.discrete_field import DiscreteField
+
 
 import numpy as np
 
@@ -298,7 +302,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             ei_array = EI_val
 
             @BilinearForm
-            def beam_stiffness_form(u, v, w):
+            def beam_stiffness_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 x = w.x[0]
                 elem_idx = np.clip(
                     np.searchsorted(x_nodes[1:], x), 0, len(ei_array) - 1
@@ -307,7 +311,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         else:
 
             @BilinearForm
-            def beam_stiffness_form(u, v, w):
+            def beam_stiffness_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 return EI_val * u.hess[0, 0] * v.hess[0, 0]
 
         self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
@@ -325,7 +329,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             return self._mass
 
         @BilinearForm
-        def beam_mass_form(u, v, w):
+        def beam_mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             return u.value * v.value
 
         self._mass = asm(beam_mass_form, self._skfem_basis)
@@ -342,7 +346,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         load_func = self._load_func
 
         @LinearForm
-        def beam_load_form(v, w):
+        def beam_load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x = w.x[0]
             return load_func(x) * v.value
 

@@ -5,8 +5,15 @@ Provides a conditional Beta distribution where the log-shape parameters
 are functions of the conditioning variable.
 """
 
+from __future__ import annotations
+
 import math
 from typing import TYPE_CHECKING, Generic, Tuple
+
+if TYPE_CHECKING:
+    from pyapprox.probability.univariate.uniform import (
+        UniformMarginal,
+    )
 
 import numpy as np
 
@@ -539,11 +546,11 @@ class ConditionalBeta(Generic[Array]):
             + (a2 - a1 + b2 - b1) * self._bkd.digamma(a1 + b1)
         )
 
-    def base_distribution(self):
+    def base_distribution(self) -> UniformMarginal[Array]:
         """Return the base distribution for reparameterization (Uniform(0,1))."""
         from pyapprox.probability.univariate.uniform import (
             UniformMarginal,
-        ) # TODO: Does this have to be a lazy import to avoid loading optional deps
+        )  # TODO: Does this have to be a lazy import to avoid loading optional deps
 
         return UniformMarginal(0.0, 1.0, self._bkd)
 

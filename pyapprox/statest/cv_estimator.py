@@ -5,8 +5,9 @@ using control variate sampling with known low-fidelity statistics.
 """
 
 import copy
-from typing import (    Any,
-TYPE_CHECKING,
+from typing import (
+    TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     List,
@@ -172,7 +173,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         rounded_npartition_samples: Array,
         rounded_nsamples_per_model: Array,
         rounded_target_cost: float,
-    ):
+    ) -> None:
         r"""
         Set the parameters needed to generate samples for evaluating the
         estimator. This method updates both the new lazy caching system
@@ -229,7 +230,9 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
     def _estimator_cost(self, npartition_samples: Array) -> float:
         return (npartition_samples[0] * self._costs).sum()
 
-    def _set_optimized_params(self, rounded_npartition_samples: Array):
+    def _set_optimized_params(
+        self, rounded_npartition_samples: Array,
+    ) -> None:
         rounded_target_cost = self._estimator_cost(rounded_npartition_samples)
         self._set_optimized_params_base(
             rounded_npartition_samples,
@@ -237,7 +240,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             rounded_target_cost,
         )
 
-    def allocate_samples(self, target_cost: float):
+    def allocate_samples(self, target_cost: float) -> None:
         """Allocate samples for given budget.
 
         Parameters
@@ -302,7 +305,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         samples = rvs(self._rounded_nsamples_per_model[0])
         return [self._bkd.copy(samples) for ii in range(self._nmodels)]
 
-    def _weights(self, CF, cf):
+    def _weights(self, CF: Array, cf: Array) -> Array:
         # print(self._bkd.cond(CF), "ACV COND")
         # return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
         return -self._bkd.solve(CF, cf.T).T
@@ -428,7 +431,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                 new_values_per_model.append(self._bkd.copy(values_per_model[ii]))
         return new_values_per_model
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """String representation handling unset allocation."""
         if not self.has_allocation:
             return f"{self.__class__.__name__}(allocation=None)"
@@ -446,8 +449,11 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         values_per_model: List[Array],
         nbootstraps: int = 1000,
         mode: str = "values",
-        pilot_values: List[Array] = None,
-    ):
+        pilot_values: Optional[List[Array]] = None,
+    ) -> Union[
+        Tuple[Array, Array],
+        Tuple[Array, Array, Array, Array],
+    ]:
         """Bootstrap variance estimation.
 
         Parameters

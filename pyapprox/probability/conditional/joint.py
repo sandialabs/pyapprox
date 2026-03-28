@@ -5,15 +5,25 @@ Provides a joint distribution of independent conditionals that all share
 the same conditioning variable.
 """
 
+from __future__ import annotations
+
 import functools
 import operator
-from typing import Generic, List
+from typing import TYPE_CHECKING, Generic, List
 
 from pyapprox.probability.conditional.protocols import (
     ConditionalDistributionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.probability.joint.independent import (
+        IndependentJoint,
+    )
+    from pyapprox.probability.protocols.distribution import (
+        JointDistributionProtocol,
+    )
 
 
 class ConditionalIndependentJoint(Generic[Array]):
@@ -277,7 +287,9 @@ class ConditionalIndependentJoint(Generic[Array]):
             offset += nq
         return self._bkd.vstack(parts)
 
-    def kl_divergence(self, x: Array, prior) -> Array:
+    def kl_divergence(
+        self, x: Array, prior: JointDistributionProtocol[Array],
+    ) -> Array:
         """Compute sum of per-component KL divergences.
 
         Parameters
@@ -299,7 +311,7 @@ class ConditionalIndependentJoint(Generic[Array]):
         ]
         return functools.reduce(operator.add, parts)
 
-    def base_distribution(self):
+    def base_distribution(self) -> IndependentJoint[Array]:
         """Return IndependentJoint of component base distributions."""
         from pyapprox.probability.joint.independent import (
             IndependentJoint,

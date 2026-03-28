@@ -9,13 +9,23 @@ Two parameterizations:
 - ConditionalLowRankCholGaussian: diagonal + low-rank, Σ = D² + V V^T
 """
 
+from __future__ import annotations
+
 import math
-from typing import Any, Generic, Optional
+from typing import TYPE_CHECKING, Generic, Optional
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.interface.functions.protocols.function import (
+        FunctionProtocol,
+    )
+    from pyapprox.probability.gaussian.dense import (
+        DenseCholeskyMultivariateGaussian,
+    )
 
 
 class ConditionalDenseCholGaussian(Generic[Array]):
@@ -42,9 +52,9 @@ class ConditionalDenseCholGaussian(Generic[Array]):
 
     def __init__(
         self,
-        mean_func,
-        log_chol_diag_func,
-        chol_offdiag_func: Optional[Any],
+        mean_func: FunctionProtocol[Array],
+        log_chol_diag_func: FunctionProtocol[Array],
+        chol_offdiag_func: Optional[FunctionProtocol[Array]],
         bkd: Backend[Array],
     ) -> None:
         self._mean_func = mean_func
@@ -273,7 +283,11 @@ class ConditionalDenseCholGaussian(Generic[Array]):
 
         return mean + Leps.T  # (d, nsamples)
 
-    def kl_divergence(self, x: Array, prior) -> Array:
+    def kl_divergence(
+        self,
+        x: Array,
+        prior: DenseCholeskyMultivariateGaussian[Array],
+    ) -> Array:
         """Compute KL(q(.|x) || prior) per sample.
 
         Parameters
@@ -337,7 +351,9 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         L_batch = self._build_chol_factor(x)  # (nsamples, d, d)
         return self._bkd.einsum("nij,nkj->nik", L_batch, L_batch)
 
-    def base_distribution(self):
+    def base_distribution(
+        self,
+    ) -> DenseCholeskyMultivariateGaussian[Array]:
         """Return the base distribution for reparameterization: N(0, I_d)."""
         from pyapprox.probability.gaussian.dense import (
             DenseCholeskyMultivariateGaussian,
@@ -390,9 +406,9 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
 
     def __init__(
         self,
-        mean_func, #TODO: all args here and in other functions must have types. Wwe should use runtime_checkable protocols incuding for factor_func
-        log_diag_func,
-        factor_func: Optional[Any],
+        mean_func: FunctionProtocol[Array],
+        log_diag_func: FunctionProtocol[Array],
+        factor_func: Optional[FunctionProtocol[Array]],
         rank: int,
         bkd: Backend[Array],
     ) -> None:
@@ -636,7 +652,11 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
 
         return mean + Leps.T  # (d, nsamples)
 
-    def kl_divergence(self, x: Array, prior) -> Array:
+    def kl_divergence(
+        self,
+        x: Array,
+        prior: DenseCholeskyMultivariateGaussian[Array],
+    ) -> Array:
         """Compute KL(q(.|x) || prior) per sample.
 
         Parameters
@@ -737,13 +757,13 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
 
         return cov
 
-    def base_distribution(self):
+    def base_distribution(
+        self,
+    ) -> DenseCholeskyMultivariateGaussian[Array]:
         """Return the base distribution: N(0, I_d)."""
         from pyapprox.probability.gaussian.dense import (
             DenseCholeskyMultivariateGaussian,
-        ) #TODO: does this need to be a lazy import,
-        # i.e. adding to top will load an otional dependency or can we move
-        # import to top of file
+        )
 
         return DenseCholeskyMultivariateGaussian(
             self._bkd.zeros((self._d, 1)),

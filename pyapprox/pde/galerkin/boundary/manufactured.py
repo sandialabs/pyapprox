@@ -168,11 +168,11 @@ class ManufacturedSolutionBC(Generic[Array]):
 
         if time_dep:
 
-            def value_func(x, t):
+            def value_func(x: np.ndarray, t: float) -> np.ndarray:
                 return sol_func(x, t)
         else:
 
-            def value_func(x, t=None):
+            def value_func(x: np.ndarray, t: float = 0.0) -> np.ndarray:
                 return sol_func(x)
 
         return DirichletBC(
@@ -192,16 +192,16 @@ class ManufacturedSolutionBC(Generic[Array]):
         flux_func = self._flux_func
         time_dep = self._time_dependent
 
-        def normal_func(x):
+        def normal_func(x: np.ndarray) -> np.ndarray:
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
 
-            def neumann_value(x, t):
+            def neumann_value(x: np.ndarray, t: float) -> np.ndarray:
                 return _compute_normal_flux(flux_func, normal_func, x, t)
         else:
 
-            def neumann_value(x, t=None):
+            def neumann_value(x: np.ndarray, t: float = 0.0) -> np.ndarray:
                 return _compute_normal_flux(flux_func, normal_func, x)
 
         return NeumannBC(
@@ -223,18 +223,18 @@ class ManufacturedSolutionBC(Generic[Array]):
         flux_func = self._flux_func
         time_dep = self._time_dependent
 
-        def normal_func(x):
+        def normal_func(x: np.ndarray) -> np.ndarray:
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
 
-            def robin_value(x, t):
+            def robin_value(x: np.ndarray, t: float) -> np.ndarray:
                 u_val = sol_func(x, t)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x, t)
                 return alpha * u_val - flux_dot_n
         else:
 
-            def robin_value(x, t=None):
+            def robin_value(x: np.ndarray, t: float = 0.0) -> np.ndarray:
                 u_val = sol_func(x)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x)
                 return alpha * u_val - flux_dot_n

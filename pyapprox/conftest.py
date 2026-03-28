@@ -1,12 +1,17 @@
 """Pytest configuration and shared fixtures."""
+from __future__ import annotations
 
 import os
 import warnings
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pytest
 
 from pyapprox.util.backends.numpy import NumpyBkd
+
+if TYPE_CHECKING:
+    from pyapprox.util.backends.torch import TorchBkd
 
 # ---------- env vars ----------
 
@@ -26,8 +31,8 @@ _RUN_SLOWEST = os.environ.get("PYAPPROX_RUN_SLOWEST", "").lower() in (
 # ---------- backend discovery ----------
 
 
-def _backend_factories():
-    factories = [("NumpyBkd", NumpyBkd)]
+def _backend_factories() -> List[Tuple[str, type]]:
+    factories: List[Tuple[str, type]] = [("NumpyBkd", NumpyBkd)]
     try:
         import torch  # noqa: F401
 
@@ -50,24 +55,24 @@ _BACKEND_FACTORIES = _backend_factories()
 
 
 @pytest.fixture(params=_BACKEND_FACTORIES, ids=lambda pair: pair[0])
-def bkd(request):
+def bkd(request: pytest.FixtureRequest) -> Union[NumpyBkd, TorchBkd]:
     """Parametrized backend fixture -- fresh instance per test."""
-    name, factory = request.param
+    name, factory = cast(Tuple[str, type], request.param)
     if name == "TorchBkd":
         import torch
 
         torch.set_default_dtype(torch.float64)
-    return factory()
+    return factory()  # type: ignore[no-any-return]
 
 
 @pytest.fixture
-def numpy_bkd():
+def numpy_bkd() -> NumpyBkd:
     """Single-backend fixture for backend-independent tests."""
     return NumpyBkd()
 
 
 @pytest.fixture
-def torch_bkd():
+def torch_bkd() -> "TorchBkd":
     """For tests that only make sense on Torch (e.g., autograd)."""
     torch = pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
@@ -77,7 +82,7 @@ def torch_bkd():
 
 
 @pytest.fixture
-def torch_float32_bkd():
+def torch_float32_bkd() -> "TorchBkd":
     """TorchBkd with float32 dtype for targeted precision tests."""
     torch = pytest.importorskip("torch")
     from pyapprox.util.backends.torch import TorchBkd
@@ -86,7 +91,7 @@ def torch_float32_bkd():
 
 
 @pytest.fixture
-def torch_mps_bkd():
+def torch_mps_bkd() -> "TorchBkd":
     """TorchBkd on MPS device (skipped if MPS unavailable)."""
     torch = pytest.importorskip("torch")
     if not torch.backends.mps.is_available():
@@ -97,7 +102,7 @@ def torch_mps_bkd():
 
 
 @pytest.fixture(autouse=True)
-def _reproducible_rng():
+def _reproducible_rng() -> None:
     """Reset NumPy (and Torch if available) RNG before every test.
 
     Ensures deterministic behavior regardless of test execution order.
@@ -134,7 +139,9 @@ _SLOW_TIERS = {
 }
 
 
-def _extract_backend_name(item):
+def _extract_backend_name(
+    item: pytest.Item,
+) -> Optional[str]:
     """Extract backend name from a test item's parametrize ID, or None."""
     nodeid = item.nodeid
     for name, _ in _BACKEND_FACTORIES:
@@ -143,7 +150,10 @@ def _extract_backend_name(item):
     return None
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(
+    config: pytest.Config,
+    items: List[pytest.Item],
+) -> None:
     """Skip slow tests based on env vars and per-backend markers."""
     for item in items:
         backend_name = _extract_backend_name(item)

@@ -9,6 +9,7 @@ import numpy as np
 from scipy import stats
 from scipy.special import erfinv
 
+
 #TODO: remove   # doctest: +ELLIPSIS
 class LogNormalAnalyticalRiskMeasures:
     """
@@ -46,7 +47,7 @@ class LogNormalAnalyticalRiskMeasures:
         float
             E[exp(X)] = exp(mu + sigma^2/2)
         """
-        return np.exp(self._mu + self._sigma**2 / 2)
+        return float(np.exp(self._mu + self._sigma**2 / 2))
 
     def std(self) -> float:
         """
@@ -57,7 +58,7 @@ class LogNormalAnalyticalRiskMeasures:
         float
             Standard deviation of the lognormal variable.
         """
-        return self._marginal.std()
+        return float(self._marginal.std())
 
     def variance(self) -> float:
         """
@@ -68,7 +69,7 @@ class LogNormalAnalyticalRiskMeasures:
         float
             Variance of the lognormal variable.
         """
-        return self._marginal.var()
+        return float(self._marginal.var())
 
     def VaR(self, beta: float) -> float:
         """
@@ -84,7 +85,7 @@ class LogNormalAnalyticalRiskMeasures:
         float
             The beta-quantile of the lognormal distribution.
         """
-        return self._marginal.ppf(beta)
+        return float(self._marginal.ppf(beta))
 
     def AVaR(self, beta: float) -> float:
         """
@@ -109,7 +110,7 @@ class LogNormalAnalyticalRiskMeasures:
         if beta == 0:
             return mean
         quantile = np.exp(self._mu + self._sigma * np.sqrt(2) * erfinv(2 * beta - 1))
-        return (
+        return float(
             mean
             * stats.norm.cdf(
                 (self._mu + self._sigma**2 - np.log(quantile)) / self._sigma
@@ -181,7 +182,9 @@ class LogNormalAnalyticalRiskMeasures:
         ndarray
             SSD utility values.
         """
-        return self._marginal.cdf(eta) * (eta - self._expectation_lte_eta(eta))
+        return np.asarray(
+            self._marginal.cdf(eta) * (eta - self._expectation_lte_eta(eta))
+        )
 
     def disutility_SSD(self, eta: np.ndarray) -> np.ndarray:
         """
@@ -197,7 +200,10 @@ class LogNormalAnalyticalRiskMeasures:
         ndarray
             SSD disutility values.
         """
-        return (1 - self._marginal.cdf(-eta)) * (eta + self._expectation_gte_eta(-eta))
+        return np.asarray(
+            (1 - self._marginal.cdf(-eta))
+            * (eta + self._expectation_gte_eta(-eta))
+        )
 
     def kl_divergence(self, mu2: float, sigma2: float) -> float:
         """
@@ -220,7 +226,7 @@ class LogNormalAnalyticalRiskMeasures:
         """
         # KL(N(mu1, s1^2) || N(mu2, s2^2)) =
         #   log(s2/s1) + (s1^2 + (mu1-mu2)^2)/(2*s2^2) - 0.5
-        return (
+        return float(
             np.log(sigma2 / self._sigma)
             + (self._sigma**2 + (self._mu - mu2) ** 2) / (2 * sigma2**2)
             - 0.5

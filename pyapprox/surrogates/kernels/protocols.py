@@ -351,6 +351,30 @@ class Kernel(ABC, Generic[Array]):
         """
         return self._bkd
 
+    @abstractmethod
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """
+        Return the list of hyperparameters associated with the kernel.
+
+        Returns
+        -------
+        hyp_list : HyperParameterList[Array]
+            List of hyperparameters.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def nvars(self) -> int:
+        """
+        Return the number of input variables (dimensionality).
+
+        Returns
+        -------
+        int
+            Number of input dimensions.
+        """
+        raise NotImplementedError()
+
     def diag(self, X1: Array) -> Array:
         """
         Return the diagonal of the kernel matrix.

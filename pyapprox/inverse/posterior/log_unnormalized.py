@@ -267,10 +267,10 @@ class LogUnNormalizedPosterior(Generic[Array]):
             H_prior = self._prior.logpdf_hessian(sample)
         else:
             # Use finite differences
-            def logprior_fn(s):
+            def logprior_fn(s: Array) -> Array:
                 return self._prior.logpdf(s)[:, None]
 
-            def jac_fn(s):
+            def jac_fn(s: Array) -> Array:
                 return self._finite_diff_jacobian(logprior_fn, s).T
 
             H_prior = self._finite_diff_jacobian(jac_fn, sample)
@@ -354,10 +354,10 @@ class LogUnNormalizedPosterior(Generic[Array]):
         x0 = self._bkd.to_numpy(initial_guess).flatten()
 
         # Objective: negative log posterior (we minimize)
-        def objective(x):
+        def objective(x: np.ndarray) -> float:
             x_arr = self._bkd.asarray(x.reshape(self._nvars, 1))
             neg_logpost = -self._bkd.to_float(self.__call__(x_arr))
-            return neg_logpost
+            return float(neg_logpost)
 
         # Setup bounds if provided
         scipy_bounds = None

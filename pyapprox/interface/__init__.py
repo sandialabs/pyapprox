@@ -35,7 +35,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     """Lazy import for UMBridge symbols.
 
     UMBridge is deferred because importing umbridge pulls in aiohttp and

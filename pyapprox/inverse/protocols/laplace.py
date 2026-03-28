@@ -43,7 +43,7 @@ class LaplacePosteriorProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def compute(self, **kwargs) -> None:
+    def compute(self, **kwargs: object) -> None:
         """
         Compute the Laplace approximation.
 

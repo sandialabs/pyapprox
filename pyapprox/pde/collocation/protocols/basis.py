@@ -173,6 +173,10 @@ class BasisProtocol(Protocol, Generic[Array]):
         """Return the computational backend."""
         ...
 
+    def ndim(self) -> int:
+        """Return the number of spatial dimensions."""
+        ...
+
     def mesh(self) -> MeshProtocol[Array]:
         """Return the associated mesh."""
         ...
@@ -222,6 +226,10 @@ class BasisWithQuadratureProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
+        ...
+
+    def ndim(self) -> int:
+        """Return the number of spatial dimensions."""
         ...
 
     def mesh(self) -> MeshProtocol[Array]:

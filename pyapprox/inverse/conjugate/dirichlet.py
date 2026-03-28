@@ -12,12 +12,15 @@ Posterior: p | obs ~ Dirichlet(alpha_1 + count_1, ..., alpha_K + count_K)
 import math
 from typing import Any, Generic, Optional
 
+from numpy.typing import NDArray
 from scipy.special import gammaln
 
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _log_multivariate_beta(alphas) -> float:
+def _log_multivariate_beta(
+    alphas: NDArray,
+) -> float:
     """
     Compute log of multivariate Beta function.
 

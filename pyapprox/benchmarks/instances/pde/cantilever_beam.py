@@ -15,19 +15,35 @@ Model hierarchy:
 """
 
 import os
-from typing import (    Any,
-TYPE_CHECKING,
+from typing import (
+    TYPE_CHECKING,
     Callable,
     Dict,
     Generic,
     List,
     Optional,
     Tuple,
+    Union,
 )
 
 if TYPE_CHECKING:
+    import skfem
+
     from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
         LinearGaussianOEDModel,
+    )
+    from pyapprox.pde.galerkin.basis.vector_lagrange import (
+        VectorLagrangeBasis,
+    )
+    from pyapprox.pde.galerkin.physics.composite_hyperelasticity import (
+        CompositeHyperelasticityPhysics,
+    )
+    from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+        CompositeLinearElasticity,
+    )
+    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox.probability.gaussian.dense import (
+        DenseCholeskyMultivariateGaussian,
     )
 
 import numpy as np
@@ -83,7 +99,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _create_subdomain_kle_field_maps(
-    skfem_mesh: Any,
+    skfem_mesh: "skfem.Mesh",
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
     bkd: Backend[Array],
@@ -204,7 +220,7 @@ class _SkfemSubmesh(Generic[Array]):
     ``LagrangeBasis``.
     """
 
-    def __init__(self, skfem_submesh: Any, bkd: Backend[Array]) -> None:
+    def __init__(self, skfem_submesh: "skfem.Mesh", bkd: Backend[Array]) -> None:
         self._skfem_mesh = skfem_submesh
         self._bkd = bkd
         self._nodes = bkd.asarray(
@@ -231,7 +247,7 @@ class _SkfemSubmesh(Generic[Array]):
             self._skfem_mesh.t.astype(np.int64),
         )
 
-    def skfem_mesh(self):
+    def skfem_mesh(self) -> "skfem.Mesh":
         return self._skfem_mesh
 
     def boundary_nodes(self, boundary_id: str) -> Array:
@@ -246,15 +262,15 @@ class _SkfemSubmesh(Generic[Array]):
 
 
 def _create_subdomain_spde_kle_field_maps(
-    skfem_mesh,
+    skfem_mesh: "skfem.Mesh",
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
-    bkd,
+    bkd: Backend[Array],
     num_kle_terms: int,
     sigma: float,
     correlation_length: float,
     mean_log_E: float,
-):
+) -> Tuple[List[TransformedFieldMap[Array]], List[np.ndarray]]:
     """Create a lognormal SPDE KLE field map per subdomain.
 
     For each subdomain, extracts a submesh via
@@ -331,14 +347,14 @@ def _create_subdomain_spde_kle_field_maps(
 
 def _kle_to_lame_arrays(
     kle_params_1d: np.ndarray,
-    field_maps,
+    field_maps: List[TransformedFieldMap[Array]],
     subdomain_node_indices: List[np.ndarray],
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
     poisson_ratios: Dict[str, float],
-    scalar_skfem_basis,
+    scalar_skfem_basis: "skfem.CellBasis",
     num_kle_terms: int,
-    bkd,
+    bkd: Backend[Array],
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Map concatenated KLE coefficients to per-element Lame parameter arrays.
 
@@ -417,18 +433,21 @@ class CantileverBeam2DForwardModel(Generic[Array]):
 
     def __init__(
         self,
-        physics,
-        solver,
-        field_maps,
+        physics: Union[
+            "CompositeLinearElasticity[Array]",
+            "CompositeHyperelasticityPhysics[Array]",
+        ],
+        solver: "SteadyStateSolver[Array]",
+        field_maps: List[TransformedFieldMap[Array]],
         subdomain_node_indices: List[np.ndarray],
         subdomain_elements: Dict[str, np.ndarray],
         subdomain_names: List[str],
         poisson_ratios: Dict[str, float],
         num_kle_terms: int,
-        scalar_skfem_basis,
+        scalar_skfem_basis: "skfem.CellBasis",
         tip_dof_index: int,
         bkd: Backend[Array],
-    ):
+    ) -> None:
         self._physics = physics
         self._solver = solver
         self._field_maps = field_maps
@@ -588,7 +607,7 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         length: float,
         height: float,
         skin_thickness: float,
-        load_func: Callable[..., Any],
+        load_func: Callable[[np.ndarray], np.ndarray],
         bkd: Backend[Array],
     ):
         from pyapprox.pde.galerkin.physics.euler_bernoulli import (
@@ -677,10 +696,10 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         length: float,
         height: float,
         EI_mean: float,
-        load_func: Callable[..., Any],
-        field_map,
+        load_func: Callable[[np.ndarray], np.ndarray],
+        field_map: TransformedFieldMap[Array],
         bkd: Backend[Array],
-    ):
+    ) -> None:
         from pyapprox.pde.galerkin.physics.euler_bernoulli import (
             EulerBernoulliBeamFEM,
         )
@@ -843,7 +862,13 @@ def cantilever_beam_1d(
     return PDEBenchmarkWrapper(inner, estimated_cost=1e-03)
 
 
-def _find_dof(basis, target_x, target_y, comp, bkd):
+def _find_dof(
+    basis: "VectorLagrangeBasis[Array]",
+    target_x: float,
+    target_y: float,
+    comp: int,
+    bkd: Backend[Array],
+) -> int:
     """Find DOF index closest to (target_x, target_y) for component comp.
 
     Parameters
@@ -882,7 +907,12 @@ def _find_dof(basis, target_x, target_y, comp, bkd):
     return best_dof
 
 
-def _find_tip_dof(basis, length, height, bkd):
+def _find_tip_dof(
+    basis: "VectorLagrangeBasis[Array]",
+    length: float,
+    height: float,
+    bkd: Backend[Array],
+) -> int:
     """Find the vertical displacement DOF closest to the beam tip.
 
     The tip is at (x=length, y=height/2). For interleaved DOFs
@@ -970,12 +1000,12 @@ def cantilever_beam_2d_linear(
     )
 
     # Boundary conditions: clamped left, traction on top
-    def zero_dirichlet(coords, time=0.0):
+    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         return np.zeros(coords.shape[1])
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords, time=0.0):
+    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1116,12 +1146,12 @@ def cantilever_beam_2d_neohookean(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords, time=0.0):
+    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         return np.zeros(coords.shape[1])
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords, time=0.0):
+    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1360,12 +1390,12 @@ def cantilever_beam_2d_linear_spde(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords, time=0.0):
+    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         return np.zeros(coords.shape[1])
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords, time=0.0):
+    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1505,12 +1535,12 @@ def cantilever_beam_2d_neohookean_spde(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords, time=0.0):
+    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         return np.zeros(coords.shape[1])
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords, time=0.0):
+    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1675,7 +1705,7 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
             name: mesh.subdomain_elements(name) for name in subdomain_names
         }
 
-        def zero_dirichlet(coords, time=0.0):
+        def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
             return np.zeros(coords.shape[1])
 
         bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
@@ -1683,7 +1713,9 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
 
         # ---- Solve two unit load cases ----
-        def _make_traction(traction_func):
+        def _make_traction(
+            traction_func: Callable[[np.ndarray, float], np.ndarray],
+        ) -> np.ndarray:
             bc_top = NeumannBC(basis, "top_edge", traction_func, bkd)
             physics = CompositeLinearElasticity(
                 basis=basis,
@@ -1698,7 +1730,7 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
             return bkd.to_numpy(result.solution)
 
         # Case 1: constant load t_y = -1
-        def const_traction(coords, time=0.0):
+        def const_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
             npts = coords.shape[1]
             traction = np.zeros((2, npts))
             traction[1, :] = -1.0
@@ -1707,7 +1739,7 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         sol_const = _make_traction(const_traction)
 
         # Case 2: slope load t_y = -x/L
-        def slope_traction(coords, time=0.0):
+        def slope_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
             x = coords[0]
             npts = coords.shape[1]
             traction = np.zeros((2, npts))
@@ -1802,7 +1834,7 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         """Noise standard deviation."""
         return self._noise_std
 
-    def prior(self):
+    def prior(self) -> "DenseCholeskyMultivariateGaussian[Array]":
         """Return the prior as a Gaussian distribution."""
         return self._model.prior()
 

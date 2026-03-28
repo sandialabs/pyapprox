@@ -156,7 +156,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if vel_func is None:
             return None
 
-        def adapted_velocity(x):
+        def adapted_velocity(
+            x: np.ndarray,
+        ) -> np.ndarray:
             # x: (ndim, ...) from skfem
             orig_shape = x.shape
             ndim = orig_shape[0]
@@ -184,14 +186,18 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         if self._time_dependent:
 
-            def adapted_forcing(x, time):
+            def adapted_forcing(
+                x: np.ndarray, time: float,
+            ) -> np.ndarray:
                 vals = forcing_func(x, time)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
                 return vals
         else:
 
-            def adapted_forcing(x):
+            def adapted_forcing(
+                x: np.ndarray,
+            ) -> np.ndarray:
                 vals = forcing_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
@@ -293,14 +299,19 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         if self._time_dependent:
 
-            def value_func(x, t):
+            def value_func(
+                x: np.ndarray, t: float,
+            ) -> np.ndarray:
                 vals = sol_func(x, t)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
                 return vals
         else:
 
-            def value_func(x, t=None):
+            def value_func(
+                x: np.ndarray,
+                t: Optional[float] = None,
+            ) -> np.ndarray:
                 vals = sol_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
@@ -320,11 +331,16 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         if self._time_dependent:
 
-            def neumann_value(x, t):
+            def neumann_value(
+                x: np.ndarray, t: float,
+            ) -> np.ndarray:
                 return self._compute_natural_bc_value(boundary_index, x, t)
         else:
 
-            def neumann_value(x, t=None):
+            def neumann_value(
+                x: np.ndarray,
+                t: Optional[float] = None,
+            ) -> np.ndarray:
                 return self._compute_natural_bc_value(boundary_index, x)
 
         return NeumannBC(
@@ -348,7 +364,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         if self._time_dependent:
 
-            def robin_value(x, t):
+            def robin_value(
+                x: np.ndarray, t: float,
+            ) -> np.ndarray:
                 u_vals = sol_func(x, t)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
@@ -356,7 +374,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 return alpha * u_vals + nat_bc
         else:
 
-            def robin_value(x, t=None):
+            def robin_value(
+                x: np.ndarray,
+                t: Optional[float] = None,
+            ) -> np.ndarray:
                 u_vals = sol_func(x)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
@@ -676,12 +697,16 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
 
         if time_dep:
 
-            def adapted_forcing(x, time):
+            def adapted_forcing(
+                x: np.ndarray, time: float,
+            ) -> np.ndarray:
                 vals = forcing_func(x, time)  # (npts, ncomponents)
                 return vals.T  # (ncomponents, npts) = (ndim, npts)
         else:
 
-            def adapted_forcing(x, time=0.0):
+            def adapted_forcing(
+                x: np.ndarray, time: float = 0.0,
+            ) -> np.ndarray:
                 vals = forcing_func(x)  # (npts, ncomponents)
                 return vals.T  # (ncomponents, npts) = (ndim, npts)
 
@@ -697,7 +722,9 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         ndim = self._ndim
         time_dep = self._time_dependent
 
-        def value_func(coords, time=0.0):
+        def value_func(
+            coords: np.ndarray, time: float = 0.0,
+        ) -> np.ndarray:
             # coords: (ndim, nbndry_dofs) from dof_coordinates
             nbndry_dofs = coords.shape[1]
             if time_dep:
@@ -780,7 +807,9 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         time_dep = self._time_dependent
         bndry_idx = boundary_index
 
-        def neumann_flux(coords, time=0.0):
+        def neumann_flux(
+            coords: np.ndarray, time: float = 0.0,
+        ) -> np.ndarray:
             # coords: (ndim, npts) — quadrature point coordinates
             traction = self._compute_traction(
                 bndry_idx, coords, time if time_dep else None
@@ -808,7 +837,9 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         bndry_idx = boundary_index
         alpha_val = alpha
 
-        def robin_value(coords, time=0.0):
+        def robin_value(
+            coords: np.ndarray, time: float = 0.0,
+        ) -> np.ndarray:
             # coords: (ndim, npts)
             traction = self._compute_traction(
                 bndry_idx, coords, time if time_dep else None

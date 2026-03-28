@@ -4,7 +4,12 @@ This module provides specialized ACV estimator variants with different
 sample allocation strategies.
 """
 
-from typing import Any, Generic, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, List, Tuple, Union
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import numpy as np
 
@@ -25,7 +30,11 @@ def _covariance_to_correlation(cov: Array, bkd: Backend[Array]) -> Array:
     return cor
 
 
-def _variance_reduction(get_rsquared, cov, nsample_ratios):
+def _variance_reduction(
+    get_rsquared: "Callable[[Array, Array], Array]",
+    cov: Array,
+    nsample_ratios: Array,
+) -> Array:
     r"""
     Compute the variance reduction:
 
@@ -69,7 +78,7 @@ def _check_mfmc_model_costs_and_correlations(costs: Array, corr: Array) -> bool:
     return True
 
 
-def _get_rsquared_mfmc(cov: Array, nsample_ratios: Array):
+def _get_rsquared_mfmc(cov: Array, nsample_ratios: Array) -> Array:
     r"""
     Compute r^2 used to compute the variance reduction  of
     Multifidelity Monte Carlo (MFMC)
@@ -108,8 +117,11 @@ def _get_rsquared_mfmc(cov: Array, nsample_ratios: Array):
 
 
 def _allocate_samples_mfmc(
-    cov: Array, costs: Array, target_cost: float, bkd: Backend[Array]
-):
+    cov: Array,
+    costs: Array,
+    target_cost: float,
+    bkd: Backend[Array],
+) -> Tuple[Array, Array]:
     r"""
     Determine the samples to be allocated to each model when using MFMC
 
@@ -177,7 +189,7 @@ def _get_sample_allocation_matrix_mfmc(nmodels: int, bkd: Backend[Array]) -> Arr
     return mat
 
 
-def _get_rsquared_mlmc(cov: Array, nsample_ratios: Array):
+def _get_rsquared_mlmc(cov: Array, nsample_ratios: Array) -> Array:
     r"""
     Compute r^2 used to compute the variance reduction of
     Multilevel Monte Carlo (MLMC)
@@ -220,8 +232,11 @@ def _get_rsquared_mlmc(cov: Array, nsample_ratios: Array):
 
 
 def _allocate_samples_mlmc(
-    cov: Array, costs: Array, target_cost: float, bkd: Backend[Array]
-):
+    cov: Array,
+    costs: Array,
+    target_cost: float,
+    bkd: Backend[Array],
+) -> Tuple[Array, Array]:
     r"""
     Determine the samples to be allocated to each model when using MLMC
 
@@ -361,10 +376,10 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List[Any], Array],
-        opt_criteria=None,
+        costs: Union[List[float], Array],
+        opt_criteria: None = None,
         opt_qoi: int = 0,
-    ):
+    ) -> None:
         # Use the sample analytical sample allocation for estimating a scalar
         # mean when estimating any statistic
         nmodels = len(costs)
@@ -377,7 +392,9 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
-    def _allocate_samples(self, target_cost: float):
+    def _allocate_samples(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
         if not _check_mfmc_model_costs_and_correlations(
@@ -397,7 +414,9 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         nsample_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return nsample_ratios, val
 
-    def _allocate_samples_analytical(self, target_cost: float):
+    def _allocate_samples_analytical(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         """Analytical allocation for MFMC.
 
         Returns partition_ratios and objective_value as Arrays to support
@@ -421,11 +440,13 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         objective_value = self._bkd.atleast_1d(log_variance)
         return partition_ratios, objective_value
 
-    def _native_ratios_to_npartition_ratios(self, ratios: Array):
+    def _native_ratios_to_npartition_ratios(
+        self, ratios: Array,
+    ) -> Array:
         partition_ratios = self._bkd.hstack((ratios[0] - 1, self._bkd.diff(ratios)))
         return partition_ratios
 
-    def _get_allocation_matrix(self):
+    def _get_allocation_matrix(self) -> Array:
         return _get_sample_allocation_matrix_mfmc(self._nmodels, self._bkd)
 
 
@@ -435,10 +456,10 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List[Any], Array],
-        opt_criteria=None,
+        costs: Union[List[float], Array],
+        opt_criteria: None = None,
         opt_qoi: int = 0,
-    ):
+    ) -> None:
         """
         Use the sample analytical sample allocation for estimating a scalar
         mean when estimating any statistic
@@ -473,7 +494,9 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
             cf,
         )
 
-    def _allocate_samples(self, target_cost: float):
+    def _allocate_samples(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         nsample_ratios, val = _allocate_samples_mlmc(
             self._stat._cov[
                 self._opt_qoi :: self._stat._nqoi,
@@ -486,7 +509,9 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         partition_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return partition_ratios, val
 
-    def _allocate_samples_analytical(self, target_cost: float):
+    def _allocate_samples_analytical(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         """Analytical allocation for MLMC.
 
         Returns partition_ratios and objective_value as Arrays to support

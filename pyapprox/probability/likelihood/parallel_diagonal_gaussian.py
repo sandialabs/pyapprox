@@ -7,6 +7,8 @@ that uses parallel processing when nprocs > 1.
 
 from typing import Generic, Optional
 
+from numpy.typing import NDArray
+
 from pyapprox.probability.likelihood.gaussian import (
     DiagonalGaussianLogLikelihood,
 )
@@ -137,7 +139,7 @@ class ParallelDiagonalGaussianLogLikelihood(
         model_outputs_np = transfer.to_numpy(model_outputs)
 
         # Closure that captures model_outputs for parallel execution
-        def eval_chunk(obs_chunk_np):
+        def eval_chunk(obs_chunk_np: NDArray) -> NDArray:
             obs_chunk = transfer.from_numpy(obs_chunk_np)
             model = transfer.from_numpy(model_outputs_np)
             result = self._logpdf_vectorized_serial(model, obs_chunk)

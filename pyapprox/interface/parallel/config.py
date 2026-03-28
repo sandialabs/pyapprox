@@ -4,6 +4,9 @@ This module provides ParallelConfig for configuring parallel execution
 backends and settings.
 """
 
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, Optional, Union
 
@@ -97,7 +100,12 @@ class SequentialBackend:
     Useful for debugging and small workloads.
     """
 
-    def map(self, func, items, n_jobs=-1):
+    def map(
+        self,
+        func: Callable[[object], object],
+        items: Sequence[object],
+        n_jobs: int = -1,
+    ) -> list[object]:
         """Apply function to each item sequentially.
 
         Parameters
@@ -116,7 +124,12 @@ class SequentialBackend:
         """
         return [func(item) for item in items]
 
-    def starmap(self, func, items, n_jobs=-1):
+    def starmap(
+        self,
+        func: Callable[..., object],
+        items: Sequence[tuple[object, ...]],
+        n_jobs: int = -1,
+    ) -> list[object]:
         """Apply function with unpacked arguments sequentially.
 
         Parameters

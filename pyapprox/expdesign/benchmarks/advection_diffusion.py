@@ -8,7 +8,15 @@ coefficients, inlet velocity shape, and Reynolds number.
 
 # TODO: Should benchmarks be defined here on in benchmarks module. Decide and document rule, and place in benchmarks.CONVENTIONS.md
 
-from typing import Any, Generic, Tuple
+from typing import TYPE_CHECKING, Callable, Generic, List, Tuple, Union
+
+if TYPE_CHECKING:
+    from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+    from pyapprox.pde.galerkin.basis.vector_lagrange import (
+        VectorLagrangeBasis,
+    )
+    from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
+    from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 import numpy as np
 
@@ -16,13 +24,16 @@ from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _build_obstructed_mesh(bkd, nrefine):
+def _build_obstructed_mesh(
+    bkd: Backend[Array], nrefine: int,
+) -> "ObstructedMesh2D[Array]":
     """Create the obstructed domain mesh."""
     from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
 
@@ -38,7 +49,17 @@ def _build_obstructed_mesh(bkd, nrefine):
     )
 
 
-def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
+def _solve_stokes(
+    mesh: "ObstructedMesh2D[Array]",
+    bkd: Backend[Array],
+    reynolds_num: float,
+    vel_shape_params: List[float],
+) -> Tuple[
+    Array,
+    "StokesPhysics[Array]",
+    "VectorLagrangeBasis[Array]",
+    "LagrangeBasis[Array]",
+]:
     """Solve Stokes on the obstructed mesh for velocity field."""
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
@@ -54,7 +75,7 @@ def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
 
     a, b = vel_shape_params
 
-    def inlet_func(x, time=None):
+    def inlet_func(x: np.ndarray, time: float = 0.0) -> np.ndarray:
         """Parabolic-like inlet: y^(a-1) * (1-y)^(b-1)."""
         y = x[1]
         npts = x.shape[1]
@@ -62,7 +83,7 @@ def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
         vals[:, 0] = y ** (a - 1) * (1 - y) ** (b - 1)
         return vals
 
-    def zero_vel(x, time=None):
+    def zero_vel(x: np.ndarray, time: float = 0.0) -> np.ndarray:
         return np.zeros((x.shape[1], 2))
 
     # No-slip on obs, bottom, top; parabolic inlet on left
@@ -94,13 +115,13 @@ def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
 
 
 def _extract_velocity_callable(
-    sol,
-    stokes,
-    vel_basis,
-    pres_basis,
-    adr_basis,
-    bkd,
-):
+    sol: Array,
+    stokes: "StokesPhysics[Array]",
+    vel_basis: "VectorLagrangeBasis[Array]",
+    pres_basis: "LagrangeBasis[Array]",
+    adr_basis: "LagrangeBasis[Array]",
+    bkd: Backend[Array],
+) -> Callable[[np.ndarray], np.ndarray]:
     """Extract velocity from Stokes solution as callable for ADR.
 
     Returns a callable that accepts points of shape (2, ...) and returns
@@ -139,7 +160,7 @@ def _extract_velocity_callable(
     # Return callable that evaluates velocity at arbitrary points.
     # Must preserve input shape: (2, ...) -> (2, ...)
     # skfem passes w.x with shape (2, nqpts, nelements)
-    def velocity_field(x):
+    def velocity_field(x: np.ndarray) -> np.ndarray:
         orig_shape = x.shape[1:]
         x_flat = x.reshape(2, -1)
         vx = vel_x_interp(x_flat).reshape(orig_shape)
@@ -149,7 +170,11 @@ def _extract_velocity_callable(
     return velocity_field
 
 
-def _create_kle_forcing(adr_basis, nkle_terms, bkd):
+def _create_kle_forcing(
+    adr_basis: "LagrangeBasis[Array]",
+    nkle_terms: int,
+    bkd: Backend[Array],
+) -> TransformedFieldMap[Array]:
     """Create KLE forcing on quadrature points."""
     from pyapprox.pde.field_maps.kle_factory import (
         create_lognormal_kle_field_map,
@@ -215,7 +240,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         self._nadvec_diff_refine = nadvec_diff_refine
 
         # Build prior: [kle_params (10), vel_shape (2), reynolds (1)]
-        marginals: list[Any] = []
+        marginals: List[Union[GaussianMarginal[Array], UniformMarginal[Array]]] = []
         for _ in range(nkle_terms):
             marginals.append(GaussianMarginal(0.0, 1.0, bkd))
         marginals.append(UniformMarginal(2.0, 3.0, bkd))
@@ -257,10 +282,10 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         nqoi_obs = nsensors
         nqoi_pred = 1
 
-        def obs_callable(samples):
+        def obs_callable(samples: Array) -> Array:
             return self._evaluate_observation(samples)
 
-        def pred_callable(samples):
+        def pred_callable(samples: Array) -> Array:
             return self._evaluate_prediction(samples)
 
         self._obs_model = FunctionFromCallable(
@@ -276,7 +301,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             bkd,
         )
 
-    def _solve_forward(self, params_np):
+    def _solve_forward(self, params_np: np.ndarray) -> Tuple[Array, Array]:
         """Full forward solve for a single parameter vector."""
         from pyapprox.pde.galerkin.boundary.implementations import (
             RobinBC,
@@ -324,7 +349,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         adr_skfem = self._adr_basis.skfem_basis()
         forcing_interp = adr_skfem.interpolator(forcing_nodal)
 
-        def forcing_func(x, time=None):
+        def forcing_func(x: np.ndarray, time: float = 0.0) -> np.ndarray:
             return forcing_interp(x)
 
         # Robin BCs on left/right (alpha=0.1, g=0)
@@ -361,19 +386,19 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 
         return solutions, times
 
-    def _extract_obs(self, solutions):
+    def _extract_obs(self, solutions: Array) -> np.ndarray:
         """Extract observations from a forward solve solution."""
         final_sol = self._bkd.to_numpy(solutions[:, -1])
         return final_sol[self._sensor_indices]
 
-    def _extract_pred(self, solutions):
+    def _extract_pred(self, solutions: Array) -> np.ndarray:
         """Extract predictions from a forward solve solution."""
         nodes_np = self._bkd.to_numpy(self._adr_mesh.nodes())
         target_mask = nodes_np[0, :] >= self._target_threshold
         final_sol = self._bkd.to_numpy(solutions[:, -1])
         return np.array([np.mean(final_sol[target_mask])])
 
-    def _evaluate_observation(self, samples):
+    def _evaluate_observation(self, samples: Array) -> Array:
         """Evaluate observation model. samples: (nparams, nsamples)."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -386,7 +411,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 
         return bkd.asarray(np.column_stack(results))
 
-    def _evaluate_prediction(self, samples):
+    def _evaluate_prediction(self, samples: Array) -> Array:
         """Evaluate prediction model. samples: (nparams, nsamples)."""
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -441,11 +466,11 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         """Return the prior distribution."""
         return self._prior
 
-    def observation_model(self):
+    def observation_model(self) -> FunctionFromCallable[Array]:
         """Return the observation model (FunctionProtocol)."""
         return self._obs_model
 
-    def prediction_model(self):
+    def prediction_model(self) -> FunctionFromCallable[Array]:
         """Return the prediction model (FunctionProtocol)."""
         return self._pred_model
 

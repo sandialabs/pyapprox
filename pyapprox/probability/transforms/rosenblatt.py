@@ -21,7 +21,6 @@ from pyapprox.optimization.rootfinding.bisection import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-
 # TODO: do we need clip. Also we shoul not be using np.fun only bkd.fun
 # so computational graph is not broken for autograd
 # TODO: Fix type errors in this file
@@ -231,7 +230,7 @@ class RosenblattTransform(Generic[Array]):
         for i in range(self._nvars):
             if i == 0:
                 # F_1(x_1) = integral_{-inf}^{x_1} f_1(t) dt
-                def integrand(t):
+                def integrand(t: float) -> float:
                     point = np.zeros(self._nvars)
                     point[0] = t
                     # Integrate out remaining variables
@@ -311,10 +310,10 @@ class RosenblattTransform(Generic[Array]):
 
         bounds = self._bkd.to_numpy(self._bounds)
 
-        def integrand(t):
+        def integrand(t: float) -> float:
             point = np.zeros(self._nvars)
             point[dim] = t
-            return self._marginal_pdf_by_integration(point, dim)
+            return float(self._marginal_pdf_by_integration(point, dim))
 
         result, _ = integrate.quad(integrand, bounds[0, dim], x, limit=50)
         return result

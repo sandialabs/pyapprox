@@ -4,13 +4,31 @@ This module provides standalone plotting functions for visualising
 allocation matrices, variance reductions, and recursion DAGs.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypeVar
+
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pyapprox.util.backends.protocols import Array
 
-def _plot_partition(ii, jj, ax, color, text):
+if TYPE_CHECKING:
+    import networkx
+
+    from pyapprox.statest.acv.base import ACVEstimator
+
+_A = TypeVar("_A", bound=Array)
+
+
+def _plot_partition(
+    ii: int,
+    jj: int,
+    ax: matplotlib.axes.Axes,
+    color: str,
+    text: Optional[str],
+) -> None:
     """Plot a single partition block in an allocation matrix."""
     box = np.array([[ii, jj], [ii + 1, jj], [ii + 1, jj + 1], [ii, jj + 1], [ii, jj]]).T
     ax.plot(*box, color="k")
@@ -24,7 +42,11 @@ def _plot_partition(ii, jj, ax, color, text):
         )
 
 
-def _plot_allocation_matrix(allocation_mat, npartition_samples, ax):
+def _plot_allocation_matrix(
+    allocation_mat: np.ndarray,
+    npartition_samples: Optional[np.ndarray],
+    ax: matplotlib.axes.Axes,
+) -> None:
     """Plot an allocation matrix.
 
     Parameters
@@ -70,7 +92,11 @@ def _plot_allocation_matrix(allocation_mat, npartition_samples, ax):
     ax.yaxis.set_tick_params(length=0)
 
 
-def plot_allocation(estimator, ax, show_partition_sizes=False):
+def plot_allocation(
+    estimator: ACVEstimator[_A],
+    ax: matplotlib.axes.Axes,
+    show_partition_sizes: bool = False,
+) -> None:
     """Plot the allocation matrix for an ACV estimator.
 
     Parameters
@@ -90,7 +116,11 @@ def plot_allocation(estimator, ax, show_partition_sizes=False):
     _plot_allocation_matrix(allocation_mat, npartition_samples, ax)
 
 
-def _autolabel(ax, rects, labels):
+def _autolabel(
+    ax: matplotlib.axes.Axes,
+    rects: list,  # type: ignore[type-arg]
+    labels: List[str],
+) -> None:
     """Attach a text label inside each bar."""
     for rect, label in zip(rects, labels):
         ax.annotate(
@@ -107,7 +137,7 @@ def _autolabel(ax, rects, labels):
 
 
 def plot_estimator_variance_reductions(
-    optimized_estimators: list[Any],
+    optimized_estimators: list,  # type: ignore[type-arg]
     est_labels: List[str],
     ax: plt.Axes,
     ylabel: Optional[str] = None,
@@ -169,7 +199,7 @@ def plot_estimator_variance_reductions(
 
 
 def _hp(
-    G,
+    G: "networkx.Graph",
     root: int,
     width: float = 1.0,
     vert_gap: float = 0.2,
@@ -205,7 +235,7 @@ def _hp(
 
 
 def _hierarchy_pos(
-    G,
+    G: "networkx.Graph",
     root: int,
     width: float = 1.0,
     vert_gap: float = 0.2,
@@ -216,7 +246,10 @@ def _hierarchy_pos(
     return _hp(G, root, width, vert_gap, vert_loc, xcenter)
 
 
-def plot_recursion_dag(estimator, ax: plt.Axes) -> None:
+def plot_recursion_dag(
+    estimator: ACVEstimator[_A],
+    ax: matplotlib.axes.Axes,
+) -> None:
     """Plot the recursion DAG of an ACV estimator.
 
     Each node represents a model index; edges show the recursion
