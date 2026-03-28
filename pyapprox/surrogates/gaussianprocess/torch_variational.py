@@ -6,6 +6,8 @@ automatic differentiation for ELBO gradient computation during optimization
 and for prediction Jacobians.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import torch
@@ -19,6 +21,10 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
 from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
+from pyapprox.surrogates.gaussianprocess.variational_loss import (
+    VariationalGPELBOLoss,
+)
+from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.validation import validate_backends
 
@@ -47,10 +53,10 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
 
     def __init__(
         self,
-        kernel,
+        kernel: Kernel[torch.Tensor],
         nvars: int,
         inducing_samples: InducingSamples[torch.Tensor],
-        mean_function: Optional[MeanFunction[Array]] = None,
+        mean_function: Optional[MeanFunction[torch.Tensor]] = None,
         nugget: float = 1e-6,
     ) -> None:
         bkd = TorchBkd()
@@ -123,7 +129,7 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
 
         return torch.stack(jacs, dim=0)
 
-    def _configure_loss(self, loss) -> None:
+    def _configure_loss(self, loss: VariationalGPELBOLoss[torch.Tensor]) -> None:
         """Bind autograd-based jacobian on the loss function."""
         bkd = self._bkd
 

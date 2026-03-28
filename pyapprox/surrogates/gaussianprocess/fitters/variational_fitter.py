@@ -3,7 +3,14 @@
 Uses VariationalGPELBOLoss for hyperparameter optimization.
 """
 
-from typing import Generic, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Optional
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.variational import (
+        VariationalGaussianProcess,
+    )
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -55,7 +62,7 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: VariationalGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
     ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
@@ -135,7 +142,7 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: VariationalGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
     ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:

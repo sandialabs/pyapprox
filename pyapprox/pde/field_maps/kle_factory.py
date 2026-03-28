@@ -29,7 +29,16 @@ For large meshes, prefer ``create_spde_matern_kle`` (Matern fields)
 or ``create_fem_nystrom_nodes_kle`` (arbitrary kernels).
 """
 
-from typing import Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+import numpy.typing as npt
+
+if TYPE_CHECKING:
+    from skfem.assembly.basis.cell_basis import CellBasis
+
+    from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 
 import numpy as np
 
@@ -122,7 +131,7 @@ def create_lognormal_kle_field_map(
     )
 
 
-def _build_phi_matrix(skfem_basis) -> np.ndarray:
+def _build_phi_matrix(skfem_basis: CellBasis) -> npt.NDArray[np.floating[Any]]:
     """Build global shape-function matrix at quadrature points.
 
     Parameters
@@ -151,7 +160,7 @@ def _build_phi_matrix(skfem_basis) -> np.ndarray:
 
 
 def create_fem_galerkin_kle(
-    skfem_basis,
+    skfem_basis: CellBasis,
     kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
@@ -213,7 +222,7 @@ def create_fem_galerkin_kle(
 
 
 def create_fem_nystrom_nodes_kle(
-    skfem_basis,
+    skfem_basis: CellBasis,
     kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
@@ -262,7 +271,7 @@ def create_fem_nystrom_nodes_kle(
 
 
 def create_fem_nystrom_quadrature_kle(
-    skfem_basis,
+    skfem_basis: CellBasis,
     kernel: KernelProtocol[Array],
     nterms: int,
     sigma: float,
@@ -365,7 +374,7 @@ def _compute_spde_tau_squared(
 
 
 def create_spde_matern_kle(
-    basis,
+    basis: GalerkinBasisProtocol[Array],
     n_modes: int,
     gamma: float,
     delta: float,
@@ -490,7 +499,7 @@ def create_spde_matern_kle(
 
 
 def create_spde_lognormal_kle_field_map(
-    basis,
+    basis: GalerkinBasisProtocol[Array],
     mean_log_field: Array,
     bkd: Backend[Array],
     n_modes: int,

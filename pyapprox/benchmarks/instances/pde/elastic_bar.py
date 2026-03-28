@@ -4,7 +4,11 @@ Wraps the zoo factories (linear and hyperelastic 1D bar) into benchmark
 instances with standard normal KLE priors and configurable QoI functionals.
 """
 
-from typing import Any, Tuple
+from __future__ import annotations
+
+from typing import Any, Tuple, Union
+
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
@@ -84,7 +88,7 @@ def _make_kle_field_map(
     num_kle_terms: int,
     sigma: float,
     correlation_length: float,
-):
+) -> TransformedFieldMap[Array]:
     """Create lognormal KLE field map on mesh nodes."""
     physical_pts = mesh.points()  # shape (1, npts)
     npts = physical_pts.shape[1]
@@ -124,7 +128,11 @@ def _make_functional(
     length: float,
     E_mean: float,
     poisson_ratio: float,
-):
+) -> Union[
+    PointEvaluationFunctional[Array],
+    SubdomainIntegralFunctional[Array],
+    StrainEnergyFunctional1D[Array],
+]:
     """Create QoI functional from string identifier."""
     npts = basis.nodes().shape[0]
 
@@ -176,7 +184,7 @@ def _make_average_stress_functional(
     length: float,
     E_mean: float,
     poisson_ratio: float,
-):
+) -> StrainEnergyFunctional1D[Array]:
     """Create average stress functional: (1/L) integral sigma dx."""
     if constitutive == "linear":
         inv_L = 1.0 / length
@@ -225,7 +233,7 @@ def _make_strain_energy_functional(
     constitutive: str,
     E_mean: float,
     poisson_ratio: float,
-):
+) -> StrainEnergyFunctional1D[Array]:
     """Create strain energy functional."""
     if constitutive == "linear":
         return create_linear_strain_energy_1d(

@@ -154,7 +154,7 @@ class PeriodicBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities=None,
+        physical_sensitivities: object = None,
     ) -> Array:
         """Apply periodic BC to parameter Jacobian.
 

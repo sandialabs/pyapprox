@@ -8,16 +8,21 @@ References
 https://doi.org/10.1016/j.jcp.2003.09.015
 """
 
+from typing import Any, Optional
+
 import numpy as np
+import numpy.typing as npt
 from scipy.optimize import brenth
+
+NDArrayFloat = npt.NDArray[np.floating[Any]]
 
 
 def _compute_roots_of_characteristic_equation(
     corr_len: float,
     nvars: int,
     dom_len: float,
-    maxw: float = None,
-) -> np.ndarray:
+    maxw: Optional[float] = None,
+) -> NDArrayFloat:
     """Compute roots of the characteristic equation for exponential kernel.
 
     Parameters
@@ -37,10 +42,11 @@ def _compute_roots_of_characteristic_equation(
         Roots of the characteristic equation.
     """
 
-    def func(w):
-        return (corr_len**2 * w**2 - 1.0) * np.sin(
+    def func(w: float) -> np.floating[Any]:
+        result: np.floating[Any] = (corr_len**2 * w**2 - 1.0) * np.sin(
             w * dom_len
         ) - 2 * corr_len * w * np.cos(w * dom_len)
+        return result
 
     omega = np.empty(nvars, float)
     dw = 1e-2
@@ -66,8 +72,8 @@ def _compute_roots_of_characteristic_equation(
 
 
 def _exponential_kle_eigenvalues(
-    sigma2: float, corr_len: float, omega: np.ndarray
-) -> np.ndarray:
+    sigma2: float, corr_len: float, omega: NDArrayFloat
+) -> NDArrayFloat:
     """Compute analytical eigenvalues for exponential kernel KLE.
 
     Parameters
@@ -84,16 +90,17 @@ def _exponential_kle_eigenvalues(
     ndarray, shape (nvars,)
         Eigenvalues.
     """
-    return 2 * corr_len * sigma2 / (1.0 + (omega * corr_len) ** 2)
+    result: NDArrayFloat = 2 * corr_len * sigma2 / (1.0 + (omega * corr_len) ** 2)
+    return result
 
 
 def _exponential_kle_basis(
-    x: np.ndarray,
+    x: NDArrayFloat,
     corr_len: float,
     sigma2: float,
     dom_len: float,
-    omega: np.ndarray,
-) -> np.ndarray:
+    omega: NDArrayFloat,
+) -> NDArrayFloat:
     """Compute analytical eigenfunctions for exponential kernel KLE.
 
     Parameters
@@ -153,8 +160,8 @@ class AnalyticalExponentialKLE1D:
         sigma2: float,
         dom_len: float,
         nterms: int,
-        maxw: float = None,
-    ):
+        maxw: Optional[float] = None,
+    ) -> None:
         self._corr_len = corr_len
         self._sigma2 = sigma2
         self._dom_len = dom_len
@@ -164,13 +171,13 @@ class AnalyticalExponentialKLE1D:
             corr_len, nterms, dom_len, maxw=maxw
         )
         self._eig_vals = _exponential_kle_eigenvalues(sigma2, corr_len, self._omega)
-        self._basis_vals = None
+        self._basis_vals: Optional[NDArrayFloat] = None
 
-    def eigenvalues(self) -> np.ndarray:
+    def eigenvalues(self) -> NDArrayFloat:
         """Return analytical eigenvalues, shape (nterms,)."""
         return self._eig_vals
 
-    def basis_values(self, mesh_1d: np.ndarray) -> np.ndarray:
+    def basis_values(self, mesh_1d: NDArrayFloat) -> NDArrayFloat:
         """Compute basis function values at mesh points.
 
         Parameters

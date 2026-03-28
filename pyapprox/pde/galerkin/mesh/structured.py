@@ -269,7 +269,7 @@ class StructuredMesh2D(Generic[Array]):
         """
         return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
 
-    def skfem_mesh(self):
+    def skfem_mesh(self) -> object:
         """Return the underlying skfem mesh object."""
         return self._skfem_mesh
 
@@ -454,7 +454,7 @@ class StructuredMesh3D(Generic[Array]):
         """
         return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
 
-    def skfem_mesh(self):
+    def skfem_mesh(self) -> object:
         """Return the underlying skfem mesh object."""
         return self._skfem_mesh
 

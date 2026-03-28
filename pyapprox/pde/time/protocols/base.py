@@ -212,7 +212,7 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
         return quadx, quadw
 
     @abstractmethod
-    def _get_quadrature_class(self):
+    def _get_quadrature_class(self) -> type:
         """
         Return the quadrature class for this time stepper.
 

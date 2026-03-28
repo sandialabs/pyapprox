@@ -10,7 +10,7 @@ where:
     λ, μ are Lamé parameters
 """
 
-from typing import Callable, Generic, Optional, Tuple
+from typing import Any, Callable, Generic, Optional, Tuple
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
@@ -98,7 +98,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     # Material property setters
     # ------------------------------------------------------------------
 
-    def set_mu(self, mu_values) -> None:
+    def set_mu(self, mu_values: Any) -> None:
         """Set shear modulus (scalar or per-point array).
 
         Parameters
@@ -118,7 +118,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             self._mu_array = mu_values
             self._mu_value = None
 
-    def set_lamda(self, lamda_values) -> None:
+    def set_lamda(self, lamda_values: Any) -> None:
         """Set Lame's first parameter (scalar or per-point array).
 
         Parameters

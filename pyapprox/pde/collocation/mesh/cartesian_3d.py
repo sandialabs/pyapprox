@@ -185,7 +185,7 @@ class CartesianMesh3D(Generic[Array]):
         return self._bkd.ones((self.npts(),))
 
     @property
-    def data(self):
+    def data(self) -> object:
         """Return underlying mesh data structure."""
         return self._data
 

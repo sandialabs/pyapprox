@@ -48,7 +48,7 @@ def create_hyperelastic_pressurized_cylinder_2d(
     inner_pressure: float,
     field_map: FieldMapProtocol[Array],
     forcing: Optional[Callable[..., Any]] = None,
-    functional=None,
+    functional: object = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 2D hyperelastic pressurized cylinder forward model.
 

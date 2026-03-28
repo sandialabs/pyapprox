@@ -104,7 +104,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         except TypeError:
             return self._forcing(coords)
 
-    def mass_matrix(self):
+    def mass_matrix(self) -> object:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()
 

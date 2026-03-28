@@ -1,7 +1,7 @@
 """Bayesian Optimization orchestrator with ask/tell/step/run workflows."""
 
 import warnings
-from typing import Any, Callable, Generic, List, Optional
+from typing import Any, Callable, Generic, List, Optional, Tuple
 
 from pyapprox.optimization.bayesian.batch.greedy import KrigingBeliever
 from pyapprox.optimization.bayesian.convergence import (
@@ -501,7 +501,7 @@ class BayesianOptimizer(Generic[Array]):
 
         return self._bkd.reshape(y[best_idx], (1,))
 
-    def _find_best_observed(self):
+    def _find_best_observed(self) -> Tuple[Array, Array]:
         """Find best observed point.
 
         Returns

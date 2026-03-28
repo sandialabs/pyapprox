@@ -66,7 +66,7 @@ def _make_numba_smolyak() -> SmolyakImpl:
         nsubspaces: int,
         nshifts: int,
     ) -> np.ndarray:
-        return smolyak_coefficients_numba(
+        result: np.ndarray = smolyak_coefficients_numba(
             np_indices,
             np_shifts,
             np_signs,
@@ -74,6 +74,7 @@ def _make_numba_smolyak() -> SmolyakImpl:
             nsubspaces,
             nshifts,
         )
+        return result
 
     return impl
 

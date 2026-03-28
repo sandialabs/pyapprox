@@ -8,10 +8,17 @@ nonlinear in the deformation gradient.
 Factory functions create RobinBC objects wrapping this operator.
 """
 
-from typing import Callable, Generic, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Generic, List, Tuple, Union
 
 from pyapprox.pde.collocation.boundary.robin import RobinBC
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.pde.collocation.physics.stress_models.protocols import (
+        StressModelWithTangentProtocol,
+    )
 
 
 class HyperelasticTractionNormalOperator(Generic[Array]):
@@ -49,10 +56,10 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         mesh_boundary_indices: Array,
         normals: Array,
         derivative_matrices: List[Array],
-        stress_model,
+        stress_model: StressModelWithTangentProtocol[Array],
         npts: int,
         component: int,
-    ):
+    ) -> None:
         self._bkd = bkd
         self._mesh_boundary_indices = mesh_boundary_indices
         self._normals = normals
@@ -71,7 +78,9 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         """Return True: PK1 stress depends on material parameters."""
         return True
 
-    def _compute_F_full(self, state: Array):
+    def _compute_F_full(
+        self, state: Array,
+    ) -> Tuple[Array, Array, Array, Array]:
         """Compute deformation gradient components at all mesh points."""
         npts = self._npts
         u = state[:npts]
@@ -84,7 +93,9 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
         F22 = 1.0 + Dy @ v
         return F11, F12, F21, F22
 
-    def _subset_to_boundary(self, *arrays):
+    def _subset_to_boundary(
+        self, *arrays: Array,
+    ) -> Tuple[Array, ...]:
         """Extract boundary-point values from full-field arrays."""
         idx = self._mesh_boundary_indices
         return tuple(a[idx] for a in arrays)
@@ -184,7 +195,7 @@ def hyperelastic_traction_neumann_bc(
     mesh_boundary_indices: Array,
     normals: Array,
     derivative_matrices: List[Array],
-    stress_model,
+    stress_model: StressModelWithTangentProtocol[Array],
     npts: int,
     component: int,
     values: Union[float, Array, Callable[[float], Array]] = 0.0,
@@ -235,7 +246,7 @@ def hyperelastic_traction_robin_bc(
     mesh_boundary_indices: Array,
     normals: Array,
     derivative_matrices: List[Array],
-    stress_model,
+    stress_model: StressModelWithTangentProtocol[Array],
     npts: int,
     component: int,
     alpha: Union[float, Array],

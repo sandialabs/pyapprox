@@ -280,7 +280,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         """
         return -final_dqdu
 
-    def _get_quadrature_class(self):
+    def _get_quadrature_class(self) -> type:
         """Return quadrature class for Heun's method (trapezoidal/linear)."""
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseLinear,

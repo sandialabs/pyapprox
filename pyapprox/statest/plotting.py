@@ -6,7 +6,7 @@ allocation matrices, variance reductions, and recursion DAGs.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -18,8 +18,6 @@ if TYPE_CHECKING:
     import networkx
 
     from pyapprox.statest.acv.base import ACVEstimator
-
-_A = TypeVar("_A", bound=Array)
 
 
 def _plot_partition(
@@ -93,7 +91,7 @@ def _plot_allocation_matrix(
 
 
 def plot_allocation(
-    estimator: ACVEstimator[_A],
+    estimator: ACVEstimator[Array],
     ax: matplotlib.axes.Axes,
     show_partition_sizes: bool = False,
 ) -> None:
@@ -141,7 +139,7 @@ def plot_estimator_variance_reductions(
     est_labels: List[str],
     ax: plt.Axes,
     ylabel: Optional[str] = None,
-    **bar_kwargs,
+    **bar_kwargs: Any,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Plot variance reduction relative to single-fidelity MC.
 
@@ -247,7 +245,7 @@ def _hierarchy_pos(
 
 
 def plot_recursion_dag(
-    estimator: ACVEstimator[_A],
+    estimator: ACVEstimator[Array],
     ax: matplotlib.axes.Axes,
 ) -> None:
     """Plot the recursion DAG of an ACV estimator.

@@ -368,7 +368,9 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
         for m_idx in model_idx:
             base_model = self._models[m_idx]
 
-            def make_submodel(model: MultiOutputModelFunction[Array], qoi: List[int]):
+            def make_submodel(
+                model: MultiOutputModelFunction[Array], qoi: List[int],
+            ) -> Callable[[Array], Array]:
                 def submodel(samples: Array) -> Array:
                     full_output = model(samples)  # (nqoi, nsamples)
                     return self._bkd.vstack([full_output[q, :] for q in qoi])

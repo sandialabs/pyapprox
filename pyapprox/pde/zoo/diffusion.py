@@ -57,7 +57,7 @@ def create_steady_diffusion_1d(
     basis_funs: Optional[List[Array]] = None,
     field_map: Optional[FieldMapProtocol[Array]] = None,
     bcs: Optional[list[Any]] = None,
-    functional=None,
+    functional: object = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady-state 1D diffusion forward model.
 
@@ -135,7 +135,7 @@ def create_transient_diffusion_1d(
     basis_funs: Optional[List[Array]] = None,
     field_map: Optional[FieldMapProtocol[Array]] = None,
     bcs: Optional[list[Any]] = None,
-    functional=None,
+    functional: object = None,
 ) -> TransientForwardModel[Array]:
     """Create a transient 1D diffusion forward model.
 

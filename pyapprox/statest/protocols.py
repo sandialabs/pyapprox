@@ -44,7 +44,7 @@ class StatisticProtocol(Protocol, Generic[Array]):
         """Compute quantities from pilot samples."""
         ...
 
-    def set_pilot_quantities(self, *args) -> None:
+    def set_pilot_quantities(self, *args: Array) -> None:
         """Set the pilot quantities."""
         ...
 

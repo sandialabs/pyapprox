@@ -35,12 +35,19 @@ Example
 >>> values = basis(samples)  # Transformed to [-1,1] internally
 """
 
-from typing import Generic, Tuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Tuple
 
 from pyapprox.surrogates.affine.univariate.transforms import (
     Univariate1DTransformProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.affine.protocols.basis1d import (
+        OrthonormalPolynomial1DProtocol,
+    )
 
 
 class TransformedBasis1D(Generic[Array]):
@@ -83,7 +90,7 @@ class TransformedBasis1D(Generic[Array]):
 
     def __init__(
         self,
-        polynomial,  # OrthonormalPolynomial1D[Array]
+        polynomial: OrthonormalPolynomial1DProtocol[Array],
         transform: Univariate1DTransformProtocol[Array],
     ) -> None:
         if hasattr(polynomial, "operates_in_physical_domain"):
@@ -100,7 +107,7 @@ class TransformedBasis1D(Generic[Array]):
         """Return the computational backend."""
         return self._polynomial.bkd()
 
-    def polynomial(self):
+    def polynomial(self) -> OrthonormalPolynomial1DProtocol[Array]:
         """Return the underlying polynomial."""
         return self._polynomial
 
@@ -264,7 +271,7 @@ class NativeBasis1D(Generic[Array]):
     >>> values = basis(samples)  # Shape: (3, 3)
     """
 
-    def __init__(self, polynomial) -> None:  # OrthonormalPolynomial1D[Array]
+    def __init__(self, polynomial: OrthonormalPolynomial1DProtocol[Array]) -> None:
         if hasattr(polynomial, "operates_in_physical_domain"):
             if not polynomial.operates_in_physical_domain():
                 raise ValueError(
@@ -278,7 +285,7 @@ class NativeBasis1D(Generic[Array]):
         """Return the computational backend."""
         return self._polynomial.bkd()
 
-    def polynomial(self):
+    def polynomial(self) -> OrthonormalPolynomial1DProtocol[Array]:
         """Return the underlying polynomial."""
         return self._polynomial
 

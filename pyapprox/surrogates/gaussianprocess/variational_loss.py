@@ -5,10 +5,17 @@ This module provides the VariationalGPELBOLoss class which wraps
 the variational GP's negative ELBO for use with optimizers.
 """
 
-from typing import Any, Generic, Tuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.variational import (
+        VariationalGaussianProcess,
+    )
 
 
 class VariationalGPELBOLoss(Generic[Array]):
@@ -30,7 +37,7 @@ class VariationalGPELBOLoss(Generic[Array]):
 
     def __init__(
         self,
-        gp,  # VariationalGaussianProcess
+        gp: VariationalGaussianProcess[Array],
         fit_args: Tuple[Any, ...],
     ) -> None:
         self._gp = gp

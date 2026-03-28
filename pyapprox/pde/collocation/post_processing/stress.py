@@ -284,7 +284,7 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         self,
         Dx: Array,
         Dy: Array,
-        stress_model,
+        stress_model: object,
         bkd: Backend[Array],
         curvilinear_basis: Optional[Array] = None,
     ) -> None:
@@ -500,7 +500,7 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
 
         # Build dP_iK/d(state) for each i,K
         # dP_iK/d(state) = [sum_L A_{iK1L}*D_L | sum_L A_{iK2L}*D_L]
-        def _dP_block(i, K):
+        def _dP_block(i: int, K: int) -> Array:
             """Compute dP_{iK}/d(state). Shape: (npts, 2*npts)."""
             du_block = bkd.zeros((npts, npts))
             du_block = bkd.copy(du_block)
@@ -532,7 +532,7 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         # d(sigma_{ij})/d(state) = -(1/J^2)*dJ * (sum_K P_{iK}*F_{jK})
         #   + (1/J) * sum_K [dP_{iK} * F_{jK} + P_{iK} * dF_{jK}]
 
-        def _dsigma(i, j):
+        def _dsigma(i: int, j: int) -> Array:
             """Compute d(sigma_{ij})/d(state). Shape: (npts, 2*npts)."""
             # sum_K P_{iK} * F_{jK}
             PFt_ij = sum(P_vals[(i, K)] * F_vals[(j, K)] for K in (1, 2))

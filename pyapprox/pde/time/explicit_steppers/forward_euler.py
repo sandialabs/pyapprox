@@ -211,7 +211,7 @@ class ForwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         return -final_dqdu
 
-    def _get_quadrature_class(self):
+    def _get_quadrature_class(self) -> type:
         """Return quadrature class for Forward Euler (left-constant)."""
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseConstantLeft,

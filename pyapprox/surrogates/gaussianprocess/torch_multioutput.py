@@ -8,10 +8,15 @@ likelihood w.r.t. hyperparameters. This enables optimization with any
 differentiable kernel, even those lacking analytical jacobian_wrt_params.
 """
 
+from __future__ import annotations
+
 from typing import Union
 
 import torch
 
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
+)
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
@@ -45,10 +50,10 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
     def __init__(
         self,
         kernel: Union[
-            IndependentMultiOutputKernel[Array],
-            LinearCoregionalizationKernel[Array],
-            MultiLevelKernel[Array],
-            DAGMultiOutputKernel[Array],
+            IndependentMultiOutputKernel[torch.Tensor],
+            LinearCoregionalizationKernel[torch.Tensor],
+            MultiLevelKernel[torch.Tensor],
+            DAGMultiOutputKernel[torch.Tensor],
         ],
         nugget: float = 1e-6,
     ):
@@ -60,7 +65,7 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
 
         super().__init__(kernel, nugget)
 
-    def _configure_loss(self, loss) -> None:
+    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor]) -> None:
         """Bind autograd-based jacobian on the loss function."""
         bkd = self._bkd
 

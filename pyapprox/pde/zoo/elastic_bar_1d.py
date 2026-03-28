@@ -41,7 +41,7 @@ def create_linear_elastic_bar_1d(
     field_map: FieldMapProtocol[Array],
     traction: Optional[float] = None,
     dirichlet_left: float = 0.0,
-    functional=None,
+    functional: object = None,
 ) -> SteadyForwardModel[Array]:
     """Create a steady 1D linear elastic bar forward model.
 

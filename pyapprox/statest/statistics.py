@@ -650,7 +650,7 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         raise NotImplementedError
 
     @abstractmethod
-    def set_pilot_quantities(self, *args) -> None:
+    def set_pilot_quantities(self, *args: Array) -> None:
         raise NotImplementedError
 
     @abstractmethod

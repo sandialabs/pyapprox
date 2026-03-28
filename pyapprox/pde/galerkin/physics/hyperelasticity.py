@@ -128,7 +128,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         """Solve M * x = rhs for x."""
         return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
-    def _interpolate_state(self, state: Array):
+    def _interpolate_state(self, state: Array) -> object:
         """Interpolate state onto the skfem basis for use in forms.
 
         Returns the skfem interpolated DiscreteField with per-component

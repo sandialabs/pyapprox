@@ -12,7 +12,13 @@ Manufactured solution: u(x) = sin(pi*x)
 which satisfies -u'' = pi^2 * sin(pi*x) with u(0) = u(2) = 0.
 """
 
+from __future__ import annotations
+
 import math
+from collections.abc import Callable
+from typing import Dict, Tuple
+
+from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -31,7 +37,9 @@ from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.util.backends.numpy import NumpyBkd
 
 
-def create_poisson_1d_problem(npts_per_subdomain: int = 10):
+def create_poisson_1d_problem(
+    npts_per_subdomain: int = 10,
+) -> Tuple[dict, dict, NDArray, NumpyBkd]:  # type: ignore[type-arg]
     """Create 1D Poisson problem with two subdomains.
 
     Parameters
@@ -47,10 +55,12 @@ def create_poisson_1d_problem(npts_per_subdomain: int = 10):
     bkd = NumpyBkd()
 
     # Manufactured solution: u(x) = sin(pi*x)
-    def exact_solution(x):
+    def exact_solution(x: NDArray) -> NDArray:
         return bkd.sin(math.pi * x)
 
-    def forcing(time):
+    def forcing(
+        time: float,
+    ) -> "Callable[[NDArray], NDArray]":
         # For -u'' = f, with u = sin(pi*x), f = pi^2 * sin(pi*x)
         # But ADR residual is du/dt = D*laplacian(u) + f
         # For steady state: 0 = D*laplacian(u) + f => f = -D*laplacian(u)
@@ -139,7 +149,9 @@ def create_poisson_1d_problem(npts_per_subdomain: int = 10):
     return subdomain_solvers, interfaces, interface_dof_offsets, bkd
 
 
-def solve_poisson_1d(npts_per_subdomain: int = 10, verbose: bool = False):
+def solve_poisson_1d(
+    npts_per_subdomain: int = 10, verbose: bool = False,
+) -> Dict[str, object]:
     """Solve 1D Poisson with domain decomposition.
 
     Parameters
@@ -192,7 +204,7 @@ def solve_poisson_1d(npts_per_subdomain: int = 10, verbose: bool = False):
     }
 
 
-def main():
+def main() -> None:
     """Run 1D Poisson example."""
     print("1D Poisson Domain Decomposition Example")
     print("=" * 50)

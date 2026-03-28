@@ -1,6 +1,13 @@
 """Shared test utilities."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional
+
 import pytest
+
+if TYPE_CHECKING:
+    from pyapprox.statest.acv.allocation import ACVAllocationResult
 
 # Convenience aliases — apply the marker with "*" (all backends).
 # Existing code using @slow_test continues to work unchanged.
@@ -9,7 +16,9 @@ slower_test = pytest.mark.slower_on("*")
 slowest_test = pytest.mark.slowest_on("*")
 
 
-def allocate_with_allocator(est, target_cost: float):
+def allocate_with_allocator(
+    est: Any, target_cost: float,
+) -> Optional[ACVAllocationResult[Any]]:
     """Allocate samples using the new allocator API.
 
     This function replaces `est.allocate_samples(target_cost)` for all

@@ -37,7 +37,7 @@ class GroupACVObjective(ABC, Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_estimator(self, estimator: "GroupACVEstimator"):
+    def set_estimator(self, estimator: "GroupACVEstimator[Array]") -> None:
         """Set the estimator and update backend."""
         self._est = estimator
         self._bkd = self._est._bkd
@@ -283,7 +283,7 @@ class GroupACVCostConstraint(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_estimator(self, estimator: "GroupACVEstimator"):
+    def set_estimator(self, estimator: "GroupACVEstimator[Array]") -> None:
         """Set the estimator and update backend."""
         self._est = estimator
         self._bkd = self._est._bkd
@@ -291,7 +291,7 @@ class GroupACVCostConstraint(Generic[Array]):
         self._lb = self._bkd.zeros((self.nqoi(),))
         self._ub = self._bkd.full((self.nqoi(),), np.inf)
 
-    def set_budget(self, target_cost: float, min_nhf_samples: int):
+    def set_budget(self, target_cost: float, min_nhf_samples: int) -> None:
         """
         Set the budget constraints.
 
@@ -307,7 +307,7 @@ class GroupACVCostConstraint(Generic[Array]):
         self._min_nhf_samples = min_nhf_samples
         self._validate_target_cost_min_nhf_samples()
 
-    def _validate_target_cost_min_nhf_samples(self):
+    def _validate_target_cost_min_nhf_samples(self) -> None:
         """Validate that target_cost is sufficient for min_nhf_samples."""
         lb = self._min_nhf_samples * self._est._costs[0]
         ub = self._target_cost

@@ -5,7 +5,7 @@ adjoint-based Jacobian (scalar QoI) or forward sensitivity Jacobian
 (vector QoI).
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Any, Generic, Optional, Tuple
 
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -49,13 +49,13 @@ class TransientForwardModel(Generic[Array]):
 
     def __init__(
         self,
-        physics,
+        physics: Any,
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig,
-        functional=None,
+        functional: Any = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
-    ):
+    ) -> None:
         if parameterization is not None and not isinstance(
             parameterization, ParameterizationProtocol
         ):
@@ -235,7 +235,7 @@ class TransientForwardModel(Generic[Array]):
         self,
         fwd_sols: Array,
         times: Array,
-        time_residual,
+        time_residual: object,
     ) -> Array:
         """Solve tangent linear model for full sensitivity matrix.
 

@@ -11,7 +11,12 @@ strain energy.
 # can we make general testable utilities that we can then resuse to
 # reduce code bloat and prouce more reliable code
 
+from __future__ import annotations
+
 import math
+from typing import Union
+
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
@@ -58,7 +63,7 @@ def _make_kle_field_map_2d(
     mesh: TransformedMesh2D[Array],
     num_kle_terms: int,
     sigma: float,
-):
+) -> TransformedFieldMap[Array]:
     """Create lognormal KLE field map on 2D mesh nodes."""
     physical_pts = mesh.points()  # (2, npts)
     npts = physical_pts.shape[1]
@@ -92,7 +97,11 @@ def _make_functional(
     transform: PolarTransform[Array],
     nparams: int,
     weld_r_fraction: float,
-):
+) -> Union[
+    OuterWallRadialDisplacementFunctional[Array],
+    AverageHoopStressFunctional[Array],
+    StrainEnergyFunctional2D[Array],
+]:
     """Create QoI functional from string identifier."""
     npts = basis.npts()
     Dx = basis.derivative_matrix(1, 0)
@@ -161,7 +170,11 @@ def _make_hyperelastic_functional(
     transform: PolarTransform[Array],
     nparams: int,
     weld_r_fraction: float,
-):
+) -> Union[
+    OuterWallRadialDisplacementFunctional[Array],
+    HyperelasticAverageHoopStressFunctional[Array],
+    StrainEnergyFunctional2D[Array],
+]:
     """Create QoI functional for hyperelastic problems."""
     npts = basis.npts()
     Dx = basis.derivative_matrix(1, 0)

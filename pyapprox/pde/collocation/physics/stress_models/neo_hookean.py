@@ -11,7 +11,7 @@ Implements StressModelProtocol, StressModelWithTangentProtocol (1D/2D),
 and SymbolicStressModelProtocol.
 """
 
-from typing import Dict, Generic, Tuple
+from typing import Any, Dict, Generic, Tuple
 
 import sympy as sp
 
@@ -38,11 +38,11 @@ class NeoHookeanStress(Generic[Array]):
         self._lamda = lamda
         self._mu = mu
 
-    def set_mu(self, mu) -> None:
+    def set_mu(self, mu: Any) -> None:
         """Set shear modulus (scalar or per-point array)."""
         self._mu = mu
 
-    def set_lamda(self, lamda) -> None:
+    def set_lamda(self, lamda: Any) -> None:
         """Set Lame's first parameter (scalar or per-point array)."""
         self._lamda = lamda
 

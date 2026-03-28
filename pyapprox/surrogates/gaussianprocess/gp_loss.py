@@ -6,10 +6,18 @@ and multi-output GPs by exploiting the fact that NLL computation is identical
 once the kernel matrix is formed.
 """
 
-from typing import Any, Generic, Tuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Generic, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.exact import (
+        ExactGaussianProcess,
+    )
+    from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
 
 
 class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
@@ -51,7 +59,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     def __init__(
         self,
-        gp,  # Union[ExactGaussianProcess, MultiOutputGP]
+        gp: Union[ExactGaussianProcess[Array], MultiOutputGP[Array]],
         fit_args: Tuple[Any, ...],
     ):
         self._gp = gp

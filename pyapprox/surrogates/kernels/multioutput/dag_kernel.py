@@ -212,7 +212,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         # Precompute path information for efficiency
         self._precompute_paths()
 
-    def _precompute_paths(self):
+    def _precompute_paths(self) -> None:
         """
         Precompute paths from each ancestor to each descendant.
 

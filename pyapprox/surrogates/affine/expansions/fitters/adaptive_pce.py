@@ -303,7 +303,7 @@ class AdaptivePCEFitter(Generic[Array]):
         expansion: BasisExpansionProtocol[Array],
         samples: Array,
         values: Array,
-    ):
+    ) -> AdaptivePCEResult[Array]:
         """Run OMP + CV on the current expansion basis."""
         bkd = self._bkd
         basis = expansion.get_basis()
@@ -494,7 +494,7 @@ class AdaptivePCEFitter(Generic[Array]):
     def _make_fallback_result(
         self,
         expansion: BasisExpansionProtocol[Array],
-        basis,
+        basis: MultiIndexBasisProtocol[Array],
         bkd: Backend[Array],
         indices: Array,
     ) -> AdaptivePCEResult[Array]:

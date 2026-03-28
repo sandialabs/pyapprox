@@ -45,7 +45,7 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         consistent mass. Cheaper per step but less accurate.
     """
 
-    def __init__(self, physics, lumped_mass: bool = False):
+    def __init__(self, physics: object, lumped_mass: bool = False) -> None:
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0
@@ -61,7 +61,7 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         # Cache identity for mass_matrix() method
         self._identity_cached: Optional[Array] = None
 
-    def _setup_mass(self, physics) -> None:
+    def _setup_mass(self, physics: object) -> None:
         """Build and factor the BC-modified mass matrix."""
         M_raw = physics.mass_matrix()
         M_np = (

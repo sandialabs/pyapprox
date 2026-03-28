@@ -185,7 +185,7 @@ def create_jacobian(
     residual: DtNResidual[Array],
     method: str = "finite_difference",
     epsilon: float = 1e-7,
-):
+) -> DtNJacobian[Array]:
     """Create a DtN Jacobian object.
 
     Parameters

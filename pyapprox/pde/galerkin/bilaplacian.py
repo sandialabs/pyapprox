@@ -158,7 +158,9 @@ class BiLaplacianPrior(Generic[Array]):
             alpha = bc.alpha()
             bndry_basis = skfem_basis.boundary(bc.boundary_name())
 
-            def robin_bilinear(u, v, w, _alpha=alpha):
+            def robin_bilinear(
+                u: object, v: object, w: object, _alpha: object = alpha
+            ) -> object:
                 return _alpha * u * v
 
             stiffness += asm(BilinearForm(robin_bilinear), bndry_basis)

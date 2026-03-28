@@ -8,7 +8,7 @@ stress model. Supports 1D, 2D, and 3D with any constitutive law that
 satisfies StressModelProtocol.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Any, Callable, Generic, List, Optional, Tuple
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
@@ -76,7 +76,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     # Material property setters
     # ------------------------------------------------------------------
 
-    def set_mu(self, mu_values) -> None:
+    def set_mu(self, mu_values: Any) -> None:
         """Set shear modulus (scalar or per-point array).
 
         Parameters
@@ -90,7 +90,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         self._stress_model.set_mu(mu_values)
 
-    def set_lamda(self, lamda_values) -> None:
+    def set_lamda(self, lamda_values: Any) -> None:
         """Set Lame's first parameter (scalar or per-point array).
 
         Parameters
@@ -135,7 +135,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     # Flux computation (PK1 stress)
     # ------------------------------------------------------------------
 
-    def compute_flux(self, state: Array):
+    def compute_flux(self, state: Array) -> Any:
         """Compute PK1 stress as flux.
 
         Parameters
@@ -168,7 +168,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         else:
             raise NotImplementedError("compute_flux only implemented for 1D and 2D")
 
-    def compute_flux_jacobian(self, state: Array):
+    def compute_flux_jacobian(self, state: Array) -> Any:
         """Compute d(flux)/d(state).
 
         Parameters

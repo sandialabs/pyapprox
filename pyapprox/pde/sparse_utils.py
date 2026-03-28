@@ -5,14 +5,23 @@ and dense numpy arrays, avoiding the need to convert sparse matrices
 to dense for linear solves and boundary condition application.
 """
 
+from __future__ import annotations
+
 import warnings
+from typing import Any, Union
 
 import numpy as np
-from scipy.sparse import csc_matrix, issparse
+from numpy.typing import NDArray
+from scipy.sparse import csc_matrix, issparse, spmatrix
 from scipy.sparse.linalg import spsolve
 
+from pyapprox.util.backends.protocols import Array, Backend
 
-def sparse_or_dense_solve(A, b):
+
+def sparse_or_dense_solve(
+    A: Union[spmatrix, NDArray[np.floating[Any]]],
+    b: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Solve A @ x = b, dispatching to spsolve when A is sparse.
 
     Low-level function operating on numpy arrays. For backend-aware
@@ -46,7 +55,11 @@ def sparse_or_dense_solve(A, b):
     return np.linalg.solve(A, b)
 
 
-def solve_maybe_sparse(bkd, A, b):
+def solve_maybe_sparse(
+    bkd: Backend[Array],
+    A: Union[spmatrix, Array],
+    b: Array,
+) -> Array:
     """Backend-aware solve that handles both sparse and dense matrices.
 
     If A is a scipy sparse matrix, delegates to ``bkd.solve_sparse(A, b)``.
@@ -78,7 +91,10 @@ def solve_maybe_sparse(bkd, A, b):
     return bkd.solve(A, b)
 
 
-def apply_dirichlet_rows(matrix, dof_indices):
+def apply_dirichlet_rows(
+    matrix: Union[spmatrix, NDArray[np.floating[Any]]],
+    dof_indices: NDArray[np.integer[Any]],
+) -> Union[spmatrix, NDArray[np.floating[Any]]]:
     """Zero rows and set diagonal to 1.0 for Dirichlet DOFs.
 
     Works for both scipy sparse matrices and dense numpy arrays.

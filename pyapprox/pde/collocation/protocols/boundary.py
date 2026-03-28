@@ -42,7 +42,7 @@ class BCDofClassification:
     essential: list[Any]
     row_replaced: list[Any]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not set(self.essential) <= set(self.row_replaced):
             raise ValueError(
                 "essential must be a subset of row_replaced: "
@@ -156,7 +156,7 @@ class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities=None,
+        physical_sensitivities: object = None,
     ) -> Array:
         """Apply boundary condition to parameter Jacobian.
 

@@ -76,11 +76,12 @@ class JoblibBackend:
         from joblib import Parallel, delayed
 
         n = n_jobs if n_jobs > 0 else self._n_jobs
-        return Parallel(
+        result: list[T] = Parallel(
             n_jobs=n,
             prefer=self._prefer,
             verbose=self._verbose,
         )(delayed(func)(item) for item in items)
+        return result
 
     def starmap(
         self,

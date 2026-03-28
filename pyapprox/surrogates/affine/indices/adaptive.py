@@ -203,7 +203,7 @@ class AdaptiveIndexRefinement(Generic[Array]):
 
     def refine_to_tolerance(
         self,
-        func,
+        func: Callable[[Array], Array],
         tolerance: float,
         max_iterations: int = 100,
     ) -> None:

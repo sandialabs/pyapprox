@@ -49,7 +49,7 @@ class ConstrainedTimeStepResidual(Generic[Array]):
         The physics adapter with dirichlet_dof_info(time) method.
     """
 
-    def __init__(self, stepper, adapter):
+    def __init__(self, stepper: object, adapter: object) -> None:
         self._stepper = stepper
         self._adapter = adapter
         self._bkd = stepper.bkd()

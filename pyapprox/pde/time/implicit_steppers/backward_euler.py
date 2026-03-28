@@ -209,7 +209,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         drdu = self.jacobian(final_fwd_sol)
         return solve_maybe_sparse(self._bkd, drdu.T, -final_dqdu)
 
-    def _get_quadrature_class(self):
+    def _get_quadrature_class(self) -> type:
         """Return quadrature class for Backward Euler (right-constant)."""
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseConstantRight,

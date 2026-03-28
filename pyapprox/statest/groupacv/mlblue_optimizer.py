@@ -4,6 +4,8 @@ This module provides allocation optimizers specialized for MLBLUE,
 including the semidefinite programming (SPD) optimizer that uses cvxpy.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Generic, Optional
 
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
@@ -14,6 +16,8 @@ from pyapprox.util.backends.protocols import Array
 from pyapprox.util.optional_deps import import_optional_dependency
 
 if TYPE_CHECKING:
+    from cvxpy.expressions.expression import Expression as CvxpyExpression
+
     from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 
 
@@ -126,7 +130,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         # Fallback
         return "CLARABEL"
 
-    def _cvxpy_psi(self, nsps_cvxpy):
+    def _cvxpy_psi(self, nsps_cvxpy: CvxpyExpression) -> CvxpyExpression:
         """Construct the psi matrix as a cvxpy expression."""
         Psi = self._est._psi_blocks_flat @ nsps_cvxpy
         Psi = self._cvxpy.reshape(
@@ -136,7 +140,9 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         )
         return Psi
 
-    def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
+    def _cvxpy_spd_constraint(
+        self, nsps_cvxpy: CvxpyExpression, t_cvxpy: CvxpyExpression,
+    ) -> CvxpyExpression:
         """Construct the SPD constraint matrix."""
         Psi = self._cvxpy_psi(nsps_cvxpy)
         mat = self._cvxpy.bmat(

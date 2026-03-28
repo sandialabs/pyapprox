@@ -3,7 +3,17 @@
 Analogous to LeastSquaresFitter for basis expansions.
 """
 
-from typing import Generic, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Optional, Union
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.exact import (
+        ExactGaussianProcess,
+    )
+    from pyapprox.surrogates.gaussianprocess.variational import (
+        VariationalGaussianProcess,
+    )
 
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
@@ -64,7 +74,7 @@ class GPFixedHyperparameterFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: Union[ExactGaussianProcess[Array], VariationalGaussianProcess[Array]],
         X_train: Array,
         y_train: Array,
     ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:

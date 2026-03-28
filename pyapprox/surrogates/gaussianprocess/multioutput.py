@@ -5,9 +5,16 @@ This module provides GP classes that handle multiple outputs using
 multi-output kernels (IndependentMultiOutputKernel or LinearCoregionalizationKernel).
 """
 
+from __future__ import annotations
+
 import copy
 import math
-from typing import Generic, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Generic, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.gp_loss import (
+        GPNegativeLogMarginalLikelihoodLoss,
+    )
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -22,6 +29,7 @@ from pyapprox.surrogates.kernels.multioutput import (
     MultiLevelKernel,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
@@ -193,7 +201,7 @@ class MultiOutputGP(Generic[Array]):
         """
         return self._kernel
 
-    def hyp_list(self):
+    def hyp_list(self) -> HyperParameterList[Array]:
         """
         Return the hyperparameter list from the kernel.
 
@@ -376,7 +384,7 @@ class MultiOutputGP(Generic[Array]):
         result = fitter.fit(self, X_train_list, y_train)
         self._copy_fitted_state_from(result.surrogate())
 
-    def _configure_loss(self, loss) -> None:
+    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[Array]) -> None:
         """Configure loss function after creation.
 
         Override in subclasses to customize gradient computation.

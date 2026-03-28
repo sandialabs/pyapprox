@@ -5,7 +5,7 @@ Uses Backend[Array] protocol only. Compatible with NumPy, PyTorch, and any
 future backend. Preserves autograd graph for PyTorch.
 """
 
-from typing import List
+from typing import List, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -47,7 +47,7 @@ def _gather_and_prefix_suffix(
     indices: Array,
     nvars: int,
     bkd: Backend[Array],
-):
+) -> Tuple[List[Array], List[Array], List[Array]]:
     """Gather selected 1D values and compute prefix/suffix products.
 
     Returns

@@ -430,7 +430,7 @@ class RandomizedSVD(Generic[Array], ABC):
         self._noversampling = noversampling
         self._npower_iters = npower_iters
 
-    def _check_matvec(self, matvec: MatVecOperator[Array]):
+    def _check_matvec(self, matvec: MatVecOperator[Array]) -> None:
         """Validate the matrix-vector operator."""
         if not isinstance(matvec, MatVecOperator):
             raise ValueError("matvec must be an instance of MatVecOperator")
@@ -567,7 +567,7 @@ class DoublePassRandomizedSVD(RandomizedSVD[Array]):
         Number of power iterations.
     """
 
-    def _check_matvec(self, matvec: MatVecOperator[Array]):
+    def _check_matvec(self, matvec: MatVecOperator[Array]) -> None:
         """Validate that the operator is symmetric."""
         if not isinstance(matvec, SymmetricMatVecOperator):
             raise ValueError("matvec must be an instance of SymmetricMatVecOperator")

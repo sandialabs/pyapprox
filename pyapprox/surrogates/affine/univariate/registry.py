@@ -1,4 +1,4 @@
-"""Registry for marginal → polynomial/transform mappings.
+"""Registry for marginal -> polynomial/transform mappings.
 
 This module provides a single source of truth for mapping marginal distributions
 to their corresponding orthonormal polynomials and domain transforms.
@@ -27,8 +27,10 @@ Example
 >>> transform = entry.transform_factory(marginal, bkd)
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -220,7 +222,9 @@ def _register_builtins() -> None:
     )
 
     # Discrete marginals (physical domain polynomials, no transform)
-    def _scipy_discrete_poly_factory(m: ScipyDiscreteMarginal[Array], bkd):
+    def _scipy_discrete_poly_factory(
+        m: ScipyDiscreteMarginal[Array], bkd: Backend[Array],
+    ) -> Any:
         if m.name == "poisson":
             return CharlierPolynomial1D(bkd, mu=m.shapes["mu"])
         else:
@@ -240,7 +244,9 @@ def _register_builtins() -> None:
     )
 
 
-def _get_scipy_discrete_probability_masses(marginal, bkd):
+def _get_scipy_discrete_probability_masses(
+    marginal: Any, bkd: Backend[Array],
+) -> Tuple[Array, Array]:
     """Get probability masses for scipy discrete marginal.
 
     Parameters

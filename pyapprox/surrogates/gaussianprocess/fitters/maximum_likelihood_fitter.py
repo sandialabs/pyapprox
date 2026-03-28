@@ -4,7 +4,14 @@ Optimizes hyperparameters by minimizing the negative log marginal
 likelihood. Extracts the optimization logic from ExactGaussianProcess.fit().
 """
 
-from typing import Generic, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Optional
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.exact import (
+        ExactGaussianProcess,
+    )
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -74,7 +81,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: ExactGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
     ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:

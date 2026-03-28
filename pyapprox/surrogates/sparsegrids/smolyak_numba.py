@@ -4,12 +4,15 @@ Fuses the double loop over shifts and subspaces into a tight kernel with
 binary search for membership checks. All Python overhead is eliminated.
 """
 
+from typing import Any
+
 import numpy as np
+import numpy.typing as npt
 from numba import njit, prange
 
 
 @njit(cache=True)
-def _encode_indices(indices, nvars, n, base):
+def _encode_indices(indices: npt.NDArray[np.int64], nvars: int, n: int, base: int) -> npt.NDArray[np.int64]:
     """Encode multi-indices as single int64 via mixed-radix packing.
 
     Parameters
@@ -38,7 +41,7 @@ def _encode_indices(indices, nvars, n, base):
 
 
 @njit(cache=True)
-def _binary_search(sorted_arr, target, n):
+def _binary_search(sorted_arr: npt.NDArray[np.int64], target: np.int64, n: int) -> bool:
     """Return True if target is in sorted_arr using binary search."""
     lo = 0
     hi = n - 1
@@ -55,13 +58,13 @@ def _binary_search(sorted_arr, target, n):
 
 @njit(cache=True, parallel=True)
 def smolyak_coefficients_numba(
-    np_indices,
-    np_shifts,
-    np_signs,
-    nvars,
-    nsubspaces,
-    nshifts,
-):
+    np_indices: npt.NDArray[np.int64],
+    np_shifts: npt.NDArray[np.int64],
+    np_signs: npt.NDArray[np.floating[Any]],
+    nvars: int,
+    nsubspaces: int,
+    nshifts: int,
+) -> npt.NDArray[np.floating[Any]]:
     """Compute Smolyak combination coefficients using numba.
 
     Parameters

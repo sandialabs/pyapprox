@@ -35,9 +35,9 @@ class BCEnforcingTimeResidual(Generic[Array]):
     def __init__(
         self,
         time_residual: TimeSteppingResidualBase[Array],
-        physics,
+        physics: object,
         bkd: Backend[Array],
-    ):
+    ) -> None:
         self._inner = time_residual
         self._physics = physics
         self._bkd = bkd
@@ -47,7 +47,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         self._row_replaced = bc_class.row_replaced
         self._setup_methods()
 
-    def _setup_methods(self):
+    def _setup_methods(self) -> None:
         """Dynamic binding based on wrapped stepper capabilities."""
         if hasattr(self._inner, "param_jacobian"):
             self.param_jacobian = self._param_jacobian_impl
@@ -236,7 +236,9 @@ class BCEnforcingTimeResidual(Generic[Array]):
             result = self._zero_bc_rows(result)
         return result
 
-    def _build_bc_physical_sensitivities(self, bc, state_1d, time):
+    def _build_bc_physical_sensitivities(
+        self, bc: object, state_1d: Array, time: float
+    ) -> object:
         """Build physical sensitivities dict for one BC's param_jacobian.
 
         Delegates d(flux·n)/dp computation to the ODE residual adapter via

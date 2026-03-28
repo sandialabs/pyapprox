@@ -341,11 +341,60 @@ class OrthonormalPolynomial1DProtocol(Basis1DProtocol[Array], Protocol, Generic[
     """Protocol for orthonormal polynomial bases.
 
     Extends Basis1DProtocol with additional capabilities:
+    - First and second derivatives (jacobian_batch, hessian_batch)
     - Gauss quadrature rule computation
     - Recursion coefficient access
 
-    These properties enable PCE statistics computation.
+    These properties enable PCE statistics computation and
+    derivative-based operations in TransformedBasis1D.
     """
+
+    def derivatives(self, samples: Array, order: int) -> Array:
+        """Evaluate derivatives of specified order.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples)
+        order : int
+            Derivative order. 0 = values, 1 = first derivative, etc.
+
+        Returns
+        -------
+        Array
+            Derivatives. Shape: (nsamples, nterms)
+        """
+        ...
+
+    def jacobian_batch(self, samples: Array) -> Array:
+        """Evaluate first derivatives of basis functions.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples). Must be 2D.
+
+        Returns
+        -------
+        Array
+            First derivatives. Shape: (nsamples, nterms)
+        """
+        ...
+
+    def hessian_batch(self, samples: Array) -> Array:
+        """Evaluate second derivatives of basis functions.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples). Must be 2D.
+
+        Returns
+        -------
+        Array
+            Second derivatives. Shape: (nsamples, nterms)
+        """
+        ...
 
     def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gaussian quadrature rule for this polynomial family.

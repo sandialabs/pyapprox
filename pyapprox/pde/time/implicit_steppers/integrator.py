@@ -12,7 +12,7 @@ from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TimeIntegrator(Generic[Array]):
@@ -55,7 +55,7 @@ class TimeIntegrator(Generic[Array]):
         self._newton_solver = newton_solver
         self._functional = None
 
-    def bkd(self):
+    def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
 
@@ -125,7 +125,7 @@ class TimeIntegrator(Generic[Array]):
         states = self._bkd.stack(states, axis=1)
         return states, self._bkd.asarray(times)
 
-    def time_residual(self):
+    def time_residual(self) -> object:
         """Return the time stepping residual."""
         return self._time_residual
 

@@ -5,7 +5,12 @@ MultiOutputGP has a different fit signature: _fit_internal takes
 It also has no transforms.
 """
 
-from typing import Generic, List, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, List, Optional, Union
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -38,7 +43,7 @@ class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: MultiOutputGP[Array],
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
     ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
@@ -101,7 +106,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: MultiOutputGP[Array],
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
     ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:

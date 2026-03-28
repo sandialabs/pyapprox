@@ -31,7 +31,7 @@ class PolynomialEnsembleBenchmark(Generic[Array]):
         self,
         inner_ensemble: PolynomialEnsemble[Array],
         domain: BoxDomain[Array],
-        prior,
+        prior: IndependentJoint[Array],
         name: str,
         estimated_cost: float,
     ) -> None:
@@ -50,10 +50,10 @@ class PolynomialEnsembleBenchmark(Generic[Array]):
     def nmodels(self) -> int:
         return self._ensemble.nmodels()
 
-    def domain(self):
+    def domain(self) -> BoxDomain[Array]:
         return self._domain
 
-    def prior(self):
+    def prior(self) -> IndependentJoint[Array]:
         return self._prior
 
     def costs(self) -> Array:

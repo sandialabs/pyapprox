@@ -26,7 +26,26 @@ Example with custom optimizer settings:
     leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
 """
 
-from typing import Any, Callable, Dict, Generic, Optional, Tuple, Type
+from __future__ import annotations
+
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Optional,
+    Tuple,
+    Type,
+)
+
+if TYPE_CHECKING:
+    from pyapprox.optimization.minimize.objective.protocols import (
+        ObjectiveProtocol,
+    )
+    from pyapprox.optimization.minimize.scipy.trust_constr import (
+        ScipyTrustConstrOptimizer,
+    )
 
 import numpy as np
 
@@ -75,7 +94,11 @@ class ScipyTrustConstrMinimizer:
         self._maxiter = maxiter
         self._verbosity = verbosity
 
-    def __call__(self, objective, bounds):
+    def __call__(
+        self,
+        objective: ObjectiveProtocol[Array],
+        bounds: Array,
+    ) -> ScipyTrustConstrOptimizer[Array]:
         """Create optimizer instance for given objective and bounds."""
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,

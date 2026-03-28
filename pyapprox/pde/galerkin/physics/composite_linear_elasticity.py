@@ -46,7 +46,7 @@ except ImportError:
 
 
 @BilinearForm
-def _elastic_form(u, v, w):
+def _elastic_form(u: Any, v: Any, w: Any) -> Any:
     """Elasticity bilinear form with element-wise Lame parameters.
 
     ``w.lam`` and ``w.mu`` must be ``(nelem, nquad)`` arrays.

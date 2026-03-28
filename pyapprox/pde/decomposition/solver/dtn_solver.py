@@ -155,7 +155,7 @@ class DtNSolver(Generic[Array]):
 def create_dtn_solver(
     bkd: Backend[Array],
     residual: DtNResidual[Array],
-    **kwargs,
+    **kwargs: object,
 ) -> DtNSolver[Array]:
     """Create a DtN solver.
 

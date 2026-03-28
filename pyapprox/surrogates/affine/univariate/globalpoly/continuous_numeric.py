@@ -19,10 +19,24 @@ marginals, use DiscreteNumericOrthonormalPolynomial1D with the Lanczos
 algorithm instead.
 """
 
+from __future__ import annotations
+
 import math
-from typing import Any, Callable, Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from pyapprox.probability.protocols.distribution import MarginalProtocol
 
 from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
     LegendrePolynomial1D,
@@ -470,11 +484,11 @@ class _ContinuousNumericOrthonormalPolynomial1DBase(
 
     def __init__(
         self,
-        marginal,
+        marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
         nquad_points: int = 100,
         integrator_options: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         self._marginal = marginal
         self._nquad_points = nquad_points
         self._integrator_options = integrator_options or {}
@@ -648,10 +662,10 @@ class BoundedContinuousNumericOrthonormalPolynomial1D(
 
     def __init__(
         self,
-        marginal,
+        marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
         nquad_points: int = 100,
-    ):
+    ) -> None:
         if not marginal.is_bounded():
             raise ValueError(
                 "BoundedContinuousNumericOrthonormal"
@@ -716,11 +730,11 @@ class UnboundedContinuousNumericOrthonormalPolynomial1D(
 
     def __init__(
         self,
-        marginal,
+        marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
         nquad_points: int = 100,
         integrator_options: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         if marginal.is_bounded():
             raise ValueError(
                 "UnboundedContinuousNumericOrthonormal"
@@ -734,7 +748,7 @@ class UnboundedContinuousNumericOrthonormalPolynomial1D(
 
 
 def ContinuousNumericOrthonormalPolynomial1D(
-    marginal,
+    marginal: MarginalProtocol[Array],
     bkd: Backend[Array],
     nquad_points: int = 100,
     integrator_options: Optional[dict[str, Any]] = None,

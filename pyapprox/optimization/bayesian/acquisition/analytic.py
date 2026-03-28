@@ -4,14 +4,16 @@ All acquisition functions are stateless and operate on a single output
 (nqoi=1). They return values where higher is always better.
 """
 
-from typing import Generic
+from typing import Generic, Optional, Tuple
 
 from pyapprox.optimization.bayesian.math_utils import normal_cdf, normal_pdf
 from pyapprox.optimization.bayesian.protocols import AcquisitionContext
 from pyapprox.util.backends.protocols import Array
 
 
-def _get_mean_and_std_jacobians(sample, ctx):
+def _get_mean_and_std_jacobians(
+    sample: Array, ctx: AcquisitionContext[Array],
+) -> Tuple[Optional[Array], Optional[Array]]:
     """Compute d_mu/dx and d_sigma/dx for a single sample.
 
     Parameters

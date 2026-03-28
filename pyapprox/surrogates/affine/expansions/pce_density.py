@@ -49,7 +49,7 @@ class UnivariatePCEDensity(Generic[Array]):
     def __init__(
         self,
         pce: PolynomialChaosExpansion[Array],
-        marginal,
+        marginal: MarginalProtocol[Array],
     ) -> None:
         if pce.nvars() != 1:
             raise ValueError(

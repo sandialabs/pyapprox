@@ -237,7 +237,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Return all sympy symbols (space + time)."""
         return self.cartesian_symbols() + self.time_symbol()
 
-    def _steady_expression_to_function(self, expr) -> Callable[..., Any]:
+    def _steady_expression_to_function(self, expr: object) -> Callable[..., Any]:
         """Convert a steady expression to a callable function."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
@@ -271,7 +271,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
             oned=False,
         )
 
-    def _transient_expression_to_function(self, expr) -> Callable[..., Any]:
+    def _transient_expression_to_function(self, expr: object) -> Callable[..., Any]:
         """Convert a transient expression to a callable function."""
         all_symbs = self.all_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
@@ -389,7 +389,7 @@ class ScalarSolutionMixin:
     time_symbol: Callable[..., Any]
     is_transient: Callable[..., Any]
 
-    def __init__(self, sol_str: str, *args, **kwargs):
+    def __init__(self, sol_str: str, *args: object, **kwargs: object) -> None:
         self._sol_str = sol_str
         super().__init__(*args, **kwargs)
 
@@ -436,7 +436,7 @@ class VectorSolutionMixin:
     time_symbol: Callable[..., Any]
     is_transient: Callable[..., Any]
 
-    def __init__(self, sol_strs: List[str], *args, **kwargs):
+    def __init__(self, sol_strs: List[str], *args: object, **kwargs: object) -> None:
         self._sol_strs = sol_strs
         self._ncomponents = len(sol_strs)
         super().__init__(*args, **kwargs)

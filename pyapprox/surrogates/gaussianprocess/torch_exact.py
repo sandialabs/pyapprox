@@ -10,6 +10,8 @@ implement analytical jacobian and hvp methods, this class automatically
 computes derivatives through the computational graph using bkd.jacobian.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import torch
@@ -17,9 +19,13 @@ import torch
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
+)
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
+from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.validation import validate_backends
 
@@ -90,9 +96,9 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
 
     def __init__(
         self,
-        kernel,
+        kernel: Kernel[torch.Tensor],
         nvars: int,
-        mean_function: Optional[MeanFunction[Array]] = None,
+        mean_function: Optional[MeanFunction[torch.Tensor]] = None,
         nugget: float = 1e-6,
     ):
         bkd = TorchBkd()
@@ -196,7 +202,7 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
 
         return torch.stack(jacs, dim=0)  # (n_samples, nqoi, nvars)
 
-    def _configure_loss(self, loss) -> None:
+    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor]) -> None:
         """Bind autograd-based jacobian on the loss function."""
         bkd = self._bkd
 

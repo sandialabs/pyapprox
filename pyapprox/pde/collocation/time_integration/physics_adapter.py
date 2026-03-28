@@ -336,7 +336,7 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         time: float,
         bc_indices: Array,
         normals: Array,
-    ):
+    ) -> object:
         """Compute d(flux·n)/dp at boundary nodes, or None."""
         if (
             self._parameterization is not None

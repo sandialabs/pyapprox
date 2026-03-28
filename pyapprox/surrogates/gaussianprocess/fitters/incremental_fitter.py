@@ -8,7 +8,14 @@ Falls back to GPFixedHyperparameterFitter when the incremental
 path is not applicable.
 """
 
-from typing import Generic, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Optional
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.gaussianprocess.exact import (
+        ExactGaussianProcess,
+    )
 
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
@@ -45,10 +52,10 @@ class GPIncrementalFitter(Generic[Array]):
 
     def fit(
         self,
-        gp,
+        gp: ExactGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-        prev_gp=None,
+        prev_gp: Optional[ExactGaussianProcess[Array]] = None,
     ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fit GP to data, using incremental update if possible.
 
@@ -79,7 +86,11 @@ class GPIncrementalFitter(Generic[Array]):
                 return result
         return self._fit_full(gp, X_train, y_train)
 
-    def _can_do_incremental(self, prev_gp, X_train: Array) -> bool:
+    def _can_do_incremental(
+        self,
+        prev_gp: Optional[ExactGaussianProcess[Array]],
+        X_train: Array,
+    ) -> bool:
         """Check if incremental update is possible.
 
         Returns True if prev_gp is fitted and X_train has exactly
@@ -93,7 +104,15 @@ class GPIncrementalFitter(Generic[Array]):
         n_new = X_train.shape[1]
         return n_new == n_prev + 1
 
-    def _fit_incremental(self, gp, X_train, y_train, prev_gp) -> Optional[GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]]:
+    def _fit_incremental(
+        self,
+        gp: ExactGaussianProcess[Array],
+        X_train: Array,
+        y_train: Array,
+        prev_gp: Optional[ExactGaussianProcess[Array]],
+    ) -> Optional[
+        GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]
+    ]:
         """Perform rank-1 Cholesky update.
 
         Returns None if the update fails (e.g., non-positive diagonal),
@@ -170,7 +189,12 @@ class GPIncrementalFitter(Generic[Array]):
             neg_log_marginal_likelihood=nll,
         )
 
-    def _fit_full(self, gp, X_train, y_train) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    def _fit_full(
+        self,
+        gp: ExactGaussianProcess[Array],
+        X_train: Array,
+        y_train: Array,
+    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
         """Fall back to full Cholesky factorization."""
         from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (  # noqa: E501
             GPFixedHyperparameterFitter,

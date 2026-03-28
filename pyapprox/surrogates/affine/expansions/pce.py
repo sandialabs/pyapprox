@@ -366,7 +366,7 @@ def create_pce(
 
 
 def get_basis_from_marginal(
-    marginal,
+    marginal: MarginalProtocol[Array],
     bkd: Backend[Array],
 ) -> _PhysicalDomainBasis1D[Array]:
     """Get physical-domain basis for a marginal distribution.

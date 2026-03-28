@@ -10,7 +10,7 @@ This module separates allocation optimization from estimation, providing:
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, List, Optional
+from typing import TYPE_CHECKING, Any, Generic, List, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -120,7 +120,7 @@ def _clone_estimator_for_torch(
     nqoi = estimator._stat.nqoi()
     stat = estimator._stat
 
-    def _to_torch_double(arr):
+    def _to_torch_double(arr: Array) -> Array:
         return torch_bkd.asarray(estimator._bkd.to_numpy(arr), dtype=torch.double)
 
     if isinstance(stat, MultiOutputMeanAndVariance):
@@ -615,7 +615,9 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
             return ACVAllocator(self._est).allocate(target_cost)
         return result
 
-    def _allocate_analytical(self, target_cost: float):
+    def _allocate_analytical(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         from pyapprox.statest.acv.variants import _allocate_samples_mfmc
 
         nqoi = self._est._stat.nqoi()
@@ -692,7 +694,9 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
             return ACVAllocator(self._est).allocate(target_cost)
         return result
 
-    def _allocate_analytical(self, target_cost: float):
+    def _allocate_analytical(
+        self, target_cost: float,
+    ) -> Tuple[Array, Array]:
         from pyapprox.statest.acv.variants import _allocate_samples_mlmc
 
         nqoi = self._est._stat.nqoi()

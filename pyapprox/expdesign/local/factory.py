@@ -5,7 +5,13 @@ These functions provide a convenient interface for creating OED components
 without manually instantiating design matrices and criteria.
 """
 
+from __future__ import annotations
+
 from typing import Literal, Optional
+
+from .criteria.base import LocalOEDCriterionBase
+from .design_matrices.base import DesignMatricesBase
+from .solver.base import LocalOEDSolverBase
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -37,7 +43,7 @@ def create_design_matrices(
     regression_type: RegressionType = "least_squares",
     noise_mult: Optional[Array] = None,
     quantile: float = 0.5,
-):
+) -> DesignMatricesBase[Array]:
     """
     Create design matrices for OED.
 
@@ -83,7 +89,7 @@ def create_criterion(
     vec: Optional[Array] = None,  # For C-optimal
     pred_factors: Optional[Array] = None,  # For I, G, R-optimal
     pred_weights: Optional[Array] = None,  # For I-optimal
-):
+) -> LocalOEDCriterionBase[Array]:
     """
     Create an OED criterion.
 
@@ -165,7 +171,7 @@ def create_solver(
     alpha: float = 0.5,  # For R-optimal (AVaR)
     verbosity: int = 0,
     maxiter: Optional[int] = None,
-):
+) -> LocalOEDSolverBase[Array]:
     """
     Create an OED solver with the appropriate criterion.
 

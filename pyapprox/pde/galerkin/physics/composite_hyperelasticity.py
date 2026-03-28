@@ -191,7 +191,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     def mass_solve(self, rhs: Array) -> Array:
         return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
-    def _interpolate_state(self, state: Array):
+    def _interpolate_state(self, state: Array) -> object:
         skfem_basis = self._basis.skfem_basis()
         state_np = self._bkd.to_numpy(state)
         return skfem_basis.interpolate(state_np)

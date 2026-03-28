@@ -214,7 +214,7 @@ class CovarianceHyperParameter(Generic[Array]):
 
         return L
 
-    def _update_covariance(self):
+    def _update_covariance(self) -> None:
         """Update the cached covariance matrix."""
         L = self._hypersphere_to_cholesky()
         self._covariance = L @ L.T

@@ -246,7 +246,7 @@ class GalerkinModel(Generic[Array]):
             state = bkd.asarray(state_np.astype(np.float64))
         return state
 
-    def _create_stepper(self, config: TimeIntegrationConfig):
+    def _create_stepper(self, config: TimeIntegrationConfig) -> object:
         """Create a time stepping residual for the given method.
 
         For explicit methods, uses GalerkinExplicitODEAdapter (BC-clean).

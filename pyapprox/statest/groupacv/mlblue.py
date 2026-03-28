@@ -72,7 +72,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
 
         self._obj_jac = True
 
-    def _compute_psi_blocks(self):
+    def _compute_psi_blocks(self) -> List[Array]:
         submats = []
         for ii, subset in enumerate(self._subsets):
             R = self._restriction_matrix(subset)
@@ -86,7 +86,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
             submats.append(submat)
         return submats
 
-    def _psi_matrix(self, npartition_samples):
+    def _psi_matrix(self, npartition_samples: Array) -> Array:
         psi = self._bkd.eye(self.nmodels() * self._stat.nstats()) * self._reg_blue
         psi += (self._psi_blocks_flat @ npartition_samples).reshape(
             (
@@ -96,7 +96,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         )
         return psi
 
-    def estimate_all_means(self, values_per_subset):
+    def estimate_all_means(self, values_per_subset: List[Array]) -> Array:
         """Estimate means for all models.
 
         Parameters

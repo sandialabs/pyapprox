@@ -92,9 +92,9 @@ class GaussLobattoQuadratureRule(Generic[Array]):
 
     def __init__(
         self,
-        poly,  # JacobiPolynomial1D or subclass
+        poly: OrthonormalPolynomial1D[Array],
         store: bool = False,
-    ):
+    ) -> None:
         self._poly = poly
         self._bkd = poly.bkd()
         self._store = store

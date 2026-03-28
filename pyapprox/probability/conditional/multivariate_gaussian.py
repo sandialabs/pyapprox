@@ -12,7 +12,7 @@ Two parameterizations:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Generic, Optional
+from typing import TYPE_CHECKING, Generic, Optional, Tuple
 
 import numpy as np
 
@@ -482,7 +482,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
     def rank(self) -> int:
         return self._rank
 
-    def _build_D_V(self, x: Array):
+    def _build_D_V(self, x: Array) -> Tuple[Array, Optional[Array]]:
         """Build diagonal and low-rank factor from parameter functions.
 
         Returns

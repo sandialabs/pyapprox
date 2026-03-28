@@ -145,7 +145,7 @@ class DirichletBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities=None,
+        physical_sensitivities: object = None,
     ) -> Array:
         """Apply Dirichlet BC to parameter Jacobian.
 

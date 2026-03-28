@@ -142,7 +142,7 @@ class ACVObjective(ABC, Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_target_cost(self, target_cost: float):
+    def set_target_cost(self, target_cost: float) -> None:
         self._target_cost = target_cost
 
     def nvars(self) -> int:
@@ -151,7 +151,7 @@ class ACVObjective(ABC, Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def set_estimator(self, est: "ACVEstimator[Array]"):
+    def set_estimator(self, est: "ACVEstimator[Array]") -> None:
         from pyapprox.statest.acv.base import ACVEstimator
 
         if not isinstance(est, ACVEstimator):

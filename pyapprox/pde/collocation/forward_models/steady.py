@@ -5,7 +5,7 @@ physics as ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardMode
 (satisfies FunctionProtocol with adjoint-based Jacobian computation).
 """
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
@@ -70,7 +70,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
         self._parameterization = parameterization
         self._bc_indices = self._collect_bc_indices()
 
-    def _collect_bc_indices(self):
+    def _collect_bc_indices(self) -> list[int]:
         """Collect all boundary DOF indices from physics BCs."""
         indices = []
         if hasattr(self._physics, "boundary_conditions"):
@@ -222,7 +222,9 @@ class CollocationStateEquationAdapter(Generic[Array]):
                 )
         return pjac
 
-    def _build_bc_physical_sensitivities(self, bc, state_1d, params_1d, time):
+    def _build_bc_physical_sensitivities(
+        self, bc: object, state_1d: Array, params_1d: Array, time: float
+    ) -> object:
         """Build physical sensitivities dict for one BC's param_jacobian.
 
         Delegates d(flux·n)/dp computation to the parameterization via
@@ -274,12 +276,12 @@ class SteadyForwardModel(Generic[Array]):
 
     def __init__(
         self,
-        physics,
+        physics: Any,
         bkd: Backend[Array],
         init_state: Array,
         functional: Optional[ParameterizedFunctionalWithJacobianProtocol[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
-    ):
+    ) -> None:
         if parameterization is not None and not isinstance(
             parameterization, ParameterizationProtocol
         ):
@@ -334,7 +336,7 @@ class SteadyForwardModel(Generic[Array]):
         """Return the state equation adapter."""
         return self._state_eq
 
-    def adjoint_operator(self):
+    def adjoint_operator(self) -> object:
         """Return the adjoint operator (lazy-built on first access).
 
         Returns None if jacobian is not supported.

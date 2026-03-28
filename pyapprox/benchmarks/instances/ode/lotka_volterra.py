@@ -1,7 +1,15 @@
 """Lotka-Volterra 3-species ODE benchmark instance."""
 
+from __future__ import annotations
+
+from typing import Any, Generic, Optional, Union
+
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
+from pyapprox.benchmarks.functions.ode import (
+    ODEBenchmark,
+    ODEQoIFunction,
+    ODETimeConfig,
+)
 from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.pde.time.benchmarks.lotka_volterra import (
@@ -12,32 +20,36 @@ from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class ODEBenchmarkWrapper:
+class ODEBenchmarkWrapper(Generic[Array]):
     """ODE benchmark wrapper.
 
     Satisfies: HasResidual, HasPrior, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner: ODEBenchmark[Array, ODEGroundTruth[Array]], estimated_cost: float) -> None:
+    def __init__(
+        self,
+        inner: ODEBenchmark[Array, ODEGroundTruth[Array]],
+        estimated_cost: float,
+    ) -> None:
         self._inner = inner
         self._estimated_cost = estimated_cost
 
     def name(self) -> str:
         return self._inner.name()
 
-    def residual(self):
+    def residual(self) -> Any:
         return self._inner.residual()
 
-    def domain(self):
+    def domain(self) -> BoxDomain[Array]:
         return self._inner.domain()
 
-    def prior(self):
+    def prior(self) -> Optional[Any]:
         return self._inner.prior()
 
-    def ground_truth(self):
+    def ground_truth(self) -> ODEGroundTruth[Array]:
         return self._inner.ground_truth()
 
-    def time_config(self):
+    def time_config(self) -> ODETimeConfig:
         return self._inner.time_config()
 
     def nstates(self) -> int:
@@ -52,7 +64,11 @@ class ODEBenchmarkWrapper:
     def reference(self) -> str:
         return self._inner.reference()
 
-    def qoi_function(self, functional="endpoint", stepper: str = "backward_euler"):
+    def qoi_function(
+        self,
+        functional: Union[str, Any] = "endpoint",
+        stepper: str = "backward_euler",
+    ) -> ODEQoIFunction[Array]:
         return self._inner.qoi_function(functional=functional, stepper=stepper)
 
     def estimated_evaluation_cost(self) -> float:
@@ -63,7 +79,7 @@ def lotka_volterra_3species(
     bkd: Backend[Array],
     final_time: float = 10.0,
     deltat: float = 1.0,
-) -> ODEBenchmarkWrapper:
+) -> ODEBenchmarkWrapper[Array]:
     """Create the 3-species competitive Lotka-Volterra benchmark.
 
     Standard 3-species competitive Lotka-Volterra benchmark with uniform
@@ -153,5 +169,5 @@ def lotka_volterra_3species(
 )
 def _lotka_volterra_3species_factory(
     bkd: Backend[Array],
-) -> ODEBenchmarkWrapper:
+) -> ODEBenchmarkWrapper[Array]:
     return lotka_volterra_3species(bkd)

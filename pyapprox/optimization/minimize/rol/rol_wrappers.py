@@ -5,7 +5,12 @@ pyrol is not installed.  The actual pyrol dependency is only needed at
 instantiation time.
 """
 
-from typing import Any, Generic
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Generic
+
+if TYPE_CHECKING:
+    import pyrol
 
 import numpy as np
 
@@ -104,7 +109,9 @@ def make_rol_objective(
             self._inexact_diff = inexact_diff
             super().__init__()
 
-        def value(self, x, tol):
+        def value(
+            self, x: pyrol.Vector, tol: float,
+        ) -> float:
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_eval:
                 val = self._objective.inexact_value(  # type: ignore[attr-defined]
@@ -177,7 +184,9 @@ def make_rol_nonlinear_constraint(
             self._inexact_diff = inexact_diff
             super().__init__()
 
-        def value(self, c, x, tol):
+        def value(
+            self, c: pyrol.Vector, x: pyrol.Vector, tol: float,
+        ) -> None:
             x_col = self._bkd.asarray(x.array)[:, None]
             if self._inexact_eval:
                 vals = self._constraint.inexact_value(  # type: ignore[attr-defined]
@@ -243,10 +252,14 @@ def make_rol_linear_operator(
             self._A = A_np
             super().__init__()
 
-        def apply(self, hv, v, tol):
+        def apply(
+            self, hv: pyrol.Vector, v: pyrol.Vector, tol: float,
+        ) -> None:
             hv[:] = self._A @ v[:]
 
-        def applyAdjoint(self, hv, v, tol):
+        def applyAdjoint(
+            self, hv: pyrol.Vector, v: pyrol.Vector, tol: float,
+        ) -> None:
             hv[:] = self._A.T @ v[:]
 
     return _Adapter()

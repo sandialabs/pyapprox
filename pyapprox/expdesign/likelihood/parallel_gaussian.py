@@ -401,6 +401,8 @@ class ParallelGaussianOEDInnerLoopLikelihood(Generic[Array]):
 
         return self._bkd.transpose(jac, (1, 2, 0))
 
-    def create_outer_loop_likelihood(self):
+    def create_outer_loop_likelihood(
+        self,
+    ) -> GaussianOEDOuterLoopLikelihood[Array]:
         """Create a paired outer loop likelihood."""
         return GaussianOEDOuterLoopLikelihood(self._base_variances, self._bkd)

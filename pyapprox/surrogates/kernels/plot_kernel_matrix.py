@@ -5,21 +5,34 @@ This module provides functions to visualize kernel matrices as heatmaps.
 For multi-output kernels, it draws red boxes around each kernel block.
 """
 
-from typing import List, Optional, Tuple
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union, cast
+
+import matplotlib
 import numpy as np
+
+from pyapprox.surrogates.kernels.multioutput.protocols import (
+    MultiOutputKernelProtocol,
+)
+from pyapprox.util.backends.protocols import Array
+
+if TYPE_CHECKING:
+    from matplotlib.image import AxesImage
+
+    from pyapprox.surrogates.kernels.protocols import KernelProtocol
 
 
 def plot_kernel_matrix_heatmap(
-    kernel,
+    kernel: Union[KernelProtocol[Array], MultiOutputKernelProtocol[Array]],
     bounds: Tuple[float, float],
-    ax,
+    ax: matplotlib.axes.Axes,
     npts: int = 50,
     block_sizes: Optional[List[int]] = None,
     cmap: str = "viridis",
     colorbar: bool = True,
-    **imshow_kwargs,
-):
+    **imshow_kwargs: Any,
+) -> AxesImage:
     """
     Plot the kernel matrix as a heatmap.
 
@@ -51,43 +64,41 @@ def plot_kernel_matrix_heatmap(
     # Generate sample points
     x = np.linspace(bounds[0], bounds[1], npts)
 
-    # Check if kernel is multi-output by checking for noutputs method
-    is_multi_output = hasattr(kernel, "noutputs") and kernel.noutputs() > 1
+    bkd = kernel.bkd()
+    nvars = kernel.nvars()
 
-    if is_multi_output:
+    if isinstance(kernel, MultiOutputKernelProtocol) and kernel.noutputs() > 1:
         # For multi-output kernels, create list of sample arrays
         noutputs = kernel.noutputs()
-        nvars = kernel.nvars()
 
         # Create sample points for each output (same points for all)
         X_single = (
-            kernel._bkd.array(x.reshape(1, -1))
+            bkd.array(x.reshape(1, -1))
             if nvars == 1
-            else kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
+            else bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
         )
         X_list = [X_single for _ in range(noutputs)]
 
-        # Compute full kernel matrix
-        K = kernel(X_list)
-        K_plot = kernel._bkd.to_numpy(K)
+        # Compute full kernel matrix (block_format=False returns Array)
+        K = cast(Array, kernel(X_list))
+        K_plot = bkd.to_numpy(K)
 
         # Determine block sizes
         if block_sizes is None:
             block_sizes = [npts] * noutputs
     else:
         # Single output kernel
-        nvars = kernel.nvars()
-
         # Create sample array
         if nvars == 1:
-            X = kernel._bkd.array(x.reshape(1, -1))
+            X = bkd.array(x.reshape(1, -1))
         else:
             # For multi-dimensional, use same values for each dimension
-            X = kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
+            X = bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
 
         # Compute kernel matrix
-        K = kernel(X, X)
-        K_plot = kernel._bkd.to_numpy(K)
+        single_kernel = cast("KernelProtocol[Array]", kernel)
+        K = single_kernel(X, X)
+        K_plot = bkd.to_numpy(K)
         block_sizes = None
 
     # Plot heatmap
@@ -110,8 +121,11 @@ def plot_kernel_matrix_heatmap(
 
 
 def _draw_block_boundaries(
-    ax, block_sizes: List[int], color: str = "red", linewidth: float = 2.0
-):
+    ax: matplotlib.axes.Axes,
+    block_sizes: List[int],
+    color: str = "red",
+    linewidth: float = 2.0,
+) -> None:
     """
     Draw red boxes around kernel blocks.
 
@@ -152,8 +166,12 @@ def _draw_block_boundaries(
 
 
 def plot_kernel_matrix_surface(
-    kernel, bounds: Tuple[float, float], ax, npts: int = 50, **kwargs
-):
+    kernel: KernelProtocol[Array],
+    bounds: Tuple[float, float],
+    ax: Any,
+    npts: int = 50,
+    **kwargs: Any,
+) -> object:
     """
     Plot the kernel matrix as a 3D surface.
 
@@ -185,13 +203,13 @@ def plot_kernel_matrix_surface(
 
     # Create sample array
     if nvars == 1:
-        X = kernel._bkd.array(x.reshape(1, -1))
+        X = kernel.bkd().array(x.reshape(1, -1))
     else:
-        X = kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
+        X = kernel.bkd().array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
 
     # Compute kernel matrix
     K = kernel(X, X)
-    K_plot = kernel._bkd.to_numpy(K)
+    K_plot = kernel.bkd().to_numpy(K)
 
     # Create meshgrid for 3D plot
     xx, yy = np.meshgrid(np.arange(npts), np.arange(npts))
