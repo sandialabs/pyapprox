@@ -84,14 +84,16 @@ class PivotedLUFactorizer(Generic[Array]):
         init_pivots: Optional[Array] = None,
     ):
         self._bkd = bkd
-        self._Amat = bkd.copy(matrix)
+        self._Amat: Array = bkd.copy(matrix)
         self._tol = tol
         self._init_pivots = init_pivots
 
         self._nrows = self._Amat.shape[0]
         self._ncols = self._Amat.shape[1] if self._Amat.ndim > 1 else 1
-        self._pivots = self._bkd.arange(self._nrows, dtype=bkd.int64_dtype())
-        self._seq_pivots = self._bkd.arange(self._nrows, dtype=bkd.int64_dtype())
+        self._pivots: Array = self._bkd.arange(
+            self._nrows, dtype=bkd.int64_dtype())
+        self._seq_pivots: Array = self._bkd.arange(
+            self._nrows, dtype=bkd.int64_dtype())
         self._ncompleted_pivots = 0
         self._LU_factor: Optional[Array] = None
         self._termination_flag = -1
@@ -119,6 +121,8 @@ class PivotedLUFactorizer(Generic[Array]):
 
     def _best_pivot(self, it: int) -> int:
         """Select best pivot for iteration it."""
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized before selection")
         if self._init_pivots is not None and it < len(self._init_pivots):
             # Find where the requested pivot is in current pivot order
             target = int(self._init_pivots[it])
@@ -133,6 +137,8 @@ class PivotedLUFactorizer(Generic[Array]):
 
     def _terminate(self, it: int) -> bool:
         """Check if factorization should terminate at iteration it."""
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized before termination check")
         pivot_val = self._bkd.to_float(self._bkd.abs(self._LU_factor[it, it]))
         if pivot_val < self._tol:
             self._termination_msg = (
@@ -156,6 +162,9 @@ class PivotedLUFactorizer(Generic[Array]):
         """
         if npivots is None:
             npivots = min(self._nrows, self._ncols)
+
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized before splitting")
 
         L_factor = self._bkd.tril(self._LU_factor[:npivots, :npivots])
         # Set diagonal to 1
@@ -247,6 +256,8 @@ class PivotedLUFactorizer(Generic[Array]):
         new_rows : Array
             New rows to add. Shape: (nnew, ncols)
         """
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized before adding rows")
         if self._LU_factor.shape[1] != new_rows.shape[1]:
             raise ValueError("new_rows has the wrong number of columns")
 
@@ -288,6 +299,8 @@ class PivotedLUFactorizer(Generic[Array]):
         new_cols : Array
             New columns to add. Shape: (nrows, nnew)
         """
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized before adding columns")
         if self._LU_factor.shape[0] != new_cols.shape[0]:
             raise ValueError("new_cols has the wrong number of rows")
 
@@ -342,6 +355,9 @@ class PivotedLUFactorizer(Generic[Array]):
         if npivots is None:
             npivots = min(self._nrows, self._ncols)
 
+        if self._LU_factor is None:
+            raise ValueError("LU_factor must be initialized")
+
         # Get pivoted weights
         final_pivots = get_final_pivots_from_sequential_pivots(
             self._seq_pivots[:npivots], self._nrows, self._bkd
@@ -395,9 +411,9 @@ class PivotedLUFactorizer(Generic[Array]):
         )
 
     def __repr__(self) -> str:
-        if self.npivots() == 0:
+        if self._ncompleted_pivots == 0:
             return f"PivotedLUFactorizer(nrows={self._nrows}, ncols={self._ncols})"
         return (
             f"PivotedLUFactorizer(nrows={self._nrows}, ncols={self._ncols}, "
-            f"npivots={self.npivots()}, msg={self.termination_message()})"
+            f"npivots={self._ncompleted_pivots}, msg={self.termination_message()})"
         )

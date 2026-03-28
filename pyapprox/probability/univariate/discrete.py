@@ -6,6 +6,7 @@ Provides discrete distributions that implement MarginalProtocol.
 
 from typing import Any, Generic, Tuple
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend

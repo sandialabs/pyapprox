@@ -41,6 +41,7 @@ Example::
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

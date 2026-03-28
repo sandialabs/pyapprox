@@ -31,6 +31,7 @@ from pyapprox.surrogates.affine.univariate.transformed import (
     NativeBasis1D,
     TransformedBasis1D,
 )
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

@@ -84,9 +84,9 @@ class TestGroupACVUtils:
         )
 
         # Check first few subsets
-        bkd.assert_allclose(subsets[0], bkd.asarray([0]))
-        bkd.assert_allclose(subsets[1], bkd.asarray([1]))
-        bkd.assert_allclose(subsets[2], bkd.asarray([2]))
+        bkd.assert_allclose(subsets[0], bkd.asarray([0], dtype=int))
+        bkd.assert_allclose(subsets[1], bkd.asarray([1], dtype=int))
+        bkd.assert_allclose(subsets[2], bkd.asarray([2], dtype=int))
 
     def test_allocation_matrix_is(self, bkd):
         """Test independent sampling allocation matrix."""

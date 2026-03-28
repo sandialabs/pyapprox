@@ -92,6 +92,8 @@ class IncrementalCholeskyFactorization(Generic[Array]):
         k_pp = self._K[pivot, pivot]
 
         # l_21 = L_inv @ k_col  =>  L @ l_21 = k_col  =>  l_21 = L^{-1} k_col
+        if self._L_inv is None:
+            raise ValueError("L_inv must be initialized before adding pivot")
         l_21 = self._L_inv @ bkd.reshape(k_col, (-1, 1))  # (n, 1)
         l_21_flat = bkd.flatten(l_21)  # (n,)
 
@@ -106,6 +108,8 @@ class IncrementalCholeskyFactorization(Generic[Array]):
         l_22 = bkd.sqrt(l_22_sq)
 
         # Build new L
+        if self._L is None:
+            raise ValueError("L must be initialized before adding pivot")
         zeros_col = bkd.zeros((n, 1))
         top_row = bkd.hstack([self._L, zeros_col])
         bot_row = bkd.hstack(

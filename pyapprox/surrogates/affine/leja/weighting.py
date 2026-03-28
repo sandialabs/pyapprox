@@ -10,6 +10,7 @@ are provided:
 
 from typing import Callable, Generic, Optional
 
+from pyapprox.surrogates.affine.leja.protocols import LejaWeightingProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

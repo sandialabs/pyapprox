@@ -34,7 +34,7 @@ adjust_sign_svd
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, Tuple
+from typing import Callable, Generic, Optional, Tuple
 
 import numpy as np
 
@@ -274,7 +274,7 @@ class FunctionMatVecOperator(MatVecOperator[Array]):
         nrows: int,
         ncols: int,
         bkd: Backend[Array],
-        right_apply_fn: Callable[[Array], Array] = None,
+        right_apply_fn: Optional[Callable[[Array], Array]] = None,
     ):
         super().__init__(bkd)
         self._apply_fn = apply_fn
@@ -342,7 +342,7 @@ def adjust_sign_svd(
     U: Array,
     Vh: Array,
     adjust_based_upon_U: bool = True,
-    bkd: Backend[Array] = None,
+    bkd: Optional[Backend[Array]] = None,
 ) -> Tuple[Array, Array]:
     """
     Ensure uniqueness of SVD by ensuring consistent signs.

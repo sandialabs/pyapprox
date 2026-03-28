@@ -8,6 +8,7 @@ multi-branch change-of-variables formula.
 import math
 from typing import Callable, Generic, Tuple
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 import numpy as np
 from numpy.polynomial import polynomial as nppoly
 from numpy.polynomial.legendre import leggauss

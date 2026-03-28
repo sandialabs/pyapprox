@@ -10,7 +10,7 @@ from typing import Generic, List, Tuple
 import numpy as np
 from scipy import stats
 
-from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

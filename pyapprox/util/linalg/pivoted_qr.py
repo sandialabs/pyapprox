@@ -5,7 +5,7 @@ one-shot Fekete point selection where we need to select all points
 at once.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -38,7 +38,9 @@ class PivotedQRFactorizer(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def factorize(self, matrix: Array, k: int = None) -> Tuple[Array, Array, Array]:
+    def factorize(
+        self, matrix: Array, k: Optional[int] = None
+    ) -> Tuple[Array, Array, Array]:
         """Perform pivoted QR factorization.
 
         Computes A[:, pivots] = Q @ R with column pivoting.

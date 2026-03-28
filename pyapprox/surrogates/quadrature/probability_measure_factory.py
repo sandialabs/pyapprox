@@ -11,7 +11,7 @@ input distributions in sensitivity analysis.
 
 from typing import Generic, List
 
-from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.surrogates.quadrature.tensor_product import (
     TensorProductQuadratureRule,
 )

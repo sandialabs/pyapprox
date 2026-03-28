@@ -7,6 +7,7 @@ MarginalProtocol.
 
 from typing import Any, Dict, Generic, Tuple
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 import numpy as np
 from scipy.stats import _continuous_distns
 

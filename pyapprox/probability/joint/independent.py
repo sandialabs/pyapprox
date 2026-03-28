@@ -13,7 +13,7 @@ from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
 )
-from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
