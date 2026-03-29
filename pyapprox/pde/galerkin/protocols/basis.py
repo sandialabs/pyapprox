@@ -76,6 +76,21 @@ class GalerkinBasisProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def get_dofs(self, boundary_name: str) -> Array:
+        """Return DOF indices on a named boundary.
+
+        Parameters
+        ----------
+        boundary_name : str
+            Name of the boundary (e.g., "left", "right").
+
+        Returns
+        -------
+        Array
+            Integer DOF indices. Shape: (nboundary_dofs,)
+        """
+        ...
+
     def dof_coordinates(self) -> Array:
         """Return coordinates of DOF locations.
 

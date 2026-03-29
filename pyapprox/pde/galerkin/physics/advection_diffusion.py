@@ -196,7 +196,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     def _get_diffusivity(self, coords: np.ndarray) -> np.ndarray:
         """Get diffusivity values at given coordinates."""
         if callable(self._diffusivity):
-            return self._diffusivity(coords)
+            return np.asarray(self._diffusivity(coords))
         else:
             return np.full(coords.shape[1], self._diffusivity)
 
@@ -205,7 +205,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         if self._velocity is None:
             return np.zeros_like(coords)
         elif callable(self._velocity):
-            return self._velocity(coords)
+            return np.asarray(self._velocity(coords))
         else:
             # Constant velocity - broadcast to all points
             vel = self._bkd.to_numpy(self._velocity)
@@ -218,9 +218,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         else:
             # Try calling with time first, fall back to without
             try:
-                return self._forcing(coords, time)
+                return np.asarray(self._forcing(coords, time))
             except TypeError:
-                return self._forcing(coords)
+                return np.asarray(self._forcing(coords))
 
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble stiffness matrix K.
@@ -245,6 +245,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # For linear reaction, include in stiffness matrix
         react_coeff = self._reaction_coeff if self._reaction_is_linear else None
 
+        # Capture callable diffusivity for use in inner function
+        diff_callable = self._diffusivity if callable(self._diffusivity) else None
+
         def bilinear_form(
             u: "DiscreteField", v: "DiscreteField",
             w: "FormExtraParams",
@@ -253,10 +256,11 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             if diff_const is not None:
                 diff = diff_const
             else:
-                diff = self._diffusivity(np.asarray(w.x))
+                assert diff_callable is not None
+                diff = diff_callable(np.asarray(w.x))
 
             # Diffusion term: (grad(w), D*grad(u)) contributes D*grad(u).grad(v)
-            result = diff * dot(grad(u), grad(v))
+            result: Any = diff * dot(grad(u), grad(v))
 
             # Linear reaction term: -(w, r*u) contributes -r*u*v
             # (negative because it's moved to LHS of weak form)
@@ -276,6 +280,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             )
 
             conservative = self._conservative
+            vel_callable = self._velocity if callable(self._velocity) else None
 
             def advection_form(
                 u: "DiscreteField", v: "DiscreteField",
@@ -284,13 +289,16 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 if vel_np is not None:
                     vel = vel_np
                 else:
-                    vel = self._velocity(np.asarray(w.x))
+                    assert vel_callable is not None
+                    vel = vel_callable(np.asarray(w.x))
                 if conservative:
                     # Conservative: -(v*u, grad(w)) from div(v*u)
-                    return -u * dot(vel, grad(v))
+                    result: Any = -u * dot(vel, grad(v))
+                    return result
                 else:
                     # Non-conservative: (w, v.grad(u))
-                    return dot(vel, grad(u)) * v
+                    result2: Any = dot(vel, grad(u)) * v
+                    return result2
 
             advection = asm(BilinearForm(advection_form), skfem_basis)
             stiffness = stiffness + advection
@@ -303,7 +311,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         ):
             self._stiffness_cached = stiffness
 
-        return stiffness
+        result: Array = stiffness
+        return result
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble load vector b.
@@ -335,7 +344,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             forcing_func = self._forcing
             current_time = time
 
-            def forcing_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def forcing_form(v: "DiscreteField", w: "FormExtraParams") -> Any:
                 x_np = np.asarray(w.x)
                 x_shape = x_np.shape
                 if len(x_shape) == 3:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -57,8 +58,8 @@ class ConditionalGaussian(Generic[Array]):
 
     def __init__(
         self,
-        mean_func: Generic[Array],  # TODO: use protocol
-        log_stdev_func: Generic[Array],  # TODO: use protocol
+        mean_func: FunctionProtocol[Array],
+        log_stdev_func: FunctionProtocol[Array],
         bkd: Backend[Array],
     ):
         self._mean_func = mean_func
@@ -91,8 +92,9 @@ class ConditionalGaussian(Generic[Array]):
         if hasattr(self._mean_func, "hyp_list") and hasattr(
             self._log_stdev_func, "hyp_list"
         ):
-            self._hyp_list = (
-                self._mean_func.hyp_list() + self._log_stdev_func.hyp_list()
+            self._hyp_list: HyperParameterList[Array] = (
+                self._mean_func.hyp_list()  # type: ignore[attr-defined]
+                + self._log_stdev_func.hyp_list()  # type: ignore[attr-defined]
             )
             self.hyp_list = self._get_hyp_list
             self.nparams = self._get_nparams

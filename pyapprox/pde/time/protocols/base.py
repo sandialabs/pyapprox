@@ -6,12 +6,42 @@ Backward Euler, Crank-Nicolson, Heun, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Tuple
+from typing import Generic, Tuple, cast
 
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
 
-from .ode_residual import ODEResidualProtocol
+from .ode_residual import (
+    ODEResidualProtocol,
+    ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
+)
+
+
+class ParamJacobianCapableMixin(Generic[Array]):
+    """Mixin for time steppers whose ODE residual supports param_jacobian.
+
+    Provides ``_param_residual`` for typed access to the narrowed residual.
+    Only mix in when ``_setup_derivative_methods`` has confirmed capability.
+    """
+
+    _residual: ODEResidualProtocol[Array]
+
+    def _param_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
+        return cast(ODEResidualWithParamJacobianProtocol[Array], self._residual)
+
+
+class HVPCapableMixin(Generic[Array]):
+    """Mixin for time steppers whose ODE residual supports HVP methods.
+
+    Provides ``_hvp_residual`` for typed access to the narrowed residual.
+    Only mix in when ``_setup_derivative_methods`` has confirmed capability.
+    """
+
+    _residual: ODEResidualProtocol[Array]
+
+    def _hvp_residual(self) -> ODEResidualWithHVPProtocol[Array]:
+        return cast(ODEResidualWithHVPProtocol[Array], self._residual)
 
 
 class TimeSteppingResidualBase(ABC, Generic[Array]):

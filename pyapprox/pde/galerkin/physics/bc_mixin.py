@@ -4,16 +4,17 @@ All dispatch loops use Robin-first ordering to handle the fact that
 RobinBC structurally satisfies DirichletBCProtocol.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Any, Generic, List, Optional, Tuple
 
 import numpy as np
 
 from pyapprox.pde.galerkin.protocols.boundary import (
+    BoundaryConditionProtocol,
     DirichletBCProtocol,
     NeumannBCProtocol,
     RobinBCProtocol,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GalerkinBCMixin(Generic[Array]):
@@ -25,6 +26,9 @@ class GalerkinBCMixin(Generic[Array]):
     ``GalerkinPhysicsBase.__init__`` handles this for most classes;
     ``EulerBernoulliBeamFEM`` and ``StokesPhysics`` set them directly.
     """
+
+    _bkd: Backend[Array]
+    _boundary_conditions: List[Any]
 
     def _apply_bc_to_stiffness(self, stiffness: Array, time: float) -> Array:
         """Apply Robin BC contributions to stiffness matrix.

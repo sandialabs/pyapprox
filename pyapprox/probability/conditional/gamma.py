@@ -9,6 +9,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -57,8 +58,8 @@ class ConditionalGamma(Generic[Array]):
 
     def __init__(
         self,
-        log_shape_func: Generic[Array], # TODO: Use protocol
-        log_scale_func: Generic[Array], # TODO: Use protocol
+        log_shape_func: FunctionProtocol[Array],
+        log_scale_func: FunctionProtocol[Array],
         bkd: Backend[Array],
     ):
         self._log_shape_func = log_shape_func

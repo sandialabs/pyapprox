@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -68,8 +69,8 @@ class ConditionalBeta(Generic[Array]):
 
     def __init__(
         self,
-        log_alpha_func: Generic[Array],  # TODO: use protocol
-        log_beta_func: Generic[Array], # TODO: use protocol
+        log_alpha_func: FunctionProtocol[Array],
+        log_beta_func: FunctionProtocol[Array],
         bkd: Backend[Array],
         lb: float = 0.0,
         ub: float = 1.0,

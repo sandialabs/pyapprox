@@ -30,7 +30,11 @@ arguments. This keeps the Newton solver generic (just solves R(y)=0).
 - Integrator calls set_time before each evaluation
 """
 
-from .base import TimeSteppingResidualBase
+from .base import (
+    HVPCapableMixin,
+    ParamJacobianCapableMixin,
+    TimeSteppingResidualBase,
+)
 from .ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithHVPProtocol,
@@ -51,6 +55,8 @@ __all__ = [
     "TimeSteppingResidualProtocol",
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
-    # Base Classes
+    # Base Classes and Mixins
     "TimeSteppingResidualBase",
+    "ParamJacobianCapableMixin",
+    "HVPCapableMixin",
 ]

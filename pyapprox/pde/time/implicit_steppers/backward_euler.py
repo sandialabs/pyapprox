@@ -11,12 +11,18 @@ via the adjoint method.
 
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.protocols import (
+    HVPCapableMixin,
+    ParamJacobianCapableMixin,
     TimeSteppingResidualBase,
 )
 from pyapprox.util.backends.protocols import Array
 
 
-class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
+class BackwardEulerResidual(
+    ParamJacobianCapableMixin[Array],
+    HVPCapableMixin[Array],
+    TimeSteppingResidualBase[Array],
+):
     """
     Backward Euler time stepping residual.
 
@@ -139,7 +145,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             Parameter Jacobian. Shape: (nstates, nparams)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_jacobian(fsol_n)
+        return -self._deltat * self._param_residual().param_jacobian(fsol_n)
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
         """
@@ -234,7 +240,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dy² = -Δt·(d²f/dy²)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
+        return -self._deltat * self._hvp_residual().state_state_hvp(fsol_n, adj_state, wvec)
 
     def _state_param_hvp(
         self,
@@ -249,7 +255,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dydp = -Δt·(d²f/dydp)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_param_hvp(fsol_n, adj_state, vvec)
+        return -self._deltat * self._hvp_residual().state_param_hvp(fsol_n, adj_state, vvec)
 
     def _param_state_hvp(
         self,
@@ -264,7 +270,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dpdy = -Δt·(d²f/dpdy)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_state_hvp(fsol_n, adj_state, wvec)
+        return -self._deltat * self._hvp_residual().param_state_hvp(fsol_n, adj_state, wvec)
 
     def _param_param_hvp(
         self,
@@ -279,4 +285,4 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dp² = -Δt·(d²f/dp²)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_param_hvp(fsol_n, adj_state, vvec)
+        return -self._deltat * self._hvp_residual().param_param_hvp(fsol_n, adj_state, vvec)

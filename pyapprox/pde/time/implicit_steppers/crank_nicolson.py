@@ -13,12 +13,18 @@ via the adjoint method.
 
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.protocols import (
+    HVPCapableMixin,
+    ParamJacobianCapableMixin,
     TimeSteppingResidualBase,
 )
 from pyapprox.util.backends.protocols import Array
 
 
-class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
+class CrankNicolsonResidual(
+    ParamJacobianCapableMixin[Array],
+    HVPCapableMixin[Array],
+    TimeSteppingResidualBase[Array],
+):
     """
     Crank-Nicolson time stepping residual.
 
@@ -157,10 +163,10 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
             Parameter Jacobian. Shape: (nstates, nparams)
         """
         self._residual.set_time(self._time)
-        current_param_jac = self._residual.param_jacobian(fsol_nm1)
+        current_param_jac = self._param_residual().param_jacobian(fsol_nm1)
 
         self._residual.set_time(self._time + self._deltat)
-        next_param_jac = self._residual.param_jacobian(fsol_n)
+        next_param_jac = self._param_residual().param_jacobian(fsol_n)
 
         return -0.5 * self._deltat * (current_param_jac + next_param_jac)
 
@@ -295,7 +301,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         return (
             -0.5
             * self._deltat
-            * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
+            * self._hvp_residual().state_state_hvp(fsol_n, adj_state, wvec)
         )
 
     def _state_param_hvp(
@@ -318,7 +324,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         """
         # Only contribution from y_n term (y_{n-1} is fixed w.r.t. y_n)
         self._residual.set_time(self._time + self._deltat)
-        hvp_n = self._residual.state_param_hvp(fsol_n, adj_state, vvec)
+        hvp_n = self._hvp_residual().state_param_hvp(fsol_n, adj_state, vvec)
 
         return -0.5 * self._deltat * hvp_n
 
@@ -341,7 +347,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         """
         # Only contribution from y_n term (y_{n-1} is fixed w.r.t. y_n)
         self._residual.set_time(self._time + self._deltat)
-        hvp_n = self._residual.param_state_hvp(fsol_n, adj_state, wvec)
+        hvp_n = self._hvp_residual().param_state_hvp(fsol_n, adj_state, wvec)
 
         return -0.5 * self._deltat * hvp_n
 
@@ -365,11 +371,11 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         """
         # Contribution from y_{n-1} term
         self._residual.set_time(self._time)
-        hvp_nm1 = self._residual.param_param_hvp(fsol_nm1, adj_state, vvec)
+        hvp_nm1 = self._hvp_residual().param_param_hvp(fsol_nm1, adj_state, vvec)
 
         # Contribution from y_n term
         self._residual.set_time(self._time + self._deltat)
-        hvp_n = self._residual.param_param_hvp(fsol_n, adj_state, vvec)
+        hvp_n = self._hvp_residual().param_param_hvp(fsol_n, adj_state, vvec)
 
         return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
 
@@ -415,7 +421,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         return (
             -0.5
             * self._deltat
-            * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
+            * self._hvp_residual().state_state_hvp(fsol_n, adj_state, wvec)
         )
 
     def _prev_state_param_hvp(
@@ -447,7 +453,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         return (
             -0.5
             * self._deltat
-            * self._residual.state_param_hvp(fsol_n, adj_state, vvec)
+            * self._hvp_residual().state_param_hvp(fsol_n, adj_state, vvec)
         )
 
     def _prev_param_state_hvp(
@@ -476,5 +482,5 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         return (
             -0.5
             * self._deltat
-            * self._residual.param_state_hvp(fsol_n, adj_state, wvec)
+            * self._hvp_residual().param_state_hvp(fsol_n, adj_state, wvec)
         )

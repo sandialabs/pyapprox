@@ -14,12 +14,18 @@ via the adjoint method.
 """
 
 from pyapprox.pde.time.protocols import (
+    HVPCapableMixin,
+    ParamJacobianCapableMixin,
     TimeSteppingResidualBase,
 )
 from pyapprox.util.backends.protocols import Array
 
 
-class HeunResidual(TimeSteppingResidualBase[Array]):
+class HeunResidual(
+    ParamJacobianCapableMixin[Array],
+    HVPCapableMixin[Array],
+    TimeSteppingResidualBase[Array],
+):
     """
     Heun's method (RK2) time stepping residual.
 
@@ -176,7 +182,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         """
         # k1 stage
         self._residual.set_time(self._time)
-        k1_param_jac = self._residual.param_jacobian(fsol_nm1)
+        k1_param_jac = self._param_residual().param_jacobian(fsol_nm1)
 
         # k2 stage: k2_state = y_{n-1} + Δt·k1
         k1 = self._residual(fsol_nm1)
@@ -184,7 +190,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
 
         self._residual.set_time(self._time + self._deltat)
         k2_state_jac = self._residual.jacobian(k2_state)
-        k2_param_jac = self._residual.param_jacobian(k2_state)
+        k2_param_jac = self._param_residual().param_jacobian(k2_state)
 
         # Chain rule: dk2/dp = ∂f/∂p + ∂f/∂y · Δt · dk1/dp
         jac = -(
@@ -323,7 +329,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         mass = self._residual.mass_matrix(fsol_nm1.shape[0])
 
         # d²k1/dy² · w = H1 · w
-        k1_ss_hvp = self._residual.state_state_hvp(fsol_nm1, adj_state, wvec)
+        k1_ss_hvp = self._hvp_residual().state_state_hvp(fsol_nm1, adj_state, wvec)
 
         # Stage 2: k2 = f(z) where z = y_{n-1} + dt*k1
         z = fsol_nm1 + dt * k1
@@ -343,9 +349,9 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # For scalar case: dz_dy * w gives the effective w for H2
         scaled_wvec = dz_dy @ wvec
         # H2 · (dz/dy · w)
-        h2_scaled = self._residual.state_state_hvp(z, adj_state, scaled_wvec)
+        h2_scaled = self._hvp_residual().state_state_hvp(z, adj_state, scaled_wvec)
         # Flatten for consistent shapes
-        h2_scaled_flat = h2_scaled.flatten()
+        h2_scaled_flat = self._bkd.flatten(h2_scaled)
         # Then multiply by dz/dy^T (for the outer chain rule)
         k2_term1 = dz_dy.T @ h2_scaled_flat
 
@@ -356,10 +362,10 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # We need: (J2^T · adj)^T · (dt · H1 · w) = (J2^T · adj)^T · dt · H1 · w
         # So we need to compute H1 · w with adjoint = J2^T · adj
         J2_T_adj = J2.T @ adj_state
-        k2_term2 = dt * self._residual.state_state_hvp(fsol_nm1, J2_T_adj, wvec)
+        k2_term2 = dt * self._hvp_residual().state_state_hvp(fsol_nm1, J2_T_adj, wvec)
 
         # Flatten k1_ss_hvp for consistent addition
-        result = k1_ss_hvp.flatten() + k2_term1 + k2_term2.flatten()
+        result = self._bkd.flatten(k1_ss_hvp) + k2_term1 + self._bkd.flatten(k2_term2)
         return -0.5 * dt * result
 
     def _state_param_hvp(
@@ -395,10 +401,10 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         k1 = self._residual(fsol_nm1)
         J1 = self._residual.jacobian(fsol_nm1)
         mass = self._residual.mass_matrix(fsol_nm1.shape[0])
-        dk1_dp = self._residual.param_jacobian(fsol_nm1)
+        dk1_dp = self._param_residual().param_jacobian(fsol_nm1)
 
         # d²k1/(dy dp) · v
-        k1_sp_hvp = self._residual.state_param_hvp(fsol_nm1, adj_state, vvec)
+        k1_sp_hvp = self._hvp_residual().state_param_hvp(fsol_nm1, adj_state, vvec)
 
         # Stage 2
         z = fsol_nm1 + dt * k1
@@ -410,31 +416,31 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # dz/dp = dt * dk1/dp
         dz_dp_v = dt * (dk1_dp @ vvec)
         # Flatten for state_state_hvp which expects 1D wvec
-        dz_dp_v_flat = dz_dp_v.flatten()
+        dz_dp_v_flat = self._bkd.flatten(dz_dp_v)
 
         # d²k2/(dy dp) · v involves:
         # Term 1: adj^T · (∂²f/∂p∂z)|_z · dz/dy · v
         # = dz/dy^T · state_param_hvp(z, adj, v)
-        sp_hvp_z = self._residual.state_param_hvp(z, adj_state, vvec)
-        k2_term1 = dz_dy.T @ sp_hvp_z.flatten()
+        sp_hvp_z = self._hvp_residual().state_param_hvp(z, adj_state, vvec)
+        k2_term1 = dz_dy.T @ self._bkd.flatten(sp_hvp_z)
 
         # Term 2: adj^T · H_z · dz/dy · (dz/dp · v)
         # = dz/dy^T · state_state_hvp(z, adj, dz/dp · v)
-        ss_hvp_z = self._residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
-        k2_term2 = dz_dy.T @ ss_hvp_z.flatten()
+        ss_hvp_z = self._hvp_residual().state_state_hvp(z, adj_state, dz_dp_v_flat)
+        k2_term2 = dz_dy.T @ self._bkd.flatten(ss_hvp_z)
 
         # Term 3: J_z · dt · (∂²k1/∂p∂y) · v
         # adj^T · J_z · dt · (∂²k1/∂p∂y) · v
         # = (J_z^T · adj)^T · dt · (∂²k1/∂p∂y) · v
         J2_T_adj = J2.T @ adj_state
-        k2_term3 = dt * self._residual.state_param_hvp(fsol_nm1, J2_T_adj, vvec)
+        k2_term3 = dt * self._hvp_residual().state_param_hvp(fsol_nm1, J2_T_adj, vvec)
 
         # Flatten all terms for consistent shape
         result = (
-            k1_sp_hvp.flatten()
-            + k2_term1.flatten()
-            + k2_term2.flatten()
-            + k2_term3.flatten()
+            self._bkd.flatten(k1_sp_hvp)
+            + self._bkd.flatten(k2_term1)
+            + self._bkd.flatten(k2_term2)
+            + self._bkd.flatten(k2_term3)
         )
         return -0.5 * dt * result
 
@@ -471,10 +477,10 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         k1 = self._residual(fsol_nm1)
         J1 = self._residual.jacobian(fsol_nm1)
         mass = self._residual.mass_matrix(fsol_nm1.shape[0])
-        dk1_dp = self._residual.param_jacobian(fsol_nm1)
+        dk1_dp = self._param_residual().param_jacobian(fsol_nm1)
 
         # d²k1/(dp dy) · w
-        k1_ps_hvp = self._residual.param_state_hvp(fsol_nm1, adj_state, wvec)
+        k1_ps_hvp = self._hvp_residual().param_state_hvp(fsol_nm1, adj_state, wvec)
 
         # Stage 2
         z = fsol_nm1 + dt * k1
@@ -488,30 +494,30 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
 
         # Term 1: (∂²f/∂p∂z)|_z · (dz/dy · w)
         # contracted with adj: adj^T · term1
-        k2_term1 = self._residual.param_state_hvp(z, adj_state, dz_dy_w)
+        k2_term1 = self._hvp_residual().param_state_hvp(z, adj_state, dz_dy_w)
 
         # Term 2: H_z · (dz/dy · w) · dt · df/dp|_y
         # contracted with adj: adj^T · H_z · (dz/dy · w) gives scalar/vector
         # then multiply by dt · df/dp|_y^T to get (nparams,) result
         # = dt · (state_state_hvp(z, adj, dz_dy_w)) · df/dp|_y^T
-        H_z_dz_dy_w = self._residual.state_state_hvp(z, adj_state, dz_dy_w)
+        H_z_dz_dy_w = self._hvp_residual().state_state_hvp(z, adj_state, dz_dy_w)
         # H_z_dz_dy_w is scalar (nstates=1) or vector (nstates,)
         # df/dp|_y is (nstates, nparams)
         # Result: df/dp|_y^T · H_z_dz_dy_w = (nparams, nstates) @ (nstates,) =
         # (nparams,)
-        k2_term2 = dt * (dk1_dp.T @ H_z_dz_dy_w.reshape(-1, 1))
+        k2_term2 = dt * (dk1_dp.T @ self._bkd.reshape(H_z_dz_dy_w, (-1, 1)))
 
         # Term 3: J_z · dt · (∂²f/∂p∂y)|_y · w
         # contracted with adj: (J_z^T · adj)^T · dt · param_state_hvp at y
         J2_T_adj = J2.T @ adj_state
-        k2_term3 = dt * self._residual.param_state_hvp(fsol_nm1, J2_T_adj, wvec)
+        k2_term3 = dt * self._hvp_residual().param_state_hvp(fsol_nm1, J2_T_adj, wvec)
 
         # Flatten all terms for consistent shape
         result = (
-            k1_ps_hvp.flatten()
-            + k2_term1.flatten()
-            + k2_term2.flatten()
-            + k2_term3.flatten()
+            self._bkd.flatten(k1_ps_hvp)
+            + self._bkd.flatten(k2_term1)
+            + self._bkd.flatten(k2_term2)
+            + self._bkd.flatten(k2_term3)
         )
         return -0.5 * dt * result
 
@@ -556,10 +562,10 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # Stage 1
         self._residual.set_time(self._time)
         k1 = self._residual(fsol_nm1)
-        dk1_dp = self._residual.param_jacobian(fsol_nm1)
+        dk1_dp = self._param_residual().param_jacobian(fsol_nm1)
 
         # d²k1/dp² · v
-        k1_pp_hvp = self._residual.param_param_hvp(fsol_nm1, adj_state, vvec)
+        k1_pp_hvp = self._hvp_residual().param_param_hvp(fsol_nm1, adj_state, vvec)
 
         # Stage 2
         z = fsol_nm1 + dt * k1
@@ -570,27 +576,27 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # dz/dp · v = dt * dk1/dp · v  (vector, shape: nstates,)
         dz_dp_v = dt * (dk1_dp @ vvec)
         # Flatten for functions that expect 1D wvec
-        dz_dp_v_flat = dz_dp_v.flatten()
+        dz_dp_v_flat = self._bkd.flatten(dz_dp_v)
 
         # Term 1: ∂²f/∂p²|_z · v
-        k2_term1 = self._residual.param_param_hvp(z, adj_state, vvec)
+        k2_term1 = self._hvp_residual().param_param_hvp(z, adj_state, vvec)
 
         # Term 2: (∂²f/∂p∂z|_z) · dz/dp · v (NO factor of 2!)
         # = param_state_hvp(z, adj, dz_dp_v)
         # NOTE: Previous version had "2 * param_state_hvp" which was incorrect.
         # The factor of 2 was removed because Part A only contributes once.
-        k2_term2 = self._residual.param_state_hvp(z, adj_state, dz_dp_v_flat)
+        k2_term2 = self._hvp_residual().param_state_hvp(z, adj_state, dz_dp_v_flat)
 
         # Term 3: H_z · (dz/dp)² contribution
         # = adj^T · H_z · (dz/dp · v), weighted by (dz/dp)^T
         # = (dk1_dp)^T · dt · state_state_hvp(z, adj, dz_dp_v)
-        h_dz_dp_v = self._residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
-        h_dz_dp_v_flat = h_dz_dp_v.flatten()
+        h_dz_dp_v = self._hvp_residual().state_state_hvp(z, adj_state, dz_dp_v_flat)
+        h_dz_dp_v_flat = self._bkd.flatten(h_dz_dp_v)
         k2_term3 = dt * (dk1_dp.T @ h_dz_dp_v_flat)
 
         # Term 4: J_z · dt · ∂²f/∂p²|_y · v
         J2_T_adj = J2.T @ adj_state
-        k2_term4 = dt * self._residual.param_param_hvp(fsol_nm1, J2_T_adj, vvec)
+        k2_term4 = dt * self._hvp_residual().param_param_hvp(fsol_nm1, J2_T_adj, vvec)
 
         # Term 5 (NEW): ∂J_z/∂p · v · dt · dk1_dp
         # This is the contribution from d/dp[J_z] when differentiating J_z · dt ·
@@ -600,16 +606,16 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # ∂J_z/∂p = ∂²f/(∂y∂p)|_z, which is state_param_hvp(z, adj, v).
         # For the HVP, we need: adj · (∂J_z/∂p · v) · dt · dk1_dp
         # = dt · dk1_dp^T @ state_param_hvp(z, adj, v)
-        sp_hvp = self._residual.state_param_hvp(z, adj_state, vvec)
-        k2_term5 = dt * (dk1_dp.T @ sp_hvp.reshape(-1, 1))
+        sp_hvp = self._hvp_residual().state_param_hvp(z, adj_state, vvec)
+        k2_term5 = dt * (dk1_dp.T @ self._bkd.reshape(sp_hvp, (-1, 1)))
 
         # Flatten all terms for consistent shape
         result = (
-            k1_pp_hvp.flatten()
-            + k2_term1.flatten()
-            + k2_term2.flatten()
-            + k2_term3.flatten()
-            + k2_term4.flatten()
-            + k2_term5.flatten()
+            self._bkd.flatten(k1_pp_hvp)
+            + self._bkd.flatten(k2_term1)
+            + self._bkd.flatten(k2_term2)
+            + self._bkd.flatten(k2_term3)
+            + self._bkd.flatten(k2_term4)
+            + self._bkd.flatten(k2_term5)
         )
         return -0.5 * dt * result

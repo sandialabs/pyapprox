@@ -347,17 +347,17 @@ class NeumannBC(Generic[Array]):
                 # Detect vector flux: shape (ndim, npts) vs scalar (npts,)
                 if flux_flat.ndim == 2 and flux_flat.shape[0] == ndim:
                     # Vector: flux_flat is (ndim, npts)
-                    flux = flux_flat.reshape(ndim, nelem, nquad)
-                    return sum(flux[i] * v[i] for i in range(ndim))
+                    flux_3d = flux_flat.reshape(ndim, nelem, nquad)
+                    return np.asarray(sum(flux_3d[i] * v[i] for i in range(ndim)))
                 else:
-                    flux = flux_flat.reshape(nelem, nquad)
-                    return flux * v
+                    flux_2d = flux_flat.reshape(nelem, nquad)
+                    return np.asarray(flux_2d * v)
             else:
                 flux = np.asarray(flux_func(x_np, current_time))
                 if flux.ndim == 2:
                     ndim = flux.shape[0]
-                    return sum(flux[i] * v[i] for i in range(ndim))
-                return flux * v
+                    return np.asarray(sum(flux[i] * v[i] for i in range(ndim)))
+                return np.asarray(flux * v)
 
         contribution = asm(LinearForm(neumann_form), bndry_basis)
         load_np += contribution
@@ -492,7 +492,7 @@ class RobinBC(Generic[Array]):
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
-                return alpha * sum(u[i] * v[i] for i in range(ncomps))
+                return np.asarray(alpha * sum(u[i] * v[i] for i in range(ncomps)))
         else:
 
             def robin_bilinear(
@@ -500,7 +500,7 @@ class RobinBC(Generic[Array]):
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
-                return alpha * u * v
+                return np.asarray(alpha * u * v)
 
         contribution_sparse = asm(BilinearForm(robin_bilinear), bndry_basis)
 
@@ -545,17 +545,17 @@ class RobinBC(Generic[Array]):
                 x_flat = x_np.reshape(ndim, -1)
                 vals_flat = np.asarray(value_func(x_flat, current_time))
                 if vals_flat.ndim == 2 and vals_flat.shape[0] == ndim:
-                    vals = vals_flat.reshape(ndim, nelem, nquad)
-                    return sum(vals[i] * v[i] for i in range(ndim))
+                    vals_3d = vals_flat.reshape(ndim, nelem, nquad)
+                    return np.asarray(sum(vals_3d[i] * v[i] for i in range(ndim)))
                 else:
-                    vals = vals_flat.reshape(nelem, nquad)
-                    return vals * v
+                    vals_2d = vals_flat.reshape(nelem, nquad)
+                    return np.asarray(vals_2d * v)
             else:
                 vals = np.asarray(value_func(x_np, current_time))
                 if vals.ndim == 2:
                     ndim = vals.shape[0]
-                    return sum(vals[i] * v[i] for i in range(ndim))
-                return vals * v
+                    return np.asarray(sum(vals[i] * v[i] for i in range(ndim)))
+                return np.asarray(vals * v)
 
         contribution = asm(LinearForm(robin_linear), bndry_basis)
         load_np += contribution
@@ -590,7 +590,7 @@ class RobinBC(Generic[Array]):
 
         # Add alpha * u * phi contribution to residual
         def robin_residual_u(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return alpha * w.u_prev * v
+            return np.asarray(alpha * w.u_prev * v)
 
         # Need to interpolate state onto boundary
         state_interp = bndry_basis.interpolate(state_np)

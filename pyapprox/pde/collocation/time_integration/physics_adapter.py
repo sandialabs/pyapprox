@@ -11,7 +11,7 @@ The adapter uses dynamic binding to expose param_jacobian and HVP methods
 only if the underlying physics supports them.
 """
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional, cast
 
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.parameterizations.protocol import (
@@ -95,11 +95,12 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
             if hasattr(self._physics, "state_state_hvp"):
                 self.state_state_hvp = self._state_state_hvp_impl
         elif hasattr(self._physics, "param_jacobian"):
-            # Legacy path (unchanged)
-            self.nparams = self._physics.nparams
-            self.set_param = self._physics.set_param
+            # Legacy path - physics satisfies higher-level protocol
+            _phys = cast(Any, self._physics)
+            self.nparams = _phys.nparams
+            self.set_param = _phys.set_param
             self.param_jacobian = self._param_jacobian_impl
-            self.initial_param_jacobian = self._physics.initial_param_jacobian
+            self.initial_param_jacobian = _phys.initial_param_jacobian
 
             # Check for HVP support
             if hasattr(self._physics, "state_state_hvp"):
@@ -199,7 +200,7 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._physics.param_jacobian(state, self._time)
+        return cast(Array, cast(Any, self._physics).param_jacobian(state, self._time))
 
     def _state_state_hvp_impl(
         self, state: Array, adj_state: Array, wvec: Array
@@ -220,7 +221,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Array
             HVP result. Shape: (nstates,)
         """
-        return self._physics.state_state_hvp(state, adj_state, wvec, self._time)
+        return cast(Array, cast(Any, self._physics).state_state_hvp(
+            state, adj_state, wvec, self._time
+        ))
 
     def _state_param_hvp_impl(
         self, state: Array, adj_state: Array, vvec: Array
@@ -241,7 +244,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Array
             HVP result. Shape: (nstates,)
         """
-        return self._physics.state_param_hvp(state, adj_state, vvec, self._time)
+        return cast(Array, cast(Any, self._physics).state_param_hvp(
+            state, adj_state, vvec, self._time
+        ))
 
     def _param_state_hvp_impl(
         self, state: Array, adj_state: Array, wvec: Array
@@ -262,7 +267,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Array
             HVP result. Shape: (nparams,)
         """
-        return self._physics.param_state_hvp(state, adj_state, wvec, self._time)
+        return cast(Array, cast(Any, self._physics).param_state_hvp(
+            state, adj_state, wvec, self._time
+        ))
 
     def _param_param_hvp_impl(
         self, state: Array, adj_state: Array, vvec: Array
@@ -283,7 +290,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Array
             HVP result. Shape: (nparams,)
         """
-        return self._physics.param_param_hvp(state, adj_state, vvec, self._time)
+        return cast(Array, cast(Any, self._physics).param_param_hvp(
+            state, adj_state, vvec, self._time
+        ))
 
     # =========================================================================
     # Parameterization delegation methods
@@ -292,6 +301,8 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
     def _set_param_via_parameterization(self, param: Array) -> None:
         """Set parameter via parameterization."""
         self._current_params_1d = param
+        # apply is on the protocol; use assert to narrow None
+        assert self._parameterization is not None
         self._parameterization.apply(self._physics, param)
 
     def _param_jacobian_via_parameterization(self, state: Array) -> Array:
