@@ -19,7 +19,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.pde.time.implicit_steppers import BackwardEulerResidual
+from pyapprox.pde.time.implicit_steppers import BackwardEulerHVP
 
 
 class TestPhysicsAdapterBase:
@@ -92,11 +92,11 @@ class TestPhysicsAdapterBase:
         assert self.adapter.bkd() is bkd
 
     def test_with_backward_euler(self, numpy_bkd) -> None:
-        """Test adapter works with BackwardEulerResidual."""
+        """Test adapter works with BackwardEulerHVP."""
         bkd = numpy_bkd
         self._setup(bkd)
         # Create time stepper
-        stepper = BackwardEulerResidual(self.adapter)
+        stepper = BackwardEulerHVP(self.adapter)
 
         # Set up initial condition
         u0 = self.physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
@@ -118,7 +118,7 @@ class TestPhysicsAdapterBase:
         bkd = numpy_bkd
         self._setup(bkd)
         # Create time stepper
-        stepper = BackwardEulerResidual(self.adapter)
+        stepper = BackwardEulerHVP(self.adapter)
 
         # Initial condition
         u0 = self.physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
@@ -144,7 +144,7 @@ class TestPhysicsAdapterBase:
         """Test Newton iteration converges for a single time step."""
         bkd = numpy_bkd
         self._setup(bkd)
-        stepper = BackwardEulerResidual(self.adapter)
+        stepper = BackwardEulerHVP(self.adapter)
 
         # Initial condition: sine wave
         u = self.physics.initial_condition(lambda x: np.sin(np.pi * x[0]))

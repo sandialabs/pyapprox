@@ -1,6 +1,6 @@
 """Constrained time step residual for Dirichlet BC enforcement.
 
-Wraps a time stepper (BackwardEulerResidual, CrankNicolsonResidual, etc.)
+Wraps a time stepper (BackwardEulerHVP, CrankNicolsonHVP, etc.)
 and applies Dirichlet constraints after the stepper assembles the Newton
 residual and Jacobian:
 
@@ -46,7 +46,7 @@ class ConstrainedTimeStepResidual(Generic[Array]):
     Parameters
     ----------
     stepper : TimeSteppingResidualBase
-        The time stepping residual (e.g., BackwardEulerResidual).
+        The time stepping residual (e.g., BackwardEulerHVP).
     adapter : GalerkinPhysicsODEAdapter
         The physics adapter with dirichlet_dof_info(time) method.
     """

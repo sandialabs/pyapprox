@@ -3,9 +3,9 @@
 import numpy as np
 
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerStepper,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunStepper
 from pyapprox.pde.time.protocols.ode_residual import (
     ODEResidualProtocol,
 )
@@ -115,7 +115,7 @@ class TestIntegrateFlow:
             T,
             n_steps=10,
             bkd=bkd,
-            stepper_cls=ForwardEulerResidual,
+            stepper_cls=ForwardEulerStepper,
         )
 
         # x(T) = x0 + c * T
@@ -141,7 +141,7 @@ class TestIntegrateFlow:
             n_steps=10,
             bkd=bkd,
             c=c,
-            stepper_cls=ForwardEulerResidual,
+            stepper_cls=ForwardEulerStepper,
         )
         expected = bkd.array([[2.0, -1.0]])
         bkd.assert_allclose(result, expected, rtol=1e-10)
@@ -167,7 +167,7 @@ class TestIntegrateFlow:
                 T,
                 n_steps=ns,
                 bkd=bkd,
-                stepper_cls=ForwardEulerResidual,
+                stepper_cls=ForwardEulerStepper,
             )
             err = abs(float(bkd.to_numpy(result[0, 0])) - exact)
             errors.append(err)
@@ -197,7 +197,7 @@ class TestIntegrateFlow:
                 T,
                 n_steps=ns,
                 bkd=bkd,
-                stepper_cls=HeunResidual,
+                stepper_cls=HeunStepper,
             )
             err = abs(float(bkd.to_numpy(result[0, 0])) - exact)
             errors.append(err)
@@ -233,7 +233,7 @@ class TestIntegrateFlow:
             T,
             n_steps=10,
             bkd=bkd,
-            stepper_cls=ForwardEulerResidual,
+            stepper_cls=ForwardEulerStepper,
         )
         expected = bkd.array([[0.5, 1.5, 2.5]])
         bkd.assert_allclose(result, expected, rtol=1e-10)

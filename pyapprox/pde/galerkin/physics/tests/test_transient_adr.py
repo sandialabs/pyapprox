@@ -37,8 +37,8 @@ from pyapprox.pde.galerkin.time_integration import (
     TimeIntegrationConfig,
 )
 from pyapprox.pde.time.implicit_steppers import (
-    BackwardEulerResidual,
-    CrankNicolsonResidual,
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
 )
 from pyapprox.util.test_utils import slow_test
 
@@ -578,7 +578,7 @@ class TestManualNewtonWithConstraint:
 
         # Manual setup: adapter + stepper + constrained wrapper
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
-        stepper = BackwardEulerResidual(ode_adapter)
+        stepper = BackwardEulerHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
         y = bkd.asarray(exact_at_time(0.0))
@@ -655,7 +655,7 @@ class TestManualNewtonWithConstraint:
             return u
 
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
-        stepper = CrankNicolsonResidual(ode_adapter)
+        stepper = CrankNicolsonHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
         y = bkd.asarray(exact_at_time(0.0))

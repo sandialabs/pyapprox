@@ -90,7 +90,7 @@ class TestLotkaVolterraWithTimeAdjoint:
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
-            BackwardEulerResidual,
+            BackwardEulerHVP,
         )
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -100,7 +100,7 @@ class TestLotkaVolterraWithTimeAdjoint:
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
         residual.set_param(self._params)
 
-        time_residual = BackwardEulerResidual(residual)
+        time_residual = BackwardEulerHVP(residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0,
@@ -121,7 +121,7 @@ class TestLotkaVolterraWithTimeAdjoint:
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
-            BackwardEulerResidual,
+            BackwardEulerHVP,
         )
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -131,7 +131,7 @@ class TestLotkaVolterraWithTimeAdjoint:
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
         residual.set_param(self._params)
 
-        time_residual = BackwardEulerResidual(residual)
+        time_residual = BackwardEulerHVP(residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0,

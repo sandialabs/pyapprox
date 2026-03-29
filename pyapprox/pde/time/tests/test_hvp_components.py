@@ -20,10 +20,10 @@ from pyapprox.pde.time.benchmarks.linear_ode import (
     QuadraticODEResidual,
 )
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -358,7 +358,7 @@ class TestAnalyticalSolutions:
         Amat = bkd.asarray(np.array([[a]]))
         ode_residual = QuadraticODEResidual(Amat, bkd)
 
-        time_residual = BackwardEulerResidual(ode_residual)
+        time_residual = BackwardEulerHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
 
         init_time = 0.0
@@ -399,7 +399,7 @@ class TestAnalyticalSolutions:
         ode_residual = QuadraticODEResidual(Amat, bkd)
         nparams = ode_residual.nparams()
 
-        time_residual = BackwardEulerResidual(ode_residual)
+        time_residual = BackwardEulerHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
 
         init_time = 0.0
@@ -449,7 +449,7 @@ class TestAnalyticalSolutions:
         Amat = bkd.asarray(np.array([[a]]))
         ode_residual = QuadraticODEResidual(Amat, bkd)
 
-        time_residual = ForwardEulerResidual(ode_residual)
+        time_residual = ForwardEulerHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
 
         init_time = 0.0
@@ -609,7 +609,7 @@ class TestTimeResidualHVP:
         param = bkd.asarray(np.array([[0.1], [0.2]]))
         ode_residual.set_param(param.flatten())
 
-        time_residual = BackwardEulerResidual(ode_residual)
+        time_residual = BackwardEulerHVP(ode_residual)
 
         # Set up the time step
         deltat = 0.1
@@ -655,7 +655,7 @@ class TestTimeResidualHVP:
         param = bkd.asarray(np.array([[0.1], [0.2]]))
         ode_residual.set_param(param.flatten())
 
-        time_residual = BackwardEulerResidual(ode_residual)
+        time_residual = BackwardEulerHVP(ode_residual)
 
         # Set up the time step
         deltat = 0.1
@@ -708,7 +708,7 @@ class TestTimeResidualHVP:
         param = bkd.asarray(np.array([[0.1], [0.2]]))
         ode_residual.set_param(param.flatten())
 
-        time_residual = ForwardEulerResidual(ode_residual)
+        time_residual = ForwardEulerHVP(ode_residual)
 
         # Set up the time step
         deltat = 0.1

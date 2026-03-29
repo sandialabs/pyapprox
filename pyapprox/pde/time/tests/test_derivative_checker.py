@@ -13,7 +13,7 @@ from pyapprox.pde.time.benchmarks.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.check_derivatives import (
@@ -51,7 +51,7 @@ class TestTimeAdjointDerivativeChecker:
 
     def _create_operator(self, bkd, ode_residual) :
         """Create time adjoint operator from ODE residual."""
-        time_residual = HeunResidual(ode_residual)
+        time_residual = HeunHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0,
@@ -196,7 +196,7 @@ class TestTimeAdjointDerivativeCheckerTimeResidual:
         Amat = bkd.asarray([[-0.5, 0.1], [0.2, -0.3]])
         ode_residual = QuadraticODEResidual(Amat, bkd)
 
-        time_residual = HeunResidual(ode_residual)
+        time_residual = HeunHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0,
@@ -288,7 +288,7 @@ class TestTimeAdjointDerivativeCheckerFullOperator:
         Amat = bkd.asarray([[-0.5, 0.1], [0.2, -0.3]])
         ode_residual = QuadraticODEResidual(Amat, bkd)
 
-        time_residual = HeunResidual(ode_residual)
+        time_residual = HeunHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0,

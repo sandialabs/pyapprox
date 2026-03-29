@@ -56,7 +56,7 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
     Examples
     --------
     >>> ode_residual = GalerkinPhysicsODEAdapter(physics)
-    >>> time_stepper = BackwardEulerResidual(ode_residual)
+    >>> time_stepper = BackwardEulerHVP(ode_residual)
 
     With parameterization:
 

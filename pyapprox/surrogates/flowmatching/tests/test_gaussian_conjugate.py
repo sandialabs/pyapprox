@@ -24,7 +24,7 @@ import pytest
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunStepper
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -219,7 +219,7 @@ class TestGaussianConjugate:
             n_steps=50,
             bkd=bkd,
             c=c_samples,
-            stepper_cls=HeunResidual,
+            stepper_cls=HeunStepper,
         )
 
         x1_np = bkd.to_numpy(x1_samples)
@@ -264,7 +264,7 @@ class TestGaussianConjugate:
             n_steps=50,
             bkd=bkd,
             c=c_samples,
-            stepper_cls=HeunResidual,
+            stepper_cls=HeunStepper,
         )
 
         x1_np = bkd.to_numpy(x1_samples)

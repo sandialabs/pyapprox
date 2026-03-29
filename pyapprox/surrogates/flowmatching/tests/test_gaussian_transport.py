@@ -11,7 +11,7 @@ approximation converges rapidly to zero training loss.
 import numpy as np
 import pytest
 
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunStepper
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -132,7 +132,7 @@ class TestGaussianTransport:
             1.0,
             n_steps=50,
             bkd=bkd,
-            stepper_cls=HeunResidual,
+            stepper_cls=HeunStepper,
         )
 
         x1_np = bkd.to_numpy(x1_samples)

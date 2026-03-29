@@ -9,15 +9,15 @@ import numpy as np
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import LinearODEResidual
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerHVP,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-    CrankNicolsonResidual,
+    CrankNicolsonHVP,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
@@ -124,16 +124,16 @@ class TestAdjointJacobian:
 
     def test_backward_euler_gradient(self, bkd) -> None:
         """Test adjoint gradient for Backward Euler."""
-        self._check_gradient_stepper(BackwardEulerResidual, tol=1e-4, bkd=bkd)
+        self._check_gradient_stepper(BackwardEulerHVP, tol=1e-4, bkd=bkd)
 
     def test_crank_nicolson_gradient(self, bkd) -> None:
         """Test adjoint gradient for Crank-Nicolson."""
-        self._check_gradient_stepper(CrankNicolsonResidual, tol=1e-4, bkd=bkd)
+        self._check_gradient_stepper(CrankNicolsonHVP, tol=1e-4, bkd=bkd)
 
     def test_forward_euler_gradient(self, bkd) -> None:
         """Test adjoint gradient for Forward Euler."""
-        self._check_gradient_stepper(ForwardEulerResidual, tol=1e-4, bkd=bkd)
+        self._check_gradient_stepper(ForwardEulerHVP, tol=1e-4, bkd=bkd)
 
     def test_heun_gradient(self, bkd) -> None:
         """Test adjoint gradient for Heun."""
-        self._check_gradient_stepper(HeunResidual, tol=1e-4, bkd=bkd)
+        self._check_gradient_stepper(HeunHVP, tol=1e-4, bkd=bkd)

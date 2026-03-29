@@ -23,15 +23,15 @@ from pyapprox.pde.time.benchmarks.linear_ode import (
     QuadraticODEResidual,
 )
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerHVP,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-    CrankNicolsonResidual,
+    CrankNicolsonHVP,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.time_adjoint_hvp import (
@@ -160,10 +160,10 @@ class TestTorchAutogradComparison:
     def _stepper_name(self, stepper_class):
         """Get stepper name for autograd integration."""
         name_map = {
-            ForwardEulerResidual: "forward_euler",
-            BackwardEulerResidual: "backward_euler",
-            HeunResidual: "heun",
-            CrankNicolsonResidual: "crank_nicolson",
+            ForwardEulerHVP: "forward_euler",
+            BackwardEulerHVP: "backward_euler",
+            HeunHVP: "heun",
+            CrankNicolsonHVP: "crank_nicolson",
         }
         return name_map[stepper_class]
 
@@ -289,22 +289,22 @@ class TestTorchAutogradComparison:
     def test_backward_euler_jacobian(self, torch_bkd):
         """Test Backward Euler Jacobian matches autograd."""
         bkd = torch_bkd
-        self._check_jacobian_stepper(bkd, BackwardEulerResidual)
+        self._check_jacobian_stepper(bkd, BackwardEulerHVP)
 
     def test_crank_nicolson_jacobian(self, torch_bkd):
         """Test Crank-Nicolson Jacobian matches autograd."""
         bkd = torch_bkd
-        self._check_jacobian_stepper(bkd, CrankNicolsonResidual)
+        self._check_jacobian_stepper(bkd, CrankNicolsonHVP)
 
     def test_forward_euler_jacobian(self, torch_bkd):
         """Test Forward Euler Jacobian matches autograd."""
         bkd = torch_bkd
-        self._check_jacobian_stepper(bkd, ForwardEulerResidual)
+        self._check_jacobian_stepper(bkd, ForwardEulerHVP)
 
     def test_heun_jacobian(self, torch_bkd):
         """Test Heun Jacobian matches autograd."""
         bkd = torch_bkd
-        self._check_jacobian_stepper(bkd, HeunResidual)
+        self._check_jacobian_stepper(bkd, HeunHVP)
 
     # =========================================================================
     # HVP tests
@@ -313,22 +313,22 @@ class TestTorchAutogradComparison:
     def test_backward_euler_hvp(self, torch_bkd):
         """Test Backward Euler HVP matches autograd."""
         bkd = torch_bkd
-        self._check_hvp_stepper(bkd, BackwardEulerResidual)
+        self._check_hvp_stepper(bkd, BackwardEulerHVP)
 
     def test_crank_nicolson_hvp(self, torch_bkd):
         """Test Crank-Nicolson HVP matches autograd."""
         bkd = torch_bkd
-        self._check_hvp_stepper(bkd, CrankNicolsonResidual)
+        self._check_hvp_stepper(bkd, CrankNicolsonHVP)
 
     def test_forward_euler_hvp(self, torch_bkd):
         """Test Forward Euler HVP matches autograd."""
         bkd = torch_bkd
-        self._check_hvp_stepper(bkd, ForwardEulerResidual)
+        self._check_hvp_stepper(bkd, ForwardEulerHVP)
 
     def test_heun_hvp(self, torch_bkd):
         """Test Heun HVP matches autograd."""
         bkd = torch_bkd
-        self._check_hvp_stepper(bkd, HeunResidual)
+        self._check_hvp_stepper(bkd, HeunHVP)
 
     # =========================================================================
     # Additional validation tests
@@ -337,7 +337,7 @@ class TestTorchAutogradComparison:
     def test_hvp_multiple_directions(self, torch_bkd):
         """Test HVP with multiple random directions."""
         bkd = torch_bkd
-        stepper_class = BackwardEulerResidual
+        stepper_class = BackwardEulerHVP
         stepper_name = self._stepper_name(stepper_class)
 
         operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
@@ -371,7 +371,7 @@ class TestTorchAutogradComparison:
     def test_jacobian_matches_hvp_with_basis_vectors(self, torch_bkd):
         """Verify H·e_i equals i-th column of Hessian (via FD of Jacobian)."""
         bkd = torch_bkd
-        stepper_class = BackwardEulerResidual
+        stepper_class = BackwardEulerHVP
 
         operator, ode_residual = self._create_quadratic_ode_operator(bkd, stepper_class)
 

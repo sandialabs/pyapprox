@@ -164,7 +164,7 @@ print("="*60)
 # Let's trace what the implementation does
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import QuadraticODEResidual
-from pyapprox.pde.time.explicit_steppers.forward_euler import ForwardEulerResidual
+from pyapprox.pde.time.explicit_steppers.forward_euler import ForwardEulerHVP
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
@@ -176,7 +176,7 @@ nstates = 1
 Amat = bkd.asarray(np.array([[-0.5]]))
 ode_residual = QuadraticODEResidual(Amat, bkd)
 
-time_residual = ForwardEulerResidual(ode_residual)
+time_residual = ForwardEulerHVP(ode_residual)
 newton_solver = NewtonSolver(time_residual)
 
 init_time = 0.0

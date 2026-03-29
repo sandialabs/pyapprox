@@ -12,7 +12,7 @@ The result is f[D_dofs] = 0 (frozen) and f[interior] = M_int^{-1} * F_int
 caller (GalerkinModel).
 
 This adapter satisfies ODEResidualProtocol, so all existing stepper
-residuals (ForwardEulerResidual, HeunResidual, and any future ones like
+residuals (ForwardEulerHVP, HeunHVP, and any future ones like
 RK4) work unchanged. Adding a new integrator requires only a new stepper
 class and a registry entry — no adapter changes.
 """
@@ -31,7 +31,7 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
     """BC-clean ODE adapter for explicit Galerkin time stepping.
 
     Satisfies ODEResidualProtocol so existing stepper residuals
-    (ForwardEulerResidual, HeunResidual, future RK4, etc.) work unchanged.
+    (ForwardEulerHVP, HeunHVP, future RK4, etc.) work unchanged.
 
     Computes f(y, t) = M_bc^{-1} * F_clean where:
     - F_clean = spatial_residual (no Dirichlet enforcement), zeroed at D_dofs

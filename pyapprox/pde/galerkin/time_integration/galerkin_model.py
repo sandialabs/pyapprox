@@ -26,20 +26,20 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
 )
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.time.explicit_steppers import (
-    ForwardEulerResidual,
-    HeunResidual,
+    ForwardEulerHVP,
+    HeunHVP,
 )
 from pyapprox.pde.time.implicit_steppers import (
-    BackwardEulerResidual,
-    CrankNicolsonResidual,
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 _STEPPER_MAP = {
-    "forward_euler": ForwardEulerResidual,
-    "backward_euler": BackwardEulerResidual,
-    "crank_nicolson": CrankNicolsonResidual,
-    "heun": HeunResidual,
+    "forward_euler": ForwardEulerHVP,
+    "backward_euler": BackwardEulerHVP,
+    "crank_nicolson": CrankNicolsonHVP,
+    "heun": HeunHVP,
 }
 
 

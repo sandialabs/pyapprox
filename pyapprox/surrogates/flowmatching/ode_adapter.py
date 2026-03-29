@@ -19,9 +19,9 @@ from typing import Any, Generic, Optional, Type
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerStepper,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunStepper
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
@@ -222,7 +222,7 @@ def _integrate_persample_fallback(
     dt: float,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type[Any] = ForwardEulerResidual,
+    stepper_cls: Type[Any] = ForwardEulerStepper,
 ) -> Array:
     """Per-sample integration fallback for non-standard steppers."""
     nsamples = x0_batch.shape[1]
@@ -260,14 +260,14 @@ def integrate_flow(
     n_steps: int,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type[Any] = ForwardEulerResidual,
+    stepper_cls: Type[Any] = ForwardEulerStepper,
 ) -> Array:
     """Integrate the flow ODE for a batch of initial conditions.
 
     Solves dx/dt = v(t, x [, c]) from t_start to t_end for each
     sample in x0_batch.
 
-    For ForwardEulerResidual and HeunResidual, uses vectorized batch
+    For ForwardEulerStepper and HeunStepper, uses vectorized batch
     integration (one VF call per timestep for all samples). Falls back
     to per-sample integration for other stepper classes.
 
@@ -288,7 +288,7 @@ def integrate_flow(
     c : Array, optional
         Conditioning variables, shape ``(m, nsamples)``.
     stepper_cls : Type
-        Time stepping residual class. Default: ForwardEulerResidual.
+        Time stepping residual class. Default: ForwardEulerStepper.
 
     Returns
     -------
@@ -297,7 +297,7 @@ def integrate_flow(
     """
     dt = (t_end - t_start) / n_steps
 
-    if stepper_cls is ForwardEulerResidual:
+    if stepper_cls is ForwardEulerStepper:
         return _integrate_euler_batch(
             vf,
             x0_batch,
@@ -307,7 +307,7 @@ def integrate_flow(
             bkd,
             c,
         )
-    elif stepper_cls is HeunResidual:
+    elif stepper_cls is HeunStepper:
         return _integrate_heun_batch(
             vf,
             x0_batch,

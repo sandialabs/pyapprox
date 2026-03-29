@@ -17,16 +17,16 @@ from pyapprox.pde.time.benchmarks.linear_ode import (
     QuadraticODEResidual,
 )
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerHVP,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-    CrankNicolsonResidual,
+    CrankNicolsonHVP,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
@@ -298,23 +298,23 @@ class TestAdjointHVP:
 
     def test_backward_euler_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Backward Euler with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(BackwardEulerResidual, bkd)
+        self._check_hvp_stepper_linear_ode_mse(BackwardEulerHVP, bkd)
 
     def test_crank_nicolson_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(CrankNicolsonResidual, bkd)
+        self._check_hvp_stepper_linear_ode_mse(CrankNicolsonHVP, bkd)
 
     def test_forward_euler_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Forward Euler with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(ForwardEulerResidual, bkd)
+        self._check_hvp_stepper_linear_ode_mse(ForwardEulerHVP, bkd)
 
     def test_heun_hvp_linear_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with linear ODE + MSE."""
-        self._check_hvp_stepper_linear_ode_mse(HeunResidual, bkd)
+        self._check_hvp_stepper_linear_ode_mse(HeunHVP, bkd)
 
     def test_backward_euler_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Backward Euler with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(BackwardEulerResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode(BackwardEulerHVP, bkd)
 
     def test_crank_nicolson_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with quadratic ODE.
@@ -326,16 +326,16 @@ class TestAdjointHVP:
         tests pass with 1e-6 tolerance). Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode(
-            CrankNicolsonResidual, bkd, error_ratio_tol=1e-4
+            CrankNicolsonHVP, bkd, error_ratio_tol=1e-4
         )
 
     def test_forward_euler_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Forward Euler with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(ForwardEulerResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode(ForwardEulerHVP, bkd)
 
     def test_heun_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE."""
-        self._check_hvp_stepper_quadratic_ode(HeunResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode(HeunHVP, bkd)
 
     def _check_hvp_stepper_quadratic_ode_mse(
         self, stepper_class, bkd, error_ratio_tol: float = 1e-6
@@ -424,7 +424,7 @@ class TestAdjointHVP:
 
     def test_backward_euler_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Backward Euler with quadratic ODE + MSE (both nonlinear)."""
-        self._check_hvp_stepper_quadratic_ode_mse(BackwardEulerResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode_mse(BackwardEulerHVP, bkd)
 
     def test_crank_nicolson_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Crank-Nicolson with quadratic ODE + MSE.
@@ -433,16 +433,16 @@ class TestAdjointHVP:
         numerical conditioning issues. Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode_mse(
-            CrankNicolsonResidual, bkd, error_ratio_tol=1e-4
+            CrankNicolsonHVP, bkd, error_ratio_tol=1e-4
         )
 
     def test_forward_euler_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Forward Euler with quadratic ODE + MSE."""
-        self._check_hvp_stepper_quadratic_ode_mse(ForwardEulerResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode_mse(ForwardEulerHVP, bkd)
 
     def test_heun_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE + MSE."""
-        self._check_hvp_stepper_quadratic_ode_mse(HeunResidual, bkd)
+        self._check_hvp_stepper_quadratic_ode_mse(HeunHVP, bkd)
 
     def test_hvp_linearity(self, bkd) -> None:
         """Test that HVP is linear: H*(alpha*v) = alpha*H*v."""
@@ -450,7 +450,7 @@ class TestAdjointHVP:
             bkd
         )
 
-        time_residual = BackwardEulerResidual(ode_residual)
+        time_residual = BackwardEulerHVP(ode_residual)
         newton_solver = NewtonSolver(time_residual)
 
         integrator = TimeIntegrator(0.0, 1.0, 0.1, newton_solver)

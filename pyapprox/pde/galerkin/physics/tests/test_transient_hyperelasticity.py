@@ -35,8 +35,8 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
 )
 from pyapprox.pde.time.implicit_steppers import (
-    BackwardEulerResidual,
-    CrankNicolsonResidual,
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
 )
 from pyapprox.util.test_utils import slow_test
 
@@ -137,9 +137,9 @@ class TestTransientHyperelasticity1D:
         # Time stepping
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
         if method == "backward_euler":
-            stepper = BackwardEulerResidual(ode_adapter)
+            stepper = BackwardEulerHVP(ode_adapter)
         else:
-            stepper = CrankNicolsonResidual(ode_adapter)
+            stepper = CrankNicolsonHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
         newton = NewtonSolver(constrained)
@@ -255,9 +255,9 @@ class TestTransientHyperelasticity2D:
         # Time stepping
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
         if method == "backward_euler":
-            stepper = BackwardEulerResidual(ode_adapter)
+            stepper = BackwardEulerHVP(ode_adapter)
         else:
-            stepper = CrankNicolsonResidual(ode_adapter)
+            stepper = CrankNicolsonHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
         newton = NewtonSolver(constrained)

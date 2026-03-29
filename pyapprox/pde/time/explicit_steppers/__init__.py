@@ -1,10 +1,14 @@
 """Explicit time stepping residuals with adjoint support."""
 
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerAdjoint,
+    ForwardEulerHVP,
+    ForwardEulerStepper,
 )
 from pyapprox.pde.time.explicit_steppers.heun import (
-    HeunResidual,
+    HeunAdjoint,
+    HeunHVP,
+    HeunStepper,
 )
 from pyapprox.pde.time.explicit_steppers.protocols import (
     AdjointEnabledTimeSteppingResidualProtocol,
@@ -20,8 +24,12 @@ from pyapprox.pde.time.explicit_steppers.protocols import (
 
 __all__ = [
     # Steppers
-    "ForwardEulerResidual",
-    "HeunResidual",
+    "ForwardEulerStepper",
+    "ForwardEulerAdjoint",
+    "ForwardEulerHVP",
+    "HeunStepper",
+    "HeunAdjoint",
+    "HeunHVP",
     # Protocols
     "ODEResidualProtocol",
     "ODEResidualWithParamJacobianProtocol",

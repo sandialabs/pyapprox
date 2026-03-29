@@ -53,7 +53,7 @@ class TestCoupledSpringsResidual:
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
-            BackwardEulerResidual,
+            BackwardEulerHVP,
         )
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -63,7 +63,7 @@ class TestCoupledSpringsResidual:
             TimeAdjointDerivativeChecker,
         )
 
-        time_residual = BackwardEulerResidual(self._residual)
+        time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0, final_time=0.5, deltat=0.1, newton_solver=newton_solver
@@ -122,7 +122,7 @@ class TestHastingsEcologyResidual:
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
-            BackwardEulerResidual,
+            BackwardEulerHVP,
         )
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -132,7 +132,7 @@ class TestHastingsEcologyResidual:
             TimeAdjointDerivativeChecker,
         )
 
-        time_residual = BackwardEulerResidual(self._residual)
+        time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0, final_time=5.0, deltat=1.0, newton_solver=newton_solver
@@ -190,7 +190,7 @@ class TestChemicalReactionResidual:
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
-            BackwardEulerResidual,
+            BackwardEulerHVP,
         )
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -200,7 +200,7 @@ class TestChemicalReactionResidual:
             TimeAdjointDerivativeChecker,
         )
 
-        time_residual = BackwardEulerResidual(self._residual)
+        time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
             init_time=0.0, final_time=1.0, deltat=0.1, newton_solver=newton_solver

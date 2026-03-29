@@ -1,288 +1,213 @@
-"""
-Backward Euler time stepping residual with adjoint support.
+r"""Backward Euler time stepping residual with adjoint support.
 
 The Backward Euler method is a first-order implicit time integrator:
 
-    M·(y_n - y_{n-1}) - Δt·f(y_n, t_n) = 0
+.. math::
 
-This module provides full adjoint support for gradient computation dQ/dp
-via the adjoint method.
+    M (y_n - y_{n-1}) - \Delta t \, f(y_n, t_n) = 0
+
+Split into three classes via mixin composition:
+
+- BackwardEulerStepper: core + sensitivity + quadrature + implicit
+- BackwardEulerAdjoint: + adjoint methods
+- BackwardEulerHVP: + HVP methods
 """
 
+from typing import Generic
+
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.pde.time.protocols import (
-    HVPCapableMixin,
-    ParamJacobianCapableMixin,
-    TimeSteppingResidualBase,
+from pyapprox.pde.time.mixins.adjoint import AdjointMixin
+from pyapprox.pde.time.mixins.core import CoreStepperMixin
+from pyapprox.pde.time.mixins.hvp import HVPMixin
+from pyapprox.pde.time.mixins.implicit import ImplicitStepperMixin
+from pyapprox.pde.time.mixins.quadrature import QuadratureMixin
+from pyapprox.pde.time.mixins.sensitivity import SensitivityMixin
+from pyapprox.pde.time.protocols.ode_residual import (
+    ODEResidualProtocol,
+    ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
 
-class BackwardEulerResidual(
-    ParamJacobianCapableMixin[Array],
-    HVPCapableMixin[Array],
-    TimeSteppingResidualBase[Array],
+# =========================================================================
+# Base stepper: core + sensitivity + quadrature + implicit
+# =========================================================================
+
+
+class BackwardEulerStepper(
+    SensitivityMixin[Array],
+    QuadratureMixin[Array],
+    ImplicitStepperMixin[Array],
+    CoreStepperMixin[Array],
+    Generic[Array],
 ):
+    r"""Backward Euler time stepping residual (base level).
+
+    First-order implicit method (A-stable):
+
+    .. math::
+
+        R(y_n) = M (y_n - y_{n-1}) - \Delta t \, f(y_n, t_n) = 0
     """
-    Backward Euler time stepping residual.
 
-    Residual: R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_n, t_n) = 0
-
-    This is a first-order implicit method (A-stable).
-
-    Optional Methods
-    ----------------
-    The following methods are conditionally available based on the
-    underlying ODE residual capabilities:
-
-    - ``param_jacobian(fsol_nm1, fsol_n)``: Available if ODE has ``param_jacobian``
-    - ``state_state_hvp(...)``, etc.: Available if ODE has HVP methods
-
-    Check availability with ``hasattr(residual, 'param_jacobian')``.
-    """
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+        super().__init__(residual)
 
     def __call__(self, state: Array) -> Array:
-        """
-        Evaluate the Backward Euler residual.
-
-        R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_n, t_n)
-
-        Parameters
-        ----------
-        state : Array
-            State at current time step y_n. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Residual value. Shape: (nstates,)
-        """
         self._residual.set_time(self._time + self._deltat)
         return self._residual.apply_mass_matrix(
             state - self._prev_state
         ) - self._deltat * self._residual(state)
 
     def jacobian(self, state: Array) -> Array:
-        """
-        Compute the Jacobian dR/dy_n.
-
-        dR/dy_n = M - Δt·(df/dy)
-
-        Parameters
-        ----------
-        state : Array
-            State at current time step y_n. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        """
+        r"""Compute :math:`dR/dy_n = M - \Delta t \, (df/dy)`."""
         self._residual.set_time(self._time + self._deltat)
         return self._residual.mass_matrix(
             state.shape[0]
         ) - self._deltat * self._residual.jacobian(state)
 
-    # =========================================================================
-    # Sensitivity Protocol Methods
-    # =========================================================================
+    # -- SensitivityMixin --
 
     def is_explicit(self) -> bool:
-        """Return False since Backward Euler is an implicit scheme."""
         return False
 
     def has_prev_state_hessian(self) -> bool:
-        """Return False since R_{n+1} does not depend on f(y_n)."""
         return False
 
     def sensitivity_off_diag_jacobian(
         self, fsol_nm1: Array, fsol_n: Array, deltat: float
     ) -> Array:
-        """
-        Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+        r"""Compute :math:`dR_n/dy_{n-1} = -M`.
 
-        For Backward Euler R_n = y_n - y_{n-1} - Δt·f(y_n):
-            dR_n/dy_{n-1} = -M
-
-        The f(y_n) term does not depend on y_{n-1}.
-
-        Parameters
-        ----------
-        fsol_nm1 : Array
-            Solution at previous time step y_{n-1}. Shape: (nstates,)
-        fsol_n : Array
-            Solution at current time step y_n. Shape: (nstates,)
-        deltat : float
-            Time step size Δt.
-
-        Returns
-        -------
-        Array
-            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        The :math:`f(y_n)` term does not depend on :math:`y_{n-1}`.
         """
         return -self._residual.mass_matrix(fsol_nm1.shape[0])
 
-    # =========================================================================
-    # Adjoint Methods
-    # =========================================================================
+    # -- QuadratureMixin --
 
-    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
-        """
-        Compute the parameter Jacobian dR/dp for one time step.
+    def _get_quadrature_class(self) -> type:
+        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+            PiecewiseConstantRight,
+        )
+        return PiecewiseConstantRight
 
-        dR/dp = -Δt·(df/dp)|_{y_n, t_n}
 
-        Parameters
-        ----------
-        fsol_nm1 : Array
-            Forward solution at previous time step. Shape: (nstates,)
-        fsol_n : Array
-            Forward solution at current time step. Shape: (nstates,)
+# =========================================================================
+# Adjoint level: + param_jacobian, adjoint methods
+# =========================================================================
 
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (nstates, nparams)
-        """
+
+class BackwardEulerAdjoint(
+    AdjointMixin[Array],
+    BackwardEulerStepper[Array],
+    Generic[Array],
+):
+    """Backward Euler with adjoint capability for gradient computation."""
+
+    def __init__(
+        self, residual: ODEResidualWithParamJacobianProtocol[Array]
+    ) -> None:
+        super().__init__(residual)
+
+    def _param_jacobian_impl(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+        r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_n, t_n}`."""
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._param_residual().param_jacobian(fsol_n)
+        return -self._deltat * self._adjoint_residual.param_jacobian(fsol_n)
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
-        """
-        Compute the diagonal Jacobian block for adjoint solve.
-
-        (dR/dy_n)ᵀ = (M - Δt·J)ᵀ
-
-        Note: set_time should have been called with time = t_n (current time),
-        not t_{n-1}. The adjoint solve works backward from final time.
-
-        Parameters
-        ----------
-        fsol_n : Array
-            Forward solution at current time step. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Transpose of Jacobian. Shape: (nstates, nstates)
-        """
+        r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
         self._residual.set_time(self._time)
         return (
             self._residual.mass_matrix(fsol_n.shape[0])
             - self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
-    def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array:
-        """
-        Compute the off-diagonal Jacobian for adjoint coupling.
-
-        For Backward Euler: -Mᵀ (couples λ_n to λ_{n+1})
-
-        Parameters
-        ----------
-        fsol_n : Array
-            Forward solution at current time step. Shape: (nstates,)
-        deltat_np1 : float
-            Time step size for the next interval.
-
-        Returns
-        -------
-        Array
-            Off-diagonal coupling. Shape: (nstates, nstates)
-        """
+    def adjoint_off_diag_jacobian(
+        self, fsol_n: Array, deltat_np1: float
+    ) -> Array:
+        r"""Compute :math:`(dR_{n+1}/dy_n)^T = -M^T`."""
         return -self._residual.mass_matrix(fsol_n.shape[0]).T
 
     def adjoint_initial_condition(
         self, final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
-        """
-        Compute initial condition for backward adjoint solve.
-
-        At final time T, solve: (dR/dy_N)ᵀ·λ_N = -dQ/dy_N
-
-        Parameters
-        ----------
-        final_fwd_sol : Array
-            Forward solution at final time. Shape: (nstates,)
-        final_dqdu : Array
-            Gradient dQ/dy at final time. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Adjoint solution at final time λ_N. Shape: (nstates,)
-        """
+        r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
         drdu = self.jacobian(final_fwd_sol)
         return solve_maybe_sparse(self._bkd, drdu.T, -final_dqdu)
 
-    def _get_quadrature_class(self) -> type:
-        """Return quadrature class for Backward Euler (right-constant)."""
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseConstantRight,
+
+# =========================================================================
+# HVP level: + four HVP methods
+# =========================================================================
+
+
+class BackwardEulerHVP(
+    HVPMixin[Array],
+    BackwardEulerAdjoint[Array],
+    Generic[Array],
+):
+    r"""Backward Euler with HVP capability for Hessian-vector products.
+
+    All HVP methods are simple scalings of the underlying ODE residual
+    HVPs evaluated at :math:`(y_n, t_n)`:
+
+    .. math::
+
+        \frac{d^2 R}{d(\cdot)^2} = -\Delta t \, \frac{d^2 f}{d(\cdot)^2}
+    """
+
+    def __init__(self, residual: ODEResidualWithHVPProtocol[Array]) -> None:
+        super().__init__(residual)
+
+    def state_state_hvp(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        r"""Compute :math:`(d^2R/dy_n^2) w = -\Delta t \, (d^2f/dy^2) w`."""
+        self._residual.set_time(self._time + self._deltat)
+        return -self._deltat * self._hvp_residual.state_state_hvp(
+            fsol_n, adj_state, wvec
         )
 
-        return PiecewiseConstantRight
-
-    # =========================================================================
-    # HVP Methods (conditionally available via dynamic binding)
-    # =========================================================================
-
-    def _state_state_hvp(
-        self,
-        fsol_nm1: Array,
-        fsol_n: Array,
-        adj_state: Array,
-        wvec: Array,
-    ) -> Array:
-        """
-        Compute (d²R/dy_n²)·w contracted with adjoint.
-
-        For Backward Euler: d²R/dy² = -Δt·(d²f/dy²)
-        """
-        self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._hvp_residual().state_state_hvp(fsol_n, adj_state, wvec)
-
-    def _state_param_hvp(
+    def state_param_hvp(
         self,
         fsol_nm1: Array,
         fsol_n: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """
-        Compute (d²R/dy_n dp)·v contracted with adjoint.
-
-        For Backward Euler: d²R/dydp = -Δt·(d²f/dydp)
-        """
+        r"""Compute :math:`(d^2R/dy_n \, dp) v = -\Delta t \, (d^2f/dy \, dp) v`."""
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._hvp_residual().state_param_hvp(fsol_n, adj_state, vvec)
+        return -self._deltat * self._hvp_residual.state_param_hvp(
+            fsol_n, adj_state, vvec
+        )
 
-    def _param_state_hvp(
+    def param_state_hvp(
         self,
         fsol_nm1: Array,
         fsol_n: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """
-        Compute (d²R/dp dy_n)·w contracted with adjoint.
-
-        For Backward Euler: d²R/dpdy = -Δt·(d²f/dpdy)
-        """
+        r"""Compute :math:`(d^2R/dp \, dy_n) w = -\Delta t \, (d^2f/dp \, dy) w`."""
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._hvp_residual().param_state_hvp(fsol_n, adj_state, wvec)
+        return -self._deltat * self._hvp_residual.param_state_hvp(
+            fsol_n, adj_state, wvec
+        )
 
-    def _param_param_hvp(
+    def param_param_hvp(
         self,
         fsol_nm1: Array,
         fsol_n: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """
-        Compute (d²R/dp²)·v contracted with adjoint.
-
-        For Backward Euler: d²R/dp² = -Δt·(d²f/dp²)
-        """
+        r"""Compute :math:`(d^2R/dp^2) v = -\Delta t \, (d^2f/dp^2) v`."""
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._hvp_residual().param_param_hvp(fsol_n, adj_state, vvec)
+        return -self._deltat * self._hvp_residual.param_param_hvp(
+            fsol_n, adj_state, vvec
+        )

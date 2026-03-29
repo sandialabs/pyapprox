@@ -1,10 +1,14 @@
 """Implicit time stepping residuals with adjoint support."""
 
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerAdjoint,
+    BackwardEulerHVP,
+    BackwardEulerStepper,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-    CrankNicolsonResidual,
+    CrankNicolsonAdjoint,
+    CrankNicolsonHVP,
+    CrankNicolsonStepper,
 )
 from pyapprox.pde.time.implicit_steppers.protocols import (
     AdjointEnabledImplicitTimeSteppingResidualProtocol,
@@ -23,8 +27,12 @@ from pyapprox.pde.time.implicit_steppers.protocols import (
 
 __all__ = [
     # Steppers
-    "BackwardEulerResidual",
-    "CrankNicolsonResidual",
+    "BackwardEulerStepper",
+    "BackwardEulerAdjoint",
+    "BackwardEulerHVP",
+    "CrankNicolsonStepper",
+    "CrankNicolsonAdjoint",
+    "CrankNicolsonHVP",
     # Protocols
     "ODEResidualProtocol",
     "ODEResidualWithParamJacobianProtocol",

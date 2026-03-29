@@ -5,7 +5,7 @@ from pyapprox.pde.time.benchmarks.nonlinear_decoupled import (
     NonLinearDecoupledODE,
 )
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import (
     ImplicitTimeIntegrator,
@@ -38,7 +38,7 @@ class TestImplicitTimeIntegration:
         residual.set_parameters(param)
 
         # Wrap the residual with Backward Euler
-        backward_euler_residual = BackwardEulerResidual(residual)
+        backward_euler_residual = BackwardEulerHVP(residual)
 
         # Create the Newton solver
         newton_solver = NewtonSolver(backward_euler_residual)

@@ -19,14 +19,14 @@ from pyapprox.pde.parameterizations.protocol import (
 )
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
+    ForwardEulerHVP,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
+    BackwardEulerHVP,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-    CrankNicolsonResidual,
+    CrankNicolsonHVP,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
@@ -34,10 +34,10 @@ from pyapprox.pde.time.implicit_steppers.integrator import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 _STEPPER_REGISTRY = {
-    "backward_euler": BackwardEulerResidual,
-    "crank_nicolson": CrankNicolsonResidual,
-    "forward_euler": ForwardEulerResidual,
-    "heun": HeunResidual,
+    "backward_euler": BackwardEulerHVP,
+    "crank_nicolson": CrankNicolsonHVP,
+    "forward_euler": ForwardEulerHVP,
+    "heun": HeunHVP,
 }
 
 

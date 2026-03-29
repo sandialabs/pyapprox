@@ -26,7 +26,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
     Parameters
     ----------
     time_residual : TimeSteppingResidualBase
-        The underlying time stepping residual (e.g., BackwardEulerResidual).
+        The underlying time stepping residual (e.g., BackwardEulerHVP).
     physics : PhysicsProtocol
         Collocation physics with boundary conditions.
     bkd : Backend

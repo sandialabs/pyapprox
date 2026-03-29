@@ -291,28 +291,28 @@ class ODEQoIFunction(Generic[Array]):
         """Create time stepping residual based on stepper type."""
         if self._stepper_type == "backward_euler":
             from pyapprox.pde.time.implicit_steppers.backward_euler import (
-                BackwardEulerResidual,
+                BackwardEulerHVP,
             )
 
-            return BackwardEulerResidual(residual)
+            return BackwardEulerHVP(residual)
         elif self._stepper_type == "forward_euler":
             from pyapprox.pde.time.explicit_steppers.forward_euler import (
-                ForwardEulerResidual,
+                ForwardEulerHVP,
             )
 
-            return ForwardEulerResidual(residual)
+            return ForwardEulerHVP(residual)
         elif self._stepper_type == "heun":
             from pyapprox.pde.time.explicit_steppers.heun import (
-                HeunResidual,
+                HeunHVP,
             )
 
-            return HeunResidual(residual)
+            return HeunHVP(residual)
         elif self._stepper_type == "crank_nicolson":
             from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-                CrankNicolsonResidual,
+                CrankNicolsonHVP,
             )
 
-            return CrankNicolsonResidual(residual)
+            return CrankNicolsonHVP(residual)
         else:
             raise ValueError(f"Unknown stepper type: {self._stepper_type}")
 
@@ -484,28 +484,28 @@ class ODEBenchmark(Generic[Array, GT]):
         """Create time stepping residual based on stepper type."""
         if stepper == "backward_euler":
             from pyapprox.pde.time.implicit_steppers.backward_euler import (
-                BackwardEulerResidual,
+                BackwardEulerHVP,
             )
 
-            return BackwardEulerResidual(self._residual)
+            return BackwardEulerHVP(self._residual)
         elif stepper == "forward_euler":
             from pyapprox.pde.time.explicit_steppers.forward_euler import (
-                ForwardEulerResidual,
+                ForwardEulerHVP,
             )
 
-            return ForwardEulerResidual(self._residual)
+            return ForwardEulerHVP(self._residual)
         elif stepper == "heun":
             from pyapprox.pde.time.explicit_steppers.heun import (
-                HeunResidual,
+                HeunHVP,
             )
 
-            return HeunResidual(self._residual)
+            return HeunHVP(self._residual)
         elif stepper == "crank_nicolson":
             from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
-                CrankNicolsonResidual,
+                CrankNicolsonHVP,
             )
 
-            return CrankNicolsonResidual(self._residual)
+            return CrankNicolsonHVP(self._residual)
         else:
             raise ValueError(f"Unknown stepper type: {stepper}")
 
