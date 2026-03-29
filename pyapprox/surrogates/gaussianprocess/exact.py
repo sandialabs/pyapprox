@@ -1135,7 +1135,7 @@ class ExactGaussianProcess(Generic[Array]):
         # Total negative log marginal likelihood
         nlml = 0.5 * (data_fit + log_det + constant)
 
-        return nlml
+        return float(nlml)
 
     def __repr__(self) -> str:
         """Return string representation."""

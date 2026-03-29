@@ -268,7 +268,7 @@ class PolynomialEnsemble(Generic[Array]):
         cov = self.covariance(i, j)
         var_i = self._models[i].variance()
         var_j = self._models[j].variance()
-        return cov / (var_i * var_j) ** 0.5
+        return float(cov / (var_i * var_j) ** 0.5)
 
     def correlation_matrix(self) -> Array:
         """Return correlation matrix between all models.

@@ -123,7 +123,7 @@ class StroudCdD3(Generic[Array]):
 
     def nsamples(self) -> int:
         """Return the number of samples."""
-        return 2**self._nvars
+        return int(2**self._nvars)
 
     def _build_rule(self) -> Tuple[Array, Array]:
         """Build cubature points and weights."""

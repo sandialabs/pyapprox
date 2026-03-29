@@ -20,7 +20,9 @@ from typing import Generic
 import numpy as np
 from scipy.sparse import issparse
 
+from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows, solve_maybe_sparse
+from pyapprox.pde.time.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -49,7 +51,7 @@ class ConstrainedTimeStepResidual(Generic[Array]):
         The physics adapter with dirichlet_dof_info(time) method.
     """
 
-    def __init__(self, stepper: object, adapter: object) -> None:
+    def __init__(self, stepper: TimeSteppingResidualProtocol[Array], adapter: GalerkinPhysicsProtocol[Array]) -> None:
         self._stepper = stepper
         self._adapter = adapter
         self._bkd = stepper.bkd()

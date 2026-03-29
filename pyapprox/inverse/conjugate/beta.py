@@ -19,7 +19,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 def _log_beta_function(a: float, b: float) -> float:
     """Compute log of Beta function B(a, b) = Gamma(a)Gamma(b)/Gamma(a+b)."""
-    return betaln(a, b)
+    return float(betaln(a, b))
 
 
 class BetaConjugatePosterior(Generic[Array]):

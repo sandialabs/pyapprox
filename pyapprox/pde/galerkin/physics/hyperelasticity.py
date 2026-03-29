@@ -100,7 +100,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
     def ndim(self) -> int:
         """Return spatial dimension."""
-        return self._basis.ncomponents()
+        return int(self._basis.ncomponents())
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.

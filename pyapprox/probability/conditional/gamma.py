@@ -114,7 +114,7 @@ class ConditionalGamma(Generic[Array]):
 
     def _get_nparams(self) -> int:
         """Return the total number of parameters."""
-        return self._hyp_list.nparams()
+        return int(self._hyp_list.nparams())
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -122,7 +122,7 @@ class ConditionalGamma(Generic[Array]):
 
     def nvars(self) -> int:
         """Return the number of conditioning variables."""
-        return self._log_shape_func.nvars()
+        return int(self._log_shape_func.nvars())
 
     def nqoi(self) -> int:
         """Return the number of output variables (always 1)."""

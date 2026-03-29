@@ -176,5 +176,5 @@ class ChainedOptimizer(Generic[Array]):
             Verbosity level from the local optimizer, or 0 if not available.
         """
         if hasattr(self._local_optimizer, "_verbosity"):
-            return self._local_optimizer._verbosity
+            return int(self._local_optimizer._verbosity)
         return 0

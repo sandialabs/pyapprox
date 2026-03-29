@@ -307,14 +307,14 @@ class HierarchicalBSpline1D(Generic[Array]):
         """
         if level == 0:
             return 1
-        return 2 ** (level - 1)
+        return int(2 ** (level - 1))
 
     def total_basis_up_to_level(self, level: int) -> int:
         """Return total basis functions up to and including level."""
         if level == 0:
             return 1
         # 1 + 1 + 2 + 4 + ... + 2^(l-1) = 2^l
-        return 2**level
+        return int(2**level)
 
     def level_index_to_flat(self, level: int, index: int) -> int:
         """Convert (level, index) to flat index.
@@ -333,7 +333,7 @@ class HierarchicalBSpline1D(Generic[Array]):
         """
         if level == 0:
             return 0
-        return 2 ** (level - 1) + index
+        return int(2 ** (level - 1) + index)
 
     def flat_to_level_index(self, flat_idx: int) -> Tuple[int, int]:
         """Convert flat index to (level, index).

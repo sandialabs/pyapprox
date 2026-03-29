@@ -276,7 +276,7 @@ class ConjugateGaussianOEDExpectedAVaRDev(
     def _compute_utility(self) -> float:
         # AVaR deviation = sigma * phi(Phi^{-1}(beta)) / (1 - beta)
         sigma = float(self._bkd.sqrt(self._post_pushforward.covariance()[0, 0]))
-        return sigma * stats.norm.pdf(stats.norm.ppf(self._beta)) / (1.0 - self._beta)
+        return float(sigma * stats.norm.pdf(stats.norm.ppf(self._beta)) / (1.0 - self._beta))
 
 
 class ConjugateGaussianOEDExpectedKLDivergence(

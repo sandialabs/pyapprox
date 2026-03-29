@@ -183,7 +183,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         """Return number of points for a given level."""
         if level == 0:
             return 1
-        return 2**level + 1
+        return int(2**level + 1)
 
     def _hierarchical_to_nodal_index(self, level: int, ll: int, ii: int) -> int:
         """Convert hierarchical index to nodal index in quadrature rule."""
@@ -197,7 +197,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
                 return 0
             return nindices - 1
         # higher level points
-        return (2 * ii + 1) * 2 ** (level - ll)
+        return int((2 * ii + 1) * 2 ** (level - ll))
 
     def _poly_indices_to_quad_rule_indices(self, level: int) -> Array:
         """Convert polynomial indices to quadrature rule indices.

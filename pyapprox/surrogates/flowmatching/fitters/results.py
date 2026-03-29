@@ -2,6 +2,7 @@
 
 from typing import Generic
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -23,13 +24,13 @@ class FlowMatchingFitResult(Generic[Array]):
 
     def __init__(
         self,
-        surrogate: object,
+        surrogate: FunctionProtocol[Array],
         training_loss: float,
     ) -> None:
         self._surrogate = surrogate
         self._training_loss = training_loss
 
-    def surrogate(self) -> object:
+    def surrogate(self) -> FunctionProtocol[Array]:
         """Return the fitted vector field."""
         return self._surrogate
 

@@ -61,7 +61,7 @@ class ScipyOptimizerResultWrapper(Generic[Array]):
         float
             Minimum value of the objective function.
         """
-        return self._scipy_result.fun
+        return float(self._scipy_result.fun)
 
     def success(self) -> bool:
         """
@@ -72,7 +72,7 @@ class ScipyOptimizerResultWrapper(Generic[Array]):
         bool
             True if the optimization was successful, False otherwise.
         """
-        return self._scipy_result.success
+        return bool(self._scipy_result.success)
 
     def optima(self) -> Array:
         """

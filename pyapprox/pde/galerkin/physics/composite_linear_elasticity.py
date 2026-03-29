@@ -226,7 +226,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
 
     def ndim(self) -> int:
         """Return spatial dimension."""
-        return self._basis.ncomponents()
+        return int(self._basis.ncomponents())
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.
@@ -398,7 +398,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                 f"This problem has {self._nmaterials} materials."
             )
         E, nu = self._material_map[self._material_names[0]]
-        return lame_parameters(E, nu)[0]
+        return float(lame_parameters(E, nu)[0])
 
     def lame_mu(self) -> float:
         """Return second Lame parameter (only valid for single-material)."""
@@ -408,7 +408,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                 f"This problem has {self._nmaterials} materials."
             )
         E, nu = self._material_map[self._material_names[0]]
-        return lame_parameters(E, nu)[1]
+        return float(lame_parameters(E, nu)[1])
 
     # -----------------------------------------------------------------
     # Material accessors

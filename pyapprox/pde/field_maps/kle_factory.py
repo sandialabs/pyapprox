@@ -370,7 +370,7 @@ def _compute_spde_tau_squared(
         * kappa ** (2 * nu)
         * sigma**2
     )
-    return tau_sq
+    return float(tau_sq)
 
 
 def create_spde_matern_kle(

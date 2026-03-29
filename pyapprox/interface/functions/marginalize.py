@@ -19,6 +19,7 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 
 from typing import Callable, Generic, List, Protocol, runtime_checkable
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.surrogates.quadrature.protocols import (
     MultivariateQuadratureRuleProtocol,
 )
@@ -199,7 +200,7 @@ class FunctionMarginalizer(Generic[Array]):
 
     def __init__(
         self,
-        function: object,
+        function: FunctionProtocol[Array],
         quad_factory: QuadratureFactoryProtocol[Array],
         bkd: Backend[Array],
     ):
@@ -307,7 +308,7 @@ class CrossSectionReducer(Generic[Array]):
 
     def __init__(
         self,
-        function: object,
+        function: FunctionProtocol[Array],
         nominal_values: Array,
         bkd: Backend[Array],
     ):
@@ -394,7 +395,7 @@ class ActiveSetFunction(Generic[Array]):
 
     def __init__(
         self,
-        function: object,
+        function: FunctionProtocol[Array],
         nominal_values: Array,
         keep_indices: List[int],
         bkd: Backend[Array],

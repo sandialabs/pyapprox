@@ -264,4 +264,4 @@ class KLOEDDiagnostics(Generic[Array]):
         slope, _ = np.polyfit(log_n, log_vals, 1)
 
         # Rate is negative slope (since MSE decreases with n)
-        return -slope
+        return float(-slope)

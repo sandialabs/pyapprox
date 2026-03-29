@@ -3,6 +3,9 @@
 from typing import Generic, Optional
 
 from pyapprox.optimization.bayesian.protocols import SurrogateProtocol
+from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -18,7 +21,7 @@ class GPFitterAdapter(Generic[Array]):
         The underlying GP fitter.
     """
 
-    def __init__(self, fitter: object) -> None:
+    def __init__(self, fitter: GPMaximumLikelihoodFitter[Array]) -> None:
         self._fitter = fitter
 
     def fit(

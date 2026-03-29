@@ -137,11 +137,11 @@ class ObstructedMesh2D(Generic[Array]):
 
     def nelements(self) -> int:
         """Return total number of mesh elements."""
-        return self._skfem_mesh.nelements
+        return int(self._skfem_mesh.nelements)
 
     def nnodes(self) -> int:
         """Return total number of mesh nodes."""
-        return self._skfem_mesh.nvertices
+        return int(self._skfem_mesh.nvertices)
 
     def nodes(self) -> Array:
         """Return mesh node coordinates. Shape: (2, nnodes)"""

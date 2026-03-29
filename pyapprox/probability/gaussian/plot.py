@@ -11,9 +11,11 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.patches import Ellipse
 
+from pyapprox.probability.gaussian.dense import DenseCholeskyMultivariateGaussian
+
 
 def plot_gaussian_2d_contour(
-    gaussian: object,
+    gaussian: DenseCholeskyMultivariateGaussian,
     ax: Axes,
     n_std: float = 2.0,
     **kwargs: object,

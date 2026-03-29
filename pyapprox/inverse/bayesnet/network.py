@@ -161,7 +161,7 @@ class GaussianNetwork(Generic[Array]):
 
     def is_root(self, node_id: int) -> bool:
         """Check if node is a root (no parents)."""
-        return self._node_data[node_id]["is_root"]
+        return bool(self._node_data[node_id]["is_root"])
 
     def get_prior_cov(self, node_id: int) -> Array:
         """Get the prior covariance for a root node.

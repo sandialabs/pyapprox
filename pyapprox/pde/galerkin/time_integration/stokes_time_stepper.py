@@ -22,6 +22,7 @@ from typing import Generic, Optional
 import numpy as np
 from scipy.sparse import issparse
 
+from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -43,7 +44,7 @@ class StokesTimeStepResidual(Generic[Array]):
         Time integration method: "backward_euler" or "crank_nicolson".
     """
 
-    def __init__(self, physics: object, method: str = "backward_euler") -> None:
+    def __init__(self, physics: GalerkinPhysicsProtocol[Array], method: str = "backward_euler") -> None:
         if method not in ("backward_euler", "crank_nicolson"):
             raise ValueError(
                 f"method must be 'backward_euler' or 'crank_nicolson', got '{method}'"

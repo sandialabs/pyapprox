@@ -17,6 +17,10 @@ HVPEnabledTimeSteppingResidualProtocol
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
+from pyapprox.pde.time.protocols.ode_residual import (
+    ODEResidualProtocol,
+    ODEResidualWithParamJacobianProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -125,6 +129,14 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         Final step of backward adjoint solve.
     quadrature_samples_weights(times)
         Quadrature rule consistent with time discretization.
+    sensitivity_off_diag_jacobian(fsol_nm1, fsol_n, deltat)
+        Off-diagonal Jacobian dR_n/dy_{n-1} for forward sensitivity.
+    is_explicit()
+        Whether the scheme is explicit.
+    has_prev_state_hessian()
+        Whether R_{n+1} depends on f(y_n).
+    native_residual
+        The underlying ODE residual.
     """
 
     def bkd(self) -> Backend[Array]: ...
@@ -136,6 +148,40 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def jacobian(self, state: Array) -> Array: ...
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
+
+    @property
+    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
+        """Return the underlying ODE residual."""
+        ...
+
+    def is_explicit(self) -> bool:
+        """Return True if the time stepping scheme is explicit."""
+        ...
+
+    def has_prev_state_hessian(self) -> bool:
+        """Return True if R_{n+1} depends on f(y_n)."""
+        ...
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        ...
 
     def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         """
@@ -287,6 +333,17 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
+    @property
+    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]: ...
+
+    def is_explicit(self) -> bool: ...
+
+    def has_prev_state_hessian(self) -> bool: ...
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array: ...
+
     def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array: ...
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array: ...
@@ -418,4 +475,36 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         Array
             HVP result. Shape: (nparams,)
         """
+        ...
+
+    # Cross-step HVP methods (Crank-Nicolson and similar schemes)
+
+    def prev_state_state_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """Compute (d^2R_{n+1}/dy_n^2) w contracted with adjoint.
+
+        Cross-step Hessian for schemes where R_{n+1} depends on f(y_n).
+        """
+        ...
+
+    def prev_state_param_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """Compute (d^2R_{n+1}/dy_n dp) v contracted with adjoint."""
+        ...
+
+    def prev_param_state_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """Compute (d^2R_{n+1}/dp dy_n) w contracted with adjoint."""
         ...

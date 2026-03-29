@@ -19,6 +19,10 @@ from pyapprox.pde.time.functionals.protocols import (
 )
 from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.storage import TimeTrajectoryStorage
+from pyapprox.pde.time.protocols.time_stepping import (
+    HVPEnabledTimeSteppingResidualProtocol,
+)
+from pyapprox.pde.time.protocols.type_guards import is_hvp_enabled
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -66,9 +70,6 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         nparams = functional.nparams()
         self._storage = TimeTrajectoryStorage(nstates, nparams, self._bkd)
 
-        # Check for HVP capability
-        self._has_hvp = hasattr(self._time_residual, "state_state_hvp")
-
         # Verify stepper implements sensitivity protocol
         self._validate_sensitivity_protocol()
 
@@ -88,7 +89,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
     def _is_explicit_scheme(self) -> bool:
         """Check if the time stepping scheme is explicit."""
-        return self._time_residual.is_explicit()
+        return bool(self._time_residual.is_explicit())
 
     def _is_crank_nicolson(self) -> bool:
         """Check if scheme has prev-state Hessian contributions.
@@ -97,7 +98,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         the Hessian at y_n includes contributions from BOTH R_n and R_{n+1}.
         (e.g., Crank-Nicolson)
         """
-        return self._time_residual.has_prev_state_hessian()
+        return bool(self._time_residual.has_prev_state_hessian())
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -209,11 +210,12 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         RuntimeError
             If HVP methods are not available on the time residual.
         """
-        if not self._has_hvp:
+        if not is_hvp_enabled(self._time_residual):
             raise RuntimeError(
                 "HVP not available: time residual lacks HVP methods. "
                 "Ensure the ODE residual implements state_state_hvp, etc."
             )
+        hvp_residual = self._time_residual
 
         if vvec.shape != (self.nparams(), 1):
             raise ValueError(
@@ -229,12 +231,12 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         # Solve second adjoint equations
         s_sols = self._solve_second_adjoint(
-            fwd_sols, adj_sols, w_sols, times, param, vvec
+            fwd_sols, adj_sols, w_sols, times, param, vvec, hvp_residual
         )
 
         # Accumulate HVP
         return self._accumulate_hvp(
-            fwd_sols, adj_sols, w_sols, s_sols, times, param, vvec
+            fwd_sols, adj_sols, w_sols, s_sols, times, param, vvec, hvp_residual
         )
 
     # =========================================================================
@@ -354,6 +356,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         times: Array,
         param: Array,
         vvec: Array,
+        hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
     ) -> Array:
         """
         Solve the second adjoint equations for HVP computation.
@@ -422,13 +425,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             rhs_N = -(self._bkd.flatten(qss_hvp) + self._bkd.flatten(qsp_hvp))
         else:
             # For implicit schemes, include residual Hessian at final time
-            rss_hvp = self._time_residual.state_state_hvp(
+            rss_hvp = hvp_residual.state_state_hvp(
                 fwd_sols[:, -2],
                 fwd_sols[:, -1],
                 adj_sols[:, -1],
                 w_sols[:, -1],  # Use w_N for implicit
             )
-            rsp_hvp = self._time_residual.state_param_hvp(
+            rsp_hvp = hvp_residual.state_param_hvp(
                 fwd_sols[:, -2],
                 fwd_sols[:, -1],
                 adj_sols[:, -1],
@@ -489,13 +492,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 self._time_residual.set_time(
                     self._bkd.to_float(times[nn]), deltat_np1, fwd_sols[:, nn]
                 )
-                rss_hvp = self._time_residual.state_state_hvp(
+                rss_hvp = hvp_residual.state_state_hvp(
                     fwd_sols[:, nn],  # y_{n} = prev state for R_{n+1}
                     fwd_sols[:, nn + 1],  # y_{n+1} = current state
                     adj_sols[:, nn + 1],  # λ_{n+1}
                     w_sols[:, nn],  # w_n (sensitivity at y_n)
                 )
-                rsp_hvp = self._time_residual.state_param_hvp(
+                rsp_hvp = hvp_residual.state_param_hvp(
                     fwd_sols[:, nn],
                     fwd_sols[:, nn + 1],
                     adj_sols[:, nn + 1],
@@ -508,13 +511,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 # for R_{n+1})
 
                 # Contribution from R_n (time context already set for R_n above)
-                rss_hvp_n = self._time_residual.state_state_hvp(
+                rss_hvp_n = hvp_residual.state_state_hvp(
                     fwd_sols[:, nn - 1],
                     fwd_sols[:, nn],
                     adj_sols[:, nn],
                     w_sols[:, nn],
                 )
-                rsp_hvp_n = self._time_residual.state_param_hvp(
+                rsp_hvp_n = hvp_residual.state_param_hvp(
                     fwd_sols[:, nn - 1],
                     fwd_sols[:, nn],
                     adj_sols[:, nn],
@@ -523,13 +526,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
                 # Contribution from R_{n+1} (using prev_* methods)
                 # Set time to t_n for evaluating f at y_n
-                self._time_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
-                rss_hvp_np1 = self._time_residual.prev_state_state_hvp(
+                hvp_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
+                rss_hvp_np1 = hvp_residual.prev_state_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}
                     w_sols[:, nn],  # w_n
                 )
-                rsp_hvp_np1 = self._time_residual.prev_state_param_hvp(
+                rsp_hvp_np1 = hvp_residual.prev_state_param_hvp(
                     fwd_sols[:, nn],
                     adj_sols[:, nn + 1],
                     v_res,
@@ -541,13 +544,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 # For other implicit schemes (Backward Euler): Hessian at y_n comes from
                 # R_n only
                 # Time context already set for R_n above
-                rss_hvp = self._time_residual.state_state_hvp(
+                rss_hvp = hvp_residual.state_state_hvp(
                     fwd_sols[:, nn - 1],
                     fwd_sols[:, nn],
                     adj_sols[:, nn],
                     w_sols[:, nn],
                 )
-                rsp_hvp = self._time_residual.state_param_hvp(
+                rsp_hvp = hvp_residual.state_param_hvp(
                     fwd_sols[:, nn - 1],
                     fwd_sols[:, nn],
                     adj_sols[:, nn],
@@ -596,6 +599,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         times: Array,
         param: Array,
         vvec: Array,
+        hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
     ) -> Array:
         """
         Accumulate the Hessian-vector product from all contributions.
@@ -660,7 +664,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 nn,
                 w_sols[:, nn : nn + 1],  # Functional uses w_n
             )
-            rps_hvp = self._time_residual.param_state_hvp(
+            rps_hvp = hvp_residual.param_state_hvp(
                 fwd_sols[:, nn - 1],
                 fwd_sols[:, nn],
                 adj_sols[:, nn],
@@ -670,8 +674,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # For Crank-Nicolson: also add contribution from R_{n+1}
             # (λ_{n+1}^T · ∂²R_{n+1}/∂p ∂y_n · w_n)
             if self._is_crank_nicolson() and nn < len(times) - 1:
-                self._time_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
-                rps_hvp_np1 = self._time_residual.prev_param_state_hvp(
+                hvp_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
+                rps_hvp_np1 = hvp_residual.prev_param_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}
                     w_sols[:, nn],  # w_n
@@ -680,7 +684,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
             # Handle dimension - rps_hvp may be (nparams_res,)
             if rps_hvp.ndim == 1:
-                rps_hvp = rps_hvp.reshape(-1, 1)
+                rps_hvp = self._bkd.reshape(rps_hvp, (-1, 1))
             if n_unique > 0:
                 rps_full = self._bkd.zeros((nparams, 1))
                 rps_full = self._bkd.copy(rps_full)
@@ -694,14 +698,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # L_pp = d²Q/dp² + λ^T · d²R/dp²
             # (functional d²Q/dp² already added above)
             v_res = vvec[n_unique:] if n_unique > 0 else vvec
-            rpp_hvp = self._time_residual.param_param_hvp(
+            rpp_hvp = hvp_residual.param_param_hvp(
                 fwd_sols[:, nn - 1],
                 fwd_sols[:, nn],
                 adj_sols[:, nn],
                 v_res,
             )
             if rpp_hvp.ndim == 1:
-                rpp_hvp = rpp_hvp.reshape(-1, 1)
+                rpp_hvp = self._bkd.reshape(rpp_hvp, (-1, 1))
             if n_unique > 0:
                 rpp_full = self._bkd.zeros((nparams, 1))
                 rpp_full = self._bkd.copy(rpp_full)
@@ -717,5 +721,5 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             f"{self.__class__.__name__}("
             f"nstates={self.nstates()}, "
             f"nparams={self.nparams()}, "
-            f"has_hvp={self._has_hvp})"
+            f"has_hvp={is_hvp_enabled(self._time_residual)})"
         )

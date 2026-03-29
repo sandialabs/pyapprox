@@ -120,7 +120,7 @@ def make_rol_objective(
                 )
             else:
                 val = self._objective(x_col)
-            return self._bkd.to_numpy(val)[0, 0]
+            return float(self._bkd.to_numpy(val)[0, 0])
 
     if has_jacobian or inexact_diff:
 

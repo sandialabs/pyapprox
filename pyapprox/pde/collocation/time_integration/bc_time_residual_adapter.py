@@ -11,6 +11,7 @@ the Newton residual/Jacobian).
 
 from typing import Generic, Tuple
 
+from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.pde.time.protocols.base import TimeSteppingResidualBase
 from pyapprox.pde.time.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -35,7 +36,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
     def __init__(
         self,
         time_residual: TimeSteppingResidualBase[Array],
-        physics: object,
+        physics: AbstractPhysics[Array],
         bkd: Backend[Array],
     ) -> None:
         self._inner = time_residual
@@ -131,11 +132,11 @@ class BCEnforcingTimeResidual(Generic[Array]):
 
     def is_explicit(self) -> bool:
         """Return whether scheme is explicit."""
-        return self._inner.is_explicit()
+        return bool(self._inner.is_explicit())
 
     def has_prev_state_hessian(self) -> bool:
         """Return whether R_{n+1} depends on f(y_n)."""
-        return self._inner.has_prev_state_hessian()
+        return bool(self._inner.has_prev_state_hessian())
 
     # =========================================================================
     # Template methods (always present, pure delegation)

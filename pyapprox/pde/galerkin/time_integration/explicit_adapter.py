@@ -23,6 +23,7 @@ import numpy as np
 import scipy.linalg
 from scipy.sparse import issparse
 
+from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -45,7 +46,7 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         consistent mass. Cheaper per step but less accurate.
     """
 
-    def __init__(self, physics: object, lumped_mass: bool = False) -> None:
+    def __init__(self, physics: GalerkinPhysicsProtocol[Array], lumped_mass: bool = False) -> None:
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0

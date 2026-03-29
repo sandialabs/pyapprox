@@ -172,7 +172,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         return lam, mu
 
     def ndim(self) -> int:
-        return self._basis.ncomponents()
+        return int(self._basis.ncomponents())
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix M_ij = integral(phi_i . phi_j)."""
@@ -534,7 +534,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 "lame_lambda is only defined for single-material problems."
             )
         E, nu = self._material_map[self._material_names[0]]
-        return lame_parameters(E, nu)[0]
+        return float(lame_parameters(E, nu)[0])
 
     def lame_mu(self) -> float:
         if self._nmaterials != 1:
@@ -542,7 +542,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 "lame_mu is only defined for single-material problems."
             )
         E, nu = self._material_map[self._material_names[0]]
-        return lame_parameters(E, nu)[1]
+        return float(lame_parameters(E, nu)[1])
 
     def __repr__(self) -> str:
         materials_str = ", ".join(

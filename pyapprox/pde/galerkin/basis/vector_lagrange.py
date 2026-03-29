@@ -127,7 +127,7 @@ class VectorLagrangeBasis(Generic[Array]):
 
     def ndofs(self) -> int:
         """Return total number of degrees of freedom (all components)."""
-        return self._skfem_basis.N
+        return int(self._skfem_basis.N)
 
     def ncomponents(self) -> int:
         """Return number of vector components (= spatial dimension)."""

@@ -257,7 +257,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
 
     def nstates(self) -> int:
         """Return total number of DOFs (2 per node)."""
-        return self._ndofs
+        return int(self._ndofs)
 
     def nnodes(self) -> int:
         """Return number of mesh nodes."""

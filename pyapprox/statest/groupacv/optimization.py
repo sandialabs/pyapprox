@@ -44,7 +44,7 @@ class GroupACVObjective(ABC, Generic[Array]):
 
     def nvars(self) -> int:
         """Number of optimization variables (npartitions)."""
-        return self._est.npartitions()
+        return int(self._est.npartitions())
 
     def nqoi(self) -> int:
         """Number of quantities of interest (always 1 for scalar objective)."""
@@ -320,7 +320,7 @@ class GroupACVCostConstraint(Generic[Array]):
 
     def nvars(self) -> int:
         """Number of optimization variables."""
-        return self._est.npartitions()
+        return int(self._est.npartitions())
 
     def nqoi(self) -> int:
         """Number of constraints (cost + min HF samples)."""

@@ -47,7 +47,7 @@ class AbstractPhysics(ABC, Generic[Array]):
 
     def npts(self) -> int:
         """Return number of collocation points."""
-        return self._basis.npts()
+        return int(self._basis.npts())
 
     @abstractmethod
     def ncomponents(self) -> int:

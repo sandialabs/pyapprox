@@ -99,7 +99,7 @@ class ExponentialCostFunction(CostFunction[Array], Generic[Array]):
         self._base = base
 
     def __call__(self, index: Array) -> float:
-        return self._base ** self._bkd.to_float(self._bkd.sum(index))
+        return float(self._base ** self._bkd.to_float(self._bkd.sum(index)))
 
     def __repr__(self) -> str:
         return f"ExponentialCostFunction(base={self._base})"

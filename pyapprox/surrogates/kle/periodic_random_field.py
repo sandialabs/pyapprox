@@ -97,7 +97,7 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
 
     def nterms(self) -> int:
         """Return the number of random variables (2 * neigs)."""
-        return self._trig_exp.nterms() - 1
+        return int(self._trig_exp.nterms() - 1)
 
     def nvars(self) -> int:
         """Return the number of spatial evaluation points."""

@@ -316,7 +316,7 @@ class RosenblattTransform(Generic[Array]):
             return float(self._marginal_pdf_by_integration(point, dim))
 
         result, _ = integrate.quad(integrand, bounds[0, dim], x, limit=50)
-        return result
+        return float(result)
 
     def _conditional_cdf_numerical(self, x: Array, dim: int) -> float:
         """

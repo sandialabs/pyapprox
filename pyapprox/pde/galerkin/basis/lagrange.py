@@ -117,7 +117,7 @@ class LagrangeBasis(Generic[Array]):
 
     def ndofs(self) -> int:
         """Return total number of degrees of freedom."""
-        return self._skfem_basis.N
+        return int(self._skfem_basis.N)
 
     def degree(self) -> int:
         """Return polynomial degree of the basis."""

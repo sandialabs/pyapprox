@@ -206,7 +206,7 @@ class FlowMatchingObjective(Generic[Array]):
 
     def nvars(self) -> int:
         """Number of active parameters."""
-        return self._vf.hyp_list().nactive_params()
+        return int(self._vf.hyp_list().nactive_params())
 
     def nqoi(self) -> int:
         """Always 1 (scalar loss)."""

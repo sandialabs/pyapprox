@@ -153,7 +153,7 @@ class FunctionTrainCore(Generic[Array]):
         int
             Number of trainable parameters for this expansion.
         """
-        return self._basisexps[ii][jj].nparams()
+        return int(self._basisexps[ii][jj].nparams())
 
     def get_nterms(self, ii: int, jj: int) -> int:
         """Get number of basis terms for a specific expansion.

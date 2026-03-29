@@ -737,9 +737,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             Verbosity level, or 0 if optimizer doesn't support verbosity.
         """
         if hasattr(self._optimizer, "local_optimizer_verbosity"):
-            return self._optimizer.local_optimizer_verbosity()
+            return int(self._optimizer.local_optimizer_verbosity())
         if hasattr(self._optimizer, "_verbosity"):
-            return self._optimizer._verbosity
+            return int(self._optimizer._verbosity)
         return 0
 
     def get_all_recursion_indices(self) -> List[Array]:

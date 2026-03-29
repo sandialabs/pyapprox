@@ -5,12 +5,15 @@ Provides forward solve, adjoint solve, and gradient computation via
 the discrete adjoint method.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Generic, Optional, Tuple, cast
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
+)
+from pyapprox.pde.time.protocols.time_stepping import (
+    AdjointEnabledTimeSteppingResidualProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -46,7 +49,9 @@ class TimeIntegrator(Generic[Array]):
         verbosity: int = 0,
     ):
         time_residual = newton_solver.residual()
-        self._time_residual = time_residual
+        self._time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array] = cast(
+            AdjointEnabledTimeSteppingResidualProtocol[Array], time_residual
+        )
         self._bkd = self._time_residual.bkd()
         self._init_time = init_time
         self._final_time = final_time
@@ -125,7 +130,7 @@ class TimeIntegrator(Generic[Array]):
         states = self._bkd.stack(states, axis=1)
         return states, self._bkd.asarray(times)
 
-    def time_residual(self) -> object:
+    def time_residual(self) -> AdjointEnabledTimeSteppingResidualProtocol[Array]:
         """Return the time stepping residual."""
         return self._time_residual
 

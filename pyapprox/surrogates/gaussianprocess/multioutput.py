@@ -506,7 +506,7 @@ class MultiOutputGP(Generic[Array]):
         # Negative log marginal likelihood
         nll = 0.5 * (data_fit + log_det + constant)
 
-        return nll
+        return float(nll)
 
     def _unstack_predictions(
         self, stacked: Array, n_samples_list: List[int]

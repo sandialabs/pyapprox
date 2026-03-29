@@ -70,7 +70,7 @@ class InexactELBOObjective(Generic[Array]):
         return self._bkd
 
     def nvars(self) -> int:
-        return self._var_dist.hyp_list().nactive_params()
+        return int(self._var_dist.hyp_list().nactive_params())
 
     def nqoi(self) -> int:
         return 1
