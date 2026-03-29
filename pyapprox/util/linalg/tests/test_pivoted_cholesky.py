@@ -65,7 +65,7 @@ class TestPivotedCholesky:
         pivots1_np = bkd.to_numpy(pivots1)
         bkd.assert_allclose(
             pivots2,
-            bkd.asarray(pivots1_np[[1, 0, 2]]),
+            bkd.asarray(pivots1_np[[1, 0, 2]], dtype=bkd.int64_dtype()),
         )
 
     def test_known_matrix(self, bkd) -> None:

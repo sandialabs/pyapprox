@@ -113,7 +113,7 @@ class GaussianNetwork(Generic[Array]):
                     f"Root node {node_id} requires prior_mean and prior_cov"
                 )
             if prior_mean.ndim == 2:
-                prior_mean = prior_mean.flatten()
+                prior_mean = self._bkd.flatten(prior_mean)
             self._node_data[node_id]["prior_mean"] = prior_mean
             self._node_data[node_id]["prior_cov"] = prior_cov
             self._node_data[node_id]["is_root"] = True
@@ -139,7 +139,7 @@ class GaussianNetwork(Generic[Array]):
             if cpd_offset is None:
                 cpd_offset = self._bkd.zeros((nvars,))
             elif cpd_offset.ndim == 2:
-                cpd_offset = cpd_offset.flatten()
+                cpd_offset = self._bkd.flatten(cpd_offset)
 
             self._node_data[node_id]["parents"] = list(parents)
             self._node_data[node_id]["cpd_coefficients"] = cpd_coefficients

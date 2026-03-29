@@ -74,7 +74,7 @@ def cartesian_product(
     flat_vectors = [bkd.ravel(v) for v in vectors]
 
     # Use meshgrid with indexing='ij' for C-order (last dim varies fastest)
-    grids = bkd.meshgrid(*flat_vectors, indexing="ij")
+    grids = list(bkd.meshgrid(*flat_vectors, indexing="ij"))
 
     if first_dim_fastest:
         # Reverse the axis order so first dim varies fastest when flattened

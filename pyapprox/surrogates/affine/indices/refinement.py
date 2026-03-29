@@ -10,7 +10,7 @@ Criteria:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Tuple
+from typing import Any, Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -174,7 +174,7 @@ class LevelRefinementCriteria(RefinementCriteria[Array], Generic[Array]):
         self,
         bkd: Backend[Array],
         max_level: int,
-        cost_function: CostFunction[Array] = None,
+        cost_function: Optional[CostFunction[Array]] = None,
     ):
         if cost_function is None:
             cost_function = UnitCostFunction(bkd)
@@ -211,7 +211,7 @@ class CostWeightedRefinementCriteria(RefinementCriteria[Array], Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        cost_function: CostFunction[Array] = None,
+        cost_function: Optional[CostFunction[Array]] = None,
     ):
         if cost_function is None:
             cost_function = UnitCostFunction(bkd)

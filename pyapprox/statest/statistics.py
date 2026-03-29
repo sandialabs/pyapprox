@@ -1307,6 +1307,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
+        if self._tril_idx_flat is None:
+            raise RuntimeError("Must call set_pilot_quantities() first")
         return self.nqoi() + self._tril_idx_flat.shape[0]
 
     def sample_estimate(self, values: Array) -> Array:
@@ -1332,11 +1334,11 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         # of outputs of different models, but we only want diagonal
         # blocks
         flat_covs = [
-            self._bkd.cov(
+            self._bkd.flatten(self._bkd.cov(
                 values[ii * self._nqoi : (ii + 1) * self._nqoi, :],
                 ddof=1,
                 rowvar=True,
-            ).flatten()[self._tril_idx_flat]
+            ))[self._tril_idx_flat]
             for ii in range(nmodels_in_subset)
         ]
         means = self._bkd.mean(values, axis=1)
@@ -1535,6 +1537,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         return 1
 
     def _mean_idx(self, subset: Array) -> Array:
+        if self._tril_idx_flat is None:
+            raise RuntimeError("Must call set_pilot_quantities() first")
         mean_idx = []
         cnt = 0
         # TODO this can be done once at initilization by storing
@@ -1551,6 +1555,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         return self._bkd.hstack(mean_idx)
 
     def _var_idx(self, subset: Array) -> Array:
+        if self._tril_idx_flat is None:
+            raise RuntimeError("Must call set_pilot_quantities() first")
         var_idx = []
         nstats = self.nstats()
         cnt = self._nqoi  # skip means of first model
@@ -1573,7 +1579,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         nsamples_subset1: int,
     ) -> Array:
         # should resemble high_fidelity_estimator_covariance()
-        if self._cov is None:
+        if (
+            self._cov is None
+            or self._Vcomp is None
+            or self._Wcomp is None
+            or self._Bcomp is None
+        ):
             raise RuntimeError("must call set_pilot_quantities")
 
         mean_idx0 = self._mean_idx(subset0)
@@ -1600,8 +1611,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         nstats = self.nstats()
         nqoi = self.nqoi()
         ncov_stats = self._tril_idx_flat.shape[0]
-        model_ids0 = subset0[::nstats] // nstats
-        model_ids1 = subset1[::nstats] // nstats
+        model_ids0: Array = self._bkd.asarray(
+            subset0[::nstats] // nstats, dtype=self._bkd.int64_dtype()
+        )
+        model_ids1: Array = self._bkd.asarray(
+            subset1[::nstats] // nstats, dtype=self._bkd.int64_dtype()
+        )
         rows = []
         for ii in range(model_ids0.shape[0]):
             # mean row

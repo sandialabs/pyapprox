@@ -279,7 +279,7 @@ class _FunctionOfParameters(FunctionProtocol[Array]):
             The Jacobian matrix with respect to p.
         """
         validate_sample(self.nvars(), params)
-        self._param_fun.set_parameter(params.squeeze())
+        self._param_fun.set_parameter(self._bkd.squeeze(params))
         jac = self._param_fun.jacobian_wrt_parameters(self._fixed_x)
         validate_jacobian(self.nqoi(), self.nvars(), jac)
         return jac
@@ -301,7 +301,7 @@ class _FunctionOfParameters(FunctionProtocol[Array]):
             The Hessian-vector product with respect to p.
         """
         validate_sample(self.nvars(), params)
-        self._param_fun.set_parameter(params.squeeze())
+        self._param_fun.set_parameter(self._bkd.squeeze(params))
         hvp = self._param_fun.hvp_wrt_parameters(self._fixed_x, vec)
         validate_hvp(self.nvars(), hvp)
         return hvp

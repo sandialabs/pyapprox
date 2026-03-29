@@ -236,7 +236,7 @@ class TestIVARSampler:
             sampler_bf._selected_indices.append(best_idx)
             sampler_bf._cholesky.add_pivot(best_idx)
 
-        bf_all = candidates[:, bkd.asarray(bf_pivots)]
+        bf_all = candidates[:, bkd.asarray(bf_pivots, dtype=bkd.int64_dtype())]
 
         # Sort before comparing -- near-equal priorities can swap
         # symmetric points

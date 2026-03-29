@@ -166,7 +166,7 @@ class BetaConjugatePosterior(Generic[Array]):
         float
             Posterior mean.
         """
-        if self._alpha_post is None:
+        if self._alpha_post is None or self._beta_post is None:
             raise RuntimeError("Must call compute() first")
         return self._alpha_post / (self._alpha_post + self._beta_post)
 
@@ -181,7 +181,7 @@ class BetaConjugatePosterior(Generic[Array]):
         float
             Posterior variance.
         """
-        if self._alpha_post is None:
+        if self._alpha_post is None or self._beta_post is None:
             raise RuntimeError("Must call compute() first")
         a, b = self._alpha_post, self._beta_post
         return (a * b) / ((a + b) ** 2 * (a + b + 1))

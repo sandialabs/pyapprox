@@ -144,7 +144,7 @@ class IVARSampler(Generic[Array]):
         # compute the objective for the current selected set by direct
         # matrix solve: -trace(K[sel]^{-1} P[sel]).
         if self._selected_indices and not self._best_obj_vals:
-            idx = bkd.asarray(self._selected_indices)
+            idx = bkd.asarray(self._selected_indices, dtype=bkd.int64_dtype())
             Kmat = self._K[idx, :][:, idx]
             Pmat = self._P[idx, :][:, idx]
             obj = -bkd.trace(bkd.solve(Kmat, Pmat))
@@ -159,7 +159,7 @@ class IVARSampler(Generic[Array]):
             self._selected_indices.append(best)
             self._cholesky.add_pivot(best)
 
-        new_pivot_indices = bkd.asarray(new_pivots)
+        new_pivot_indices = bkd.asarray(new_pivots, dtype=bkd.int64_dtype())
         return self._candidates[:, new_pivot_indices]
 
     def _compute_objective(self) -> Array:
@@ -190,7 +190,7 @@ class IVARSampler(Generic[Array]):
         if len(useful) == 0:
             return vals
 
-        useful_arr = bkd.asarray(useful)
+        useful_arr = bkd.asarray(useful, dtype=bkd.int64_dtype())
 
         if n == 0:
             # First point: objective = -P_ii / K_ii
@@ -228,8 +228,8 @@ class IVARSampler(Generic[Array]):
         if len(valid_candidates) == 0:
             return vals
 
-        valid_arr = bkd.asarray(valid_candidates)
-        valid_local_arr = bkd.asarray(valid_local)
+        valid_arr = bkd.asarray(valid_candidates, dtype=bkd.int64_dtype())
+        valid_local_arr = bkd.asarray(valid_local, dtype=bkd.int64_dtype())
 
         L_12_valid = L_12[:, valid_local_arr]
         L_22 = bkd.sqrt(residual_var[valid_local_arr])
@@ -292,7 +292,7 @@ class IVARSampler(Generic[Array]):
         assert self._P is not None
         bkd = self._bkd
         indices = self._selected_indices + [new_idx]
-        idx = bkd.asarray(indices)
+        idx = bkd.asarray(indices, dtype=bkd.int64_dtype())
         Kmat = self._K[idx, :][:, idx]
         Pmat = self._P[idx, :][:, idx]
         return -bkd.trace(bkd.solve(Kmat, Pmat))

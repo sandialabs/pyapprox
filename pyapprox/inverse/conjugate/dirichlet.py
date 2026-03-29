@@ -141,6 +141,8 @@ class DirichletConjugatePosterior(Generic[Array]):
         For the conjugate case:
         log p(obs) = log B(alpha_post) - log B(alpha_prior) + log(n! / prod count_k!)
         """
+        if self._counts is None:
+            raise RuntimeError("Must call compute() first")
         n = sum(self._counts)
         log_multinomial = gammaln(n + 1) - sum(gammaln(c + 1) for c in self._counts)
 

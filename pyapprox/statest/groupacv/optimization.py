@@ -5,7 +5,7 @@ GroupACV sample allocation optimization.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic
+from typing import TYPE_CHECKING, Generic, Optional
 
 import numpy as np
 
@@ -22,7 +22,7 @@ class GroupACVObjective(ABC, Generic[Array]):
     Satisfies ObjectiveProtocol for use with ScipyTrustConstrOptimizer.
     """
 
-    def __init__(self, bkd: Backend[Array] = None):
+    def __init__(self, bkd: Optional[Backend[Array]] = None):
         """
         Initialize the objective.
 
@@ -91,7 +91,7 @@ class GroupACVObjective(ABC, Generic[Array]):
         """Wrapper that returns scalar for bkd.jacobian compatibility."""
         result = self._objective_wrapper(npartition_samples_1d)
         # Flatten to scalar for jacobian computation
-        return result.flatten()[0]
+        return self._bkd.flatten(result)[0]
 
     def jacobian(self, npartition_samples: Array) -> Array:
         """
@@ -264,7 +264,7 @@ class GroupACVCostConstraint(Generic[Array]):
     Satisfies NonlinearConstraintProtocol for use with ScipyTrustConstrOptimizer.
     """
 
-    def __init__(self, bkd: Backend[Array] = None):
+    def __init__(self, bkd: Optional[Backend[Array]] = None):
         """
         Initialize the constraint.
 
@@ -274,11 +274,11 @@ class GroupACVCostConstraint(Generic[Array]):
             Backend for array operations. Set via set_estimator() if not provided.
         """
         self._bkd = bkd
-        self._est = None
-        self._target_cost = None
-        self._min_nhf_samples = None
-        self._lb = None
-        self._ub = None
+        self._est: Optional["GroupACVEstimator[Array]"] = None
+        self._target_cost: Optional[float] = None
+        self._min_nhf_samples: Optional[int] = None
+        self._lb: Optional[Array] = None
+        self._ub: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

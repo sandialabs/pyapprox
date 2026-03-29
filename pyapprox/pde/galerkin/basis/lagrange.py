@@ -3,7 +3,7 @@
 Wraps scikit-fem element and basis objects with backend abstraction.
 """
 
-from typing import Any, Callable, Generic
+from typing import Any, Callable, Generic, Optional
 
 import numpy as np
 
@@ -76,7 +76,7 @@ class LagrangeBasis(Generic[Array]):
         self._skfem_basis = Basis(skfem_mesh, element)
 
         # Cache DOF locations
-        self._dof_locs = None
+        self._dof_locs: Optional[Array] = None
 
     def _select_element(self, mesh_type: str, degree: int) -> Any:
         """Select skfem element based on mesh type and polynomial degree."""

@@ -227,7 +227,7 @@ class LagrangeBasis1D(Generic[Array]):
 
         self._nterms = nterms
         samples, weights = self._quadrature_rule(nterms)
-        self._abscissa = samples.flatten()
+        self._abscissa = self._bkd.flatten(samples)
         self._weights = weights
         self._bary_weights = compute_barycentric_weights(self._abscissa, self._bkd)
 

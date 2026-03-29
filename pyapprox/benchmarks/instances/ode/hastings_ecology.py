@@ -58,9 +58,9 @@ def hastings_ecology_3species(
     residual = HastingsEcologyResidual(bkd)
 
     # Nominal values from legacy code - shape (nparams, 1)
-    nominal_values = bkd.array(
+    nominal_values = bkd.reshape(bkd.array(
         [5.0, 3.0, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0]
-    ).reshape(-1, 1)
+    ), (-1, 1))
 
     # Prior: U[0.95*nominal, 1.05*nominal] for each parameter
     prior_ranges = [

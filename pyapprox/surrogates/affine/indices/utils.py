@@ -7,6 +7,7 @@ including hashing, sorting, and computing hyperbolic index sets.
 import itertools
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -30,7 +31,7 @@ def hash_index(array: Array, bkd: Backend[Array]) -> int:
     return hash(np_array.tobytes())
 
 
-def _unique_values_per_row(a: Array) -> Array:
+def _unique_values_per_row(a: NDArray[np.intp]) -> NDArray[np.intp]:
     """Count unique values per row using bincount.
 
     Internal utility for computing hyperbolic indices.

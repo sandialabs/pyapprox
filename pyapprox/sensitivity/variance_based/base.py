@@ -88,7 +88,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             If interaction_terms does not include all main effect indices.
         """
         # Check that all main effects are included
-        main_effect_indices = interaction_terms[:, interaction_terms.sum(axis=0) == 1]
+        main_effect_indices = interaction_terms[:, self._bkd.sum(interaction_terms, axis=0) == 1]
         if main_effect_indices.shape[1] != self.nvars():
             raise ValueError("interaction_terms must contain all main effect indices")
         self._interaction_terms = interaction_terms
@@ -132,7 +132,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
         for ii in range(idx.shape[0]):
             index = self._interaction_terms[:, idx[ii]]
             active_vars = self._bkd.where(index > 0)[0]
-            nactive_vars = self._bkd.to_int(index.sum())
+            nactive_vars = self._bkd.to_int(self._bkd.sum(index))
 
             # Store mapping from active variables to index
             key = hash_index(active_vars, self._bkd)
@@ -142,7 +142,10 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             if nactive_vars > 1:
                 for jj in range(nactive_vars - 1):
                     for subset in combinations(active_vars, jj + 1):
-                        subset_key = hash_index(self._bkd.asarray(subset), self._bkd)
+                        subset_key = hash_index(
+                            self._bkd.asarray(subset, dtype=self._bkd.int64_dtype()),
+                            self._bkd,
+                        )
                         sobol_indices[idx[ii]] -= sobol_indices[
                             sobol_indices_dict[subset_key]
                         ]

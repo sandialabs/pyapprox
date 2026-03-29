@@ -457,7 +457,7 @@ class LegendreInterfaceBasis2D(Generic[Array]):
         interp_z = self._basis_z.interpolation_matrix_to_points(physical_pts_z)
 
         # Reshape coeffs to 2D grid: (npts_y, npts_z)
-        coeffs_2d = coeffs.reshape((self._npts_y, self._npts_z))
+        coeffs_2d = self._bkd.reshape(coeffs, (self._npts_y, self._npts_z))
 
         # Apply tensor product interpolation
         # First interpolate in y: result shape (n_eval_y, npts_z)
@@ -465,7 +465,7 @@ class LegendreInterfaceBasis2D(Generic[Array]):
         # Then interpolate in z: result shape (n_eval_y, n_eval_z)
         result_2d = temp @ interp_z.T
 
-        return result_2d.reshape((n_eval,))
+        return self._bkd.reshape(result_2d, (n_eval,))
 
     def interpolation_matrix_to_grid(
         self, target_pts_y: Array, target_pts_z: Array

@@ -11,7 +11,7 @@ References:
     Ecology 72, no. 3 (1991): 896-903.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -42,7 +42,7 @@ class HastingsEcologyResidual(Generic[Array]):
         self._nstates = 3
         self._nparams = 9  # 6 physical params + 3 initial conditions
         self._time = 0.0
-        self._param = None
+        self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -59,7 +59,7 @@ class HastingsEcologyResidual(Generic[Array]):
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
         if param.ndim == 2:
-            param = param.flatten()
+            param = self._bkd.flatten(param)
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
@@ -68,6 +68,8 @@ class HastingsEcologyResidual(Generic[Array]):
 
     def get_initial_condition(self) -> Array:
         """Return initial condition from parameters."""
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         return self._param[6:]
 
     def __call__(self, state: Array) -> Array:
@@ -84,6 +86,8 @@ class HastingsEcologyResidual(Generic[Array]):
         Array
             f(state). Shape: (3,)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         y1, y2, y3 = state
         a1, b1, a2, b2, d1, d2 = self._param[:6]
         return self._bkd.stack(
@@ -109,6 +113,8 @@ class HastingsEcologyResidual(Generic[Array]):
         Array
             Jacobian matrix. Shape: (3, 3)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         y1, y2, y3 = state
         a1, b1, a2, b2, d1, d2 = self._param[:6]
         zero = y1 * 0.0
@@ -160,6 +166,8 @@ class HastingsEcologyResidual(Generic[Array]):
         Array
             Parameter Jacobian. Shape: (3, 9)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         y1, y2, y3 = state
         a1, b1, a2, b2, d1, d2 = self._param[:6]
         zero = y1 * 0.0

@@ -5,7 +5,7 @@ to the canonical interval [-pi, pi].
 """
 
 import math
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -31,7 +31,7 @@ class TrigonometricPolynomial1D(Generic[Array]):
     def __init__(self, bounds: Array, bkd: Backend[Array]):
         self._bkd = bkd
         self._bounds = bounds
-        self._half_indices = None
+        self._half_indices: Optional[Array] = None
         # Affine transform: maps [a, b] -> [-pi, pi]
         self._loc = (bounds[0] + bounds[1]) / 2.0
         self._scale = (bounds[1] - bounds[0]) / (2.0 * math.pi)
@@ -76,6 +76,8 @@ class TrigonometricPolynomial1D(Generic[Array]):
         Array, shape (nsamples, nterms)
             Basis function values.
         """
+        if self._half_indices is None:
+            raise RuntimeError("Must call set_nterms() first")
         can_samples = self._map_to_canonical(samples)
         return self._bkd.hstack(
             (
@@ -98,6 +100,8 @@ class TrigonometricPolynomial1D(Generic[Array]):
         Array, shape (nsamples, nterms)
             Derivatives of basis functions w.r.t. the physical variable.
         """
+        if self._half_indices is None:
+            raise RuntimeError("Must call set_nterms() first")
         can_samples = self._map_to_canonical(samples)
         k = self._half_indices  # shape (1, K)
         # d/dx = (1/scale) * d/d(can)
@@ -123,6 +127,8 @@ class TrigonometricPolynomial1D(Generic[Array]):
         Array, shape (nsamples, nterms)
             Second derivatives of basis functions w.r.t. the physical variable.
         """
+        if self._half_indices is None:
+            raise RuntimeError("Must call set_nterms() first")
         can_samples = self._map_to_canonical(samples)
         k = self._half_indices  # shape (1, K)
         scale_inv_sq = 1.0 / self._scale**2

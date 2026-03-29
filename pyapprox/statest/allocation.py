@@ -3,15 +3,15 @@
 from dataclasses import dataclass
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Array_co
 
 
 @runtime_checkable
-class AllocationResultProtocol(Protocol, Generic[Array]):
+class AllocationResultProtocol(Protocol, Generic[Array_co]):
     """Minimum interface all allocation results must satisfy."""
 
     @property
-    def nsamples_per_model(self) -> Array:
+    def nsamples_per_model(self) -> Array_co:
         """Number of samples per model. Shape (nmodels,)."""
         ...
 

@@ -179,6 +179,8 @@ class DynamicPiecewiseBasis(Generic[Array]):
             npts = samples_1d.shape[0]
             return self._bkd.ones((npts, 1))
 
+        if self._basis is None:
+            raise RuntimeError("Must call set_nterms() first")
         result: Array = self._basis(samples_1d)
         return result
 
@@ -209,6 +211,8 @@ class DynamicPiecewiseBasis(Generic[Array]):
             weights = self._bkd.reshape(self._bkd.asarray([b - a]), (1, 1))
             return points, weights
 
+        if self._basis is None:
+            raise RuntimeError("Must call set_nterms() first")
         pts, wts = self._basis.quadrature_rule()
         # Reshape to match LagrangeBasis1D: points (1, n), weights (n, 1)
         return self._bkd.reshape(pts, (1, -1)), self._bkd.reshape(wts, (-1, 1))

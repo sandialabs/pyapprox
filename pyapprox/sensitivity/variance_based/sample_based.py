@@ -224,7 +224,7 @@ class SampleBasedSensitivityAnalysis(
                 self._bkd.mean(valuesB * (valuesAB[ii] - valuesA), axis=1)
                 / self._variance
             )
-            if self._bkd.to_int(sobol_index.sum()) == 1:
+            if self._bkd.to_int(self._bkd.sum(sobol_index)) == 1:
                 idx = self._bkd.to_int(self._bkd.where(sobol_index == 1)[0][0])
                 # Jansen estimator (entry f in Table 2 of Saltelli, Annoni et al.)
                 self._total_effects_[idx] = (
@@ -238,7 +238,7 @@ class SampleBasedSensitivityAnalysis(
             interaction_values
         )
         # Extract main effects (terms where only one variable is active)
-        main_effect_mask = self._interaction_terms.sum(axis=0) == 1
+        main_effect_mask = self._bkd.sum(self._interaction_terms, axis=0) == 1
         self._main_effects_ = self._sobol_indices_[main_effect_mask, :]
 
     def mean(self) -> Array:

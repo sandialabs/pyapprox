@@ -42,10 +42,10 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
-        costs: Union[List[Any], Array],
-        recursion_index: Array = None,
-        opt_criteria: Callable[..., Any] = None,
-        tree_depth: int = None,
+        costs: Union[List[float], Array],
+        recursion_index: Optional[Array] = None,
+        opt_criteria: Optional[Callable[[Array], float]] = None,
+        tree_depth: Optional[int] = None,
         allow_failures: bool = False,
         npartitions_lower_bound: float = 1e-2,
     ):
@@ -78,6 +78,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             each recursion tree.
         """
         super().__init__(stat, costs, None, opt_criteria=opt_criteria)
+        self._recursion_index: Optional[Array] = None
         if tree_depth is not None and recursion_index is not None:
             msg = "Only tree_depth or recurusion_index must be specified"
             raise ValueError(msg)
@@ -86,14 +87,23 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self._tree_depth = tree_depth
         self._allow_failures = allow_failures
 
-        self._rounded_partition_ratios = None
+        self._rounded_partition_ratios: Optional[Array] = None
         self._npartitions = self._nmodels
-        self._optimizer = None
+        self._optimizer: Optional["BindableOptimizerProtocol"] = None
         self._npartitions_lower_bound = npartitions_lower_bound
 
         # ACV-specific source of truth
         self._partition_ratios: Optional[Array] = None
         self._npartition_samples: Optional[Array] = None
+        # Legacy attributes (set by set_allocation)
+        self._rounded_npartition_samples: Optional[Array] = None
+        self._rounded_nsamples_per_model: Optional[Array] = None
+        self._rounded_target_cost: Optional[float] = None
+        self._optimized_covariance: Optional[Array] = None
+        self._optimized_criteria: Optional[Array] = None
+        self._optimized_CF: Optional[Array] = None
+        self._optimized_cf: Optional[Array] = None
+        self._optimized_weights: Optional[Array] = None
 
     # === Allocation management (new API) ===
 
@@ -170,11 +180,12 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """Compute and cache CF, cf discrepancy covariances for ACV."""
         self._ensure_allocation()
         if self._cached_discrepancy_covariances is None:
-            npartition_samples = (
-                self._npartition_samples
-                if self._npartition_samples is not None
-                else self._rounded_npartition_samples
-            )
+            if self._npartition_samples is not None:
+                npartition_samples = self._npartition_samples
+            elif self._rounded_npartition_samples is not None:
+                npartition_samples = self._rounded_npartition_samples
+            else:
+                raise RuntimeError("No partition samples available")
             self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
                 npartition_samples
             )
@@ -184,11 +195,12 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """Lazily compute and return optimized covariance for ACV."""
         self._ensure_allocation()
         if self._cached_covariance is None:
-            npartition_samples = (
-                self._npartition_samples
-                if self._npartition_samples is not None
-                else self._rounded_npartition_samples
-            )
+            if self._npartition_samples is not None:
+                npartition_samples = self._npartition_samples
+            elif self._rounded_npartition_samples is not None:
+                npartition_samples = self._rounded_npartition_samples
+            else:
+                raise RuntimeError("No partition samples available")
             self._cached_covariance = self._covariance_from_npartition_samples(
                 npartition_samples
             )
@@ -218,6 +230,8 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             If allocation has not been set.
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("Allocation set but npartition_samples is None")
         return self._npartition_samples
 
     # === Optimization mode (continuous, stateless) ===
@@ -287,7 +301,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
 
     # === End of new allocation API ===
 
-    def _get_discrepancy_covariances(self, npartition_samples: Array) -> Array:
+    def _get_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
         return self._stat._get_acv_discrepancy_covariances(
             self._get_allocation_matrix(), npartition_samples
         )
@@ -297,7 +313,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         Get the indices, into the flattened array of all samples/values,
         of each indpendent sample partition
         """
-        ntotal_independent_samples = npartition_samples.sum()
+        ntotal_independent_samples = self._bkd.sum(npartition_samples)
         total_indices = self._bkd.arange(ntotal_independent_samples, dtype=int)
         # round the cumsum to make sure values like 3.9999999999999999
         # do not get rounded down to 3
@@ -394,7 +410,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
                 (self._allocation_mat[1:, 2 * ii] == 1)
                 | (self._allocation_mat[1:, 2 * ii + 1] == 1)
             )[0]
-            model_ratios[ii - 1] = partition_ratios[active_partitions].sum()
+            model_ratios[ii - 1] = self._bkd.sum(partition_ratios[active_partitions])
             if (self._allocation_mat[0, 2 * ii] == 1) or (
                 self._allocation_mat[0, 2 * ii + 1] == 1
             ):
@@ -405,7 +421,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self, target_cost: int, partition_ratios: Array
     ) -> float:
         model_ratios = self._partition_ratios_to_model_ratios(partition_ratios)
-        return target_cost / (self._costs[0] + (model_ratios * self._costs[1:]).sum())
+        return target_cost / (self._costs[0] + self._bkd.sum(model_ratios * self._costs[1:]))
 
     def _npartition_samples_from_partition_ratios(
         self, target_cost: int, partition_ratios: Array
@@ -544,7 +560,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             (self._allocation_mat[:, 2 * model_id] == 1)
             | (self._allocation_mat[:, 2 * model_id + 1] == 1)
         )[0]
-        return npartition_samples[active_partitions].sum()
+        return self._bkd.sum(npartition_samples[active_partitions])
 
     def _compute_single_model_nsamples_from_partition_ratios(
         self, partition_ratios: Array, target_cost: float, model_id: int
@@ -691,7 +707,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
 
     def _estimator_cost(self, npartition_samples: Array) -> float:
         nsamples_per_model = self._compute_nsamples_per_model(npartition_samples)
-        return (nsamples_per_model * self._costs).sum()
+        return self._bkd.sum(nsamples_per_model * self._costs)
 
     def _allocate_samples_for_single_recursion(
         self, target_cost: float,

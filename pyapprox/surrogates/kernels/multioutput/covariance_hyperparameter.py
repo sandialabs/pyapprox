@@ -8,7 +8,7 @@ positive definite.
 """
 
 import math
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
@@ -150,7 +150,7 @@ class CovarianceHyperParameter(Generic[Array]):
             hyperparams.append(hyp)
 
         self._hyp_list = HyperParameterList(hyperparams, bkd=bkd)
-        self._covariance = None  # Cached covariance matrix
+        self._covariance: Optional[Array] = None  # Cached covariance matrix
         self._update_covariance()
 
     def bkd(self) -> Backend[Array]:

@@ -4,7 +4,7 @@ Mean Squared Error functional for transient problems.
 Computes Q = (1/2σ²) Σᵢ ||y(tᵢ) - obs(tᵢ)||² over observation times.
 """
 
-from typing import Generic, List, Tuple
+from typing import Generic, List, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -49,8 +49,8 @@ class TransientMSEFunctional(Generic[Array]):
         # If noise_std is None, sigma is a parameter
         self._nparams = nresidual_params + self.nunique_params()
         self._bkd = bkd
-        self._param = None
-        self._obs = None
+        self._param: Optional[Array] = None
+        self._obs: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

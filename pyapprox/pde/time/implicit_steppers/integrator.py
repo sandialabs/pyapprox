@@ -5,7 +5,7 @@ Provides forward solve, adjoint solve, and gradient computation via
 the discrete adjoint method.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
@@ -53,7 +53,7 @@ class TimeIntegrator(Generic[Array]):
         self._deltat = deltat
         self._verbosity = verbosity
         self._newton_solver = newton_solver
-        self._functional = None
+        self._functional: Optional[TransientFunctionalWithJacobianProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

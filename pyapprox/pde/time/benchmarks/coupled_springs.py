@@ -8,7 +8,7 @@ Implements a two-mass spring system with friction:
     y'_2 = (-b_2*y_2 - k_2*(x_2 - x_1 - L_2)) / m_2
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -41,7 +41,7 @@ class CoupledSpringsResidual(Generic[Array]):
         self._nstates = 4
         self._nparams = 12  # 8 physical params + 4 initial conditions
         self._time = 0.0
-        self._param = None
+        self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -58,7 +58,7 @@ class CoupledSpringsResidual(Generic[Array]):
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
         if param.ndim == 2:
-            param = param.flatten()
+            param = self._bkd.flatten(param)
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
@@ -67,6 +67,8 @@ class CoupledSpringsResidual(Generic[Array]):
 
     def get_initial_condition(self) -> Array:
         """Return initial condition from parameters."""
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         return self._param[8:]
 
     def __call__(self, state: Array) -> Array:
@@ -83,6 +85,8 @@ class CoupledSpringsResidual(Generic[Array]):
         Array
             f(state). Shape: (4,)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         x1, y1, x2, y2 = state
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
         return self._bkd.hstack(
@@ -108,6 +112,8 @@ class CoupledSpringsResidual(Generic[Array]):
         Array
             Jacobian matrix. Shape: (4, 4)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         x1, y1, x2, y2 = state
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
         zero = x1 * 0.0
@@ -144,6 +150,8 @@ class CoupledSpringsResidual(Generic[Array]):
         Array
             Parameter Jacobian. Shape: (4, 12)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         x1, y1, x2, y2 = state
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
         zero = x1 * 0.0

@@ -1,10 +1,10 @@
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array_co
 
 
 @runtime_checkable
-class OptimizerResultProtocol(Generic[Array], Protocol):
+class OptimizerResultProtocol(Generic[Array_co], Protocol):
     """
     Protocol for the return class of optimizers.
 
@@ -35,7 +35,7 @@ class OptimizerResultProtocol(Generic[Array], Protocol):
         """
         ...
 
-    def optima(self) -> Array:
+    def optima(self) -> Array_co:
         """
         Get the solution vector (optimal values of decision variables).
 

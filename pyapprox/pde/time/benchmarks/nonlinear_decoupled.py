@@ -1,4 +1,4 @@
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.pde.time.implicit_steppers.protocols import (
     ImplicitODEResidualProtocol,
@@ -45,7 +45,7 @@ class NonLinearDecoupledODE(Generic[Array], ImplicitODEResidualProtocol[Array]):
         self._bkd = bkd
         self._time = 0.0
         self.set_parameters(self._bkd.array([0.0, 0.0]))
-        self._init_cond = None
+        self._init_cond: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """

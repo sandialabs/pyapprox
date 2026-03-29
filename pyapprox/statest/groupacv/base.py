@@ -87,6 +87,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             raise ValueError("GroupACV only supports estimation of mean or variance")
         self._stat = stat
 
+        if model_subsets is None:
+            model_subsets = get_model_subsets(self._nmodels, self._bkd)
+
         self._model_subsets, self._subsets, self._allocation_mat = self._set_subsets(
             model_subsets
         )
@@ -259,9 +262,10 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         npartitions = self._allocation_mat.shape[1]
         partitions_per_model = self._bkd.full((self.nmodels(), npartitions), 0.0)
         for ii, model_subset in enumerate(self._model_subsets):
-            partitions_per_model[
-                np.ix_(model_subset, self._allocation_mat[ii] == 1)
-            ] = 1
+            # Use bkd.asarray for boolean mask to avoid mypy comparison-overlap
+            mask = (self._bkd.asarray(self._allocation_mat[ii]) == 1.0)
+            for m_id in model_subset:
+                partitions_per_model[m_id, mask] = 1.0
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples: Array) -> Array:
@@ -271,7 +275,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return nsamples_per_model
 
     def _estimator_cost(self, npartition_samples: Array) -> Array:
-        return sum(self._costs * self._compute_nsamples_per_model(npartition_samples))
+        return self._bkd.sum(
+            self._costs * self._compute_nsamples_per_model(npartition_samples)
+        )
 
     def _get_subset_intersecting_partitions(self) -> Array:
         amat = self._allocation_mat
@@ -282,7 +288,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         for ii, subset_ii in enumerate(self._subsets):
             for jj, subset_jj in enumerate(self._subsets):
                 # partitions are shared when sum of allocation entry is 2
-                partition_intersect[ii, jj, amat[ii] + amat[jj] == 2] = 1.0
+                mask = (self._bkd.asarray(amat[ii] + amat[jj]) == 2.0)
+                partition_intersect[ii, jj, mask] = 1.0
         return partition_intersect
 
     def _nintersect_samples(self, npartition_samples: Array) -> Array:
@@ -321,8 +328,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         # print(Sigma)
         return (
             self._bkd.multidot(
-                # (self._R, self._inv(Sigma + sigma_reg_mat), self._R.T)
-                (self._R, self._inv(Sigma), self._R.T)
+                # [self._R, self._inv(Sigma + sigma_reg_mat), self._R.T]
+                [self._R, self._inv(Sigma), self._R.T]
             )
             + psi_reg_mat
         )
@@ -339,14 +346,18 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
-        return self._bkd.multidot((self._asketch, psi_inv, self._asketch.T))
+        return self._bkd.multidot([self._asketch, psi_inv, self._asketch.T])
 
     def _get_model_subset_costs(self, subsets: List[Array], costs: Array) -> Array:
-        subset_costs = self._bkd.array([costs[subset].sum() for subset in subsets])
+        subset_costs = self._bkd.array(
+            [self._bkd.sum(costs[subset]) for subset in subsets])
         return subset_costs
 
-    def _nelder_mead_min_nlf_samples_constraint(self, x: Array, min_nlf_samples: int, ii: int) -> Array:
-        return (self._partitions_per_model[ii].numpy() * x).sum() - min_nlf_samples
+    def _nelder_mead_min_nlf_samples_constraint(
+            self, x: Array, min_nlf_samples: int, ii: int) -> Array:
+        return self._bkd.sum(
+            self._bkd.asarray(self._partitions_per_model[ii]) * x
+        ) - min_nlf_samples
 
     def _get_nelder_mead_constraints(
         self, target_cost: float, min_nhf_samples: int, min_nlf_samples: Optional[List[int]], constraint_reg: float = 0
@@ -380,6 +391,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                 ]
         return cons
 
+    def _cost_constraint(self, npartition_samples: Array, target_cost: float) -> Array:
+        return target_cost - self._estimator_cost(npartition_samples)
+
     def _init_guess(self, target_cost: float) -> Array:
         # start with the same number of samples per partition
 
@@ -389,12 +403,14 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             self._bkd.full((self.npartitions(),), 1.0)
         )
         # nsamples_per_model[0] = max(0, min_nhf_samples)
-        cost = (nsamples_per_model * self._costs).sum()
+        cost = self._bkd.sum(nsamples_per_model * self._costs)
 
         # the total number of samples per partition is then target_cost/cost
         # we take the floor to make sure we do not exceed the target cost
         return self._bkd.full(
-            (self.npartitions(),), self._bkd.floor(target_cost / cost)
+            (self.npartitions(),),
+            self._bkd.to_float(self._bkd.floor(target_cost / cost)),
+            dtype=self._bkd.double_dtype(),
         )[:, None]
 
     def optimized_sigma(self) -> Array:
@@ -411,6 +427,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             If allocation has not been set.
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         if self._cached_sigma is None:
             self._cached_sigma = self._sigma(self._npartition_samples)
         return self._cached_sigma
@@ -429,6 +447,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             If allocation has not been set.
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         if self._cached_covariance is None:
             self._cached_covariance = self._covariance_from_npartition_samples(
                 self._npartition_samples
@@ -449,6 +469,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             If allocation has not been set.
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         if self._cached_criteria is None:
             if self._objective is not None:
                 obj = self._objective
@@ -490,6 +512,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             If allocation has not been set.
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("Allocation set but npartition_samples is None")
         return self._npartition_samples
 
     def covariance(self) -> Array:
@@ -540,10 +564,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         of each indpendent sample partition
         """
         cumsum_vals = self._bkd.cumsum(npartition_samples)
-        # Convert to int64 - use backend array to handle type conversion
-        cumsum_int = self._bkd.array(
-            self._bkd.to_numpy(cumsum_vals).astype(int),
-            dtype=self._bkd.int64_dtype(),
+        # Convert to int64 using backend methods
+        cumsum_int = self._bkd.asarray(
+            self._bkd.round(cumsum_vals), dtype=self._bkd.int64_dtype()
         )
         splits = self._bkd.hstack(
             (
@@ -570,6 +593,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             List of samples for each model
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         # Convert to int for rvs call - this is at a boundary where we're
         # generating samples, not computing gradients through rvs
         npart_sum = self._bkd.sum(self._npartition_samples)
@@ -593,15 +618,13 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         if npilot_samples == 0:
             return samples_per_model
 
-        if (
-            self._partitions_per_model[0] * self._npartition_samples
-        ).max() < npilot_samples:
+        if self._bkd.max(self._partitions_per_model[0] * self._npartition_samples) < npilot_samples:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
             msg += "high-fidelity model can fit all pilot samples. "
             msg += "npilot = {0} != {1}".format(
                 npilot_samples,
-                (self._partitions_per_model[0] * self._npartition_samples).max(),
+                self._bkd.max(self._partitions_per_model[0] * self._npartition_samples),
             )
             raise ValueError(msg)
         return self._remove_pilot_samples(npilot_samples, samples_per_model)[0]
@@ -611,13 +634,15 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         # that correspond to each partition used in values_per_model.
         # If the model is not evaluated for a partition, then
         # the splits will be [-1, -1]
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         partition_splits = self._get_partition_splits(self._npartition_samples)
         splits_per_model = []
         for ii in range(self.nmodels()):
             active_partitions = self._bkd.where(self._partitions_per_model[ii])[0]
             splits = self._bkd.full((self.npartitions(), 2), -1, dtype=int)
-            lb, ub = 0, 0
-            for ii, idx in enumerate(active_partitions):
+            lb, ub = self._bkd.to_int(0), self._bkd.to_int(0)
+            for idx in active_partitions:
                 ub += partition_splits[idx + 1] - partition_splits[idx]
                 splits[idx] = self._bkd.array([lb, ub])
                 lb = self._bkd.copy(ub)
@@ -710,8 +735,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _traditional_acv_weights(self) -> Array:
         beta = self._grouped_acv_beta(self.optimized_sigma())
-        assert self._bkd.allclose(beta.sum(axis=1), self._bkd.ones(beta.shape[0])), (
-            beta.sum(axis=1)
+        assert self._bkd.allclose(self._bkd.sum(beta, axis=1), self._bkd.ones(beta.shape[0])), (
+            self._bkd.sum(beta, axis=1)
         )
         alpha = self._bkd.zeros(
             (beta.shape[0], (self._nmodels - 1) * self._stat.nstats())
@@ -892,9 +917,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._ensure_allocation()
         # nsamples is shape[1] for (nqoi, nsamples) convention
         npilot_values = pilot_values[0].shape[1]
-        if (
+        if self._bkd.to_float(self._bkd.max(
             self._partitions_per_model[0] * self._npartition_samples
-        ).max() < npilot_values:
+        )) < npilot_values:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
             msg += "high-fidelity model can fit all pilot samples"
@@ -935,7 +960,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         if not self.has_allocation:
             return "{0}()".format(self.__class__.__name__)
         criteria = self.optimized_criteria()
-        criteria_val = self._bkd.to_float(criteria.flatten()[0])
+        criteria_val = self._bkd.to_float(self._bkd.flatten(criteria)[0])
         rep = "{0}(criteria={1:.3g}".format(self.__class__.__name__, criteria_val)
         rep += " target_cost={0:.5g}, nsamples={1})".format(
             self._target_cost, self._nsamples_per_model

@@ -48,8 +48,8 @@ class ModelTree:
 
 
 def _update_list_for_reduce(
-    mylist: tuple[list[Any], list[Any]], indices: tuple[int, int]
-) -> tuple[list[Any], list[Any]]:
+    mylist: List[List[Any]], indices: tuple[int, int]
+) -> List[List[Any]]:
     mylist[indices[0]].append(indices[1])
     return mylist
 
@@ -63,11 +63,14 @@ def _generate_all_trees(
         for prod in product((0, 1), repeat=len(children)):
             if not any(prod):
                 continue
-            nexts, sub_roots = reduce(
-                _update_list_for_reduce, zip(prod, children), ([], [])
+            acc: List[List[Any]] = [[], []]
+            res = reduce(
+                _update_list_for_reduce, zip(prod, children), acc
             )
+            nexts: List[Any] = res[0]
+            sub_roots: List[Any] = res[1]
             for q in product(range(len(sub_roots)), repeat=len(nexts)):
-                sub_children = reduce(
+                sub_children: List[List[Any]] = reduce(
                     _update_list_for_reduce,
                     zip(q, nexts),
                     [[] for ii in sub_roots],

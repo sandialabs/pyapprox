@@ -3,7 +3,7 @@
 Implements diagonal (Jacobi) preconditioning.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -25,7 +25,7 @@ class JacobiPreconditioner(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]):
         self._bkd = bkd
-        self._inv_diag: Array = None
+        self._inv_diag: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -90,7 +90,7 @@ class BlockJacobiPreconditioner(Generic[Array]):
     def __init__(self, bkd: Backend[Array], block_size: int):
         self._bkd = bkd
         self._block_size = block_size
-        self._inv_blocks: Array = None
+        self._inv_blocks: Optional[Array] = None
         self._nblocks: int = 0
 
     def bkd(self) -> Backend[Array]:

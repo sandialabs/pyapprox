@@ -8,7 +8,7 @@ where A is a stability matrix and B maps parameters to forcing.
 The analytical solution is available for verification.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -42,7 +42,7 @@ class LinearODEResidual(Generic[Array]):
         self._Bmat = Bmat
         self._bkd = bkd
         self._time = 0.0
-        self._param = None
+        self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = Bmat.shape[1]
 
@@ -87,7 +87,9 @@ class LinearODEResidual(Generic[Array]):
         Array
             f(y). Shape: (nstates,)
         """
-        forcing = (self._Bmat @ self._param).flatten()
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
+        forcing = self._bkd.flatten(self._Bmat @ self._param)
         return self._Amat @ state + forcing
 
     def jacobian(self, state: Array) -> Array:
@@ -225,7 +227,7 @@ class QuadraticODEResidual(Generic[Array]):
         self._Amat = Amat
         self._bkd = bkd
         self._time = 0.0
-        self._param = None
+        self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = 2  # p[0] = quadratic coeff, p[1] = constant
 
@@ -268,6 +270,8 @@ class QuadraticODEResidual(Generic[Array]):
         Array
             f(y). Shape: (nstates,)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         p0 = float(self._param[0, 0])
         p1 = float(self._param[1, 0])
         return self._Amat @ state + p0 * state**2 + p1
@@ -286,6 +290,8 @@ class QuadraticODEResidual(Generic[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         p0 = float(self._param[0, 0])
         return self._Amat + 2.0 * p0 * self._bkd.diag(state)
 
@@ -343,6 +349,8 @@ class QuadraticODEResidual(Generic[Array]):
 
         Returns shape (nstates,) for use in second adjoint RHS.
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         p0 = float(self._param[0, 0])
         return 2.0 * p0 * adj_state * wvec
 

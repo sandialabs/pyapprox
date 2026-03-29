@@ -4,7 +4,7 @@ This module provides the base MCEstimator class for computing statistics
 using standard Monte Carlo sampling.
 """
 
-from typing import Any, Callable, Generic, List, Tuple, Union
+from typing import Any, Callable, Generic, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -35,12 +35,12 @@ class MCEstimator(Generic[Array]):
         self._stat, self._costs = self._check_inputs(stat, costs)
         self._optimization_criteria = self._log_determinant_variance
 
-        self._rounded_nsamples_per_model = None
-        self._rounded_npartition_samples = None
-        self._rounded_target_cost = None
-        self._optimized_criteria = None
-        self._optimized_covariance = None
-        self._model_labels = None
+        self._rounded_nsamples_per_model: Optional[Array] = None
+        self._rounded_npartition_samples: Optional[Array] = None
+        self._rounded_target_cost: Optional[Array] = None
+        self._optimized_criteria: Optional[Array] = None
+        self._optimized_covariance: Optional[Array] = None
+        self._model_labels: Optional[Array] = None
         self._npartitions = 1
 
     def bkd(self) -> Backend[Array]:
@@ -65,7 +65,7 @@ class MCEstimator(Generic[Array]):
         # because of the duplicate entries in
         # the covariance matrix
         eigvals = self._bkd.eigh(variance)[0]
-        val = self._bkd.log(eigvals[eigvals > 1e-14]).sum()
+        val = self._bkd.sum(self._bkd.log(eigvals[eigvals > 1e-14]))
         return val
 
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
@@ -210,7 +210,7 @@ class MCEstimator(Generic[Array]):
             estimator_vals[kk] = self._stat.sample_estimate(
                 values[0][:, bootstrapped_indices]
             )
-            bootstrap_mean = estimator_vals.mean(axis=0)
+            bootstrap_mean = self._bkd.mean(estimator_vals, axis=0)
             bootstrap_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         return bootstrap_mean, bootstrap_covar
 

@@ -35,7 +35,9 @@ class DirichletBC(Generic[Array]):
         values: Union[float, Array, Callable[[float], Array]],
     ):
         self._bkd = bkd
-        self._boundary_indices = boundary_indices
+        self._boundary_indices = bkd.asarray(
+            boundary_indices, dtype=bkd.int64_dtype()
+        )
         self._nboundary_pts = boundary_indices.shape[0]
 
         # Store values in a normalized form

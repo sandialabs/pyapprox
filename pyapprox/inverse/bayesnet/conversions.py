@@ -71,7 +71,7 @@ def convert_cpd_to_canonical(
     where Q = noise_cov^{-1}.
     """
     if b.ndim == 2:
-        b = b.flatten()
+        b = bkd.flatten(b)
 
     n_child = noise_cov.shape[0]
     n_parent = sum(parent_nvars_per_var)
@@ -159,7 +159,7 @@ def convert_prior_to_factor(
         Factor representing the prior p(x).
     """
     if mean.ndim == 2:
-        mean = mean.flatten()
+        mean = bkd.flatten(mean)
 
     nvars = len(mean)
     return GaussianFactor.from_moments(mean, covariance, [var_id], [nvars], bkd)
@@ -208,7 +208,7 @@ def convert_likelihood_to_factor(
         g = -0.5 * y^T R^{-1} y - 0.5 * n * log(2*pi) + 0.5 * log|R^{-1}|
     """
     if observation.ndim == 2:
-        observation = observation.flatten()
+        observation = bkd.flatten(observation)
 
     nobs, nstate = observation_matrix.shape
 

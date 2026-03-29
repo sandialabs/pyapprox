@@ -8,7 +8,7 @@ This provides a nonlinear benchmark with non-trivial second derivatives
 for testing adjoint gradient and HVP computations.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -48,9 +48,9 @@ class LotkaVolterraResidual(Generic[Array]):
         self._nspecies = nspecies
         self._nparams = nspecies + nspecies * nspecies  # r + A
         self._time = 0.0
-        self._param = None
-        self._growth_rates = None  # r
-        self._alpha = None  # A (competition matrix)
+        self._param: Optional[Array] = None
+        self._growth_rates: Optional[Array] = None  # r
+        self._alpha: Optional[Array] = None  # A (competition matrix)
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -75,7 +75,7 @@ class LotkaVolterraResidual(Generic[Array]):
             Shape: (nparams,) or (nparams, 1)
         """
         if param.ndim == 2:
-            param = param.flatten()
+            param = self._bkd.flatten(param)
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
@@ -101,6 +101,8 @@ class LotkaVolterraResidual(Generic[Array]):
         Array
             f(y). Shape: (nspecies,)
         """
+        if self._growth_rates is None or self._alpha is None:
+            raise RuntimeError("Must call set_params() first")
         return self._growth_rates * state * (1.0 - self._alpha @ state)
 
     def jacobian(self, state: Array) -> Array:
@@ -121,6 +123,8 @@ class LotkaVolterraResidual(Generic[Array]):
         """
         r = self._growth_rates
         A = self._alpha
+        if r is None or A is None:
+            raise RuntimeError("Must call set_params() first")
         Ay = A @ state
 
         # Diagonal: r * (1 - A@y)
@@ -158,6 +162,8 @@ class LotkaVolterraResidual(Generic[Array]):
         n = self._nspecies
         r = self._growth_rates
         A = self._alpha
+        if r is None or A is None:
+            raise RuntimeError("Must call set_params() first")
         Ay = A @ state
 
         # df/dr: diagonal matrix with y * (1 - A@y)
@@ -228,6 +234,8 @@ class LotkaVolterraResidual(Generic[Array]):
         """
         r = self._growth_rates
         A = self._alpha
+        if r is None or A is None:
+            raise RuntimeError("Must call set_params() first")
         lr = adj_state * r  # lambda * r
         Aw = A @ wvec
 
@@ -266,11 +274,13 @@ class LotkaVolterraResidual(Generic[Array]):
         n = self._nspecies
         r = self._growth_rates
         A = self._alpha
+        if r is None or A is None:
+            raise RuntimeError("Must call set_params() first")
         y = state
         lam = adj_state
 
         if vvec.ndim == 2:
-            vvec = vvec.flatten()
+            vvec = self._bkd.flatten(vvec)
 
         v_r = vvec[:n]
         v_A = self._bkd.reshape(vvec[n:], (n, n))
@@ -313,6 +323,8 @@ class LotkaVolterraResidual(Generic[Array]):
         """
         r = self._growth_rates
         A = self._alpha
+        if r is None or A is None:
+            raise RuntimeError("Must call set_params() first")
         y = state
         lam = adj_state
 
@@ -366,7 +378,7 @@ class LotkaVolterraResidual(Generic[Array]):
         lam = adj_state
 
         if vvec.ndim == 2:
-            vvec = vvec.flatten()
+            vvec = self._bkd.flatten(vvec)
 
         v_r = vvec[:n]
         v_A = self._bkd.reshape(vvec[n:], (n, n))

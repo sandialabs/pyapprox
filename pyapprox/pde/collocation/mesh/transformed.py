@@ -73,7 +73,7 @@ class TransformedMesh1D(Generic[Array]):
         self._reference_nodes_1d_arr = _chebyshev_gauss_lobatto_points(npts, bkd)
 
         # Reference nodes as 2D array (1, npts)
-        ref_nodes_2d = self._reference_nodes_1d_arr.reshape(1, -1)
+        ref_nodes_2d = bkd.reshape(self._reference_nodes_1d_arr, (1, -1))
         self._reference_points = ref_nodes_2d
 
         # Compute physical nodes, gradient factors, and Jacobians
@@ -324,7 +324,7 @@ class TransformedMesh2D(Generic[Array]):
 
         if self._transform is None:
             # Identity transform: normals are constant
-            return self._bkd.tile(n_ref.reshape(1, 2), (nboundary, 1))
+            return self._bkd.tile(self._bkd.reshape(n_ref, (1, 2)), (nboundary, 1))
 
         # For curvilinear transforms, compute n = J^{-T} @ n_ref / |...|
         # at each boundary point
@@ -522,7 +522,7 @@ class TransformedMesh3D(Generic[Array]):
         nboundary = boundary_idx.shape[0]
 
         if self._transform is None:
-            return self._bkd.tile(n_ref.reshape(1, 3), (nboundary, 1))
+            return self._bkd.tile(self._bkd.reshape(n_ref, (1, 3)), (nboundary, 1))
 
         # For curvilinear: n = J^{-T} @ n_ref / |...|
         normals = self._bkd.zeros((nboundary, 3))
@@ -532,7 +532,7 @@ class TransformedMesh3D(Generic[Array]):
 
             # Compute J^{-T} using adjugate/det
             # For 3x3, use explicit formula or numerical inverse
-            J_inv = self._bkd.inverse(J.reshape(1, 3, 3))[0]
+            J_inv = self._bkd.inverse(self._bkd.reshape(J, (1, 3, 3)))[0]
             J_inv_T = self._bkd.transpose(J_inv)
 
             n_phys = J_inv_T @ n_ref

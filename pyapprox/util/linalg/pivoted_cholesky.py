@@ -86,7 +86,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         self._ncompleted_pivots = 0
         self._L = bkd.zeros((self._nrows, self._nrows))
         self._pivots_arr = bkd.arange(self._nrows)
-        self._diag = self._Amat.ravel()[:: self._Amat.shape[0] + 1]
+        self._diag = bkd.ravel(self._Amat)[:: self._Amat.shape[0] + 1]
         self._init_error = bkd.sum(bkd.abs(self._diag))
         self._update_loop(npivots)
 

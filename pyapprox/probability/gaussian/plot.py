@@ -5,14 +5,16 @@ Provides functions for plotting 2D covariance ellipses from Gaussian
 distribution objects.
 """
 
-import matplotlib
+from __future__ import annotations
+
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.patches import Ellipse
 
 
 def plot_gaussian_2d_contour(
     gaussian: object,
-    ax: matplotlib.axes.Axes,
+    ax: Axes,
     n_std: float = 2.0,
     **kwargs: object,
 ) -> Ellipse:

@@ -136,7 +136,7 @@ class AETCBLUE(AETC[Array]):
         if hasattr(criteria, "squeeze"):
             criteria = criteria.squeeze()
         elif criteria.ndim > 0:
-            criteria = criteria.ravel()[0]
+            criteria = bkd.ravel(criteria)[0]
         k2 = criteria * target_cost
 
         nsamples_per_subset = nsamples_per_subset / target_cost
@@ -248,7 +248,7 @@ class AETCBLUE(AETC[Array]):
         if hasattr(product, "item"):
             product = product.item()
         elif product.ndim > 0:
-            product = product.flatten()[0]
+            product = bkd.flatten(product)[0]
 
         return beta_Sp[0, 0] + product
 

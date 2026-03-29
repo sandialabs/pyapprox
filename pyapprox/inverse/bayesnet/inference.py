@@ -157,7 +157,7 @@ def cond_prob_variable_elimination(
                 for var_id in evidence_in_scope:
                     value = evidence[var_id]
                     if value.ndim == 2:
-                        value = value.flatten()
+                        value = self._bkd.flatten(value)
                     factor = factor.condition_vars([var_id], value)
 
             # Only keep factor if it has remaining variables

@@ -86,9 +86,9 @@ class TensorProductQuadratureRule(Generic[Array]):
             s, w = self._univariate_rules[dim](npts)
             # Ensure 1D arrays
             if s.ndim > 1:
-                s = s.flatten()
+                s = self._bkd.flatten(s)
             if w.ndim > 1:
-                w = w.flatten()
+                w = self._bkd.flatten(w)
             samples_1d.append(s)
             weights_1d.append(w)
 

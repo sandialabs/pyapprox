@@ -37,8 +37,8 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[Any], Array],
-        lowfi_stats: Array = None,
-        opt_criteria: Callable[..., Any] = None,
+        lowfi_stats: Optional[Array] = None,
+        opt_criteria: Optional[Callable[..., Any]] = None,
     ):
         super().__init__(stat, costs, opt_criteria=opt_criteria)
         if lowfi_stats is not None:
@@ -67,6 +67,11 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         self._optimized_CF: Optional[Array] = None
         self._optimized_cf: Optional[Array] = None
         self._optimized_weights: Optional[Array] = None
+        self._rounded_nsamples_per_model: Optional[Array] = None
+        self._rounded_npartition_samples: Optional[Array] = None
+        self._rounded_target_cost: Optional[float] = None
+        self._optimized_covariance: Optional[Array] = None
+        self._optimized_criteria: Optional[Array] = None
 
         self._best_model_indices = self._bkd.arange(len(costs), dtype=int)
 
@@ -228,7 +233,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         return self._rounded_nsamples_per_model
 
     def _estimator_cost(self, npartition_samples: Array) -> float:
-        return (npartition_samples[0] * self._costs).sum()
+        return self._bkd.sum(npartition_samples[0] * self._costs)
 
     def _set_optimized_params(
         self, rounded_npartition_samples: Array,
@@ -250,7 +255,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         """
         from pyapprox.statest.allocation import CVAllocationResult
 
-        npartition_samples = [target_cost / self._costs.sum()]
+        npartition_samples = [target_cost / self._bkd.sum(self._costs)]
         n_floor = self._bkd.floor(npartition_samples[0])
         rounded_npartition_samples = [self._bkd.to_int(n_floor)]
         if isinstance(self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
@@ -267,7 +272,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         rounded_nsamples_per_model = self._bkd.full(
             (self._nmodels,), rounded_npartition_samples[0]
         )
-        rounded_target_cost = (self._costs * rounded_nsamples_per_model).sum()
+        rounded_target_cost = self._bkd.sum(self._costs * rounded_nsamples_per_model)
 
         # Create allocation result and set it
         allocation = CVAllocationResult(
@@ -498,13 +503,13 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                     self._rounded_npartition_samples
                 )
                 weights = self._weights(CF, cf)
-                weights_list.append(weights.flatten())
+                weights_list.append(self._bkd.flatten(weights))
             else:
                 weights = self.optimized_weights()
             estimator_vals.append(
-                self._estimate(
+                self._bkd.flatten(self._estimate(
                     values_per_model, weights, bootstrap=bootstrap_vals
-                ).flatten()
+                ))
             )
         estimator_vals = self._bkd.stack(estimator_vals)
         bootstrap_values_mean = estimator_vals.mean(axis=0)

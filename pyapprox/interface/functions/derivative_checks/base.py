@@ -94,7 +94,7 @@ class JVPChecker(Generic[Array]):
             fd_directional_grad = (perturbed_val - val) / self._fd_eps[ii]
             errors.append(
                 self._bkd.norm(
-                    fd_directional_grad.reshape(directional_grad.shape)
+                    self._bkd.reshape(fd_directional_grad, directional_grad.shape)
                     - directional_grad
                 )
             )

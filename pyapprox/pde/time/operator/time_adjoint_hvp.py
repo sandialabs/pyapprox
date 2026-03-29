@@ -128,7 +128,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             or not self._storage.has_forward_trajectory()
         ):
             self._storage.set_parameter(param)
-            self._time_residual.native_residual.set_param(param.flatten())
+            self._time_residual.native_residual.set_param(self._bkd.flatten(param))
             fwd_sols, times = self._integrator.solve(init_state)
             self._storage.set_forward_trajectory(fwd_sols, times)
         return self._storage.get_forward_trajectory()
@@ -290,7 +290,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 v_res = vvec[n_unique:]
             else:
                 v_res = vvec
-            w_sols[:, 0] = (dy0dp @ v_res).flatten()
+            w_sols[:, 0] = self._bkd.flatten(dy0dp @ v_res)
         else:
             w_sols[:, 0] = 0.0
 
@@ -419,7 +419,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # For explicit schemes, s_N = 0 at final time because:
             # - The final row of c_Y^T is [0, ..., 0, I] which doesn't depend on p
             # - Only functional Hessian terms contribute
-            rhs_N = -(qss_hvp.flatten() + qsp_hvp.flatten())
+            rhs_N = -(self._bkd.flatten(qss_hvp) + self._bkd.flatten(qsp_hvp))
         else:
             # For implicit schemes, include residual Hessian at final time
             rss_hvp = self._time_residual.state_state_hvp(
@@ -436,11 +436,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 if self._functional.nunique_params() > 0
                 else vvec,
             )
-            rhs_N = -(qss_hvp.flatten() + rss_hvp) - (qsp_hvp.flatten() + rsp_hvp)
+            rhs_N = -(self._bkd.flatten(qss_hvp) + rss_hvp) - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
 
         # Solve (dR/dy_N)^T · s_N = RHS
         drdy_N = self._time_residual.jacobian(fwd_sols[:, -1])
-        s_sols[:, -1:] = self._bkd.solve(drdy_N.T, rhs_N.reshape(-1, 1))
+        s_sols[:, -1:] = self._bkd.solve(drdy_N.T, self._bkd.reshape(rhs_N, (-1, 1)))
 
         # Backward sweep
         for nn in range(ntimes - 2, 0, -1):
@@ -557,8 +557,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # RHS: -B^T·s_{n+1} - ∇_{yy}L·w - ∇_{yu}L·v
             rhs = (
                 -drduT_offdiag @ s_sols[:, nn + 1]
-                - (qss_hvp.flatten() + rss_hvp)
-                - (qsp_hvp.flatten() + rsp_hvp)
+                - (self._bkd.flatten(qss_hvp) + rss_hvp)
+                - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
             )
 
             s_sols[:, nn] = self._bkd.solve(drduT_diag, rhs)
@@ -578,7 +578,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, 0, vvec)
 
         # CORRECTED RHS
-        rhs = -drduT_offdiag @ s_sols[:, 1] - qss_hvp.flatten() - qsp_hvp.flatten()
+        rhs = -drduT_offdiag @ s_sols[:, 1] - self._bkd.flatten(qss_hvp) - self._bkd.flatten(qsp_hvp)
         s_sols[:, 0] = self._bkd.solve(drduT_diag, rhs)
 
         return s_sols

@@ -190,7 +190,7 @@ class HyperParameterList(Generic[Array]):
             Flattened bounds of the parameters in the user space.
         """
         if not self._hyperparam_list:
-            return self._bkd.array([]).reshape((0, 2))
+            return self._bkd.reshape(self._bkd.array([]), (0, 2))
 
         return self._bkd.vstack([hyp.get_bounds() for hyp in self._hyperparam_list])
 
@@ -220,7 +220,7 @@ class HyperParameterList(Generic[Array]):
             Bounds of the active parameters, shape (nactive, 2).
         """
         if not self._hyperparam_list:
-            return self._bkd.array([]).reshape((0, 2))
+            return self._bkd.reshape(self._bkd.array([]), (0, 2))
 
         return self._bkd.vstack(
             [hyp.get_active_bounds() for hyp in self._hyperparam_list]

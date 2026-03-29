@@ -3,7 +3,7 @@
 Wraps scikit-fem ElementVector for multi-component problems like elasticity.
 """
 
-from typing import Any, Callable, Generic
+from typing import Any, Callable, Generic, Optional
 
 import numpy as np
 
@@ -87,7 +87,7 @@ class VectorLagrangeBasis(Generic[Array]):
         self._scalar_basis = LagrangeBasis(mesh, degree)
 
         # Cache DOF locations
-        self._dof_locs = None
+        self._dof_locs: Optional[Array] = None
 
     def _select_element(self, mesh_type: str, degree: int) -> Any:
         """Select skfem scalar element based on mesh type and polynomial degree."""

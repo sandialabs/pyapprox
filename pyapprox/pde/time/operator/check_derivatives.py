@@ -78,7 +78,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
     def _from_2d(self, arr: Array) -> Array:
         """Convert 2D column vector to 1D array."""
         if arr.ndim == 2 and arr.shape[1] == 1:
-            return arr.flatten()
+            return self._bkd.flatten(arr)
         return arr
 
     # =========================================================================

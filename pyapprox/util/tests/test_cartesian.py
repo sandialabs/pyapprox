@@ -18,7 +18,7 @@ class TestCartesianProductIndices:
         """Test 1D grid (trivial case)."""
         indices = cartesian_product_indices([3], bkd)
         assert indices.shape == (1, 3)
-        expected = bkd.asarray([[0, 1, 2]])
+        expected = bkd.asarray([[0, 1, 2]], dtype=bkd.int64_dtype())
         bkd.assert_allclose(indices, expected)
 
     def test_2d_grid(self, bkd):
@@ -30,7 +30,8 @@ class TestCartesianProductIndices:
             [
                 [0, 0, 0, 1, 1, 1],
                 [0, 1, 2, 0, 1, 2],
-            ]
+            ],
+            dtype=bkd.int64_dtype(),
         )
         bkd.assert_allclose(indices, expected)
 
@@ -206,7 +207,8 @@ class TestFirstDimFastest:
             [
                 [0, 1, 0, 1, 0, 1],
                 [0, 0, 1, 1, 2, 2],
-            ]
+            ],
+            dtype=bkd.int64_dtype(),
         )
         bkd.assert_allclose(indices, expected)
 

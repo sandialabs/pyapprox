@@ -349,7 +349,7 @@ class GaussianFactor(Generic[Array]):
             self._nvars_per_var[self._var_ids.index(vid)] for vid in fixed_var_ids
         )
         if values.ndim == 2:
-            values = values.flatten()
+            values = self._bkd.flatten(values)
         if len(values) != expected_dims:
             raise ValueError(
                 f"Values dimension {len(values)} doesn't match expected {expected_dims}"

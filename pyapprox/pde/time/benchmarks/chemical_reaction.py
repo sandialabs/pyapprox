@@ -18,7 +18,7 @@ References:
     Makeev et al., J. Chem. Phys., 2002.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -53,7 +53,7 @@ class ChemicalReactionResidual(Generic[Array]):
         self._nstates = 3
         self._nparams = 6
         self._time = 0.0
-        self._param = None
+        self._param: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -70,7 +70,7 @@ class ChemicalReactionResidual(Generic[Array]):
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
         if param.ndim == 2:
-            param = param.flatten()
+            param = self._bkd.flatten(param)
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
@@ -95,6 +95,8 @@ class ChemicalReactionResidual(Generic[Array]):
         Array
             f(state). Shape: (3,)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         u, v, w = state
         a, b, c, d, e, f = self._param
         z = 1.0 - u - v - w
@@ -120,6 +122,8 @@ class ChemicalReactionResidual(Generic[Array]):
         Array
             Jacobian matrix. Shape: (3, 3)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         u, v, w = state
         a, b, c, d, e, f = self._param
         z = 1.0 - u - v - w
@@ -156,6 +160,8 @@ class ChemicalReactionResidual(Generic[Array]):
         Array
             Parameter Jacobian. Shape: (3, 6)
         """
+        if self._param is None:
+            raise RuntimeError("Must call set_param() first")
         u, v, w = state
         a, b, c, d, e, f = self._param
         z = 1.0 - u - v - w

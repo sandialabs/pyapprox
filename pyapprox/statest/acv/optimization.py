@@ -7,7 +7,7 @@ This module provides:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING, Generic, List
+from typing import Any, TYPE_CHECKING, Generic, List, Optional
 
 import numpy as np
 
@@ -132,12 +132,12 @@ class ACVObjective(ABC, Generic[Array]):
     def __init__(
         self,
         scaling: float = 1,
-        bkd: Backend[Array] = None,
+        bkd: Optional[Backend[Array]] = None,
     ):
         self._scaling = scaling
         self._bkd = bkd
-        self._est = None
-        self._target_cost = None
+        self._est: Optional["ACVEstimator[Array]"] = None
+        self._target_cost: Optional[float] = None
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -187,7 +187,7 @@ class ACVLogDeterminantObjective(ACVObjective[Array]):
         # because of the duplicate entries in
         # the covariance matrix
         eigvals = self._bkd.eigh(est_covariance)[0]
-        return self._bkd.log(eigvals[eigvals > 1e-14]).sum()
+        return self._bkd.sum(self._bkd.log(eigvals[eigvals > 1e-14]))
 
 
 class ACVPartitionConstraint(Generic[Array]):

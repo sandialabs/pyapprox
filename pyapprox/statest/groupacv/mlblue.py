@@ -67,7 +67,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         # of the number of samples per partition/subset
         self._psi_blocks = self._compute_psi_blocks()
         self._psi_blocks_flat = self._bkd.hstack(
-            [b.flatten()[:, None] for b in self._psi_blocks]
+            [self._bkd.flatten(b)[:, None] for b in self._psi_blocks]
         )
 
         self._obj_jac = True
@@ -88,7 +88,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
 
     def _psi_matrix(self, npartition_samples: Array) -> Array:
         psi = self._bkd.eye(self.nmodels() * self._stat.nstats()) * self._reg_blue
-        psi += (self._psi_blocks_flat @ npartition_samples).reshape(
+        psi += self._bkd.reshape(self._psi_blocks_flat @ npartition_samples,
             (
                 self.nmodels() * self._stat.nstats(),
                 self.nmodels() * self._stat.nstats(),

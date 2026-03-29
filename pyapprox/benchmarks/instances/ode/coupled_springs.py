@@ -80,8 +80,8 @@ def coupled_springs_2mass(
     bounds = bkd.array(prior_ranges)
 
     # Nominal parameters (center of prior) - shape (nparams, 1)
-    nominal_parameters = bkd.array([(lo + hi) / 2 for lo, hi in prior_ranges]).reshape(
-        -1, 1
+    nominal_parameters = bkd.reshape(bkd.array([(lo + hi) / 2 for lo, hi in prior_ranges]),
+        (-1, 1)
     )
 
     # Initial condition from parameters (last 4 params are initial conditions)

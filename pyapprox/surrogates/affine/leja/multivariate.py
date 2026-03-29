@@ -69,12 +69,12 @@ class LejaSampler(Generic[Array]):
         self._basis_mat = basis(candidate_samples)  # (ncandidates, nterms)
 
         # Apply weighting if provided
+        self._precond_weights: Optional[Array] = None
         if weighting is not None:
             weights = weighting(candidate_samples, self._basis_mat)
             self._precond_weights = self._bkd.sqrt(weights)
             self._precond_mat = self._precond_weights * self._basis_mat
         else:
-            self._precond_weights = None
             self._precond_mat = self._basis_mat
 
         # Initialize LU factorizer (deferred until sample() is called)
@@ -109,8 +109,8 @@ class LejaSampler(Generic[Array]):
             raise RuntimeError("Cannot set initial pivots after sampling has begun")
         self._init_pivots = init_pivots
 
-    def _ensure_factorizer(self) -> None:
-        """Create the factorizer if not yet created."""
+    def _ensure_factorizer(self) -> PivotedLUFactorizer[Array]:
+        """Create the factorizer if not yet created and return it."""
         if self._factorizer is None:
             self._factorizer = PivotedLUFactorizer(
                 self._bkd,
@@ -118,6 +118,7 @@ class LejaSampler(Generic[Array]):
                 tol=self._tol,
                 init_pivots=self._init_pivots,
             )
+        return self._factorizer
 
     def sample(self, nsamples: int) -> Array:
         """Generate Leja samples by selecting from candidates.
@@ -137,15 +138,15 @@ class LejaSampler(Generic[Array]):
                 f"Cannot select {nsamples} samples from {self.ncandidates()} candidates"
             )
 
-        self._ensure_factorizer()
+        factorizer = self._ensure_factorizer()
 
         if nsamples > self._nselected:
             # Need to select more samples
-            self._factorizer.update(nsamples)
-            self._nselected = self._factorizer.npivots()
+            factorizer.update(nsamples)
+            self._nselected = factorizer.npivots()
 
         # Get selected indices
-        pivots = self._factorizer.pivots()[:nsamples]
+        pivots = factorizer.pivots()[:nsamples]
         return self._candidates[:, pivots]
 
     def sample_incremental(self, n_new_samples: int) -> Array:
@@ -161,25 +162,23 @@ class LejaSampler(Generic[Array]):
         Array
             The new samples only. Shape: (nvars, n_new_samples)
         """
-        self._ensure_factorizer()
+        factorizer = self._ensure_factorizer()
         old_count = self._nselected
         new_total = old_count + n_new_samples
-        self._factorizer.update(new_total)
-        self._nselected = self._factorizer.npivots()
+        factorizer.update(new_total)
+        self._nselected = factorizer.npivots()
 
         # Return only the new samples
-        pivots = self._factorizer.pivots()[old_count:new_total]
+        pivots = factorizer.pivots()[old_count:new_total]
         return self._candidates[:, pivots]
 
     def get_selected_indices(self) -> Array:
         """Return indices of selected samples from candidate set."""
-        self._ensure_factorizer()
-        return self._factorizer.pivots()
+        return self._ensure_factorizer().pivots()
 
     def get_all_selected_samples(self) -> Array:
         """Return all currently selected samples."""
-        self._ensure_factorizer()
-        pivots = self._factorizer.pivots()
+        pivots = self._ensure_factorizer().pivots()
         return self._candidates[:, pivots]
 
     def success(self) -> bool:
@@ -246,12 +245,12 @@ class FeketeSampler(Generic[Array]):
         self._basis_mat = basis(candidate_samples)  # (ncandidates, nterms)
 
         # Apply weighting if provided
+        self._precond_weights: Optional[Array] = None
         if weighting is not None:
             weights = weighting(candidate_samples, self._basis_mat)
             self._precond_weights = self._bkd.sqrt(weights)
             self._precond_mat = self._precond_weights * self._basis_mat
         else:
-            self._precond_weights = None
             self._precond_mat = self._basis_mat
 
         # Initialize QR factorizer

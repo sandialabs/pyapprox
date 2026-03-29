@@ -7,7 +7,7 @@ Default parameters (Forrester et al., 2008): A = 0.5, B = 10, C = -5.
 Domain: x in [0, 1].
 """
 
-from typing import Generic, Sequence
+from typing import Generic, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -34,7 +34,7 @@ class ForresterModelFunction(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        A: float = None,
+        A: Optional[float] = None,
         B: float = 0.0,
         C: float = 0.0,
     ) -> None:

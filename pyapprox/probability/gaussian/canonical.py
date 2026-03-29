@@ -59,7 +59,7 @@ class GaussianCanonicalForm(Generic[Array]):
 
         # Ensure shift is 1D
         if shift.ndim == 2:
-            shift = shift.flatten()
+            shift = bkd.flatten(shift)
         self._shift = shift
         self._normalization = normalization
 
@@ -108,7 +108,7 @@ class GaussianCanonicalForm(Generic[Array]):
             Gaussian in canonical form.
         """
         if mean.ndim == 2:
-            mean = mean.flatten()
+            mean = bkd.flatten(mean)
 
         nvars = mean.shape[0]
         precision = bkd.inv(covariance)
@@ -237,7 +237,7 @@ class GaussianCanonicalForm(Generic[Array]):
             Conditional distribution.
         """
         if values.ndim == 2:
-            values = values.flatten()
+            values = self._bkd.flatten(values)
 
         # Determine remaining indices
         all_indices = self._bkd.arange(self._nvars)
@@ -373,9 +373,9 @@ def compute_normalization(
         Log normalization constant g.
     """
     if mean.ndim == 2:
-        mean = mean.flatten()
+        mean = bkd.flatten(mean)
     if shift.ndim == 2:
-        shift = shift.flatten()
+        shift = bkd.flatten(shift)
 
     nvars = precision.shape[0]
     sign, logdet = bkd.slogdet(precision)

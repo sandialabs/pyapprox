@@ -10,13 +10,14 @@ The bilaplacian prior is used as a Gaussian process approximation for
 Bayesian inverse problems.
 """
 
-from typing import TYPE_CHECKING,  Generic, List, Optional
+from typing import Any, TYPE_CHECKING, Generic, List, Optional
+
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
 
-
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -95,8 +96,8 @@ class BiLaplacianPrior(Generic[Array]):
                 )
             self._anisotropic_tensor = anisotropic_tensor * gamma
 
-        self._stiffness = None
-        self._lumped_mass = None
+        self._stiffness: Optional[Array] = None
+        self._lumped_mass: Optional[NDArray[np.floating[Any]]] = None
 
     @classmethod
     def with_uniform_robin(
@@ -192,6 +193,8 @@ class BiLaplacianPrior(Generic[Array]):
             Random field samples. Shape: ``(ndofs, nsamples)``.
         """
         self._assemble_system()
+        if self._lumped_mass is None or self._stiffness is None:
+            raise RuntimeError("Assembly failed")
 
         ndofs = self._lumped_mass.shape[0]
         if rng is not None:
@@ -217,6 +220,8 @@ class BiLaplacianPrior(Generic[Array]):
             Stiffness matrix. Shape: ``(ndofs, ndofs)``.
         """
         self._assemble_system()
+        if self._stiffness is None:
+            raise RuntimeError("Assembly failed")
         return self._stiffness
 
     def lumped_mass(self) -> Array:
@@ -228,6 +233,8 @@ class BiLaplacianPrior(Generic[Array]):
             Lumped mass. Shape: ``(ndofs,)``.
         """
         self._assemble_system()
+        if self._lumped_mass is None:
+            raise RuntimeError("Assembly failed")
         return self._bkd.asarray(self._lumped_mass.astype(np.float64))
 
     def __repr__(self) -> str:

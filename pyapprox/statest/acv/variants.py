@@ -293,7 +293,7 @@ def _allocate_samples_mlmc(
     var_cost_ratios = var_deltas / cost_deltas
 
     # compute the lagrange multiplier
-    lagrange_multiplier = target_cost / bkd.sqrt(var_cost_prods).sum()
+    lagrange_multiplier = target_cost / bkd.sum(bkd.sqrt(var_cost_prods))
 
     # compute the number of samples needed for each discrepancy
     nsamples_per_delta = lagrange_multiplier * bkd.sqrt(var_cost_ratios)
@@ -309,8 +309,8 @@ def _allocate_samples_mlmc(
         ) / nhf_samples
 
     assert bkd.allclose(
-        nhf_samples * costs[0] + (nsample_ratios * nhf_samples).dot(costs[1:]),
-        cost_deltas.dot(nsamples_per_delta),
+        nhf_samples * costs[0] + bkd.dot(nsample_ratios * nhf_samples, costs[1:]),
+        bkd.dot(cost_deltas, nsamples_per_delta),
     )
 
     gamma = _variance_reduction(_get_rsquared_mlmc, cov, nsample_ratios)
