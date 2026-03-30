@@ -1,4 +1,4 @@
-"""Tests for BCEnforcingTimeResidual adapter."""
+"""Tests for BC-enforcing time residual adapter hierarchy."""
 
 import math
 
@@ -14,19 +14,22 @@ from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.time_integration import (
-    BCEnforcingTimeResidual,
+    BCEnforcingAdjointResidual,
+    BCEnforcingForwardResidual,
     PhysicsToODEResidualAdapter,
+    create_bc_enforcing_residual,
 )
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
+    BackwardEulerAdjoint,
     BackwardEulerHVP,
     BackwardEulerStepper,
 )
 
 
 class TestBCEnforcingTimeResidual:
-    """Base test class for BCEnforcingTimeResidual."""
+    """Base test class for BC-enforcing time residual hierarchy."""
 
-    def _setup_diffusion_problem(self, bkd, npts=15) :
+    def _setup_diffusion_problem(self, bkd, npts=15):
         """Create a 1D diffusion problem with Dirichlet BCs."""
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -43,7 +46,7 @@ class TestBCEnforcingTimeResidual:
 
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
         stepper = BackwardEulerStepper(adapter)
-        bc_residual = BCEnforcingTimeResidual(stepper, physics, bkd)
+        bc_residual = create_bc_enforcing_residual(stepper, physics, bkd)
 
         nodes = basis.nodes()
         state = bkd.sin(math.pi * nodes)
@@ -63,10 +66,7 @@ class TestBCEnforcingTimeResidual:
         }
 
     def test_bc_residual_matches_manual(self, bkd):
-        """Compare BCEnforcingTimeResidual against manual BE+BC computation.
-
-        Reproduces the logic from CollocationModel._backward_euler_step.
-        """
+        """Compare BC-enforcing residual against manual BE+BC computation."""
         s = self._setup_diffusion_problem(bkd)
         bkd = s["bkd"]
         physics = s["physics"]
@@ -93,7 +93,7 @@ class TestBCEnforcingTimeResidual:
             manual_residual, manual_jacobian, y, t_np1
         )
 
-        # --- BCEnforcingTimeResidual ---
+        # --- BCEnforcingForwardResidual ---
         s["bc_residual"].set_time(t_n, deltat, prev_state)
         bc_residual_val = s["bc_residual"](y)
         bc_jacobian_val = s["bc_residual"].jacobian(y)
@@ -151,11 +151,12 @@ class TestBCEnforcingTimeResidual:
             atol=1e-14,
         )
 
-    def test_dynamic_binding_no_param_jacobian(self, bkd):
-        """Verify param_jacobian is NOT exposed for non-parameterized physics."""
+    def test_factory_returns_forward_for_base_stepper(self, bkd):
+        """Factory returns BCEnforcingForwardResidual for BackwardEulerStepper."""
         s = self._setup_diffusion_problem(bkd)
-        assert not hasattr(s["bc_residual"], "param_jacobian")
-        assert not hasattr(s["bc_residual"], "adjoint_diag_jacobian")
+        bc_res = s["bc_residual"]
+        assert isinstance(bc_res, BCEnforcingForwardResidual)
+        assert not isinstance(bc_res, BCEnforcingAdjointResidual)
 
     def test_sensitivity_protocol_delegation(self, bkd):
         """Test that sensitivity methods delegate correctly."""
@@ -210,3 +211,26 @@ class TestBCEnforcingTimeResidual:
             y = y + delta
 
         assert res_norm < 1e-10
+
+    def test_factory_returns_adjoint_for_adjoint_stepper(self, bkd):
+        """Factory returns BCEnforcingAdjointResidual for BackwardEulerAdjoint."""
+        s = self._setup_diffusion_problem(bkd)
+        adjoint_stepper = BackwardEulerAdjoint(s["adapter"])
+        bc_res = create_bc_enforcing_residual(
+            adjoint_stepper, s["physics"], bkd
+        )
+        assert isinstance(bc_res, BCEnforcingAdjointResidual)
+        # native_residual should be narrowed to ParamJacobian level
+        assert bc_res.native_residual is s["adapter"]
+
+    def test_factory_returns_hvp_for_hvp_stepper(self, bkd):
+        """Factory returns BCEnforcingHVPResidual for BackwardEulerHVP."""
+        s = self._setup_diffusion_problem(bkd)
+        hvp_stepper = BackwardEulerHVP(s["adapter"])
+        bc_res = create_bc_enforcing_residual(
+            hvp_stepper, s["physics"], bkd
+        )
+        from pyapprox.pde.collocation.time_integration import (
+            BCEnforcingHVPResidual,
+        )
+        assert isinstance(bc_res, BCEnforcingHVPResidual)

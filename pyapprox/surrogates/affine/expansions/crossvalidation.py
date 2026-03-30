@@ -42,7 +42,7 @@ def get_random_k_fold_sample_indices(
     if random:
         sample_indices = bkd.asarray(np.random.permutation(sample_indices), dtype=int)
 
-    fold_sample_indices: List[Array] = [bkd.empty(0, dtype=int) for _ in range(nfolds)]
+    fold_sample_indices: List[Array] = [bkd.empty((0,), dtype=int) for _ in range(nfolds)]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):
@@ -169,7 +169,7 @@ def leave_many_out_lsq_cross_validation(
     gram_mat_inv = bkd.inv(gram_mat)
 
     cv_errors: List[Array] = []
-    cv_score = bkd.zeros(values.shape[1])
+    cv_score = bkd.zeros((values.shape[1],))
     for kk in range(nfolds):
         indices_kk = fold_sample_indices[kk]
         nvalidation_samples_kk = indices_kk.shape[0]

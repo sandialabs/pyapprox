@@ -5,7 +5,7 @@ Provides forward solve, adjoint solve, and gradient computation via
 the discrete adjoint method.
 """
 
-from typing import Generic, Optional, Tuple, cast
+from typing import Generic, Optional, Tuple
 
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
@@ -49,8 +49,16 @@ class TimeIntegrator(Generic[Array]):
         verbosity: int = 0,
     ):
         time_residual = newton_solver.residual()
-        self._time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array] = cast(
-            AdjointEnabledTimeSteppingResidualProtocol[Array], time_residual
+        if not isinstance(
+            time_residual, AdjointEnabledTimeSteppingResidualProtocol
+        ):
+            raise TypeError(
+                f"Newton solver's residual must satisfy "
+                f"AdjointEnabledTimeSteppingResidualProtocol, "
+                f"got {type(time_residual).__name__}"
+            )
+        self._time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array] = (
+            time_residual
         )
         self._bkd = self._time_residual.bkd()
         self._init_time = init_time
@@ -213,10 +221,6 @@ class TimeIntegrator(Generic[Array]):
         # Compute dQ/dy at all time steps
         dqdu = self._functional.state_jacobian(fwd_sols, param)
 
-        # Zero BC DOFs in dQ/dy if the time residual supports it
-        # (required for collocation BCs to enforce lambda[bc] = 0)
-        _has_bc_zeroing = hasattr(self._time_residual, "zero_adjoint_rhs")
-
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
         # Initial condition for adjoint at final time
@@ -225,9 +229,7 @@ class TimeIntegrator(Generic[Array]):
         deltat_n = float(times[-1] - times[-2])
         self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, -2])
 
-        dqdu_final = dqdu[:, -1]
-        if _has_bc_zeroing:
-            dqdu_final = self._time_residual.zero_adjoint_rhs(dqdu_final)
+        dqdu_final = self._time_residual.zero_adjoint_rhs(dqdu[:, -1])
 
         adj_sols = self._bkd.copy(adj_sols)
         adj_sols[:, -1] = self._time_residual.adjoint_initial_condition(
@@ -239,9 +241,7 @@ class TimeIntegrator(Generic[Array]):
             deltat_np1 = deltat_n
             deltat_n = float(times[nn] - times[nn - 1])
 
-            dqdu_n = dqdu[:, nn]
-            if _has_bc_zeroing:
-                dqdu_n = self._time_residual.zero_adjoint_rhs(dqdu_n)
+            dqdu_n = self._time_residual.zero_adjoint_rhs(dqdu[:, nn])
 
             adj_sols[:, nn] = self.adjoint_step(
                 fwd_sols[:, nn],
@@ -258,9 +258,7 @@ class TimeIntegrator(Generic[Array]):
         self._time = float(times[0])
         self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, 0])
 
-        dqdu_0 = dqdu[:, 0]
-        if _has_bc_zeroing:
-            dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu_0)
+        dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu[:, 0])
 
         adj_sols[:, 0] = self._time_residual.adjoint_final_solution(
             fwd_sols[:, 0],
@@ -331,14 +329,13 @@ class TimeIntegrator(Generic[Array]):
             fwd_sols[:, 0],
         )
 
-        if hasattr(self._time_residual, "initial_param_jacobian"):
-            drdp_init = self._time_residual.initial_param_jacobian()
-            # Prepend zeros for functional-only parameters
-            n_unique = self._functional.nunique_params()
-            if n_unique > 0:
-                zeros = self._bkd.zeros((drdp_init.shape[0], n_unique))
-                drdp_init = self._bkd.hstack((zeros, drdp_init))
-            grad += adj_sols[:, 0:1].T @ drdp_init
+        drdp_init = self._time_residual.initial_param_jacobian()
+        # Prepend zeros for functional-only parameters
+        n_unique = self._functional.nunique_params()
+        if n_unique > 0:
+            zeros = self._bkd.zeros((drdp_init.shape[0], n_unique))
+            drdp_init = self._bkd.hstack((zeros, drdp_init))
+        grad += adj_sols[:, 0:1].T @ drdp_init
 
         # Accumulate contributions from each time step
         for ii in range(len(times) - 1):
@@ -348,16 +345,15 @@ class TimeIntegrator(Generic[Array]):
                 fwd_sols[:, ii],
             )
 
-            if hasattr(self._time_residual, "param_jacobian"):
-                drdp = self._time_residual.param_jacobian(
-                    fwd_sols[:, ii], fwd_sols[:, ii + 1]
-                )
-                # Prepend zeros for functional-only parameters
-                n_unique = self._functional.nunique_params()
-                if n_unique > 0:
-                    zeros = self._bkd.zeros((drdp.shape[0], n_unique))
-                    drdp = self._bkd.hstack((zeros, drdp))
-                grad += adj_sols[:, ii + 1 : ii + 2].T @ drdp
+            drdp = self._time_residual.param_jacobian(
+                fwd_sols[:, ii], fwd_sols[:, ii + 1]
+            )
+            # Prepend zeros for functional-only parameters
+            n_unique = self._functional.nunique_params()
+            if n_unique > 0:
+                zeros = self._bkd.zeros((drdp.shape[0], n_unique))
+                drdp = self._bkd.hstack((zeros, drdp))
+            grad += adj_sols[:, ii + 1 : ii + 2].T @ drdp
 
         return grad
 

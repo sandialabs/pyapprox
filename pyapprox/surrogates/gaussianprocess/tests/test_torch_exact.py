@@ -162,8 +162,9 @@ class TestTorchExactGaussianProcess:
         nlml = gp.neg_log_marginal_likelihood()
 
         # Should be a finite number
-        assert not math.isnan(nlml)
-        assert not math.isinf(nlml)
+        nlml_float = float(nlml.item())
+        assert not math.isnan(nlml_float)
+        assert not math.isinf(nlml_float)
 
     def test_higher_half_integer_nu_gp(self):
         """Test GP with higher half-integer nu values (3.5, 4.5)."""

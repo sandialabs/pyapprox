@@ -43,14 +43,14 @@ class GPFitResult(Generic[Array, S]):
     ----------
     surrogate : S
         The fitted GP instance.
-    neg_log_marginal_likelihood : float
-        Negative log marginal likelihood at the fitted state.
+    neg_log_marginal_likelihood : Array
+        Scalar negative log marginal likelihood at the fitted state.
     """
 
     def __init__(
         self,
         surrogate: S,
-        neg_log_marginal_likelihood: float,
+        neg_log_marginal_likelihood: Array,
     ):
         self._surrogate = surrogate
         self._nll = neg_log_marginal_likelihood
@@ -59,7 +59,7 @@ class GPFitResult(Generic[Array, S]):
         """Return the fitted GP surrogate."""
         return self._surrogate
 
-    def neg_log_marginal_likelihood(self) -> float:
+    def neg_log_marginal_likelihood(self) -> Array:
         """Return the negative log marginal likelihood at fitted state."""
         return self._nll
 
@@ -131,8 +131,8 @@ class GPOptimizedFitResult(Generic[Array, S]):
     ----------
     surrogate : S
         The fitted GP with optimized hyperparameters.
-    neg_log_marginal_likelihood : float
-        NLL at the optimal hyperparameters.
+    neg_log_marginal_likelihood : Array
+        Scalar NLL at the optimal hyperparameters.
     initial_hyperparameters : Array
         Hyperparameter values before optimization.
     optimized_hyperparameters : Array
@@ -145,7 +145,7 @@ class GPOptimizedFitResult(Generic[Array, S]):
     def __init__(
         self,
         surrogate: S,
-        neg_log_marginal_likelihood: float,
+        neg_log_marginal_likelihood: Array,
         initial_hyperparameters: Array,
         optimized_hyperparameters: Array,
         optimization_result: Optional[object],
@@ -160,7 +160,7 @@ class GPOptimizedFitResult(Generic[Array, S]):
         """Return the fitted GP surrogate with optimized hyperparameters."""
         return self._surrogate
 
-    def neg_log_marginal_likelihood(self) -> float:
+    def neg_log_marginal_likelihood(self) -> Array:
         """Return the NLL at optimal hyperparameters."""
         return self._nll
 

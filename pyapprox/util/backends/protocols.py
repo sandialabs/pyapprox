@@ -5,6 +5,7 @@ from typing import (
     Any,
     Generic,
     List,
+    Literal,
     Optional,
     Protocol,
     Sequence,
@@ -66,19 +67,22 @@ class ArrayProtocol(Protocol):
 
     def __rpow__(self: Array, other: Union[float, Array]) -> Array: ...
 
-    def __gt__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
+    def __gt__(self: Array, other: Union[float, Array]) -> Array: ...
 
-    def __lt__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
+    def __lt__(self: Array, other: Union[float, Array]) -> Array: ...
 
-    def __ge__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
+    def __ge__(self: Array, other: Union[float, Array]) -> Array: ...
 
-    def __le__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
+    def __le__(self: Array, other: Union[float, Array]) -> Array: ...
 
     def __matmul__(self: Array, other: Array) -> Array: ...
 
-    def __eq__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore
+    # Array libraries (NumPy/Torch) break the builtins.object contract because
+    # a == b returns a boolean array, not a single bool. We use Union return
+    # types to reflect this dual behavior.
+    def __eq__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore[override]
 
-    def __ne__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore
+    def __ne__(self: Array, other: object) -> Union[bool, Array]: ...  # type: ignore[override]
 
     def __setitem__(self: Array, index: Any, value: Any) -> None: ...
 
@@ -96,7 +100,19 @@ class ArrayProtocol(Protocol):
 
     def __int__(self) -> int: ...
 
-    def __invert__(self) -> "ArrayProtocol": ...
+    def __invert__(self: Array) -> Array: ...
+
+    def __and__(self: Array, other: Union[bool, Array]) -> Array: ...
+
+    def __rand__(self: Array, other: Union[bool, Array]) -> Array: ...
+
+    def __or__(self: Array, other: Union[bool, Array]) -> Array: ...
+
+    def __ror__(self: Array, other: Union[bool, Array]) -> Array: ...
+
+    def __xor__(self: Array, other: Union[bool, Array]) -> Array: ...
+
+    def __rxor__(self: Array, other: Union[bool, Array]) -> Array: ...
 
 
 # Define the Backend protocol without dtype
@@ -224,6 +240,11 @@ class Backend(Protocol, Generic[Array]):
     def flatten(array: Array) -> Array: ...
 
     @staticmethod
+    def squeeze(array: Array) -> Array:
+        """Remove single-dimensional entries from the shape of an array."""
+        ...
+
+    @staticmethod
     def ravel(array: Array) -> Array:
         """Flatten array to 1D (contiguous view when possible).
 
@@ -240,7 +261,9 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def meshgrid(*arrays: Array, indexing: str = "xy") -> Tuple[Array, ...]:
+    def meshgrid(
+        *arrays: Array, indexing: Literal["xy", "ij"] = "xy"
+    ) -> Tuple[Array, ...]:
         """Create coordinate grids from 1D arrays.
 
         Parameters
@@ -453,7 +476,7 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def norm(
         array: Array,
-        ord: Optional[Union[int, float, str]] = None,
+        ord: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
     ) -> Array: ...
@@ -523,7 +546,7 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def searchsorted(
-        sorted_array: Array, values: Array, side: str = "left"
+        sorted_array: Array, values: Array, side: Literal["left", "right"] = "left"
     ) -> Array: ...
 
     @staticmethod
@@ -699,12 +722,24 @@ class Backend(Protocol, Generic[Array]):
         """Return indices of maximum values along an axis."""
         ...
 
+    @overload
+    @staticmethod
+    def where(condition: Array) -> Tuple[Array, ...]: ...
+
+    @overload
+    @staticmethod
+    def where(
+        condition: Array,
+        x: Union[Array, float],
+        y: Union[Array, float],
+    ) -> Array: ...
+
     @staticmethod
     def where(
         condition: Array,
         x: Union[Array, float, None] = None,
         y: Union[Array, float, None] = None,
-    ) -> Array:
+    ) -> Union[Array, Tuple[Array, ...]]:
         """Return elements chosen from x or y depending on condition.
 
         Parameters
@@ -718,7 +753,7 @@ class Backend(Protocol, Generic[Array]):
 
         Returns
         -------
-        Array
+        Array or Tuple[Array, ...]
             If x and y provided: array of elements from x where condition is
             True, elements from y otherwise.
             If only condition provided: tuple of arrays of indices where True.
@@ -941,7 +976,9 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def qr(array: Array, mode: str = "reduced") -> Tuple[Array, Array]:
+    def qr(
+        array: Array, mode: Literal["reduced", "complete", "r", "raw"] = "reduced"
+    ) -> Tuple[Array, Array]:
         """Compute QR factorization.
 
         Parameters

@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, List, Literal, Optional, Sequence, Tuple, Union, cast, overload
 
 import numpy as np
 import scipy
@@ -151,14 +151,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return array.flatten()
 
     @staticmethod
+    def squeeze(array: NDArray[Any]) -> NDArray[Any]:
+        return np.squeeze(array)
+
+    @staticmethod
     def ravel(array: NDArray[Any]) -> NDArray[Any]:
         return np.ravel(array)
 
     @staticmethod
     def meshgrid(
-        *arrays: NDArray[Any], indexing: str = "xy"
+        *arrays: NDArray[Any], indexing: Literal["xy", "ij"] = "xy"
     ) -> Tuple[NDArray[Any], ...]:
-        return np.meshgrid(*arrays, indexing=indexing)  # type: ignore
+        return np.meshgrid(*arrays, indexing=indexing)
 
     @staticmethod
     def reshape(array: NDArray[Any], newshape: Sequence[int]) -> NDArray[Any]:
@@ -328,7 +332,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def norm(
         array: NDArray[Any],
-        ord: Optional[Union[int, float, str]] = None,
+        ord: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
         axis: Optional[Union[int, Tuple[int, int]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
@@ -398,9 +402,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def searchsorted(
-        sorted_array: NDArray[Any], values: NDArray[Any], side: str = "left"
+        sorted_array: NDArray[Any],
+        values: NDArray[Any],
+        side: Literal["left", "right"] = "left",
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], np.searchsorted(sorted_array, values, side=side))
+        return cast(
+            NDArray[Any], np.searchsorted(sorted_array, values, side=side)
+        )
 
     @staticmethod
     def clip(
@@ -583,14 +591,28 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     ) -> NDArray[Any]:
         return np.asarray(np.argmax(array, axis=axis))
 
+    @overload
+    @staticmethod
+    def where(condition: NDArray[Any]) -> Tuple[NDArray[Any], ...]: ...
+
+    @overload
     @staticmethod
     def where(
         condition: NDArray[Any],
-        x: Union[NDArray[Any], float, None] = None,
-        y: Union[NDArray[Any], float, None] = None,
-    ) -> NDArray[Any]:
-        if x is None and y is None:
-            return np.where(condition)
+        x: Union[NDArray[Any], float],
+        y: Union[NDArray[Any], float],
+    ) -> NDArray[Any]: ...
+
+    @staticmethod
+    def where(
+        condition: NDArray[Any],
+        x: Optional[Union[NDArray[Any], float]] = None,
+        y: Optional[Union[NDArray[Any], float]] = None,
+    ) -> Union[NDArray[Any], Tuple[NDArray[Any], ...]]:
+        if x is None:
+            return cast(Tuple[NDArray[Any], ...], np.where(condition))
+        if y is None:
+            raise ValueError("Must provide both x and y or neither.")
         return np.where(condition, x, y)
 
     @staticmethod
@@ -672,7 +694,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def qr(
-        array: NDArray[Any], mode: str = "reduced"
+        array: NDArray[Any], mode: Literal["reduced", "complete", "r", "raw"] = "reduced"
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         return cast(Tuple[NDArray[Any], NDArray[Any]], np.linalg.qr(array, mode=mode))
 

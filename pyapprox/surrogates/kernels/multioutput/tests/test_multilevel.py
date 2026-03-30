@@ -428,13 +428,13 @@ class TestMultiLevelKernelOptimizeTorch:
 
         # Fit with initial hyperparameters to get baseline NLL
         gp._fit_internal(X_list, y_train)
-        nll_before = float(bkd.to_numpy(gp.neg_log_marginal_likelihood()))
+        nll_before = bkd.to_float(gp.neg_log_marginal_likelihood())
 
         # Optimize via fitter
         fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, X_list, y_train)
 
-        nll_after = float(result.neg_log_marginal_likelihood())
+        nll_after = bkd.to_float(result.neg_log_marginal_likelihood())
         assert nll_after < nll_before, (
             f"NLL should decrease: {nll_before:.4f} -> {nll_after:.4f}"
         )

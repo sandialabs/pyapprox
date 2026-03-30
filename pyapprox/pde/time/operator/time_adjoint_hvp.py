@@ -12,7 +12,7 @@ Algorithm:
 5. Accumulate HVP from Lagrangian terms at each time step
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.pde.time.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
@@ -21,8 +21,12 @@ from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.storage import TimeTrajectoryStorage
 from pyapprox.pde.time.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
+    PrevStepHVPEnabledTimeSteppingResidualProtocol,
 )
-from pyapprox.pde.time.protocols.type_guards import is_hvp_enabled
+from pyapprox.pde.time.protocols.type_guards import (
+    is_hvp_enabled,
+    is_prev_step_hvp_enabled,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -69,23 +73,6 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         nstates = functional.nstates()
         nparams = functional.nparams()
         self._storage = TimeTrajectoryStorage(nstates, nparams, self._bkd)
-
-        # Verify stepper implements sensitivity protocol
-        self._validate_sensitivity_protocol()
-
-    def _validate_sensitivity_protocol(self) -> None:
-        """Verify stepper implements required sensitivity protocol methods."""
-        required_methods = [
-            "sensitivity_off_diag_jacobian",
-            "is_explicit",
-            "has_prev_state_hessian",
-        ]
-        missing = [m for m in required_methods if not hasattr(self._time_residual, m)]
-        if missing:
-            raise TypeError(
-                f"Time residual {type(self._time_residual).__name__} must implement "
-                f"sensitivity protocol methods: {missing}"
-            )
 
     def _is_explicit_scheme(self) -> bool:
         """Check if the time stepping scheme is explicit."""
@@ -216,6 +203,13 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 "Ensure the ODE residual implements state_state_hvp, etc."
             )
         hvp_residual = self._time_residual
+        prev_hvp_residual: Optional[
+            PrevStepHVPEnabledTimeSteppingResidualProtocol[Array]
+        ] = (
+            hvp_residual
+            if is_prev_step_hvp_enabled(hvp_residual)
+            else None
+        )
 
         if vvec.shape != (self.nparams(), 1):
             raise ValueError(
@@ -231,12 +225,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         # Solve second adjoint equations
         s_sols = self._solve_second_adjoint(
-            fwd_sols, adj_sols, w_sols, times, param, vvec, hvp_residual
+            fwd_sols, adj_sols, w_sols, times, param, vvec,
+            hvp_residual, prev_hvp_residual,
         )
 
         # Accumulate HVP
         return self._accumulate_hvp(
-            fwd_sols, adj_sols, w_sols, s_sols, times, param, vvec, hvp_residual
+            fwd_sols, adj_sols, w_sols, s_sols, times, param, vvec,
+            hvp_residual, prev_hvp_residual,
         )
 
     # =========================================================================
@@ -280,21 +276,17 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         w_sols = self._bkd.copy(w_sols)
 
         # Initial condition: w_0 = (dy_0/dp)·v
-        # If initial condition depends on params via initial_param_jacobian
-        if hasattr(self._time_residual, "initial_param_jacobian"):
-            deltat_0 = self._bkd.to_float(times[1] - times[0])
-            t0 = self._bkd.to_float(times[0])
-            self._time_residual.set_time(t0, deltat_0, fwd_sols[:, 0])
-            dy0dp = self._time_residual.initial_param_jacobian()
-            # Only use residual params (exclude functional params)
-            n_unique = self._functional.nunique_params()
-            if n_unique > 0:
-                v_res = vvec[n_unique:]
-            else:
-                v_res = vvec
-            w_sols[:, 0] = self._bkd.flatten(dy0dp @ v_res)
+        deltat_0 = self._bkd.to_float(times[1] - times[0])
+        t0 = self._bkd.to_float(times[0])
+        self._time_residual.set_time(t0, deltat_0, fwd_sols[:, 0])
+        dy0dp = self._time_residual.initial_param_jacobian()
+        # Only use residual params (exclude functional params)
+        n_unique = self._functional.nunique_params()
+        if n_unique > 0:
+            v_res = vvec[n_unique:]
         else:
-            w_sols[:, 0] = 0.0
+            v_res = vvec
+        w_sols[:, 0] = self._bkd.flatten(dy0dp @ v_res)
 
         # Forward sweep: propagate sensitivity
         for nn in range(1, ntimes):
@@ -357,6 +349,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         param: Array,
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
+        prev_hvp_residual: Optional[
+            PrevStepHVPEnabledTimeSteppingResidualProtocol[Array]
+        ],
     ) -> Array:
         """
         Solve the second adjoint equations for HVP computation.
@@ -526,13 +521,21 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
                 # Contribution from R_{n+1} (using prev_* methods)
                 # Set time to t_n for evaluating f at y_n
-                hvp_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
-                rss_hvp_np1 = hvp_residual.prev_state_state_hvp(
+                if prev_hvp_residual is None:
+                    raise TypeError(
+                        "Crank-Nicolson HVP requires prev_* methods but "
+                        "time residual does not implement "
+                        "PrevStepHVPEnabledTimeSteppingResidualProtocol"
+                    )
+                prev_hvp_residual.native_residual.set_time(
+                    self._bkd.to_float(times[nn])
+                )
+                rss_hvp_np1 = prev_hvp_residual.prev_state_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}
                     w_sols[:, nn],  # w_n
                 )
-                rsp_hvp_np1 = hvp_residual.prev_state_param_hvp(
+                rsp_hvp_np1 = prev_hvp_residual.prev_state_param_hvp(
                     fwd_sols[:, nn],
                     adj_sols[:, nn + 1],
                     v_res,
@@ -600,6 +603,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         param: Array,
         vvec: Array,
         hvp_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
+        prev_hvp_residual: Optional[
+            PrevStepHVPEnabledTimeSteppingResidualProtocol[Array]
+        ],
     ) -> Array:
         """
         Accumulate the Hessian-vector product from all contributions.
@@ -674,8 +680,16 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             # For Crank-Nicolson: also add contribution from R_{n+1}
             # (λ_{n+1}^T · ∂²R_{n+1}/∂p ∂y_n · w_n)
             if self._is_crank_nicolson() and nn < len(times) - 1:
-                hvp_residual.native_residual.set_time(self._bkd.to_float(times[nn]))
-                rps_hvp_np1 = hvp_residual.prev_param_state_hvp(
+                if prev_hvp_residual is None:
+                    raise TypeError(
+                        "Crank-Nicolson HVP requires prev_* methods but "
+                        "time residual does not implement "
+                        "PrevStepHVPEnabledTimeSteppingResidualProtocol"
+                    )
+                prev_hvp_residual.native_residual.set_time(
+                    self._bkd.to_float(times[nn])
+                )
+                rps_hvp_np1 = prev_hvp_residual.prev_param_state_hvp(
                     fwd_sols[:, nn],  # y_n (acts as y_{n-1} for R_{n+1})
                     adj_sols[:, nn + 1],  # λ_{n+1}
                     w_sols[:, nn],  # w_n

@@ -9,7 +9,7 @@ from typing import Generic, Optional, Tuple
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
-    BCEnforcingTimeResidual,
+    create_bc_enforcing_residual,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
@@ -297,7 +297,7 @@ class CollocationModel(Generic[Array]):
         # Build pipeline: adapter → stepper → BC residual → Newton → integrator
         stepper_cls = _STEPPER_REGISTRY[config.method]
         stepper = stepper_cls(self._adapter)
-        bc_residual = BCEnforcingTimeResidual(stepper, self._physics, self._bkd)
+        bc_residual = create_bc_enforcing_residual(stepper, self._physics, self._bkd)
         newton = NewtonSolver(bc_residual)
         newton.set_options(
             maxiters=config.newton_maxiter,

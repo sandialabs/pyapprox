@@ -1096,7 +1096,7 @@ class ExactGaussianProcess(Generic[Array]):
 
             return cov_full
 
-    def neg_log_marginal_likelihood(self) -> float:
+    def neg_log_marginal_likelihood(self) -> Array:
         """
         Compute the negative log marginal likelihood.
 
@@ -1107,8 +1107,8 @@ class ExactGaussianProcess(Generic[Array]):
 
         Returns
         -------
-        float
-            Negative log marginal likelihood value.
+        Array
+            Scalar negative log marginal likelihood value.
 
         Raises
         ------
@@ -1135,7 +1135,7 @@ class ExactGaussianProcess(Generic[Array]):
         # Total negative log marginal likelihood
         nlml = 0.5 * (data_fit + log_det + constant)
 
-        return float(nlml)
+        return nlml
 
     def __repr__(self) -> str:
         """Return string representation."""

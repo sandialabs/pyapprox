@@ -185,11 +185,11 @@ class IdentityOutputTransform(Generic[Array]):
 
     def scale(self) -> Array:
         """Return ones, shape (nqoi,)."""
-        return self._bkd.ones(self._nqoi)
+        return self._bkd.ones((self._nqoi,))
 
     def shift(self) -> Array:
         """Return zeros, shape (nqoi,)."""
-        return self._bkd.zeros(self._nqoi)
+        return self._bkd.zeros((self._nqoi,))
 
     def transform(self, y: Array) -> Array:
         """Return y unchanged."""

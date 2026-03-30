@@ -183,7 +183,7 @@ def _create_kle_forcing(
     # Use mesh nodes for KLE construction
     mesh_coords_np = bkd.to_numpy(adr_basis.dof_coordinates())
     mesh_coords = bkd.asarray(mesh_coords_np)
-    mean_log = bkd.zeros(mesh_coords.shape[1])
+    mean_log = bkd.zeros((mesh_coords.shape[1],))
 
     kle_map = create_lognormal_kle_field_map(
         mesh_coords=mesh_coords,
@@ -371,7 +371,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 
         # Solve transient
         model = GalerkinModel(adr, bkd)
-        ic = bkd.to_numpy(bkd.zeros(adr.nstates()))
+        ic = bkd.to_numpy(bkd.zeros((adr.nstates(),)))
         config = TimeIntegrationConfig(
             method="backward_euler",
             final_time=self._final_time,

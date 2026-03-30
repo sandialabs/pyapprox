@@ -79,7 +79,7 @@ class ChemicalReactionResidual(Generic[Array]):
 
     def get_initial_condition(self) -> Array:
         """Return initial condition (empty surface)."""
-        return self._bkd.zeros(self._nstates)
+        return self._bkd.zeros((self._nstates,))
 
     def __call__(self, state: Array) -> Array:
         """

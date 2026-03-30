@@ -276,13 +276,13 @@ def _allocate_samples_mlmc(
         raise ValueError("Models cost do not decrease monotonically")
 
     # compute the variance of the discrepancy
-    var_deltas = bkd.empty(nmodels)
+    var_deltas = bkd.empty((nmodels,))
     for ii in range(nmodels - 1):
         var_deltas[ii] = cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
     var_deltas[nmodels - 1] = cov[nmodels - 1, nmodels - 1]
 
     # compute the cost of one sample of the discrepancy
-    cost_deltas = bkd.empty(nmodels)
+    cost_deltas = bkd.empty((nmodels,))
     cost_deltas[: nmodels - 1] = costs[: nmodels - 1] + costs[1:nmodels]
     cost_deltas[nmodels - 1] = costs[nmodels - 1]
 
@@ -302,7 +302,7 @@ def _allocate_samples_mlmc(
     # all but the highest fidelity model we need to collect samples
     # from two discrepancies.
     nhf_samples = nsamples_per_delta[0]
-    nsample_ratios = bkd.empty(nmodels - 1)
+    nsample_ratios = bkd.empty((nmodels - 1,))
     for ii in range(nmodels - 1):
         nsample_ratios[ii] = (
             nsamples_per_delta[ii] + nsamples_per_delta[ii + 1]

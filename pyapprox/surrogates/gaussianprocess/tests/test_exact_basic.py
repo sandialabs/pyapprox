@@ -280,8 +280,8 @@ class TestExactGPBasic:
         nlml = gp.neg_log_marginal_likelihood()
 
         # Should be a positive finite value
-        assert math.isfinite(nlml)
-        assert nlml > 0
+        assert math.isfinite(bkd.to_float(nlml))
+        assert bkd.to_float(nlml) > 0
 
     def test_zero_mean_function(self, bkd) -> None:
         """Test with zero mean function."""

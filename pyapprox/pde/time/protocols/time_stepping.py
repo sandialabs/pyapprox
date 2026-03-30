@@ -9,13 +9,17 @@ Protocol Hierarchy
 ------------------
 TimeSteppingResidualProtocol
     Basic time step R(y_n) = 0.
+SensitivityStepperProtocol
+    Adds sensitivity methods (is_explicit, sensitivity_off_diag_jacobian).
 AdjointEnabledTimeSteppingResidualProtocol
     Adds adjoint methods for gradient computation.
 HVPEnabledTimeSteppingResidualProtocol
-    Adds HVP methods for Hessian-vector products.
+    Adds 4 core HVP methods (state-state, state-param, param-state, param-param).
+PrevStepHVPEnabledTimeSteppingResidualProtocol
+    Adds 3 prev_* HVP methods for cross-step schemes (Crank-Nicolson).
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.pde.time.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -108,11 +112,65 @@ class TimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class SensitivityStepperProtocol(Protocol, Generic[Array]):
+    """
+    Time stepping residual with sensitivity support.
+
+    Extends TimeSteppingResidualProtocol with methods needed for forward
+    sensitivity propagation and basic adjoint infrastructure.
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def set_time(self, time: float, deltat: float, prev_state: Array) -> None: ...
+
+    def __call__(self, state: Array) -> Array: ...
+
+    def jacobian(self, state: Array) -> Array: ...
+
+    def linsolve(self, state: Array, residual: Array) -> Array: ...
+
+    @property
+    def native_residual(self) -> ODEResidualProtocol[Array]:
+        """Return the underlying ODE residual."""
+        ...
+
+    def is_explicit(self) -> bool:
+        """Return True if the time stepping scheme is explicit."""
+        ...
+
+    def has_prev_state_hessian(self) -> bool:
+        """Return True if R_{n+1} depends on f(y_n)."""
+        ...
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        ...
+
+
+@runtime_checkable
 class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     """
     Time stepping residual with adjoint capability for gradient computation.
 
-    Extends TimeSteppingResidualProtocol with methods required for the
+    Extends SensitivityStepperProtocol with methods required for the
     adjoint method to compute dQ/dp.
 
     Methods for Adjoint Computation
@@ -312,14 +370,50 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def zero_adjoint_rhs(self, dqdu: Array) -> Array:
+        """Zero dQ/dy entries at constrained DOFs for adjoint solve.
+
+        For steppers without boundary condition enforcement, this is a
+        no-op that returns dqdu unchanged. BC-enforcing wrappers override
+        to zero essential (Dirichlet) DOFs.
+
+        Parameters
+        ----------
+        dqdu : Array
+            Functional derivative dQ/dy. Shape: (nstates,).
+
+        Returns
+        -------
+        Array
+            Possibly modified dQ/dy. Shape: (nstates,).
+        """
+        ...
+
+    def initial_param_jacobian(self) -> Array:
+        """Jacobian of initial condition w.r.t. parameters.
+
+        Returns d(y_0)/dp. Shape: (nstates, nparams).
+        Returns zeros when the initial state does not depend on parameters.
+
+        Returns
+        -------
+        Array
+            Shape (nstates, nparams).
+        """
+        ...
+
 
 @runtime_checkable
 class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     """
     Time stepping residual with HVP capability for second-order adjoints.
 
-    Extends AdjointEnabledTimeSteppingResidualProtocol with four HVP methods
-    for the time stepping residual, enabling Hessian-vector product computation.
+    Extends AdjointEnabledTimeSteppingResidualProtocol with four core HVP
+    methods for the time stepping residual, enabling Hessian-vector product
+    computation.
+
+    The prev_* methods (for cross-step schemes like Crank-Nicolson) are on
+    PrevStepHVPEnabledTimeSteppingResidualProtocol.
     """
 
     # All AdjointEnabledTimeSteppingResidualProtocol methods
@@ -364,7 +458,11 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]: ...
 
-    # HVP methods
+    def zero_adjoint_rhs(self, dqdu: Array) -> Array: ...
+
+    def initial_param_jacobian(self) -> Array: ...
+
+    # HVP methods (4 core, no prev_*)
     def state_state_hvp(
         self,
         fsol_nm1: Array,
@@ -476,6 +574,94 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
             HVP result. Shape: (nparams,)
         """
         ...
+
+
+@runtime_checkable
+class PrevStepHVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
+    """
+    Time stepping residual with cross-step HVP methods.
+
+    Extends HVPEnabledTimeSteppingResidualProtocol with prev_* methods
+    for schemes where R_{n+1} depends on f(y_n) (e.g., Crank-Nicolson).
+    """
+
+    # All HVPEnabledTimeSteppingResidualProtocol methods
+    def bkd(self) -> Backend[Array]: ...
+
+    def set_time(self, time: float, deltat: float, prev_state: Array) -> None: ...
+
+    def __call__(self, state: Array) -> Array: ...
+
+    def jacobian(self, state: Array) -> Array: ...
+
+    def linsolve(self, state: Array, residual: Array) -> Array: ...
+
+    @property
+    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]: ...
+
+    def is_explicit(self) -> bool: ...
+
+    def has_prev_state_hessian(self) -> bool: ...
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array: ...
+
+    def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array: ...
+
+    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array: ...
+
+    def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array: ...
+
+    def adjoint_initial_condition(
+        self, final_fwd_sol: Array, final_dqdu: Array
+    ) -> Array: ...
+
+    def adjoint_final_solution(
+        self,
+        fsol_0: Array,
+        asol_1: Array,
+        dqdu_0: Array,
+        deltat_1: float,
+    ) -> Array: ...
+
+    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]: ...
+
+    def zero_adjoint_rhs(self, dqdu: Array) -> Array: ...
+
+    def initial_param_jacobian(self) -> Array: ...
+
+    def state_state_hvp(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array: ...
+
+    def state_param_hvp(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array: ...
+
+    def param_state_hvp(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array: ...
+
+    def param_param_hvp(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array: ...
 
     # Cross-step HVP methods (Crank-Nicolson and similar schemes)
 

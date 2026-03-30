@@ -95,8 +95,8 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         y1 = residual(x1)
 
         # Handle edge case when alpha = 0
-        if self._bkd.allclose(y1, self._bkd.zeros(1), atol=3e-16):
-            if not self._bkd.allclose(self._alpha, self._bkd.zeros(1), atol=1e-15):
+        if self._bkd.allclose(y1, self._bkd.zeros((1,)), atol=3e-16):
+            if not self._bkd.allclose(self._alpha, self._bkd.zeros((1,)), atol=1e-15):
                 raise RuntimeError("Unexpected zero residual at boundary")
             imid = 1
             y1 = y1 * 0 - 3.0e-16

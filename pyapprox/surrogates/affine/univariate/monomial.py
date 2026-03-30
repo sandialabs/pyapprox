@@ -153,11 +153,11 @@ class MonomialBasis1D(Generic[Array]):
             consts = self._bkd.arange(self._nterms, dtype=samples.dtype)
         else:
             # For higher order, compute n * (n-1) * ... * (n-order+1)
-            consts = self._bkd.ones(self._nterms, dtype=samples.dtype)
+            consts = self._bkd.ones((self._nterms,), dtype=samples.dtype)
             for k in range(order):
                 consts = consts * self._bkd.maximum(
                     self._bkd.arange(self._nterms) - k,
-                    self._bkd.zeros(self._nterms),
+                    self._bkd.zeros((self._nterms,)),
                 )
 
         return (samples.T ** powers[None, :]) * consts[None, :]

@@ -13,8 +13,10 @@ ODE Residuals (user-defined):
 
 Time Stepping Residuals (framework):
     TimeSteppingResidualProtocol
-        -> AdjointEnabledTimeSteppingResidualProtocol
-            -> HVPEnabledTimeSteppingResidualProtocol
+        -> SensitivityStepperProtocol
+            -> AdjointEnabledTimeSteppingResidualProtocol
+                -> HVPEnabledTimeSteppingResidualProtocol
+                    -> PrevStepHVPEnabledTimeSteppingResidualProtocol
 
 Base Classes:
     TimeSteppingResidualBase
@@ -43,6 +45,8 @@ from .ode_residual import (
 from .time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
+    PrevStepHVPEnabledTimeSteppingResidualProtocol,
+    SensitivityStepperProtocol,
     TimeSteppingResidualProtocol,
 )
 
@@ -53,8 +57,10 @@ __all__ = [
     "ODEResidualWithHVPProtocol",
     # Time Stepping Residual Protocols
     "TimeSteppingResidualProtocol",
+    "SensitivityStepperProtocol",
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
+    "PrevStepHVPEnabledTimeSteppingResidualProtocol",
     # Base Classes and Mixins
     "TimeSteppingResidualBase",
     "ParamJacobianCapableMixin",

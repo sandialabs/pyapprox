@@ -429,7 +429,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         nhf_samples = self._get_num_high_fidelity_samples_from_partition_ratios(
             target_cost, partition_ratios
         )
-        npartition_samples = self._bkd.empty(partition_ratios.shape[0] + 1)
+        npartition_samples = self._bkd.empty((partition_ratios.shape[0] + 1,))
         npartition_samples[0] = nhf_samples
         npartition_samples[1:] = partition_ratios * nhf_samples
         return npartition_samples
@@ -571,7 +571,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return self._compute_single_model_nsamples(npartition_samples, model_id)
 
     def _compute_nsamples_per_model(self, npartition_samples: Array) -> Array:
-        nsamples_per_model = self._bkd.empty(self._nmodels)
+        nsamples_per_model = self._bkd.empty((self._nmodels,))
         for ii in range(self._nmodels):
             nsamples_per_model[ii] = self._compute_single_model_nsamples(
                 npartition_samples, ii

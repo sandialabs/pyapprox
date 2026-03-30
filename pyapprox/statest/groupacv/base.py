@@ -735,7 +735,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _traditional_acv_weights(self) -> Array:
         beta = self._grouped_acv_beta(self.optimized_sigma())
-        assert self._bkd.allclose(self._bkd.sum(beta, axis=1), self._bkd.ones(beta.shape[0])), (
+        assert self._bkd.allclose(self._bkd.sum(beta, axis=1), self._bkd.ones((beta.shape[0],))), (
             self._bkd.sum(beta, axis=1)
         )
         alpha = self._bkd.zeros(

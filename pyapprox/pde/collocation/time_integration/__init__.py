@@ -1,7 +1,11 @@
 """Time integration bridge for spectral collocation methods."""
 
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
-    BCEnforcingTimeResidual,
+    BCEnforcingAdjointResidual,
+    BCEnforcingForwardResidual,
+    BCEnforcingHVPResidual,
+    BCEnforcingPrevStepHVPResidual,
+    create_bc_enforcing_residual,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -15,5 +19,9 @@ __all__ = [
     "PhysicsToODEResidualAdapter",
     "TimeIntegrationConfig",
     "CollocationModel",
-    "BCEnforcingTimeResidual",
+    "BCEnforcingForwardResidual",
+    "BCEnforcingAdjointResidual",
+    "BCEnforcingHVPResidual",
+    "BCEnforcingPrevStepHVPResidual",
+    "create_bc_enforcing_residual",
 ]

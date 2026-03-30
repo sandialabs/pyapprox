@@ -54,7 +54,7 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
             return bkd.zeros((1, 1))
 
         # Barycentric weights: c_i = 2 at endpoints, alternating sign
-        c = bkd.ones(npts)
+        c = bkd.ones((npts,))
         c = bkd.copy(c)  # Ensure writeable
         c[0] = 2.0
         c[npts - 1] = 2.0
@@ -62,7 +62,7 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
         # Alternating sign: multiply by (-1)^i
         # Use where to avoid numpy roundtrip and preserve backend dtype
         idx = bkd.arange(npts)
-        signs = bkd.where(idx % 2 == 0, bkd.ones(npts), -bkd.ones(npts))
+        signs = bkd.where(idx % 2 == 0, bkd.ones((npts,)), -bkd.ones((npts,)))
         c = c * signs
 
         # Compute D[i,j] = (c_i/c_j) / (x_i - x_j) for i != j

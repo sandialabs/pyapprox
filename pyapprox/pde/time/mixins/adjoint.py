@@ -75,6 +75,21 @@ class AdjointMixin(ABC, Generic[Array]):
         """Compute the initial condition for backward adjoint solve."""
         ...
 
+    def zero_adjoint_rhs(self, dqdu: Array) -> Array:
+        """Zero dQ/dy entries at constrained DOFs for adjoint solve.
+
+        Default no-op: returns dqdu unchanged. BC-enforcing wrappers
+        override to zero essential (Dirichlet) DOFs.
+        """
+        return dqdu
+
+    def initial_param_jacobian(self) -> Array:
+        """Jacobian of initial condition w.r.t. parameters.
+
+        Default delegates to native_residual.initial_param_jacobian().
+        """
+        return self._adjoint_residual.initial_param_jacobian()
+
     def adjoint_final_solution(
         self,
         fsol_0: Array,

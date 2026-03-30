@@ -209,8 +209,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Compute NLL
         nll = self._gp.neg_log_marginal_likelihood()
 
-        # Return as (1, 1) array
-        return self._bkd.reshape(self._bkd.array([nll]), (1, 1))
+        # Return as (1, 1) array, preserving autograd graph
+        return self._bkd.reshape(nll, (1, 1))
 
     def _jacobian(self, params: Array) -> Array:
         """

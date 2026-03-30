@@ -118,11 +118,11 @@ class IdentityInputTransform(Generic[Array]):
 
     def scale(self) -> Array:
         """Return ones, shape (nvars,)."""
-        return self._bkd.ones(self._nvars)
+        return self._bkd.ones((self._nvars,))
 
     def shift(self) -> Array:
         """Return zeros, shape (nvars,)."""
-        return self._bkd.zeros(self._nvars)
+        return self._bkd.zeros((self._nvars,))
 
     def nvars(self) -> int:
         """Return number of input dimensions."""
@@ -138,7 +138,7 @@ class IdentityInputTransform(Generic[Array]):
 
     def jacobian_factor(self) -> Array:
         """Return ones, shape (nvars,)."""
-        return self._bkd.ones(self._nvars)
+        return self._bkd.ones((self._nvars,))
 
     def hessian_factor(self) -> Array:
         """Return ones matrix, shape (nvars, nvars)."""

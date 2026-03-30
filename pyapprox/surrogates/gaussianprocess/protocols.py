@@ -304,7 +304,7 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
         """
         ...
 
-    def neg_log_marginal_likelihood(self) -> float:
+    def neg_log_marginal_likelihood(self) -> Array:
         """
         Compute the negative log marginal likelihood.
 
@@ -315,8 +315,8 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
 
         Returns
         -------
-        float
-            Negative log marginal likelihood value.
+        Array
+            Scalar negative log marginal likelihood value.
 
         Raises
         ------

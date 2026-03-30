@@ -333,12 +333,12 @@ class NonLinearCoupledStateEquations(Generic[Array]):
                 self._bkd.hstack(
                     [
                         2 * self._apow * a ** (self._apow - 1) * state[0, 0] * va,
-                        self._bkd.zeros(1),
+                        self._bkd.zeros((1,)),
                     ]
                 ),
                 self._bkd.hstack(
                     [
-                        self._bkd.zeros(1),
+                        self._bkd.zeros((1,)),
                         -2 * self._bpow * b ** (self._bpow - 1) * state[1, 0] * vb,
                     ]
                 ),

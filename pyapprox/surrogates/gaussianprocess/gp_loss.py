@@ -113,13 +113,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         nll = self._gp.neg_log_marginal_likelihood()
 
         # Return as (1, 1) array, preserving autograd graph
-        # nll may be a scalar tensor; reshape preserves the graph
-        nll_array = (
-            self._bkd.reshape(nll, (1,))
-            if hasattr(nll, "shape")
-            else self._bkd.array([nll])
-        )
-        return self._bkd.reshape(nll_array, (1, 1))
+        return self._bkd.reshape(nll, (1, 1))
 
     def _setup_derivative_methods(self) -> None:
         """Bind jacobian method if kernel supports analytical gradients."""

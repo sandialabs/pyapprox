@@ -81,12 +81,7 @@ class VariationalGPELBOLoss(Generic[Array]):
         self._gp._fit_internal(*self._fit_args)
         neg_elbo = self._gp.neg_log_marginal_likelihood()
 
-        neg_elbo_arr = (
-            self._bkd.reshape(neg_elbo, (1,))
-            if hasattr(neg_elbo, "shape")
-            else self._bkd.array([neg_elbo])
-        )
-        return self._bkd.reshape(neg_elbo_arr, (1, 1))
+        return self._bkd.reshape(neg_elbo, (1, 1))
 
     def __repr__(self) -> str:
         return (
