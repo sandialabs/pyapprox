@@ -1,23 +1,29 @@
 """
 Derivative checker for time-dependent adjoint operators.
 
-This module provides comprehensive derivative checking for:
-1. ODE residual functions (jacobian, param_jacobian, HVP methods)
-2. Time stepping residual functions (param_jacobian, HVP methods at each step)
-3. Full HVP accumulation over time
+Use this instead of plain DerivativeChecker when validating derivatives in
+time-dependent adjoint/HVP pipelines. A DerivativeChecker on the final
+functional output would only verify the composed map from parameters to QoI.
+This checker validates each layer independently:
 
-The checks are performed at multiple time steps to ensure residuals correctly
-depend on time.
+1. ODE residual: jacobian, param_jacobian, and all four HVP blocks
+2. Time stepping residual: param_jacobian and HVP methods at each time step,
+   verifying that the time stepper correctly wraps the ODE residual
+3. Full HVP accumulation over time: the assembled Hessian-vector product
+   that the adjoint operator produces by marching backward
 
-Usage:
-    # For any native ODE residual and time stepper
+Checks are performed at multiple time steps to catch time-dependent bugs
+(e.g., wrong deltat scaling, stale cached state).
+
+Usage::
+
     checker = TimeAdjointDerivativeChecker(adjoint_operator)
     checker.check_all_derivatives(init_state, param, tol=1e-6)
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, List, Optional
+from typing import TYPE_CHECKING, Generic, List, Optional, cast
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -25,6 +31,12 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJVPFromCallable,
+)
+from pyapprox.pde.time.protocols.ode_residual import (
+    ODEResidualWithHVPProtocol,
+)
+from pyapprox.pde.time.protocols.time_stepping import (
+    HVPEnabledTimeSteppingResidualProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
@@ -55,12 +67,26 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         ----------
         adjoint_operator : TimeAdjointOperatorWithHVP
             The time adjoint operator to check.
+
+        Raises
+        ------
+        TypeError
+            If the integrator's time residual does not support HVP methods.
         """
         self._operator = adjoint_operator
         self._integrator = adjoint_operator._integrator
         self._functional = adjoint_operator._functional
-        self._time_residual = self._integrator._newton_solver._residual
-        self._ode_residual = self._time_residual._residual
+        hvp_tr = self._integrator.hvp_time_residual()
+        if hvp_tr is None:
+            raise TypeError(
+                "TimeAdjointDerivativeChecker requires an HVP-capable stepper. "
+                f"Got {type(self._integrator.time_residual()).__name__}."
+            )
+        self._time_residual: HVPEnabledTimeSteppingResidualProtocol[Array] = hvp_tr
+        self._ode_residual: ODEResidualWithHVPProtocol[Array] = cast(
+            ODEResidualWithHVPProtocol[Array],
+            hvp_tr.native_residual,
+        )
         self._bkd = self._ode_residual.bkd()
 
     def _get_fd_eps(self, fd_eps: Optional[Array] = None) -> Array:
@@ -80,6 +106,44 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         if arr.ndim == 2 and arr.shape[1] == 1:
             return self._bkd.flatten(arr)
         return arr
+
+    def _check_and_return(
+        self,
+        checker: DerivativeChecker[Array],
+        sample: Array,
+        fd_eps: Optional[Array],
+        verbosity: int,
+    ) -> Array:
+        """Run check_derivatives and return the error array."""
+        results: List[Array] = checker.check_derivatives(
+            sample,
+            fd_eps=self._get_fd_eps(fd_eps),
+            direction=None,
+            relative=True,
+            verbosity=verbosity,
+        )
+        return results[0]
+
+    def _assert_derivatives_close(
+        self, errors: Array, tol: float, label: str
+    ) -> None:
+        """Assert finite-difference error ratio is below tolerance.
+
+        Parameters
+        ----------
+        errors : Array
+            Error array from check_derivatives (one entry per FD step size).
+        tol : float
+            Maximum acceptable min/max error ratio (< 1e-6 typical).
+        label : str
+            Description for the assertion message.
+        """
+        ratio = self._bkd.to_float(
+            self._bkd.min(errors) / self._bkd.max(errors)
+        )
+        assert ratio <= tol, (
+            f"{label}: error ratio {ratio:.2e} exceeds tolerance {tol:.2e}"
+        )
 
     # =========================================================================
     # ODE Residual Checks
@@ -134,14 +198,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jacobian=jac,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            self._to_2d(state_1d),
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), self._to_2d(state_1d), fd_eps, verbosity
+        )
 
     def check_ode_param_jacobian(
         self,
@@ -197,14 +256,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jacobian=jac,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_ode_state_state_hvp(
         self,
@@ -245,14 +299,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            self._to_2d(state_1d),
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), self._to_2d(state_1d), fd_eps, verbosity
+        )
 
     def check_ode_state_param_hvp(
         self,
@@ -296,14 +345,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_ode_param_state_hvp(
         self,
@@ -350,14 +394,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            self._to_2d(state_1d),
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), self._to_2d(state_1d), fd_eps, verbosity
+        )
 
     def check_ode_param_param_hvp(
         self,
@@ -400,14 +439,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     # =========================================================================
     # Time Residual Checks
@@ -474,14 +508,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jacobian=jac,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_time_residual_state_state_hvp(
         self,
@@ -535,14 +564,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            self._to_2d(fsol_nm1_1d),
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), self._to_2d(fsol_nm1_1d), fd_eps, verbosity
+        )
 
     def check_time_residual_param_param_hvp(
         self,
@@ -591,14 +615,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_time_residual_state_param_hvp(
         self,
@@ -650,14 +669,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_time_residual_param_state_hvp(
         self,
@@ -710,14 +724,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            self._to_2d(fsol_nm1_1d),
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), self._to_2d(fsol_nm1_1d), fd_eps, verbosity
+        )
 
     # =========================================================================
     # Full Operator Checks
@@ -776,14 +785,9 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jacobian=jac,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     def check_hvp(
         self,
@@ -837,187 +841,73 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             jvp=jvp,
             bkd=self._bkd,
         )
-        checker = DerivativeChecker(wrapper)
-        return checker.check_derivatives(
-            param_2d,
-            fd_eps=self._get_fd_eps(fd_eps),
-            direction=None,
-            relative=True,
-            verbosity=verbosity,
-        )[0]
+        return self._check_and_return(
+            DerivativeChecker(wrapper), param_2d, fd_eps, verbosity
+        )
 
     # =========================================================================
-    # Comprehensive Check
+    # Convenience methods
     # =========================================================================
 
-    def check_all_derivatives(
+    def check_all_ode_derivatives(
         self,
-        init_state: Array,
+        state: Array,
         param: Array,
-        tol: float = 1e-6,
-        times: Optional[List[float]] = None,
+        adj_state: Optional[Array] = None,
+        time: float = 0.0,
         fd_eps: Optional[Array] = None,
         verbosity: int = 0,
-    ) -> None:
-        """
-        Check all derivatives at multiple time points.
+    ) -> List[Array]:
+        """Check all ODE-level derivatives."""
+        if adj_state is None:
+            adj_state = self._bkd.ones(self._from_2d(state).shape)
 
-        Parameters
-        ----------
-        init_state : Array
-            Initial state. Shape: (nstates,) or (nstates, 1)
-        param : Array
-            Parameters. Shape: (nparams,) or (nparams, 1)
-        tol : float
-            Tolerance for error ratio (min/max errors).
-        times : Optional[List[float]]
-            Times at which to check ODE residual derivatives.
-            Default: [0.0, dt, 2*dt] where dt is the time step.
-        fd_eps : Optional[Array]
-            Finite difference step sizes.
-        verbosity : int
-            Verbosity level.
+        return [
+            self.check_ode_jacobian(state, time, fd_eps, verbosity),
+            self.check_ode_param_jacobian(state, param, time, fd_eps, verbosity),
+            self.check_ode_state_state_hvp(
+                state, adj_state, time, fd_eps, verbosity
+            ),
+            self.check_ode_state_param_hvp(
+                state, param, adj_state, time, fd_eps, verbosity
+            ),
+            self.check_ode_param_state_hvp(
+                state, param, adj_state, time, fd_eps, verbosity
+            ),
+            self.check_ode_param_param_hvp(
+                state, param, adj_state, time, fd_eps, verbosity
+            ),
+        ]
 
-        Raises
-        ------
-        AssertionError
-            If any derivative check fails.
-        """
-        init_state_1d = self._from_2d(init_state)
-        param_2d = self._to_2d(param)
+    def check_all_time_residual_derivatives(
+        self,
+        fsol_nm1: Array,
+        fsol_n: Array,
+        param: Array,
+        adj_state: Optional[Array] = None,
+        time: float = 0.0,
+        deltat: float = 0.01,
+        fd_eps: Optional[Array] = None,
+        verbosity: int = 0,
+    ) -> List[Array]:
+        """Check all time-residual-level derivatives."""
+        if adj_state is None:
+            adj_state = self._bkd.ones(self._from_2d(fsol_n).shape)
 
-        self._ode_residual.set_param(param_2d)
-        deltat = self._integrator._deltat
-
-        # Default times to check
-        if times is None:
-            times = [0.0, deltat, 2 * deltat]
-
-        # Get forward trajectory for test states
-        self._operator.storage()._clear()
-        fwd_sols, time_pts = self._operator._get_forward_trajectory(
-            init_state_1d, param_2d
-        )
-        adj_sols = self._operator._get_adjoint_trajectory(init_state_1d, param_2d)
-
-        nstates = init_state_1d.shape[0]
-        adj_state = self._bkd.asarray([1.0] + [0.0] * (nstates - 1))
-
-        # 1. Check ODE residual derivatives at multiple times
-        if verbosity > 0:
-            print("\n" + "=" * 60)
-            print("CHECKING ODE RESIDUAL DERIVATIVES")
-            print("=" * 60)
-
-        for t in times:
-            errors = self.check_ode_jacobian(init_state_1d, t, fd_eps, verbosity)
-            self._assert_derivatives_close(errors, tol, f"ODE jacobian at t={t}")
-
-            errors = self.check_ode_param_jacobian(
-                init_state_1d, param_2d, t, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(errors, tol, f"ODE param_jacobian at t={t}")
-
-            errors = self.check_ode_state_state_hvp(
-                init_state_1d, adj_state, t, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(errors, tol, f"ODE state_state_hvp at t={t}")
-
-            errors = self.check_ode_state_param_hvp(
-                init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(errors, tol, f"ODE state_param_hvp at t={t}")
-
-            errors = self.check_ode_param_state_hvp(
-                init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(errors, tol, f"ODE param_state_hvp at t={t}")
-
-            errors = self.check_ode_param_param_hvp(
-                init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(errors, tol, f"ODE param_param_hvp at t={t}")
-
-        # 2. Check time residual derivatives at each step
-        if verbosity > 0:
-            print("\n" + "=" * 60)
-            print("CHECKING TIME RESIDUAL DERIVATIVES")
-            print("=" * 60)
-
-        ntimes = time_pts.shape[0]
-        for nn in range(1, min(ntimes, 3)):  # Check first few steps
-            t = float(time_pts[nn - 1])
-            fsol_nm1 = fwd_sols[:, nn - 1]
-            fsol_n = fwd_sols[:, nn]
-            adj_n = adj_sols[:, nn]
-
-            errors = self.check_time_residual_param_jacobian(
-                fsol_nm1, fsol_n, param_2d, t, deltat, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(
-                errors, tol, f"Time param_jacobian step {nn}"
-            )
-
-            errors = self.check_time_residual_param_param_hvp(
-                fsol_nm1, fsol_n, param_2d, adj_n, t, deltat, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(
-                errors, tol, f"Time param_param_hvp step {nn}"
-            )
-
-            errors = self.check_time_residual_state_param_hvp(
-                fsol_nm1, fsol_n, param_2d, adj_n, t, deltat, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(
-                errors, tol, f"Time state_param_hvp step {nn}"
-            )
-
-            errors = self.check_time_residual_param_state_hvp(
-                fsol_nm1, fsol_n, param_2d, adj_n, t, deltat, fd_eps, verbosity
-            )
-            self._assert_derivatives_close(
-                errors, tol, f"Time param_state_hvp step {nn}"
-            )
-
-        # 3. Check full operator derivatives
-        if verbosity > 0:
-            print("\n" + "=" * 60)
-            print("CHECKING FULL OPERATOR DERIVATIVES")
-            print("=" * 60)
-
-        errors = self.check_jacobian(init_state_1d, param_2d, fd_eps, verbosity)
-        self._assert_derivatives_close(errors, tol, "Full Jacobian")
-
-        errors = self.check_hvp(init_state_1d, param_2d, fd_eps, verbosity)
-        self._assert_derivatives_close(errors, tol, "Full HVP")
-
-        if verbosity > 0:
-            print("\n" + "=" * 60)
-            print("ALL DERIVATIVE CHECKS PASSED")
-            print("=" * 60)
-
-    def _assert_derivatives_close(
-        self, errors: Array, tol: float, name: str = ""
-    ) -> None:
-        """
-        Assert that finite difference errors show proper convergence.
-
-        The error ratio (min/max) should be small, indicating the analytical
-        derivative matches finite differences at the optimal step size.
-        """
-        min_err = self._bkd.to_float(self._bkd.min(errors))
-        max_err = self._bkd.to_float(self._bkd.max(errors))
-
-        if min_err == max_err:
-            # All errors are the same - either all zero or no convergence
-            if min_err > tol:
-                raise AssertionError(
-                    f"{name}: Constant error {min_err:.2e} > tol {tol:.2e}"
-                )
-        else:
-            ratio = min_err / max_err
-            if ratio > tol:
-                raise AssertionError(
-                    f"{name}: Error ratio {ratio:.2e} > tol {tol:.2e} "
-                    f"(min={min_err:.2e}, max={max_err:.2e})"
-                )
+        return [
+            self.check_time_residual_param_jacobian(
+                fsol_nm1, fsol_n, param, time, deltat, fd_eps, verbosity
+            ),
+            self.check_time_residual_state_state_hvp(
+                fsol_nm1, fsol_n, param, adj_state, time, deltat, fd_eps, verbosity
+            ),
+            self.check_time_residual_param_param_hvp(
+                fsol_nm1, fsol_n, param, adj_state, time, deltat, fd_eps, verbosity
+            ),
+            self.check_time_residual_state_param_hvp(
+                fsol_nm1, fsol_n, param, adj_state, time, deltat, fd_eps, verbosity
+            ),
+            self.check_time_residual_param_state_hvp(
+                fsol_nm1, fsol_n, param, adj_state, time, deltat, fd_eps, verbosity
+            ),
+        ]

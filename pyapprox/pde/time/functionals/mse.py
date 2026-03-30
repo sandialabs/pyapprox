@@ -37,8 +37,8 @@ class TransientMSEFunctional(Generic[Array]):
         nstates: int,
         nresidual_params: int,
         obs_tuples: List[Tuple[int, Array]],
-        noise_std: float = None,
-        bkd: Backend[Array] = None,
+        bkd: Backend[Array],
+        noise_std: Optional[float] = None,
     ):
         validate_backend(bkd)
         self._nstates = nstates
@@ -51,10 +51,17 @@ class TransientMSEFunctional(Generic[Array]):
         self._bkd = bkd
         self._param: Optional[Array] = None
         self._obs: Optional[Array] = None
+        self._sigma: float = noise_std if noise_std is not None else 1.0
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def _get_obs(self) -> Array:
+        """Return observations, raising if not set."""
+        if self._obs is None:
+            raise RuntimeError("Must call set_observations() first")
+        return self._obs
 
     def nqoi(self) -> int:
         """Return the number of QoI outputs."""
@@ -125,9 +132,22 @@ class TransientMSEFunctional(Generic[Array]):
             obs.append(sol[self._bkd.to_int(state_idx)][time_idx])
         return self._bkd.hstack(obs)
 
+    def _sigma_from_param(self, param: Array) -> Array:
+        """Extract sigma as an array element, preserving the computation graph.
+
+        When noise_std is None, sigma is param[0, 0]. Otherwise returns a
+        scalar array holding the fixed noise_std value.
+        """
+        if self._noise_std is None:
+            return param[0, 0]
+        return self._bkd.asarray(self._noise_std)
+
     def __call__(self, sol: Array, param: Array) -> Array:
         """
         Evaluate the MSE functional.
+
+        This method is autograd-compatible: all operations preserve the
+        computation graph through sol and param.
 
         Parameters
         ----------
@@ -142,8 +162,10 @@ class TransientMSEFunctional(Generic[Array]):
             Q = (1/2σ²) ||pred - obs||². Shape: (1, 1)
         """
         self.set_param(param)
+        obs = self._get_obs()
+        sigma = self._sigma_from_param(param)
         pred_obs = self._observations_from_solution(sol)
-        mse = self._bkd.sum((pred_obs - self._obs) ** 2) / (2.0 * self._sigma**2)
+        mse = self._bkd.sum((pred_obs - obs) ** 2) / (2.0 * sigma**2)
         return self._bkd.atleast_2d(mse)
 
     def state_jacobian(self, sol: Array, param: Array) -> Array:
@@ -165,6 +187,7 @@ class TransientMSEFunctional(Generic[Array]):
             State Jacobian. Shape: (nstates, ntimes)
         """
         self.set_param(param)
+        obs = self._get_obs()
         dqdu = self._bkd.zeros(sol.shape)
         dqdu = self._bkd.copy(dqdu)
         idx = 0
@@ -172,7 +195,7 @@ class TransientMSEFunctional(Generic[Array]):
             state_idx = self._bkd.to_int(state_idx)
             n_obs_at_state = time_idx.shape[0]
             dqdu[state_idx, time_idx] = (
-                sol[state_idx, time_idx] - self._obs[idx : idx + n_obs_at_state]
+                sol[state_idx, time_idx] - obs[idx : idx + n_obs_at_state]
             ) / self._sigma**2
             idx += n_obs_at_state
         return dqdu
@@ -278,8 +301,9 @@ class TransientMSEFunctional(Generic[Array]):
                     sol_val = self._bkd.to_float(
                         sol[state_idx, time_idx]
                     )
+                    obs = self._get_obs()
                     obs_val = self._bkd.to_float(
-                        self._obs[idx + local_idx]
+                        obs[idx + local_idx]
                     )
                     resid = sol_val - obs_val
                     hvp[state_idx, 0] = -2.0 * resid * v_sigma / self._sigma**3
@@ -315,8 +339,9 @@ class TransientMSEFunctional(Generic[Array]):
                     sol_val = self._bkd.to_float(
                         sol[state_idx, time_idx]
                     )
+                    obs = self._get_obs()
                     obs_val = self._bkd.to_float(
-                        self._obs[idx + local_idx]
+                        obs[idx + local_idx]
                     )
                     resid = sol_val - obs_val
                     w_state = self._bkd.to_float(wvec[state_idx, 0])

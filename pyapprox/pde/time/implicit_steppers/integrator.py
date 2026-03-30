@@ -14,7 +14,9 @@ from pyapprox.pde.time.functionals.protocols import (
 )
 from pyapprox.pde.time.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
+    HVPEnabledTimeSteppingResidualProtocol,
 )
+from pyapprox.pde.time.protocols.type_guards import is_hvp_enabled
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -125,22 +127,31 @@ class TimeIntegrator(Generic[Array]):
             times : Array
                 Time points. Shape: (ntimes,)
         """
-        states, times = [], []
+        states_list: list[Array] = []
+        times_list: list[float] = []
         self._time = self._init_time
-        times.append(self._time)
+        times_list.append(self._time)
         state = init_state
-        states.append(init_state)
+        states_list.append(init_state)
         while self._time < self._final_time - 1e-12:
             deltat = min(self._deltat, self._final_time - self._time)
             state = self.step(state, deltat)
-            states.append(state)
-            times.append(self._time)
-        states = self._bkd.stack(states, axis=1)
-        return states, self._bkd.asarray(times)
+            states_list.append(state)
+            times_list.append(self._time)
+        states = self._bkd.stack(states_list, axis=1)
+        return states, self._bkd.asarray(times_list)
 
     def time_residual(self) -> AdjointEnabledTimeSteppingResidualProtocol[Array]:
         """Return the time stepping residual."""
         return self._time_residual
+
+    def hvp_time_residual(
+        self,
+    ) -> Optional[HVPEnabledTimeSteppingResidualProtocol[Array]]:
+        """Return the time residual narrowed to HVP capability, or None."""
+        if is_hvp_enabled(self._time_residual):
+            return self._time_residual
+        return None
 
     # =========================================================================
     # Adjoint Methods
@@ -318,6 +329,8 @@ class TimeIntegrator(Generic[Array]):
         Array
             Gradient dQ/dp. Shape: (1, nparams)
         """
+        if self._functional is None:
+            raise RuntimeError("Must call set_functional() first")
         # Direct parameter dependence of functional
         dqdp = self._functional.param_jacobian(fwd_sols, param)
         grad = self._bkd.copy(dqdp)

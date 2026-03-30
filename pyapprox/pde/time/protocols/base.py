@@ -101,6 +101,11 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
         """Evaluate the time stepping residual."""
         raise NotImplementedError
 
+    @abstractmethod
+    def jacobian(self, state: Array) -> Array:
+        """Compute the Jacobian of the time stepping residual."""
+        raise NotImplementedError
+
     def linsolve(self, state: Array, residual: Array) -> Array:
         """Solve the linear system J dy = residual."""
         return solve_maybe_sparse(self._bkd, self.jacobian(state), residual)
@@ -180,39 +185,6 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
     # =========================================================================
     # Template Methods (shared implementations for all steppers)
     # =========================================================================
-
-    def adjoint_final_solution(
-        self,
-        fsol_0: Array,
-        asol_1: Array,
-        dqdu_0: Array,
-        deltat_1: float,
-    ) -> Array:
-        """
-        Compute the adjoint at initial time (final step of backward sweep).
-
-        Solves: M^T lambda_0 = -B_1^T lambda_1 - dQ/dy_0
-
-        Parameters
-        ----------
-        fsol_0 : Array
-            Forward solution at initial time. Shape: (nstates,)
-        asol_1 : Array
-            Adjoint solution at time step 1. Shape: (nstates,)
-        dqdu_0 : Array
-            Gradient dQ/dy at initial time. Shape: (nstates,)
-        deltat_1 : float
-            Time step size for first interval.
-
-        Returns
-        -------
-        Array
-            Adjoint solution at initial time lambda_0. Shape: (nstates,)
-        """
-        drduT_diag = self._residual.mass_matrix(fsol_0.shape[0]).T
-        drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
-        rhs = -drduT_offdiag @ asol_1 - dqdu_0
-        return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         """

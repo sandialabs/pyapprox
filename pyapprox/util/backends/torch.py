@@ -169,7 +169,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def to_numpy(array: Union[torch.Tensor, np.ndarray, float, int]) -> NDArray[Any]:
         if isinstance(array, np.ndarray):
             return array
-        if not hasattr(array, "detach"):
+        if not isinstance(array, torch.Tensor):
             return np.asarray(array)
         return array.detach().cpu().numpy()
 
