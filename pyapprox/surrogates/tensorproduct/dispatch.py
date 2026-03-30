@@ -62,7 +62,7 @@ def _make_numba_tp_eval() -> TpEvalImpl[Array]:
 
         nterms_1d_arr = np.array(nterms_1d, dtype=np.int64)
 
-        return tp_eval_numba(
+        result: Array = tp_eval_numba(
             np.asarray(values),
             basis_vals_pad,
             nterms_1d_arr,
@@ -70,6 +70,7 @@ def _make_numba_tp_eval() -> TpEvalImpl[Array]:
             nqoi,
             npoints,
         )
+        return result
 
     return impl
 

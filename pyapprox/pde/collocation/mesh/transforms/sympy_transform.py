@@ -9,10 +9,11 @@ using symbolic expressions. The class automatically:
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
 import sympy as sp
+from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -155,7 +156,7 @@ class BaseSympyTransform(Generic[Array], ABC):
                 for name, val in params.items():
                     expr = expr.subs(sp.Symbol(name), val)
                 inv_parsed.append(sp.simplify(expr))
-            self._inv_funcs = [
+            self._inv_funcs: Optional[List[Callable[..., Any]]] = [
                 sp.lambdify(phys_symbols, expr, "numpy") for expr in inv_parsed
             ]
         else:
@@ -306,9 +307,14 @@ class BaseSympyTransform(Generic[Array], ABC):
         for i in range(npts):
             target = phys_np[:, i]
 
-            def residual(ref_coords: np.ndarray) -> np.ndarray:
-                phys = np.array([f(*ref_coords) for f in self._map_funcs])
-                return phys - target
+            def residual(
+                ref_coords: NDArray[np.floating[Any]],
+            ) -> NDArray[np.floating[Any]]:
+                phys: NDArray[np.floating[Any]] = np.array(
+                    [f(*ref_coords) for f in self._map_funcs]
+                )
+                diff: NDArray[np.floating[Any]] = phys - target
+                return diff
 
             sol, info, ier, msg = fsolve(residual, init_guess, full_output=True)
             if ier != 1:

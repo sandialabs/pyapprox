@@ -5,14 +5,23 @@ the ELBO and the log evidence, and assess the quality of the variational
 approximation via effective sample size.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, Optional
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Union
 
 import numpy as np
 
 from pyapprox.inverse.variational.convergence_protocols import (
     ConvergenceCheckResult,
 )
+from pyapprox.inverse.variational.protocols import (
+    VariationalDistributionProtocol,
+)
+
+if TYPE_CHECKING:
+    from pyapprox.inverse.variational.elbo import ELBOObjective
+    from pyapprox.inverse.variational.inexact_elbo import InexactELBOObjective
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -96,15 +105,20 @@ class ImportanceWeightedCheck(Generic[Array]):
 
     def __init__(
         self,
-        var_distribution: Any,
-        log_likelihood_fn: Callable[..., Any],
-        log_prior_fn: Callable[..., Any],
+        var_distribution: VariationalDistributionProtocol[Array],
+        log_likelihood_fn: Callable[..., Array],
+        log_prior_fn: Callable[..., Array],
         nlabel_dims: int,
         label_nodes: Optional[Array],
         bkd: Backend[Array],
         n_diagnostic_samples: int = 200,
         gap_ratio_threshold: float = 10.0,
     ) -> None:
+        if not isinstance(var_distribution, VariationalDistributionProtocol):
+            raise TypeError(
+                f"var_distribution must satisfy VariationalDistributionProtocol, "
+                f"got {type(var_distribution).__name__}"
+            )
         self._var_dist = var_distribution
         self._log_lik_fn = log_likelihood_fn
         self._log_prior_fn = log_prior_fn
@@ -261,8 +275,8 @@ class ImportanceWeightedCheck(Generic[Array]):
 
 
 def make_importance_check_from_elbo(
-    elbo_objective: Any,
-    log_prior_fn: Callable[..., Any],
+    elbo_objective: Union[ELBOObjective[Array], InexactELBOObjective[Array]],
+    log_prior_fn: Callable[..., Array],
     n_diagnostic_samples: int = 200,
     gap_ratio_threshold: float = 10.0,
 ) -> ImportanceWeightedCheck[Array]:

@@ -29,7 +29,7 @@ class OEDDataManager(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
-        self._data: Dict[str, Any] = {}
+        self._data: Dict[str, Array] = {}
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""

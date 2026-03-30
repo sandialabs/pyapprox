@@ -11,9 +11,10 @@ This is more efficient than the full Rosenblatt transform when marginals
 are known but the joint PDF is not analytically available.
 """
 
-from typing import Generic, List, Tuple
+from typing import Any, Generic, List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy import stats
 
 from pyapprox.probability.protocols.distribution import MarginalProtocol
@@ -372,12 +373,17 @@ class NatafTransform(Generic[Array]):
         # Placeholder: return rho as approximation
         return rho
 
-    def _ensure_positive_definite(self, matrix: np.ndarray) -> np.ndarray:
+    def _ensure_positive_definite(
+        self, matrix: NDArray[np.floating[Any]],
+    ) -> NDArray[np.floating[Any]]:
         """Ensure matrix is positive definite by eigenvalue modification."""
         eigenvalues, eigenvectors = np.linalg.eigh(matrix)
         min_eigenvalue = 1e-10
         eigenvalues = np.maximum(eigenvalues, min_eigenvalue)
-        return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+        result: NDArray[np.floating[Any]] = (
+            eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+        )
+        return result
 
     def log_det_jacobian_to_canonical(self, samples: Array) -> Array:
         """

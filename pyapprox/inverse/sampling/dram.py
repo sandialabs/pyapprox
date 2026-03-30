@@ -242,8 +242,10 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
                 # TODO: why conert to np use bkd.all_bool
                 bounds_np = self._bkd.to_numpy(bounds)
                 proposal_np = self._bkd.to_numpy(proposal)
-                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(
-                    proposal_np[:, 0] <= bounds_np[:, 1]
+                in_bounds = bool(
+                    np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(
+                        proposal_np[:, 0] <= bounds_np[:, 1]
+                    )
                 )
 
             if not in_bounds:

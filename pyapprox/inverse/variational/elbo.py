@@ -7,6 +7,9 @@ plus convenience constructors for common VI setups.
 
 from typing import Any, Callable, Generic, List, Optional, Tuple
 
+from pyapprox.inverse.variational.protocols import (
+    VariationalDistributionProtocol,
+)
 from pyapprox.inverse.variational.summary import SummaryStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -55,14 +58,19 @@ class ELBOObjective(Generic[Array]):
 
     def __init__(
         self,
-        var_distribution: Any,
-        log_likelihood_fn: Callable[..., Any],
+        var_distribution: VariationalDistributionProtocol[Array],
+        log_likelihood_fn: Callable[..., Array],
         prior: Any,
         joint_nodes: Array,
         joint_weights: Array,
         nlabel_dims: int,
         bkd: Backend[Array],
     ) -> None:
+        if not isinstance(var_distribution, VariationalDistributionProtocol):
+            raise TypeError(
+                f"var_distribution must satisfy VariationalDistributionProtocol, "
+                f"got {type(var_distribution).__name__}"
+            )
         self._var_dist = var_distribution
         self._log_lik_fn = log_likelihood_fn
         self._prior = prior
@@ -163,8 +171,8 @@ class ELBOObjective(Generic[Array]):
 
 
 def make_single_problem_elbo(
-    var_distribution: Any,
-    log_likelihood_fn: Callable[..., Any],
+    var_distribution: VariationalDistributionProtocol[Array],
+    log_likelihood_fn: Callable[..., Array],
     prior: Any,
     base_nodes: Array,
     base_weights: Array,
@@ -263,8 +271,8 @@ def _compute_normalized_labels(
 
 
 def make_discrete_group_elbo(
-    var_distribution: Any,
-    log_likelihood_fns: List[Callable[..., Any]],
+    var_distribution: VariationalDistributionProtocol[Array],
+    log_likelihood_fns: List[Callable[..., Array]],
     prior: Any,
     base_nodes: Array,
     base_weights: Array,

@@ -48,11 +48,12 @@ def _make_numba_lagrange_eval() -> LagrangeEvalImpl[Array]:
         bary_weights: Array,
         bkd: Backend[Array],
     ) -> Array:
-        return lagrange_eval_numba(
+        result: Array = lagrange_eval_numba(
             np.asarray(abscissa),
             np.asarray(samples),
             np.asarray(bary_weights),
         )
+        return result
 
     return impl
 
@@ -257,11 +258,12 @@ def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
         bary_weights: Array,
         bkd: Backend[Array],
     ) -> Array:
-        return lagrange_jacobian_numba(
+        result: Array = lagrange_jacobian_numba(
             np.asarray(abscissa),
             np.asarray(samples),
             np.asarray(bary_weights),
         )
+        return result
 
     return impl
 
@@ -413,11 +415,12 @@ def _make_numba_lagrange_hessian() -> LagrangeDerivImpl[Array]:
         bary_weights: Array,
         bkd: Backend[Array],
     ) -> Array:
-        return lagrange_hessian_numba(
+        result: Array = lagrange_hessian_numba(
             np.asarray(abscissa),
             np.asarray(samples),
             np.asarray(bary_weights),
         )
+        return result
 
     return impl
 

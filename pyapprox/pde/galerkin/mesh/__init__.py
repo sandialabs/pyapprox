@@ -2,6 +2,8 @@
 
 from pyapprox.util.optional_deps import package_available
 
+__all__: list[str]
+
 if package_available("skfem"):
     from pyapprox.pde.galerkin.mesh.obstructed import (
         ObstructedMesh2D,
@@ -23,4 +25,4 @@ if package_available("skfem"):
         "ObstructedMesh2D",
     ]
 else:
-    __all__: list[str] = []
+    __all__ = []

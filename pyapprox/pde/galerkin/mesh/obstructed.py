@@ -9,6 +9,7 @@ from functools import partial
 from typing import Any, Generic, List
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -99,18 +100,19 @@ class ObstructedMesh2D(Generic[Array]):
     def _obstruction_boundary(
         self,
         obstruction_idx: int,
-        x: np.ndarray,
-    ) -> np.ndarray:
+        x: NDArray[np.floating[Any]],
+    ) -> NDArray[np.bool_]:
         """Test whether points lie on the boundary of an obstruction."""
         eps = 1e-8
         vertex_indices = self._full_connectivity[:, obstruction_idx]
         vertices = self._full_vertices[:, vertex_indices]
-        return (
+        result: NDArray[np.bool_] = (
             (x[0] >= (vertices[0, 0] - eps))
             & (x[0] <= (vertices[0, 1] + eps))
             & (x[1] >= (vertices[1, 0] - eps))
             & (x[1] <= (vertices[1, 2] + eps))
         )
+        return result
 
     def _build_boundary_defs(self) -> dict[str, Any]:
         """Build boundary definitions for skfem with_boundaries."""

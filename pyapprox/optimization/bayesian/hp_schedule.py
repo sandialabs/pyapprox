@@ -97,6 +97,6 @@ class GeometricSchedule:
         while s <= cap:
             step_int = int(round(s))
             self._optimize_steps.add(step_int)
-            s += interval
+            s = int(s + interval)
             interval *= self._base
         self._computed_up_to = cap

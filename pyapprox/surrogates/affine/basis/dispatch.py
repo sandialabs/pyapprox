@@ -10,7 +10,7 @@ Each dispatch function returns a callable with a uniform signature so that
 MultiIndexBasis is unaware of which strategy is active.
 """
 
-from typing import Callable, List
+from typing import Callable, List, cast
 
 import numpy as np
 
@@ -108,13 +108,14 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            return basis_eval_numba(
+            result: Array = basis_eval_numba(
                 stacked,
                 indices_np,
                 nvars,
                 nsamples,
                 nterms,
             )
+            return result
 
         return impl
 
@@ -155,7 +156,7 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            return basis_jacobian_numba(
+            result: Array = basis_jacobian_numba(
                 stacked_vals,
                 stacked_derivs,
                 indices_np,
@@ -163,6 +164,7 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
                 nsamples,
                 nterms,
             )
+            return result
 
         return impl
 
@@ -205,7 +207,7 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            return basis_hessian_numba(
+            result: Array = basis_hessian_numba(
                 stacked_vals,
                 stacked_derivs,
                 stacked_hess,
@@ -214,6 +216,7 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
                 nsamples,
                 nterms,
             )
+            return result
 
         return impl
 

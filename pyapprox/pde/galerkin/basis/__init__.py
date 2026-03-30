@@ -2,6 +2,8 @@
 
 from pyapprox.util.optional_deps import package_available
 
+__all__: list[str]
+
 if package_available("skfem"):
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
@@ -11,4 +13,4 @@ if package_available("skfem"):
         "VectorLagrangeBasis",
     ]
 else:
-    __all__: list[str] = []
+    __all__ = []

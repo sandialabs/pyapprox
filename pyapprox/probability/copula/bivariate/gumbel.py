@@ -11,7 +11,7 @@ bisection since no closed-form exists.
 """
 
 import math
-from typing import Generic, cast
+from typing import Generic
 
 import numpy as np
 
@@ -210,7 +210,7 @@ class GumbelCopula(Generic[Array]):
             mid = (lb + ub) / 2.0
             h_mid = self.h_function(mid, u2_c)
             # Where h(mid) > v, u1 should be smaller (h is increasing in u1)
-            too_high = cast(Array, h_mid > v_c)
+            too_high = h_mid > v_c
             lb = self._bkd.where(too_high, lb, mid)
             ub = self._bkd.where(too_high, mid, ub)
 

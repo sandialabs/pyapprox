@@ -14,11 +14,15 @@ von_mises_stress_2d
     Compute element-averaged von Mises stress from a displacement solution.
 """
 
-import numpy as np
 from typing import Any
 
+import numpy as np
+from numpy.typing import NDArray
 
-def _shape_function_derivatives_quad(xi: float, eta: float) -> tuple[Any, ...]:
+
+def _shape_function_derivatives_quad(
+    xi: float, eta: float,
+) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Bilinear quad shape function derivatives at a reference point.
 
     Node ordering: counter-clockwise from bottom-left.
@@ -59,7 +63,7 @@ def _shape_function_derivatives_quad(xi: float, eta: float) -> tuple[Any, ...]:
     return dN_dxi, dN_deta
 
 
-def _shape_function_derivatives_tri() -> tuple[Any, ...]:
+def _shape_function_derivatives_tri() -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Linear triangle shape function derivatives (constant).
 
     Node ordering: standard counter-clockwise.
@@ -80,7 +84,7 @@ def strain_from_displacement_2d(
     connectivity: np.ndarray,
     ux: np.ndarray,
     uy: np.ndarray,
-) -> tuple[Any, ...]:
+) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Compute element-averaged strain tensor from nodal displacements.
 
     Uses isoparametric mapping with shape function derivatives evaluated
@@ -155,7 +159,7 @@ def stress_from_strain_2d(
     exy: np.ndarray,
     lam: np.ndarray,
     mu: np.ndarray,
-) -> tuple[Any, ...]:
+) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Compute plane-stress Cauchy stress from strain and Lame parameters.
 
     sigma = lambda * tr(epsilon) * I + 2 * mu * epsilon
@@ -193,7 +197,7 @@ def von_mises_stress_2d(
     uy: np.ndarray,
     lam: np.ndarray,
     mu: np.ndarray,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Compute element-averaged von Mises stress from nodal displacements.
 
     Combines strain recovery, Hooke's law, and the von Mises criterion
@@ -241,4 +245,7 @@ def von_mises_stress_2d(
         uy,
     )
     sxx, syy, sxy = stress_from_strain_2d(exx, eyy, exy, lam, mu)
-    return np.sqrt(sxx**2 - sxx * syy + syy**2 + 3.0 * sxy**2)
+    result: NDArray[np.floating[Any]] = np.sqrt(
+        sxx**2 - sxx * syy + syy**2 + 3.0 * sxy**2
+    )
+    return result

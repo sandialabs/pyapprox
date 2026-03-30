@@ -1,4 +1,4 @@
-from typing import Generic, Tuple, Union, cast
+from typing import Generic, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -182,7 +182,7 @@ class HyperParameter(Generic[Array]):
         nactive_params : int
             Number of active hyperparameters.
         """
-        return cast(int, self._active_indices.shape[0])
+        return int(self._active_indices.shape[0])
 
     def get_values(self) -> Array:
         """

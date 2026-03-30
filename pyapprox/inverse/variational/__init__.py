@@ -36,6 +36,10 @@ from pyapprox.inverse.variational.importance_diagnostics import (
     ImportanceWeightedMetrics,
     make_importance_check_from_elbo,
 )
+from pyapprox.inverse.variational.protocols import (
+    CovarianceParameterizationProtocol,
+    VariationalDistributionProtocol,
+)
 from pyapprox.inverse.variational.inexact_elbo import (
     InexactELBOObjective,
     make_inexact_discrete_group_elbo,
@@ -79,4 +83,6 @@ __all__ = [
     "SummaryStatistic",
     "Transform",
     "TransformAggregateSummary",
+    "CovarianceParameterizationProtocol",
+    "VariationalDistributionProtocol",
 ]

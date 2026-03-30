@@ -77,7 +77,7 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
         X_safe[diag_idx, diag_idx] = 1.0
 
         # Compute off-diagonal elements
-        D = C / X_safe
+        D: Array = C / X_safe
 
         # Zero out diagonal (will be set via row sum property)
         D[diag_idx, diag_idx] = 0.0

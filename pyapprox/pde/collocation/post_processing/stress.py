@@ -416,7 +416,8 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         I1 = F11**2 + F12**2 + F21**2 + F22**2 + 1.0
         mu = self._stress_model._mu
         lamda = self._stress_model._lamda
-        return 0.5 * mu * (I1 - 3.0) - mu * ln_J + 0.5 * lamda * ln_J**2
+        result: Array = 0.5 * mu * (I1 - 3.0) - mu * ln_J + 0.5 * lamda * ln_J**2
+        return result
 
     def strain_energy_density_state_jacobian(
         self,

@@ -145,7 +145,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
     ) -> CvxpyExpression:
         """Construct the SPD constraint matrix."""
         Psi = self._cvxpy_psi(nsps_cvxpy)
-        mat = self._cvxpy.bmat(
+        result: CvxpyExpression = self._cvxpy.bmat(
             [
                 [Psi, self._est._asketch.T],
                 [
@@ -154,7 +154,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
                 ],
             ]
         )
-        return mat
+        return result
 
     def optimize(
         self,

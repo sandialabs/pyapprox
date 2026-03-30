@@ -51,7 +51,8 @@ def sparse_or_dense_solve(
                 "Sparse solve with multiple RHS columns is not supported. "
                 "Use scipy.sparse.linalg.splu for multi-column solves."
             )
-        return spsolve(A_csc, b)
+        result: NDArray[np.floating[Any]] = spsolve(A_csc, b)
+        return result
     return np.linalg.solve(A, b)
 
 

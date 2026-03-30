@@ -7,6 +7,9 @@ tolerance passed by ROL's trust-region algorithm.
 
 from typing import Any, Callable, Generic, List, Optional, Tuple
 
+from pyapprox.inverse.variational.protocols import (
+    VariationalDistributionProtocol,
+)
 from pyapprox.inverse.variational.summary import SummaryStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -44,14 +47,19 @@ class InexactELBOObjective(Generic[Array]):
 
     def __init__(
         self,
-        var_distribution: Any,
-        log_likelihood_fn: Callable[..., Any],
+        var_distribution: VariationalDistributionProtocol[Array],
+        log_likelihood_fn: Callable[..., Array],
         prior: Any,
         strategy: Any,
         nlabel_dims: int,
         bkd: Backend[Array],
         label_nodes: Optional[Array] = None,
     ) -> None:
+        if not isinstance(var_distribution, VariationalDistributionProtocol):
+            raise TypeError(
+                f"var_distribution must satisfy VariationalDistributionProtocol, "
+                f"got {type(var_distribution).__name__}"
+            )
         self._var_dist = var_distribution
         self._log_lik_fn = log_likelihood_fn
         self._prior = prior
@@ -237,8 +245,8 @@ class InexactELBOObjective(Generic[Array]):
 
 
 def make_inexact_single_problem_elbo(
-    var_distribution: Any,
-    log_likelihood_fn: Callable[..., Any],
+    var_distribution: VariationalDistributionProtocol[Array],
+    log_likelihood_fn: Callable[..., Array],
     prior: Any,
     strategy: Any,
     bkd: Backend[Array],
@@ -284,8 +292,8 @@ def make_inexact_single_problem_elbo(
 
 
 def make_inexact_discrete_group_elbo(
-    var_distribution: Any,
-    log_likelihood_fns: List[Callable[..., Any]],
+    var_distribution: VariationalDistributionProtocol[Array],
+    log_likelihood_fns: List[Callable[..., Array]],
     prior: Any,
     strategy: Any,
     bkd: Backend[Array],

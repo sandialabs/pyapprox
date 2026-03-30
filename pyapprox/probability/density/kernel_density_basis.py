@@ -46,7 +46,7 @@ class KernelDensityBasis(Generic[Array]):
                 f"KernelDensityBasis requires nvars=1, got {kernel_basis.nvars()}"
             )
         self._kernel_basis = kernel_basis
-        self._kernel = kernel
+        self._kernel: SquaredExponentialKernel[Array] = kernel
         self._bkd = kernel_basis.bkd()
 
     def bkd(self) -> Backend[Array]:

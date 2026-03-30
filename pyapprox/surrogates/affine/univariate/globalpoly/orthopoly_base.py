@@ -282,9 +282,10 @@ class OrthonormalPolynomial1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        return evaluate_orthonormal_polynomial_derivatives_1d(
+        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
             self._rcoefs, self._bkd, samples, order=1
         )
+        return result
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of basis functions.
@@ -304,9 +305,10 @@ class OrthonormalPolynomial1D(Generic[Array]):
         ValueError
             If samples is not 2D with shape (1, nsamples).
         """
-        return evaluate_orthonormal_polynomial_derivatives_1d(
+        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
             self._rcoefs, self._bkd, samples, order=2
         )
+        return result
 
     def derivatives(self, samples: Array, order: int) -> Array:
         """Evaluate derivatives of specified order.
@@ -325,9 +327,10 @@ class OrthonormalPolynomial1D(Generic[Array]):
         """
         if order == 0:
             return self(samples)
-        return evaluate_orthonormal_polynomial_derivatives_1d(
+        result: Array = evaluate_orthonormal_polynomial_derivatives_1d(
             self._rcoefs, self._bkd, samples, order=order
         )
+        return result
 
     def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gaussian quadrature rule.

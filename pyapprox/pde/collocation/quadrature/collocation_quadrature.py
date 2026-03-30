@@ -6,7 +6,7 @@ interpolation matrix. This follows the approach used in the legacy
 ChebyshevCollocationBasis._set_quadrature_weights_at_mesh_pts().
 """
 
-from typing import Generic, cast
+from typing import Generic
 
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
@@ -110,7 +110,7 @@ class CollocationQuadrature1D(Generic[Array]):
         weights_ref: Array = L.T @ gl_wts_scaled  # shape (npts,)
 
         if transform is not None:
-            return cast(Array, jac_det * weights_ref)
+            return jac_det * weights_ref
         return weights_ref
 
     def full_domain_weights(self) -> Array:

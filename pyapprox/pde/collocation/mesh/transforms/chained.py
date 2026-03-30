@@ -6,8 +6,9 @@ A ChainedTransform composes multiple transforms in sequence:
 The Jacobian of the composition is the product of individual Jacobians.
 """
 
-from typing import Any, Generic, List
+from typing import Generic, List
 
+from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -22,14 +23,8 @@ class ChainedTransform(Generic[Array]):
 
     Parameters
     ----------
-    transforms : List
-        List of transform objects to compose. Each must have:
-        - map_to_physical(pts) method
-        - map_to_reference(pts) method
-        - jacobian_matrix(pts) method
-        - jacobian_determinant(pts) method
-        - ndim() method
-        All transforms must have the same ndim.
+    transforms : List[TransformProtocol]
+        List of transforms to compose. All must have the same ndim.
     bkd : Backend
         Computational backend.
 
@@ -44,7 +39,7 @@ class ChainedTransform(Generic[Array]):
 
     def __init__(
         self,
-        transforms: List[Any],
+        transforms: List[TransformProtocol[Array]],
         bkd: Backend[Array],
     ):
         if len(transforms) == 0:
@@ -69,7 +64,7 @@ class ChainedTransform(Generic[Array]):
         """Return the number of spatial dimensions."""
         return self._ndim
 
-    def transforms(self) -> List[Any]:
+    def transforms(self) -> List[TransformProtocol[Array]]:
         """Return the list of transforms."""
         return self._transforms
 

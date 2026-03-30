@@ -119,7 +119,8 @@ def jacobian_matrix_torch(
         jac = jac + reparam_term
 
     # Transpose from (nobs, ninner, nouter) to (ninner, nouter, nobs)
-    return jac.permute(1, 2, 0)
+    result: torch.Tensor = jac.permute(1, 2, 0)
+    return result
 
 
 def evidence_jacobian_torch(

@@ -6,6 +6,8 @@ that satisfy the protocols defined in protocols.boundary.
 
 from pyapprox.util.optional_deps import package_available
 
+__all__: list[str]
+
 if package_available("skfem"):
     from pyapprox.pde.galerkin.boundary.implementations import (
         BoundaryConditionSet,
@@ -31,4 +33,4 @@ if package_available("skfem"):
         "canonical_boundary_normal",
     ]
 else:
-    __all__: list[str] = []
+    __all__ = []

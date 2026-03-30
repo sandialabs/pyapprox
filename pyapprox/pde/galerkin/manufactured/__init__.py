@@ -5,6 +5,8 @@ Adapts the collocation manufactured solutions for use with Galerkin tests.
 
 from pyapprox.util.optional_deps import package_available
 
+__all__: list[str]
+
 if package_available("skfem"):
     from pyapprox.pde.galerkin.manufactured.adapter import (
         GalerkinHyperelasticityAdapter,
@@ -22,4 +24,4 @@ if package_available("skfem"):
         "create_hyperelasticity_manufactured_test",
     ]
 else:
-    __all__: list[str] = []
+    __all__ = []
