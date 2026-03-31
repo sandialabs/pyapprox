@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -91,7 +92,8 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     def _get_viscosity(self, coords: np.ndarray) -> np.ndarray:
         """Get viscosity values at given coordinates."""
         if callable(self._viscosity):
-            return self._viscosity(coords)
+            ret: NDArray[np.floating[Any]] = self._viscosity(coords)
+            return ret
         else:
             return np.full(coords.shape[-1], self._viscosity)
 
@@ -100,9 +102,11 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         if self._forcing is None:
             return np.zeros(coords.shape[-1])
         try:
-            return self._forcing(coords, time)
+            ret: NDArray[np.floating[Any]] = self._forcing(coords, time)
+            return ret
         except TypeError:
-            return self._forcing(coords)
+            ret2: NDArray[np.floating[Any]] = self._forcing(coords)
+            return ret2
 
     def mass_matrix(self) -> object:
         """Return the scalar mass matrix."""
@@ -131,11 +135,12 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
                 visc = visc_const
             else:
                 visc = self._viscosity(np.asarray(w.x))
-            return (
+            ret: NDArray[np.floating[Any]] = (
                 dot(visc * grad(u), grad(v))
                 + v * w.u_prev * u.grad[0]
                 + v * u * w.u_prev.grad[0]
             )
+            return ret
 
         return asm(BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp)
 
@@ -170,11 +175,12 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             else:
                 forc = self._get_forcing(x_np, current_time)
 
-            return (
+            ret: NDArray[np.floating[Any]] = (
                 forc * v
                 - dot(visc * grad(w.u_prev), grad(v))
                 - v * w.u_prev * w.u_prev.grad[0]
             )
+            return ret
 
         load_np = asm(LinearForm(linear_form), skfem_basis, u_prev=state_interp)
         return self._bkd.asarray(load_np.astype(np.float64))

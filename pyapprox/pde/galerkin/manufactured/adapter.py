@@ -8,6 +8,7 @@ Galerkin boundary conditions and physics implementations.
 from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
@@ -167,7 +168,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             # Manufactured velocity returns (npts, ndim)
             vals = vel_func(flat)
             # Transpose to (ndim, npts) then reshape to (ndim, ...)
-            return vals.T.reshape(ndim, *trailing)
+            ret: NDArray[np.floating[Any]] = vals.T.reshape(ndim, *trailing)
+            return ret
 
         return adapted_velocity
 
@@ -191,8 +193,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = forcing_func(x, time)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    return vals[:, 0] if vals.shape[1] == 1 else vals
-                return vals
+                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    return ret
+                ret2: NDArray[np.floating[Any]] = vals
+                return ret2
         else:
 
             def adapted_forcing(
@@ -200,8 +204,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = forcing_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    return vals[:, 0] if vals.shape[1] == 1 else vals
-                return vals
+                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    return ret
+                ret2: NDArray[np.floating[Any]] = vals
+                return ret2
 
         return adapted_forcing
 
@@ -222,7 +228,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             if flux.shape[0] == coords.shape[1]:
                 flux = flux.T
             # flux shape should now be (ndim, npts)
-        return flux
+        ret: NDArray[np.floating[Any]] = flux
+        return ret
 
     def _compute_natural_bc_value(
         self,
@@ -289,7 +296,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 advective_flux_dot_n = np.sum(vel * u_vals * normal, axis=0)
                 result -= advective_flux_dot_n
 
-        return result
+        ret: NDArray[np.floating[Any]] = result
+        return ret
 
     def _create_dirichlet_bc(
         self, boundary_name: str, boundary_index: int
@@ -304,8 +312,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = sol_func(x, t)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    return vals[:, 0] if vals.shape[1] == 1 else vals
-                return vals
+                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    return ret
+                ret2: NDArray[np.floating[Any]] = vals
+                return ret2
         else:
 
             def value_func(
@@ -314,8 +324,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = sol_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    return vals[:, 0] if vals.shape[1] == 1 else vals
-                return vals
+                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    return ret
+                ret2: NDArray[np.floating[Any]] = vals
+                return ret2
 
         return DirichletBC(
             basis=self._basis,
@@ -371,7 +383,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
                 nat_bc = self._compute_natural_bc_value(boundary_index, x, t)
-                return alpha * u_vals + nat_bc
+                ret: NDArray[np.floating[Any]] = alpha * u_vals + nat_bc
+                return ret
         else:
 
             def robin_value(
@@ -382,7 +395,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
                 nat_bc = self._compute_natural_bc_value(boundary_index, x)
-                return alpha * u_vals + nat_bc
+                ret: NDArray[np.floating[Any]] = alpha * u_vals + nat_bc
+                return ret
 
         return RobinBC(
             basis=self._basis,
@@ -701,14 +715,16 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 x: np.ndarray, time: float,
             ) -> np.ndarray:
                 vals = forcing_func(x, time)  # (npts, ncomponents)
-                return vals.T  # (ncomponents, npts) = (ndim, npts)
+                ret: NDArray[np.floating[Any]] = vals.T  # (ncomponents, npts) = (ndim, npts)
+                return ret
         else:
 
             def adapted_forcing(
                 x: np.ndarray, time: float = 0.0,
             ) -> np.ndarray:
                 vals = forcing_func(x)  # (npts, ncomponents)
-                return vals.T  # (ncomponents, npts) = (ndim, npts)
+                ret: NDArray[np.floating[Any]] = vals.T  # (ncomponents, npts) = (ndim, npts)
+                return ret
 
         return adapted_forcing
 
@@ -851,7 +867,8 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
             # Convert to numpy since this runs inside skfem assembly
             u_vals = self._bkd.to_numpy(u_vals)
             # u_vals: (npts, ndim) → transpose to (ndim, npts)
-            return alpha_val * u_vals.T + traction  # (ndim, npts)
+            ret: NDArray[np.floating[Any]] = alpha_val * u_vals.T + traction  # (ndim, npts)
+            return ret
 
         return RobinBC(
             basis=self._basis,

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -244,7 +245,8 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         skfem_basis = self._basis.skfem_basis()
 
         def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return sum(u[i] * v[i] for i in range(len(u)))
+            ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(len(u)))
+            return ret
 
         self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
@@ -310,7 +312,8 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                     force = force_flat.reshape(ndim, nelem, nquad)
                 else:
                     force = np.asarray(body_force_func(x, current_time))
-                return sum(force[i] * v[i] for i in range(ndim))
+                ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
+                return ret
 
             load_np = asm(LinearForm(linear_form), skfem_basis)
 

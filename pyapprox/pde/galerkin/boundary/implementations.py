@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 import numpy.typing as npt
+from numpy.typing import NDArray
 from scipy.sparse import issparse, spmatrix
 
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -611,7 +612,8 @@ class RobinBC(Generic[Array]):
                 vals = vals_flat.reshape(nelem, nquad)
             else:
                 vals = value_func(x_np, current_time)
-            return vals * v
+            ret: NDArray[np.floating[Any]] = vals * v
+            return ret
 
         contribution_g = asm(LinearForm(robin_residual_g), bndry_basis)
         res_np -= contribution_g

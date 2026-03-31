@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from skfem.element.discrete_field import DiscreteField
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import block_diag as sp_block_diag
 from scipy.sparse import csr_matrix
 
@@ -326,9 +327,11 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
                 f = f.T.reshape(nvars, nelem, nquad)
             else:
                 f = f.T  # (nvars, npts)
-            return sum(f[i] * v[i] for i in range(nvars))
+            ret: NDArray[np.floating[Any]] = sum(f[i] * v[i] for i in range(nvars))
+            return ret
 
-        return asm(LinearForm(vel_load_form), self._vel_skfem_basis)
+        vel_load: NDArray[np.floating[Any]] = asm(LinearForm(vel_load_form), self._vel_skfem_basis)
+        return vel_load
 
     def _assemble_pres_load(self, time: float) -> np.ndarray:
         """Assemble pressure load vector (negated for convention)."""
@@ -352,10 +355,12 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             if orig_shape is not None:
                 nelem, nquad = orig_shape
                 f = f.reshape(nelem, nquad)
-            return f * v
+            ret: NDArray[np.floating[Any]] = f * v
+            return ret
 
         # Negate: convention is -div(u) = f_p
-        return -asm(LinearForm(pres_load_form), self._pres_skfem_basis)
+        pres_load: NDArray[np.floating[Any]] = -asm(LinearForm(pres_load_form), self._pres_skfem_basis)
+        return pres_load
 
     def _assemble_load(self, time: float) -> np.ndarray:
         """Assemble full load vector [vel_load, pres_load]."""
@@ -379,14 +384,16 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         dz = z.grad
         du = u.grad
         if u.shape[0] == 2:
-            return (
+            ret: NDArray[np.floating[Any]] = (
                 v[0] * (u[0] * dz[0][0] + u[1] * dz[0][1])
                 + v[1] * (u[0] * dz[1][0] + u[1] * dz[1][1])
                 + v[0] * (z[0] * du[0][0] + z[1] * du[0][1])
                 + v[1] * (z[0] * du[1][0] + z[1] * du[1][1])
             )
+            return ret
         if u.shape[0] == 1:
-            return v[0] * (u[0] * dz[0][0]) + v[0] * (z[0] * du[0][0])
+            ret1d: NDArray[np.floating[Any]] = v[0] * (u[0] * dz[0][0]) + v[0] * (z[0] * du[0][0])
+            return ret1d
         raise NotImplementedError("Only 1D and 2D Navier-Stokes supported")
 
     @staticmethod
@@ -400,11 +407,13 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         u = w["u_prev"]
         du = u.grad
         if u.shape[0] == 2:
-            return v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
+            ret: NDArray[np.floating[Any]] = v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
                 u[0] * du[1][0] + u[1] * du[1][1]
             )
+            return ret
         if u.shape[0] == 1:
-            return v[0] * (u[0] * du[0][0])
+            ret1d: NDArray[np.floating[Any]] = v[0] * (u[0] * du[0][0])
+            return ret1d
         raise NotImplementedError("Only 1D and 2D Navier-Stokes supported")
 
     # ------------------------------------------------------------------
@@ -530,7 +539,8 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         def vector_mass_form(
             u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams",
         ) -> np.ndarray:
-            return sum(u[i] * v[i] for i in range(len(u)))
+            ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(len(u)))
+            return ret
 
         self._vel_mass_cached = asm(
             BilinearForm(vector_mass_form), self._vel_skfem_basis

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from skfem.element.discrete_field import DiscreteField
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -260,7 +261,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 diff = diff_callable(np.asarray(w.x))
 
             # Diffusion term: (grad(w), D*grad(u)) contributes D*grad(u).grad(v)
-            result: Any = diff * dot(grad(u), grad(v))
+            result: NDArray[np.floating[Any]] = diff * dot(grad(u), grad(v))
 
             # Linear reaction term: -(w, r*u) contributes -r*u*v
             # (negative because it's moved to LHS of weak form)
@@ -293,12 +294,12 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                     vel = vel_callable(np.asarray(w.x))
                 if conservative:
                     # Conservative: -(v*u, grad(w)) from div(v*u)
-                    result: Any = -u * dot(vel, grad(v))
-                    return result
+                    ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
+                    return ret
                 else:
                     # Non-conservative: (w, v.grad(u))
-                    result2: Any = dot(vel, grad(u)) * v
-                    return result2
+                    ret2: NDArray[np.floating[Any]] = dot(vel, grad(u)) * v
+                    return ret2
 
             advection = asm(BilinearForm(advection_form), skfem_basis)
             stiffness = stiffness + advection
@@ -384,7 +385,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                     react = react_flat.reshape(nelem, nquad)
                 else:
                     react = reaction_func(x_np, u_prev)
-                return react * v
+                ret: NDArray[np.floating[Any]] = react * v
+                return ret
 
             load_np += asm(LinearForm(reaction_form), skfem_basis, u_prev=state_interp)
 
@@ -427,7 +429,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 react_deriv = reaction_deriv(x_np, u_prev)
 
             # Negative because moved to LHS: -(w, R'(u)*du)
-            return -react_deriv * u * v
+            ret: NDArray[np.floating[Any]] = -react_deriv * u * v
+            return ret
 
         return asm(
             BilinearForm(reaction_jacobian_form), skfem_basis, u_prev=state_interp

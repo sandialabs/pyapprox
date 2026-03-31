@@ -20,7 +20,9 @@ if TYPE_CHECKING:
     from skfem.element.discrete_field import DiscreteField
 
 
+
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
@@ -183,7 +185,8 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         ndim = self.ndim()
 
         def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return sum(u[i] * v[i] for i in range(ndim))
+            ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(ndim))
+            return ret
 
         self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
@@ -213,7 +216,8 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 J = F
                 ln_J = np.log(J)
                 P = w.mu * F + (w.lam * ln_J - w.mu) / J
-                return P * v.grad[0, 0]
+                ret: NDArray[np.floating[Any]] = P * v.grad[0, 0]
+                return ret
 
             f_np = asm(
                 LinearForm(internal_force_1d),
@@ -245,12 +249,13 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 P21 = w.mu * F21 + coef * Finv_T_21
                 P22 = w.mu * F22 + coef * Finv_T_22
 
-                return (
+                ret: NDArray[np.floating[Any]] = (
                     P11 * v.grad[0, 0]
                     + P12 * v.grad[0, 1]
                     + P21 * v.grad[1, 0]
                     + P22 * v.grad[1, 1]
                 )
+                return ret
 
             f_np = asm(
                 LinearForm(internal_force_2d),
@@ -348,7 +353,8 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 force = force_flat.reshape(ndim, nelem, nquad)
             else:
                 force = np.asarray(body_force_func(x, current_time))
-            return sum(force[i] * v[i] for i in range(ndim))
+            ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
+            return ret
 
         load_np = asm(LinearForm(load_form), skfem_basis)
         return self._bkd.asarray(load_np.astype(np.float64))
@@ -370,7 +376,8 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 J = F
                 ln_J = np.log(J)
                 dPdF = w.mu + (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
-                return dPdF * v.grad[0, 0] * u.grad[0, 0]
+                ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
+                return ret
 
             K_np = asm(
                 BilinearForm(tangent_1d),

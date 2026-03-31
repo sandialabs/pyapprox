@@ -18,6 +18,7 @@ The tangent stiffness (Jacobian dR/du) is:
 where A_iJkL = dP_iJ/dF_kL is the material tangent modulus.
 
 Uses the NeoHookeanStress model from the collocation module for stress
+
 and tangent computation at quadrature points.
 """
 
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
 
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
@@ -119,7 +121,8 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         ndim = self.ndim()
 
         def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return sum(u[i] * v[i] for i in range(ndim))
+            ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(ndim))
+            return ret
 
         self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
@@ -157,7 +160,8 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 # F = 1 + du/dx; grad shape (1, 1, nelem, nquad)
                 F = 1.0 + w.u_prev.grad[0, 0]
                 P = stress_model.compute_stress_1d(F, numpy_bkd)
-                return P * v.grad[0, 0]
+                ret: NDArray[np.floating[Any]] = P * v.grad[0, 0]
+                return ret
 
             f_np = asm(
                 LinearForm(internal_force_1d),
@@ -177,12 +181,13 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 P11, P12, P21, P22 = stress_model.compute_stress_2d(
                     F11, F12, F21, F22, numpy_bkd
                 )
-                return (
+                ret: NDArray[np.floating[Any]] = (
                     P11 * v.grad[0, 0]
                     + P12 * v.grad[0, 1]
                     + P21 * v.grad[1, 0]
                     + P22 * v.grad[1, 1]
                 )
+                return ret
 
             f_np = asm(
                 LinearForm(internal_force_2d),
@@ -242,7 +247,8 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 force = force_flat.reshape(ndim, nelem, nquad)
             else:
                 force = np.asarray(body_force_func(x, current_time))
-            return sum(force[i] * v[i] for i in range(ndim))
+            ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
+            return ret
 
         load_np = asm(LinearForm(load_form), skfem_basis)
         return self._bkd.asarray(load_np.astype(np.float64))
@@ -303,7 +309,8 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             def tangent_1d(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 F = 1.0 + w.u_prev.grad[0, 0]
                 dPdF = stress_model.compute_tangent_1d(F, numpy_bkd)
-                return dPdF * v.grad[0, 0] * u.grad[0, 0]
+                ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
+                return ret
 
             K_np = asm(
                 BilinearForm(tangent_1d),

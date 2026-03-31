@@ -150,7 +150,8 @@ class BiLaplacianPrior(Generic[Array]):
         delta = self._delta
 
         def bilinear_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return dot(mul(K_tensor, grad(u)), grad(v)) + delta * u * v
+            ret: NDArray[np.floating[Any]] = dot(mul(K_tensor, grad(u)), grad(v)) + delta * u * v
+            return ret
 
         stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
 

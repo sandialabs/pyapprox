@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
@@ -138,7 +139,8 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         # Laplacian stiffness
         def laplacian_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return dot(grad(u), grad(v))
+            ret: NDArray[np.floating[Any]] = dot(grad(u), grad(v))
+            return ret
 
         laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis)
 
@@ -156,12 +158,14 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
                     k2 = k2_flat.reshape(nelem, nquad)
                 else:
                     k2 = sqwavenum_func(x_np)
-                return k2 * u * v
+                ret: NDArray[np.floating[Any]] = k2 * u * v
+                return ret
         else:
             k = self._wavenumber
 
             def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-                return k * k * u * v
+                ret: NDArray[np.floating[Any]] = k * k * u * v
+                return ret
 
         mass_np = asm(BilinearForm(mass_form), skfem_basis)
 
@@ -199,7 +203,8 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
                     forc = forc_flat.reshape(nelem, nquad)
                 else:
                     forc = forcing_func(w.x)
-                return forc * v
+                ret: NDArray[np.floating[Any]] = forc * v
+                return ret
 
             load_np = asm(LinearForm(linear_form), skfem_basis)
 

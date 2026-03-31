@@ -7,6 +7,7 @@ for verifying Galerkin finite element implementations.
 from typing import Any, Callable, Generic, List, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.boundary.implementations import (
     BoundaryConditionSet,
@@ -88,7 +89,8 @@ def _compute_normal_flux(
         flux = flux_func(coords)
 
     # flux dot normal: sum over dimensions
-    return np.sum(flux * normal, axis=0)
+    ret: NDArray[np.floating[Any]] = np.sum(flux * normal, axis=0)
+    return ret
 
 
 class ManufacturedSolutionBC(Generic[Array]):
@@ -169,11 +171,13 @@ class ManufacturedSolutionBC(Generic[Array]):
         if time_dep:
 
             def value_func(x: np.ndarray, t: float) -> np.ndarray:
-                return sol_func(x, t)
+                ret: NDArray[np.floating[Any]] = sol_func(x, t)
+                return ret
         else:
 
             def value_func(x: np.ndarray, t: float = 0.0) -> np.ndarray:
-                return sol_func(x)
+                ret: NDArray[np.floating[Any]] = sol_func(x)
+                return ret
 
         return DirichletBC(
             basis=self._basis,
@@ -231,13 +235,15 @@ class ManufacturedSolutionBC(Generic[Array]):
             def robin_value(x: np.ndarray, t: float) -> np.ndarray:
                 u_val = sol_func(x, t)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x, t)
-                return alpha * u_val - flux_dot_n
+                ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
+                return ret
         else:
 
             def robin_value(x: np.ndarray, t: float = 0.0) -> np.ndarray:
                 u_val = sol_func(x)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x)
-                return alpha * u_val - flux_dot_n
+                ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
+                return ret
 
         return RobinBC(
             basis=self._basis,
