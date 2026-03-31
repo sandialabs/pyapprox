@@ -13,7 +13,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 @runtime_checkable
 class SampleStatisticProtocol(Protocol, Generic[Array]):
     """
-    Protocol for sample average statistics.
+    Protocol for sample average statistics (evaluate-only).
 
     Sample statistics compute weighted averages of function values, such as
     mean, variance, entropic risk, or AVaR. They are used for:
@@ -28,8 +28,6 @@ class SampleStatisticProtocol(Protocol, Generic[Array]):
         Whether analytical Jacobian is available.
     __call__(values, weights)
         Compute the statistic.
-    jacobian(values, jac_values, weights)
-        Compute Jacobian via chain rule.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -64,6 +62,19 @@ class SampleStatisticProtocol(Protocol, Generic[Array]):
             Statistic value. Shape: (nqoi, 1)
         """
         ...
+
+
+@runtime_checkable
+class DifferentiableSampleStatisticProtocol(
+    SampleStatisticProtocol[Array], Protocol, Generic[Array]
+):
+    """
+    Protocol for sample statistics with Jacobian support.
+
+    Extends ``SampleStatisticProtocol`` with a ``jacobian`` method for
+    computing the chain-rule Jacobian of the statistic w.r.t. upstream
+    variables.
+    """
 
     def jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """

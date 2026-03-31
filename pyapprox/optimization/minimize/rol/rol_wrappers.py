@@ -7,14 +7,27 @@ instantiation time.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Generic
-
-if TYPE_CHECKING:
-    import pyrol
+from typing import TYPE_CHECKING, Any, overload
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.hessian import (
+    FunctionWithJacobianAndHVPProtocol,
+)
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.optimization.minimize.constraints.protocols import (
+    LinearConstraintProtocol,
+    NonlinearConstraintProtocol,
+    NonlinearConstraintProtocolWithJacobian,
+    NonlinearConstraintProtocolWithJacobianAndWHVP,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    import pyrol
 
 
 def _require_pyrol() -> None:
@@ -22,45 +35,6 @@ def _require_pyrol() -> None:
     from pyapprox.util.optional_deps import import_optional_dependency
 
     import_optional_dependency("pyrol", feature_name="ROL optimizer", extra_name="rol")
-
-
-class ROLObjectiveAdapter(Generic[Array]):
-    """Wraps an ObjectiveProtocol as a pyrol.Objective."""
-
-    def __init__(self, objective: object, bkd: Backend[Array]) -> None:
-        _require_pyrol()
-        import pyrol
-
-        self._objective = objective
-        self._bkd = bkd
-        # Dynamically inherit from pyrol.Objective
-        self.__class__ = type(
-            "ROLObjectiveAdapter",
-            (pyrol.Objective,),
-            {
-                "value": self._value,
-                "gradient": self._gradient,
-                "hessVec": self._hessVec,
-            },
-        )
-        pyrol.Objective.__init__(self)
-
-    def _value(self, x, tol):  # type: ignore[no-untyped-def]
-        x_col = self._bkd.asarray(x.array)[:, None]
-        val = self._objective(x_col)
-        return self._bkd.to_numpy(val)[0, 0]
-
-    def _gradient(self, g, x, tol):  # type: ignore[no-untyped-def]
-        x_col = self._bkd.asarray(x.array)[:, None]
-        jac = self._objective.jacobian(x_col)
-        g[:] = self._bkd.to_numpy(jac[0, :])
-        return g
-
-    def _hessVec(self, hv, v, x, tol):  # type: ignore[no-untyped-def]
-        x_col = self._bkd.asarray(x.array)[:, None]
-        v_col = self._bkd.asarray(v.array)[:, None]
-        hvp = self._objective.hvp(x_col, v_col)
-        hv[:] = self._bkd.to_numpy(hvp[:, 0])
 
 
 def _is_inexact_evaluable(obj: object) -> bool:
@@ -81,8 +55,34 @@ def _is_inexact_differentiable(obj: object) -> bool:
     return isinstance(obj, InexactDifferentiable)
 
 
+# ---------------------------------------------------------------------------
+# Objective wrappers
+# ---------------------------------------------------------------------------
+
+
+@overload
 def make_rol_objective(
-    objective: object,
+    objective: FunctionWithJacobianAndHVPProtocol[Array],
+    bkd: Backend[Array],
+) -> object: ...
+
+
+@overload
+def make_rol_objective(
+    objective: FunctionWithJacobianProtocol[Array],
+    bkd: Backend[Array],
+) -> object: ...
+
+
+@overload
+def make_rol_objective(
+    objective: FunctionProtocol[Array],
+    bkd: Backend[Array],
+) -> object: ...
+
+
+def make_rol_objective(
+    objective: FunctionProtocol[Array],
     bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.Objective wrapping the given objective.
@@ -93,11 +93,16 @@ def make_rol_objective(
     passes ROL's ``tol`` parameter through to ``inexact_value`` or
     ``inexact_jacobian``.
     """
+    if not isinstance(objective, FunctionProtocol):
+        raise TypeError(
+            f"objective must satisfy FunctionProtocol, "
+            f"got {type(objective).__name__}"
+        )
     _require_pyrol()
     import pyrol
 
-    has_jacobian = hasattr(objective, "jacobian")
-    has_hvp = hasattr(objective, "hvp")
+    has_jacobian = isinstance(objective, FunctionWithJacobianProtocol)
+    has_hvp = isinstance(objective, FunctionWithJacobianAndHVPProtocol)
     inexact_eval = _is_inexact_evaluable(objective)
     inexact_diff = _is_inexact_differentiable(objective)
 
@@ -151,14 +156,34 @@ def make_rol_objective(
     return _Adapter()
 
 
-class ROLNonlinearConstraintAdapter(Generic[Array]):
-    """Wraps a NonlinearConstraintProtocol as a pyrol.Constraint."""
+# ---------------------------------------------------------------------------
+# Nonlinear constraint wrappers
+# ---------------------------------------------------------------------------
 
-    pass
+
+@overload
+def make_rol_nonlinear_constraint(
+    constraint: NonlinearConstraintProtocolWithJacobianAndWHVP[Array],
+    bkd: Backend[Array],
+) -> object: ...
+
+
+@overload
+def make_rol_nonlinear_constraint(
+    constraint: NonlinearConstraintProtocolWithJacobian[Array],
+    bkd: Backend[Array],
+) -> object: ...
+
+
+@overload
+def make_rol_nonlinear_constraint(
+    constraint: NonlinearConstraintProtocol[Array],
+    bkd: Backend[Array],
+) -> object: ...
 
 
 def make_rol_nonlinear_constraint(
-    constraint: object,
+    constraint: NonlinearConstraintProtocol[Array],
     bkd: Backend[Array],
 ) -> object:
     """Create a pyrol.Constraint wrapping the given nonlinear constraint.
@@ -168,11 +193,16 @@ def make_rol_nonlinear_constraint(
     ``InexactDifferentiable``, the adapter passes ROL's ``tol``
     parameter through to the inexact methods.
     """
+    if not isinstance(constraint, NonlinearConstraintProtocol):
+        raise TypeError(
+            f"constraint must satisfy NonlinearConstraintProtocol, "
+            f"got {type(constraint).__name__}"
+        )
     _require_pyrol()
     import pyrol
 
-    has_jacobian = hasattr(constraint, "jacobian")
-    has_whvp = hasattr(constraint, "whvp")
+    has_jacobian = isinstance(constraint, NonlinearConstraintProtocolWithJacobian)
+    has_whvp = isinstance(constraint, NonlinearConstraintProtocolWithJacobianAndWHVP)
     inexact_eval = _is_inexact_evaluable(constraint)
     inexact_diff = _is_inexact_differentiable(constraint)
 
@@ -237,6 +267,11 @@ def make_rol_nonlinear_constraint(
     return _Adapter()
 
 
+# ---------------------------------------------------------------------------
+# Linear operator / constraint wrappers
+# ---------------------------------------------------------------------------
+
+
 def make_rol_linear_operator(
     A: Array,
     bkd: Backend[Array],
@@ -266,7 +301,7 @@ def make_rol_linear_operator(
 
 
 def make_rol_linear_constraint(
-    constraint: object,
+    constraint: LinearConstraintProtocol[Array],
     bkd: Backend[Array],
 ) -> tuple[Any, ...]:
     """Create ROL linear constraint components from a PyApproxLinearConstraint.
@@ -276,6 +311,11 @@ def make_rol_linear_constraint(
     tuple
         (rol_linear_constraint, emul, bounds_or_None, is_equality)
     """
+    if not isinstance(constraint, LinearConstraintProtocol):
+        raise TypeError(
+            f"constraint must satisfy LinearConstraintProtocol, "
+            f"got {type(constraint).__name__}"
+        )
     _require_pyrol()
     import pyrol
     from pyrol.vectors import NumPyVector

@@ -8,6 +8,9 @@ strain energy density, and their state Jacobians.
 
 from typing import Callable, Generic, Optional, Tuple
 
+from pyapprox.pde.collocation.physics.stress_models.protocols import (
+    StressModelWithTangentProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -284,10 +287,15 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         self,
         Dx: Array,
         Dy: Array,
-        stress_model: object,
+        stress_model: StressModelWithTangentProtocol[Array],
         bkd: Backend[Array],
         curvilinear_basis: Optional[Array] = None,
     ) -> None:
+        if not isinstance(stress_model, StressModelWithTangentProtocol):
+            raise TypeError(
+                f"stress_model must satisfy StressModelWithTangentProtocol, "
+                f"got {type(stress_model).__name__}"
+            )
         self._Dx = Dx
         self._Dy = Dy
         self._stress_model = stress_model

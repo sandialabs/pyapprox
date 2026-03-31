@@ -24,7 +24,7 @@ from .quadrature import (
     OEDQuadratureSamplerProtocol,
     QuadratureSamplerProtocol,
 )
-from .statistics import SampleStatisticProtocol
+from .statistics import DifferentiableSampleStatisticProtocol, SampleStatisticProtocol
 
 __all__ = [
     # Likelihood protocols
@@ -42,6 +42,7 @@ __all__ = [
     "OEDQuadratureSamplerProtocol",
     # Statistics protocols
     "SampleStatisticProtocol",
+    "DifferentiableSampleStatisticProtocol",
     # Deviation protocols
     "DeviationMeasureProtocol",
 ]

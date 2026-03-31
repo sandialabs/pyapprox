@@ -9,8 +9,16 @@ TODO: Check if this can share infrastructure with ``probability/risk/``
 stat classes in a future consolidation.
 """
 
-from typing import Generic, List
+from typing import Generic, List, cast
 
+from pyapprox.expdesign.protocols.statistics import (
+    DifferentiableSampleStatisticProtocol,
+    SampleStatisticProtocol,
+)
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
+)
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -28,7 +36,7 @@ class SampleAverageConstraint(Generic[Array]):
 
     Parameters
     ----------
-    model : object
+    model : FunctionProtocol[Array]
         A function satisfying FunctionProtocol. Must have ``nvars()``,
         ``nqoi()``, ``__call__(samples)``. May also have ``jacobian(sample)``.
     quad_samples : Array
@@ -37,7 +45,7 @@ class SampleAverageConstraint(Generic[Array]):
     quad_weights : Array
         Quadrature weights. Shape ``(n_quad_pts,)`` (1D) — will be
         reshaped internally to ``(1, n_quad_pts)`` for the stat call.
-    stat : object
+    stat : SampleStatisticProtocol[Array]
         A ``SampleStatisticProtocol`` with ``__call__(values, weights)``
         and optionally ``jacobian(values, jac_values, weights)``.
     design_indices : List[int]
@@ -52,15 +60,25 @@ class SampleAverageConstraint(Generic[Array]):
 
     def __init__(
         self,
-        model: object,
+        model: FunctionProtocol[Array],
         quad_samples: Array,
         quad_weights: Array,
-        stat: object,
+        stat: SampleStatisticProtocol[Array],
         design_indices: List[int],
         constraint_lb: Array,
         constraint_ub: Array,
         bkd: Backend[Array],
     ) -> None:
+        if not isinstance(model, FunctionProtocol):
+            raise TypeError(
+                f"model must satisfy FunctionProtocol, "
+                f"got {type(model).__name__}"
+            )
+        if not isinstance(stat, SampleStatisticProtocol):
+            raise TypeError(
+                f"stat must satisfy SampleStatisticProtocol, "
+                f"got {type(stat).__name__}"
+            )
         self._model = model
         self._quad_samples = quad_samples
         # Ensure weights are (1, n_quad_pts) for stat call
@@ -84,8 +102,8 @@ class SampleAverageConstraint(Generic[Array]):
 
         # Dynamic binding of jacobian
         if (
-            hasattr(model, "jacobian")
-            and hasattr(stat, "jacobian_implemented")
+            isinstance(model, FunctionWithJacobianProtocol)
+            and isinstance(stat, DifferentiableSampleStatisticProtocol)
             and stat.jacobian_implemented()
         ):
             self.jacobian = self._jacobian
@@ -109,6 +127,22 @@ class SampleAverageConstraint(Generic[Array]):
     def ub(self) -> Array:
         """Return constraint upper bounds. Shape ``(nqoi,)``."""
         return self._constraint_ub
+
+    def _differentiable_stat(self) -> DifferentiableSampleStatisticProtocol[Array]:
+        """Typed access to stat as differentiable.
+
+        Safe — only called from ``_jacobian`` which is bound only when
+        ``isinstance(stat, DifferentiableSampleStatisticProtocol)`` is True.
+        """
+        return cast(DifferentiableSampleStatisticProtocol[Array], self._stat)
+
+    def _differentiable_model(self) -> FunctionWithJacobianProtocol[Array]:
+        """Typed access to model as differentiable.
+
+        Safe — only called from ``_jacobian`` which is bound only when
+        ``isinstance(model, FunctionWithJacobianProtocol)`` is True.
+        """
+        return cast(FunctionWithJacobianProtocol[Array], self._model)
 
     def _assemble_full_samples(self, design_sample: Array) -> Array:
         """Build full-dimensional samples by combining design + quad points.
@@ -147,9 +181,9 @@ class SampleAverageConstraint(Generic[Array]):
         """
         full_samples = self._assemble_full_samples(sample)
         # Model output: (nqoi, n_quad_pts)
-        model_values = self._model(full_samples)  # type: ignore[operator]
+        model_values = self._model(full_samples)
         # Apply statistic: (nqoi, n_quad_pts), (1, n_quad_pts) -> (nqoi, 1)
-        return self._stat(model_values, self._quad_weights)  # type: ignore[operator]
+        return self._stat(model_values, self._quad_weights)
 
     def _jacobian(self, sample: Array) -> Array:
         """Jacobian of the statistical constraint w.r.t. design variables.
@@ -165,10 +199,11 @@ class SampleAverageConstraint(Generic[Array]):
             Jacobian. Shape ``(nqoi, n_design)``.
         """
         bkd = self._bkd
+        diff_model = self._differentiable_model()
         full_samples = self._assemble_full_samples(sample)
 
         # Model output: (nqoi, n_quad_pts)
-        model_values = self._model(full_samples)  # type: ignore[operator]
+        model_values = diff_model(full_samples)
 
         # Collect model jacobians at each quad point
         n_design = len(self._design_indices)
@@ -180,11 +215,11 @@ class SampleAverageConstraint(Generic[Array]):
         for qq in range(n_quad):
             single_sample = full_samples[:, qq : qq + 1]
             # Full jacobian: (nqoi, nvars_full)
-            jac_full = self._model.jacobian(single_sample)
+            jac_full = diff_model.jacobian(single_sample)
             # Extract design columns: (nqoi, n_design)
             jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         # Apply stat jacobian: (nqoi, n_quad, n_design), -> (nqoi, n_design)
-        return self._stat.jacobian(
+        return self._differentiable_stat().jacobian(
             model_values, jac_values, self._quad_weights
         )

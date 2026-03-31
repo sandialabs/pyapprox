@@ -6,8 +6,19 @@ value and jacobian evaluation. Satisfies ``NonlinearConstraintProtocol``
 and ``InexactDifferentiable``.
 """
 
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, cast
 
+from pyapprox.expdesign.protocols.statistics import (
+    DifferentiableSampleStatisticProtocol,
+    SampleStatisticProtocol,
+)
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.optimization.minimize.inexact.protocols import (
+    InexactGradientStrategyProtocol,
+)
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -25,13 +36,13 @@ class InexactWrapper(Generic[Array]):
 
     Parameters
     ----------
-    model : object
+    model : FunctionProtocol[Array]
         A function satisfying ``FunctionProtocol``. Must have ``nvars()``,
         ``nqoi()``, ``__call__(samples)``. May also have ``jacobian(sample)``.
-    stat : object
+    stat : SampleStatisticProtocol[Array]
         A ``SampleStatisticProtocol`` with ``__call__(values, weights)``
         and optionally ``jacobian(values, jac_values, weights)``.
-    strategy : object
+    strategy : InexactGradientStrategyProtocol[Array]
         An ``InexactGradientStrategyProtocol`` with
         ``samples_and_weights(tol)`` returning ``(samples, weights)``.
     design_indices : List[int]
@@ -46,14 +57,24 @@ class InexactWrapper(Generic[Array]):
 
     def __init__(
         self,
-        model: object,
-        stat: object,
-        strategy: object,
+        model: FunctionProtocol[Array],
+        stat: SampleStatisticProtocol[Array],
+        strategy: InexactGradientStrategyProtocol[Array],
         design_indices: List[int],
         bkd: Backend[Array],
         constraint_lb: Optional[Array] = None,
         constraint_ub: Optional[Array] = None,
     ) -> None:
+        if not isinstance(model, FunctionProtocol):
+            raise TypeError(
+                f"model must satisfy FunctionProtocol, "
+                f"got {type(model).__name__}"
+            )
+        if not isinstance(stat, SampleStatisticProtocol):
+            raise TypeError(
+                f"stat must satisfy SampleStatisticProtocol, "
+                f"got {type(stat).__name__}"
+            )
         self._model = model
         self._stat = stat
         self._strategy = strategy
@@ -62,8 +83,8 @@ class InexactWrapper(Generic[Array]):
         self._constraint_lb = constraint_lb
         self._constraint_ub = constraint_ub
 
-        self._nvars_full: int = model.nvars()  # type: ignore[attr-defined]
-        self._nqoi: int = model.nqoi()  # type: ignore[attr-defined]
+        self._nvars_full: int = model.nvars()
+        self._nqoi: int = model.nqoi()
 
         # Compute random variable indices (complement of design)
         all_indices = set(range(self._nvars_full))
@@ -71,8 +92,8 @@ class InexactWrapper(Generic[Array]):
 
         # Dynamic binding of jacobian methods
         if (
-            hasattr(model, "jacobian")
-            and hasattr(stat, "jacobian_implemented")
+            isinstance(model, FunctionWithJacobianProtocol)
+            and isinstance(stat, DifferentiableSampleStatisticProtocol)
             and stat.jacobian_implemented()
         ):
             self.jacobian = self._jacobian
@@ -102,6 +123,22 @@ class InexactWrapper(Generic[Array]):
             raise AttributeError("No upper bounds set")
         return self._constraint_ub
 
+    def _differentiable_model(self) -> FunctionWithJacobianProtocol[Array]:
+        """Typed access to model as differentiable.
+
+        Safe — only called from ``_jacobian_with_samples`` which is only
+        reachable when ``isinstance(model, FunctionWithJacobianProtocol)``.
+        """
+        return cast(FunctionWithJacobianProtocol[Array], self._model)
+
+    def _differentiable_stat(self) -> DifferentiableSampleStatisticProtocol[Array]:
+        """Typed access to stat as differentiable.
+
+        Safe — only called from ``_jacobian_with_samples`` which is only
+        reachable when ``isinstance(stat, DifferentiableSampleStatisticProtocol)``.
+        """
+        return cast(DifferentiableSampleStatisticProtocol[Array], self._stat)
+
     def _evaluate_with_samples(
         self, design_sample: Array, quad_samples: Array, quad_weights: Array,
     ) -> Array:
@@ -130,10 +167,9 @@ class InexactWrapper(Generic[Array]):
             self._nvars_full,
             bkd,
         )
-        model_values: Array = self._model(full_samples)  # type: ignore[operator]
+        model_values = self._model(full_samples)
         weights_2d = bkd.reshape(quad_weights, (1, -1))
-        result: Array = self._stat(model_values, weights_2d)  # type: ignore[operator]
-        return result
+        return self._stat(model_values, weights_2d)
 
     def _jacobian_with_samples(
         self, design_sample: Array, quad_samples: Array, quad_weights: Array,
@@ -155,6 +191,8 @@ class InexactWrapper(Generic[Array]):
             Shape ``(nqoi, n_design)``.
         """
         bkd = self._bkd
+        diff_model = self._differentiable_model()
+        diff_stat = self._differentiable_stat()
         full_samples = assemble_full_samples(
             design_sample,
             quad_samples,
@@ -163,7 +201,7 @@ class InexactWrapper(Generic[Array]):
             self._nvars_full,
             bkd,
         )
-        model_values: Array = self._model(full_samples)  # type: ignore[operator]
+        model_values = diff_model(full_samples)
 
         n_design = len(self._design_indices)
         n_quad = quad_samples.shape[1]
@@ -173,14 +211,11 @@ class InexactWrapper(Generic[Array]):
         jac_values = bkd.zeros((nqoi, n_quad, n_design))
         for qq in range(n_quad):
             single_sample = full_samples[:, qq : qq + 1]
-            jac_full = self._model.jacobian(single_sample)  # type: ignore[attr-defined]
+            jac_full = diff_model.jacobian(single_sample)
             jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         weights_2d = bkd.reshape(quad_weights, (1, -1))
-        result: Array = self._stat.jacobian(  # type: ignore[attr-defined]
-            model_values, jac_values, weights_2d
-        )
-        return result
+        return diff_stat.jacobian(model_values, jac_values, weights_2d)
 
     def __call__(self, sample: Array) -> Array:
         """Evaluate using all available samples (exact, tol=0).
@@ -212,7 +247,7 @@ class InexactWrapper(Generic[Array]):
         Array
             Shape ``(nqoi, 1)``.
         """
-        quad_samples, quad_weights = self._strategy.samples_and_weights(tol)  # type: ignore[attr-defined]
+        quad_samples, quad_weights = self._strategy.samples_and_weights(tol)
         return self._evaluate_with_samples(sample, quad_samples, quad_weights)
 
     def _jacobian(self, sample: Array) -> Array:
@@ -245,7 +280,7 @@ class InexactWrapper(Generic[Array]):
         Array
             Shape ``(nqoi, n_design)``.
         """
-        quad_samples, quad_weights = self._strategy.samples_and_weights(tol)  # type: ignore[attr-defined]
+        quad_samples, quad_weights = self._strategy.samples_and_weights(tol)
         return self._jacobian_with_samples(
             sample, quad_samples, quad_weights,
         )
