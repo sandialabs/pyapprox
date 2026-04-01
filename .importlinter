@@ -1,0 +1,66 @@
+[importlinter]
+root_package = pyapprox
+include_external_packages = True
+
+# ── Contract 1: Layered architecture ──────────────────────────────────────
+# Layers are ordered top (highest) to bottom (lowest).
+# A module may only import from layers below it.
+[importlinter:contract:layers]
+name = Enforce dependency layers
+type = layers
+layers =
+    pyapprox.benchmarks
+    pyapprox.expdesign
+    pyapprox.statest
+    pyapprox.pde
+    pyapprox.inverse
+    pyapprox.sensitivity
+    pyapprox.surrogates
+    pyapprox.optimization
+    pyapprox.probability
+    pyapprox.interface
+    pyapprox.util
+
+# ── Contract 2: Production code must not import from benchmarks ────────────
+# Enforces that non-benchmark production code treats benchmarks as leaf nodes.
+# Domain benchmark subpackages (expdesign.benchmarks, etc.) are included in
+# source_modules via their parent — their violations are counted in the
+# baseline and will be resolved when they migrate to pyapprox/benchmarks/.
+[importlinter:contract:benchmarks-are-leaf]
+name = Production code must not import from benchmarks
+type = forbidden
+source_modules =
+    pyapprox.util
+    pyapprox.probability
+    pyapprox.interface
+    pyapprox.surrogates
+    pyapprox.optimization
+    pyapprox.sensitivity
+    pyapprox.inverse
+    pyapprox.pde
+    pyapprox.statest
+    pyapprox.expdesign
+forbidden_modules =
+    pyapprox.benchmarks
+
+# ── Contract 3: tutorial_figures not importable from production code ───────
+# Note: domain benchmark subpackages (expdesign.benchmarks etc.) are excluded
+# from source_modules — they are benchmark code pending migration to
+# pyapprox/benchmarks/ in Phase C. See scripts/ode_architecture_assessment.md.
+[importlinter:contract:no-tutorial-figures]
+name = tutorial_figures must not be imported by production code
+type = forbidden
+source_modules =
+    pyapprox.benchmarks
+    pyapprox.expdesign
+    pyapprox.pde
+    pyapprox.surrogates
+    pyapprox.probability
+    pyapprox.optimization
+    pyapprox.inverse
+    pyapprox.statest
+    pyapprox.sensitivity
+    pyapprox.interface
+    pyapprox.util
+forbidden_modules =
+    pyapprox.tutorial_figures

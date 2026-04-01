@@ -1,0 +1,68 @@
+name: Architecture
+
+on:
+  push:
+    branches: [main, "dev/**"]
+  pull_request:
+    branches: [main, "dev/**"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  import-linter:
+    name: Import architecture check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package and linter
+        run: |
+          pip install -e ".[lint]" --quiet
+          pip install import-linter --quiet
+
+      - name: Run import-linter (ratchet mode)
+        run: |
+          lint-imports \
+            --config .importlinter \
+            2>&1 | tee import_linter_results.txt || true
+
+          echo "=== Contract Summary ==="
+          grep -E "^(KEPT|BROKEN)" import_linter_results.txt || true
+
+          # Count individual violation lines
+          VIOLATIONS=$(grep -c "^- " import_linter_results.txt || echo "0")
+          echo "Current violations: $VIOLATIONS"
+
+          # Read baseline from committed file
+          BASELINE=$(cat scripts/import_linter_baseline_count.txt 2>/dev/null || echo "0")
+          echo "Baseline violations: $BASELINE"
+
+          # Fail if violations INCREASED (ratchet — never go backward)
+          if [ "$VIOLATIONS" -gt "$BASELINE" ]; then
+            echo ""
+            echo "Architecture violations increased: $BASELINE -> $VIOLATIONS"
+            echo "New violations were introduced. Fix them or update the baseline"
+            echo "with explicit approval."
+            exit 1
+          fi
+
+          echo "Architecture violations: $VIOLATIONS (baseline: $BASELINE)"
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: import-linter-results
+          path: import_linter_results.txt

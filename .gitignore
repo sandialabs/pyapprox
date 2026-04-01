@@ -42,6 +42,9 @@ htmlcov/
 # mypy
 .mypy_cache/
 
+# import-linter
+.import_linter_cache/
+
 # Quarto
 _freeze/
 _site/
