@@ -31,5 +31,5 @@ jobs:
       - run: pip install mypy numpy torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e ".[dev]"
       - name: mypy ratchet (must not exceed baseline)
-        run: bash scripts/mypy_diff.sh 1800
+        run: bash scripts/mypy_diff.sh 1720
 

@@ -15,12 +15,16 @@ from typing import List
 import numpy as np
 import pytest
 
-from pyapprox.expdesign import (
+from pyapprox.expdesign import create_prediction_oed_objective
+from pyapprox.expdesign.benchmarks.linear_gaussian import (
     LinearGaussianOEDBenchmark,
+)
+from pyapprox.expdesign.benchmarks.nonlinear_gaussian import (
     NonLinearGaussianOEDBenchmark,
+)
+from pyapprox.expdesign.diagnostics import (
     PredictionOEDDiagnostics,
     create_prediction_oed_diagnostics,
-    create_prediction_oed_objective,
 )
 from pyapprox.util.test_utils import (
     slow_test,

@@ -12,7 +12,7 @@ from typing import Dict, Generic, List, Tuple
 
 import numpy as np
 
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.benchmarks.linear_gaussian import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.protocols import Array, Backend
@@ -33,7 +33,7 @@ class KLOEDDiagnostics(Generic[Array]):
     Examples
     --------
     >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+    >>> from pyapprox.expdesign.benchmarks.linear_gaussian import LinearGaussianOEDBenchmark
     >>> from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
     >>>
     >>> bkd = NumpyBkd()

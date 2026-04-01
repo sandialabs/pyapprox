@@ -30,7 +30,6 @@ from .protocols import (
     NonlinearConstraintProtocolWithJacobian,
     NonlinearConstraintProtocolWithJacobianAndWHVP,
 )
-from .sample_average import SampleAverageConstraint
 from .validation import validate_linear_constraint
 
 __all__ = [
@@ -39,6 +38,5 @@ __all__ = [
     "NonlinearConstraintProtocolWithJacobian",
     "NonlinearConstraintProtocolWithJacobianAndWHVP",
     "PyApproxLinearConstraint",
-    "SampleAverageConstraint",
     "validate_linear_constraint",
 ]

@@ -97,14 +97,6 @@ from .analytical import (
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
 )
 
-# Benchmarks
-from .benchmarks import (
-    LinearGaussianOEDBenchmark,
-    LinearGaussianOEDModel,
-    LinearGaussianPredOEDBenchmark,
-    NonLinearGaussianOEDBenchmark,
-)
-
 # Data generation and management
 from .data import OEDDataGenerator, OEDDataManager
 from .deviation import (
@@ -114,14 +106,6 @@ from .deviation import (
     StandardDeviationMeasure,
 )
 
-# Diagnostics
-from .diagnostics import (
-    KLOEDDiagnostics,
-    PredictionOEDDiagnostics,
-    create_prediction_oed_diagnostics,
-    get_registered_utility_types,
-    register_utility,
-)
 from .evidence import Evidence, LogEvidence
 from .likelihood import (
     GaussianOEDInnerLoopLikelihood,
@@ -195,17 +179,6 @@ __all__ = [
     "KLOEDObjective",
     "PredictionOEDObjective",
     "DOptimalLinearModelObjective",
-    # Benchmarks
-    "LinearGaussianOEDBenchmark",
-    "LinearGaussianOEDModel",
-    "NonLinearGaussianOEDBenchmark",
-    "LinearGaussianPredOEDBenchmark",
-    # Diagnostics
-    "KLOEDDiagnostics",
-    "PredictionOEDDiagnostics",
-    "create_prediction_oed_diagnostics",
-    "register_utility",
-    "get_registered_utility_types",
     # Analytical utilities (conjugate priors)
     "ConjugateGaussianOEDExpectedStdDev",
     "ConjugateGaussianOEDExpectedEntropicDev",
