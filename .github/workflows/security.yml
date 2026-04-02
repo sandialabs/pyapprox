@@ -56,7 +56,7 @@ jobs:
       - name: Run bandit
         run: |
           bandit -r pyapprox/ \
-            --exclude pyapprox/tests \
+            --exclude tests \
             --severity-level high \
             --format sarif \
             --output bandit-report.sarif || true
@@ -69,7 +69,7 @@ jobs:
       - name: Fail on HIGH findings
         run: |
           bandit -r pyapprox/ \
-            --exclude pyapprox/tests \
+            --exclude tests \
             --severity-level high \
             --format json | python -c "
           import sys, json

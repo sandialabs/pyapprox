@@ -37,10 +37,10 @@ jobs:
           python -m pip install -e ".[fem,umbridge,test]"
       - name: Run fast tests (PR — fail-fast)
         if: github.event_name == 'pull_request'
-        run: pytest pyapprox -v --tb=short --timeout=300
+        run: pytest tests -v --tb=short --timeout=300
       - name: Run fast tests (push — show all failures)
         if: github.event_name != 'pull_request'
-        run: pytest pyapprox -v --tb=short --timeout=300
+        run: pytest tests -v --tb=short --timeout=300
 
   minimal:
     name: Minimal install (no optional deps)
@@ -63,7 +63,7 @@ jobs:
       - name: Verify package imports
         run: python -c "import pyapprox; print('Core import OK')"
       - name: Run fast tests (no optional deps)
-        run: pytest pyapprox -v --tb=short --timeout=300
+        run: pytest tests -v --tb=short --timeout=300
 
   slow:
     name: Slow tests (>5s)
@@ -87,7 +87,7 @@ jobs:
       - name: Run slow tests only
         env:
           PYAPPROX_RUN_SLOW: "1"
-        run: pytest pyapprox -v --tb=short -m slow_on --timeout=600
+        run: pytest tests -v --tb=short -m slow_on --timeout=600
 
   slower:
     name: Slower tests (>30s)
@@ -111,7 +111,7 @@ jobs:
       - name: Run slower tests only
         env:
           PYAPPROX_RUN_SLOWER: "1"
-        run: pytest pyapprox -v --tb=short -m slower_on --timeout=1200
+        run: pytest tests -v --tb=short -m slower_on --timeout=1200
 
   slowest:
     name: Slowest tests (>60s)
@@ -135,4 +135,4 @@ jobs:
       - name: Run slowest tests only
         env:
           PYAPPROX_RUN_SLOWEST: "1"
-        run: pytest pyapprox -v --tb=short -m slowest_on --timeout=1800
+        run: pytest tests -v --tb=short -m slowest_on --timeout=1800

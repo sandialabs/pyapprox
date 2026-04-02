@@ -11,19 +11,19 @@ help:  ## Show this help
 # ---------- Testing ----------
 
 test:  ## Run fast tests (default)
-	pytest pyapprox -v --tb=short
+	pytest tests -v --tb=short
 
 test-slow:  ## Run slow tests only (>5s)
-	PYAPPROX_RUN_SLOW=1 pytest pyapprox -v --tb=short -m slow
+	PYAPPROX_RUN_SLOW=1 pytest tests -v --tb=short -m slow
 
 test-slower:  ## Run slower tests only (>30s)
-	PYAPPROX_RUN_SLOWER=1 pytest pyapprox -v --tb=short -m slower
+	PYAPPROX_RUN_SLOWER=1 pytest tests -v --tb=short -m slower
 
 test-slowest:  ## Run slowest tests only (>60s)
-	PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short -m slowest
+	PYAPPROX_RUN_SLOWEST=1 pytest tests -v --tb=short -m slowest
 
 test-all:  ## Run all tests including slowest
-	PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short
+	PYAPPROX_RUN_SLOWEST=1 pytest tests -v --tb=short
 
 KEEP_VENV ?= 0
 MINIMAL_ENV ?= pyapprox-minimal
@@ -33,7 +33,7 @@ test-minimal:  ## Run tests with optional deps removed (KEEP_VENV=1 to keep env)
 	@conda env remove -n $(MINIMAL_ENV) --yes --quiet 2>/dev/null || true
 	conda create -n $(MINIMAL_ENV) --clone $(SOURCE_ENV) --yes --quiet
 	conda run -n $(MINIMAL_ENV) pip uninstall -y scikit-fem cvxpy pyrol umbridge joblib mpire numba 2>/dev/null || true
-	conda run -n $(MINIMAL_ENV) pytest pyapprox -v --tb=short -x
+	conda run -n $(MINIMAL_ENV) pytest tests -v --tb=short -x
 	@if [ "$(KEEP_VENV)" = "0" ]; then conda env remove -n $(MINIMAL_ENV) --yes --quiet; \
 		echo "Minimal tests passed — env cleaned up"; \
 	else echo "Minimal tests passed — env kept as $(MINIMAL_ENV)"; fi

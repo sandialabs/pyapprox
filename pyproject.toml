@@ -68,7 +68,9 @@ include = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["pyapprox"]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:scipy.*:",
     "ignore::DeprecationWarning:torch.*:",
@@ -119,10 +121,9 @@ ignore = ["E402"]  # intentional lazy imports to reduce module load times
 strict = true
 ignore_missing_imports = true
 # exclude applies when mypy discovers files via directory scanning.
-# It does NOT apply when files are passed explicitly on the command line
-# (e.g., mypy pyapprox/foo/tests/test_bar.py will still check that file).
+# Tests live in top-level tests/ dir, so `mypy pyapprox/` skips them naturally.
+# To check tests explicitly: mypy tests/
 exclude = [
-    "pyapprox/.*/tests/",
     "pyapprox/tutorial_figures/",
 ]
 

@@ -17,13 +17,17 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 
 # TODO: should this be moved to the interface.wrappers module
 
-from typing import Callable, Generic, List, Protocol, runtime_checkable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Generic, List, Protocol, runtime_checkable
 
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.surrogates.quadrature.protocols import (
-    MultivariateQuadratureRuleProtocol,
-)
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.quadrature.protocols import (
+        MultivariateQuadratureRuleProtocol,
+    )
 
 # TODO: This file is quite log. Consider spliting it up
 
