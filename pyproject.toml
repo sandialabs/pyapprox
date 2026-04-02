@@ -63,6 +63,9 @@ version-file = "pyapprox/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pyapprox"]
+include = [
+  "pyapprox/py.typed",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["pyapprox"]
