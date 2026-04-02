@@ -16,7 +16,7 @@ import numpy as np
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.pde.time.benchmarks.linear_ode import (
+from pyapprox.benchmarks.functions.ode.linear_ode import (
     QuadraticODEResidual,
 )
 from pyapprox.pde.time.explicit_steppers.forward_euler import (

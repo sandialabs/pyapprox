@@ -1,6 +1,6 @@
 
 
-from pyapprox.pde.time.benchmarks.nonlinear_decoupled import (
+from pyapprox.benchmarks.functions.ode.nonlinear_decoupled import (
     NonLinearDecoupledODE,
 )
 from pyapprox.pde.time.implicit_steppers.backward_euler import (

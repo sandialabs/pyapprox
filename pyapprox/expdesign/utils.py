@@ -6,7 +6,7 @@ not tied to specific benchmark implementations.
 
 import numpy as np
 
-from pyapprox.expdesign.benchmarks.protocols import (
+from pyapprox.expdesign.protocols.oed import (
     GaussianInferenceProblemProtocol,
 )
 from pyapprox.inverse.conjugate.gaussian import (

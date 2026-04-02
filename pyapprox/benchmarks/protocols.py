@@ -15,8 +15,15 @@ Protocols are organized in two groups:
     HasEnsembleMeans, HasEnsembleCovariance
 """
 
+from __future__ import annotations
+
 from typing import Any, Generic, List, Protocol, Sequence, runtime_checkable
 
+from pyapprox.benchmarks.ground_truth import OEDGroundTruth
+from pyapprox.expdesign.protocols.oed import (
+    KLOEDProblemProtocol,
+    PredictionOEDProblemProtocol,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
@@ -338,3 +345,25 @@ class HasExactEIG(Protocol, Generic[Array]):
     def exact_eig(self, weights: Array) -> float:
         """Return analytical EIG for given design weights."""
         ...
+
+
+# ---------------------------------------------------------------------------
+# OED benchmark protocols — benchmark-layer protocols for OED problems
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class KLOEDBenchmarkProtocol(Protocol[Array]):
+    """Protocol for a KL-OED benchmark with ground truth."""
+
+    def problem(self) -> KLOEDProblemProtocol[Array]: ...
+    def ground_truth(self) -> OEDGroundTruth: ...
+    def exact_eig(self, weights: Array) -> float: ...
+
+
+@runtime_checkable
+class PredictionOEDBenchmarkProtocol(Protocol[Array]):
+    """Protocol for a prediction OED benchmark with ground truth."""
+
+    def problem(self) -> PredictionOEDProblemProtocol[Array]: ...
+    def ground_truth(self) -> OEDGroundTruth: ...

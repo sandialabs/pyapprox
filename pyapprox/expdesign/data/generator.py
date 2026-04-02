@@ -18,7 +18,7 @@ from typing import Any, Generic, Optional, Tuple, Union
 
 import numpy as np
 
-from pyapprox.expdesign.benchmarks.protocols import (
+from pyapprox.expdesign.protocols.oed import (
     BayesianInferenceProblemProtocol,
     PredictionOEDProblemProtocol,
 )

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pyapprox.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (  # noqa: E501
+from pyapprox.benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (  # noqa: E501
     NonLinearCoupledStateEquations,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (

@@ -12,7 +12,7 @@ from pyapprox.benchmarks.functions.ode import (
 )
 from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.pde.time.benchmarks.lotka_volterra import (
+from pyapprox.benchmarks.functions.ode.lotka_volterra import (
     LotkaVolterraResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

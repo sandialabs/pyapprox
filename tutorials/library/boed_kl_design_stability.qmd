@@ -74,7 +74,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks import LotkaVolterraOEDBenchmark
+from pyapprox.benchmarks.instances.oed.lotka_volterra import LotkaVolterraOEDBenchmark
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,

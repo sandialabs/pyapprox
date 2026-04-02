@@ -7,7 +7,7 @@ from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.pde.time.benchmarks.chemical_reaction import (
+from pyapprox.benchmarks.functions.ode.chemical_reaction import (
     ChemicalReactionResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

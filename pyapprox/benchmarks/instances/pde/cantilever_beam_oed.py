@@ -27,11 +27,9 @@ from pyapprox.benchmarks.instances.pde.cantilever_beam_obs_map import (
     build_cantilever_beam_obs_map,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.expdesign.benchmarks.ground_truth import OEDGroundTruth
-from pyapprox.expdesign.benchmarks.problems.inference_problem import (
-    GaussianInferenceProblem,
-)
-from pyapprox.expdesign.benchmarks.problems.kl_problem import KLOEDProblem
+from pyapprox.benchmarks.ground_truth import OEDGroundTruth
+from pyapprox.benchmarks.problems.inverse import GaussianInferenceProblem
+from pyapprox.benchmarks.problems.oed import KLOEDProblem
 from pyapprox.expdesign.utils import compute_exact_eig
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend

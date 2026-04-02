@@ -7,7 +7,7 @@ from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.pde.time.benchmarks.coupled_springs import (
+from pyapprox.benchmarks.functions.ode.coupled_springs import (
     CoupledSpringsResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

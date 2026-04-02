@@ -97,6 +97,8 @@ from pyapprox.benchmarks.protocols import (
     DomainProtocol,
     GroundTruthProtocol,
     HasExactEIG,
+    KLOEDBenchmarkProtocol,
+    PredictionOEDBenchmarkProtocol,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 

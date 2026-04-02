@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pyapprox.optimization.minimize.benchmarks.evutushenko import (
+from pyapprox.benchmarks.functions.algebraic.evutushenko import (
     EvtushenkoNonLinearConstraint,
     EvtushenkoObjective,
 )

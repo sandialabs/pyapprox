@@ -1,7 +1,6 @@
 """ODE benchmark wrapper class.
 
-Wraps ODE residuals from pyapprox.pde.time.benchmarks and integrates
-them with the benchmark registry system.
+Wraps ODE residuals and integrates them with the benchmark registry system.
 """
 
 from dataclasses import dataclass

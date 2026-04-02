@@ -7,7 +7,7 @@ from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.pde.time.benchmarks.hastings_ecology import (
+from pyapprox.benchmarks.functions.ode.hastings_ecology import (
     HastingsEcologyResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

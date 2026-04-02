@@ -9,10 +9,10 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from pyapprox.expdesign.benchmarks.functions.linear_gaussian import (
+from pyapprox.benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
 )
-from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+from pyapprox.benchmarks.instances.oed.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
 from pyapprox.expdesign.diagnostics import (

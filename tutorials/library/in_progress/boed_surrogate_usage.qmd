@@ -75,7 +75,7 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks import (
+from pyapprox.benchmarks.instances.oed.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
 from pyapprox.expdesign.data import OEDDataGenerator

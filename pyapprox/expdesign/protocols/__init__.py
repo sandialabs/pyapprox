@@ -7,6 +7,12 @@ deviation measures, and prediction objectives.
 """
 
 from .deviation import DeviationMeasureProtocol
+from .oed import (
+    BayesianInferenceProblemProtocol,
+    GaussianInferenceProblemProtocol,
+    KLOEDProblemProtocol,
+    PredictionOEDProblemProtocol,
+)
 from .evidence import (
     EvidenceProtocol,
     LogEvidenceProtocol,
@@ -45,4 +51,9 @@ __all__ = [
     "DifferentiableSampleStatisticProtocol",
     # Deviation protocols
     "DeviationMeasureProtocol",
+    # OED inference/benchmark protocols
+    "BayesianInferenceProblemProtocol",
+    "GaussianInferenceProblemProtocol",
+    "KLOEDProblemProtocol",
+    "PredictionOEDProblemProtocol",
 ]

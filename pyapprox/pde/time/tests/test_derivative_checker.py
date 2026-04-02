@@ -8,7 +8,7 @@ This module tests the derivative checking functionality at three levels:
 """
 
 
-from pyapprox.pde.time.benchmarks.linear_ode import (
+from pyapprox.benchmarks.functions.ode.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )

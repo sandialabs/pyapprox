@@ -13,10 +13,10 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign import create_prediction_oed_objective
-from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+from pyapprox.benchmarks.instances.oed.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
-from pyapprox.expdesign.benchmarks.instances.nonlinear_gaussian import (
+from pyapprox.benchmarks.instances.oed.nonlinear_gaussian import (
     NonLinearGaussianPredOEDBenchmark,
     build_nonlinear_gaussian_pred_benchmark,
 )

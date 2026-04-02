@@ -7,7 +7,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-from pyapprox.optimization.minimize.benchmarks.evutushenko import (
+from pyapprox.benchmarks.functions.algebraic.evutushenko import (
     EvtushenkoNonLinearConstraint,
     EvtushenkoObjective,
 )

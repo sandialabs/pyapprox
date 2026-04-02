@@ -13,7 +13,7 @@ from typing import Callable, Generic, Tuple, Union
 
 import numpy as np
 
-from pyapprox.expdesign.benchmarks.protocols import (
+from pyapprox.expdesign.protocols.oed import (
     GaussianInferenceProblemProtocol,
 )
 from pyapprox.expdesign.protocols import QuadratureSamplerProtocol

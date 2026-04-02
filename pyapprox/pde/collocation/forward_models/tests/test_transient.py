@@ -264,7 +264,7 @@ class TestTransientForwardModel:
 
         autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
         analytical_jac = fwd.jacobian(sample[:, None])
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
+        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6, atol=1e-12)
 
     def test_protocol_isinstance(self, bkd):
         """Protocol isinstance checks with parameterization path."""

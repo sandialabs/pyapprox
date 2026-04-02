@@ -5,7 +5,7 @@ ground truth dataclass containing the known/computable values.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Generic, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Generic, Optional, Sequence, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array
 
@@ -214,3 +214,21 @@ class ODEGroundTruth(Generic[Array]):
 # TODO: Should a benchmark have only one ground_thruth e.g. ODEGroundTruth
 # or should we allow multiple, e.g. ODEGroundTruth, OptimizationGroundTruth
 # for ODE based optimization benchmark.
+
+
+@dataclass(frozen=True)
+class OEDGroundTruth:
+    """Ground truth for OED benchmarks.
+
+    Benchmarks compose this and delegate exact_eig/exact_utility calls to it.
+
+    Parameters
+    ----------
+    exact_eig : callable or None
+        Callable mapping weights -> exact EIG value.
+    exact_utility : callable or None
+        Callable mapping weights -> exact utility value.
+    """
+
+    exact_eig: Optional[Callable[..., float]] = None
+    exact_utility: Optional[Callable[..., float]] = None

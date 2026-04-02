@@ -161,7 +161,7 @@ def plot_eig_vs_nobs(ax: Axes) -> None:
 
     EIG vs number of observations for a linear Gaussian model.
     """
-    from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+    from pyapprox.benchmarks.instances.oed.linear_gaussian import (
         build_linear_gaussian_kl_benchmark,
     )
     from pyapprox.util.backends.numpy import NumpyBkd

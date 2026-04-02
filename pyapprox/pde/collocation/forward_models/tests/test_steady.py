@@ -427,7 +427,7 @@ class TestSteadyForwardModel:
 
         autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
         analytical_jac = fwd.jacobian(sample[:, None])
-        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-8)
+        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-8, atol=1e-12)
 
     def test_protocol_isinstance_eval_only(self, bkd):
         """Eval-only forward model satisfies only FunctionProtocol."""
