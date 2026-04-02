@@ -16,10 +16,10 @@ from typing import Any, Callable, Generic, Optional
 import numpy as np
 from scipy import stats
 
-from pyapprox.optimization.rootfinding.bisection import (
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.bisection import (
     BisectionSearch,
 )
-from pyapprox.util.backends.protocols import Array, Backend
 
 # TODO: do we need clip. Also we shoul not be using np.fun only bkd.fun
 # so computational graph is not broken for autograd

@@ -88,7 +88,9 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             If interaction_terms does not include all main effect indices.
         """
         # Check that all main effects are included
-        main_effect_indices = interaction_terms[:, self._bkd.sum(interaction_terms, axis=0) == 1]
+        main_effect_indices = interaction_terms[
+            :, self._bkd.sum(interaction_terms, axis=0) == 1
+        ]
         if main_effect_indices.shape[1] != self.nvars():
             raise ValueError("interaction_terms must contain all main effect indices")
         self._interaction_terms = interaction_terms

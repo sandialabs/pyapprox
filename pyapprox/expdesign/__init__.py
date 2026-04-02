@@ -1,4 +1,10 @@
-#TODO: Should we provide examples here. If we are going to provide examples here we should include example using local OED. Should we split module into two submodules, local (frequentist oed and Bayesian OED or even further, local, Bayes oed for params (currently we only support KL but we will add additional classes in the future), and bayes oed for prediction?
+# TODO: Should we provide examples here. If we are going to
+# provide examples here we should include example using local
+# OED. Should we split module into two submodules, local
+# (frequentist oed and Bayesian OED or even further, local,
+# Bayes oed for params (currently we only support KL but we will
+# add additional classes in the future), and bayes oed for
+# prediction?
 
 """
 Experimental Design module for pyapprox.
@@ -105,7 +111,6 @@ from .deviation import (
     EntropicDeviationMeasure,
     StandardDeviationMeasure,
 )
-
 from .evidence import Evidence, LogEvidence
 from .likelihood import (
     GaussianOEDInnerLoopLikelihood,

@@ -80,7 +80,7 @@ class BananaLogPosterior(Generic[Array]):
 
     # TODO: Pyapprox uses jacobian with shape (nqoi, nvars) never gradient.
     # rename function. This class should meet protocol required by
-    # samplers for logposterior. 
+    # samplers for logposterior.
     def gradient(self, sample: Array) -> Array:
         """
         Evaluate gradient of log posterior.

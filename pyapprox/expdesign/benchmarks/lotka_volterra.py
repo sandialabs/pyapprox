@@ -16,6 +16,9 @@ from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     lotka_volterra_3species,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.expdesign.benchmarks.problems.inference_problem import (
+    BayesianInferenceProblem,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -73,6 +76,8 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Backend for array operations.
+    noise_std : float, optional
+        Observation noise standard deviation. Default 0.1.
     final_time : float, optional
         Final simulation time. Default 10.0.
     deltat : float, optional
@@ -85,6 +90,7 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
+        noise_std: float = 0.1,
         final_time: float = 10.0,
         deltat: float = 1.0,
         stepper: str = "backward_euler",
@@ -119,6 +125,17 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
             stepper=stepper,
         )
 
+        # Create BayesianInferenceProblem
+        noise_variances = bkd.full(
+            (self._obs_model.nqoi(),), noise_std**2,
+        )
+        self._problem = BayesianInferenceProblem(
+            obs_map=self._obs_model,
+            prior=self._wrapper.prior(),
+            noise_variances=noise_variances,
+            bkd=bkd,
+        )
+
         # Precompute time arrays
         self._solution_times = bkd.linspace(
             tc.init_time,
@@ -133,16 +150,20 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         """Get the computational backend."""
         return self._bkd
 
+    def problem(self) -> BayesianInferenceProblem[Array]:
+        """Get the inference problem (obs_map + prior + noise)."""
+        return self._problem
+
     def prior(self):
         """Return the prior distribution over parameters."""
         return self._wrapper.prior()
 
-    def observation_model(self) -> ODEQoIFunction[Array]:
-        """Return the observation model (species 0 and 2 at all times)."""
+    def obs_map(self) -> ODEQoIFunction[Array]:
+        """Return the observation map (species 0 and 2 at all times)."""
         return self._obs_model
 
-    def prediction_model(self) -> ODEQoIFunction[Array]:
-        """Return the prediction model (species 1 at odd times)."""
+    def qoi_map(self) -> ODEQoIFunction[Array]:
+        """Return the QoI map (species 1 at odd times)."""
         return self._pred_model
 
     def solution_times(self) -> Array:
@@ -199,4 +220,4 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
 def _lotka_volterra_oed_factory(
     bkd: Backend[Array],
 ) -> LotkaVolterraOEDBenchmark[Array]:
-    return LotkaVolterraOEDBenchmark(bkd)
+    return LotkaVolterraOEDBenchmark(bkd, noise_std=0.1)

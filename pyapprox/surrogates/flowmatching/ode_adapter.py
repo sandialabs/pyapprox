@@ -17,7 +17,6 @@ for a batch of initial conditions.
 
 from typing import Any, Generic, Optional, Type
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerStepper,
 )
@@ -26,6 +25,7 @@ from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class FlowODEResidual(Generic[Array]):

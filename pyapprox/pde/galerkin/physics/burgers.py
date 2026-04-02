@@ -15,7 +15,8 @@ Linear form (residual/load):
     f*v - ν*grad(u_prev)·grad(v) - v*u_prev*du_prev/dx
 """
 
-from typing import TYPE_CHECKING,  Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Union
+
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
@@ -130,7 +131,11 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
 
         visc_const = self._viscosity if not callable(self._viscosity) else None
 
-        def bilinear_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        def bilinear_form(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             if visc_const is not None:
                 visc = visc_const
             else:

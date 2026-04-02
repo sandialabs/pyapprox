@@ -9,7 +9,6 @@ from pyapprox.inverse.sampling.dram import (
     DelayedRejectionAdaptiveMetropolis,
 )
 
-
 # TODO: we should be using bkd.assert_allclose and other bkd generic functions
 # not functions from np.testing. This will avoid a lot of unneeded
 # bkd.to_numpy conversions

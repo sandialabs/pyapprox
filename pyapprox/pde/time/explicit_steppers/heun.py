@@ -27,7 +27,6 @@ from pyapprox.pde.time.protocols.ode_residual import (
 )
 from pyapprox.util.backends.protocols import Array
 
-
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature
 # =========================================================================
@@ -297,9 +296,11 @@ class HeunHVP(
 
         The :math:`k_2` contribution has three terms from the chain rule:
 
-        - Term 1: :math:`(\partial^2 f / \partial p \partial z)|_z \cdot dz/dy`
+        - Term 1: :math:`(\partial^2 f / \partial p \partial z)|_z
+          \cdot dz/dy`
         - Term 2: :math:`H_z \cdot dz/dy \cdot dz/dp`
-        - Term 3: :math:`J_z \cdot \Delta t \cdot (\partial^2 k_1 / \partial p \partial y)`
+        - Term 3: :math:`J_z \cdot \Delta t
+          \cdot (\partial^2 k_1 / \partial p \partial y)`
         """
         dt = self._deltat
 
@@ -358,9 +359,12 @@ class HeunHVP(
 
         The :math:`k_2` contribution:
 
-        - Term 1: :math:`(\partial^2 f / \partial p \partial z)|_z \cdot dz/dy`
-        - Term 2: :math:`H_z \cdot dz/dy \cdot \Delta t \cdot df/dp|_y`
-        - Term 3: :math:`J_z \cdot \Delta t \cdot (\partial^2 f / \partial p \partial y)|_y`
+        - Term 1: :math:`(\partial^2 f / \partial p \partial z)|_z
+          \cdot dz/dy`
+        - Term 2: :math:`H_z \cdot dz/dy \cdot \Delta t
+          \cdot df/dp|_y`
+        - Term 3: :math:`J_z \cdot \Delta t
+          \cdot (\partial^2 f / \partial p \partial y)|_y`
         """
         dt = self._deltat
         self._residual.bkd()

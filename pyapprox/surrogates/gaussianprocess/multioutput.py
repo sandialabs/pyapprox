@@ -190,7 +190,10 @@ class MultiOutputGP(Generic[Array]):
 
     def kernel(
         self,
-    ) -> Union[IndependentMultiOutputKernel[Array], LinearCoregionalizationKernel[Array]]:
+    ) -> Union[
+        IndependentMultiOutputKernel[Array],
+        LinearCoregionalizationKernel[Array],
+    ]:
         """
         Return the multi-output kernel.
 

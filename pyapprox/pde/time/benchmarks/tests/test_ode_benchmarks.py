@@ -50,7 +50,6 @@ class TestCoupledSpringsResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
@@ -62,6 +61,7 @@ class TestCoupledSpringsResidual:
         from pyapprox.pde.time.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)
@@ -119,7 +119,6 @@ class TestHastingsEcologyResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
@@ -131,6 +130,7 @@ class TestHastingsEcologyResidual:
         from pyapprox.pde.time.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)
@@ -187,7 +187,6 @@ class TestChemicalReactionResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
@@ -199,6 +198,7 @@ class TestChemicalReactionResidual:
         from pyapprox.pde.time.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         time_residual = BackwardEulerHVP(self._residual)
         newton_solver = NewtonSolver(time_residual)

@@ -118,7 +118,9 @@ class DAGMultiOutputKernel(Generic[Array]):
         self,
         dag: nx.DiGraph,
         discrepancy_kernels: List[Kernel[Array]],
-        edge_scalings: Optional[Dict[Tuple[int, int], ScalingFunctionProtocol[Array]]] = None,
+        edge_scalings: Optional[
+            Dict[Tuple[int, int], ScalingFunctionProtocol[Array]]
+        ] = None,
     ):
         """
         Initialize the DAGMultiOutputKernel.

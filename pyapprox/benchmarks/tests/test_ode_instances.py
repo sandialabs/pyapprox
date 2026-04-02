@@ -1,6 +1,7 @@
 """Tests for ODE benchmark instances."""
 
-#TODO: this test class should be where function is defined not at this level which is for integration tests.
+# TODO: this test class should be where function is defined
+# not at this level which is for integration tests.
 
 from pyapprox.benchmarks.instances.ode import (
     chemical_reaction_surface,

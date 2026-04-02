@@ -12,14 +12,14 @@ import numpy as np
 from scipy import stats
 from scipy.special import roots_legendre
 
-from pyapprox.optimization.rootfinding.newton import (
-    NewtonSolver,
-)
 from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,
     LogHyperParameter,
+)
+from pyapprox.util.rootfinding.newton import (
+    NewtonSolver,
 )
 
 

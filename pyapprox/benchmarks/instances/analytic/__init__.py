@@ -42,5 +42,12 @@ __all__ = [
     "cantilever_beam_2d_analytical",
 ]
 
-# TODO: There are no tests of analytical functions/models and also no test of registry access at this level at least
-#TODO: decide on naming convention for this package function vs model. E.g. function is any mathemtical map from inputs to outputs and can be based on evaluating a function of a model state space. A model is technically a function maps inputs like boundary conditions, initial conditions, to state space solution, but is based on solving governing equations. Is this distinction worthwhile?
+# TODO: There are no tests of analytical functions/models and
+# also no test of registry access at this level at least.
+# TODO: decide on naming convention for this package function vs
+# model. E.g. function is any mathematical map from inputs to
+# outputs and can be based on evaluating a function of a model
+# state space. A model is technically a function that maps inputs
+# like boundary conditions, initial conditions, to state space
+# solution, but is based on solving governing equations. Is this
+# distinction worthwhile?

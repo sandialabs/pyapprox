@@ -11,7 +11,6 @@ from pyapprox.probability.copula.bivariate.protocols import (
     BivariateCopulaProtocol,
 )
 
-
 # TODO: Fix typing issues
 # TODO: Do not use np.testing.assert_allclose use bkd.assert_allclose
 # TODO: do not use astype, this will break if we want to use float32

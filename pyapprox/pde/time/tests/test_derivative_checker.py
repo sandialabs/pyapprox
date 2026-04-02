@@ -8,7 +8,6 @@ This module tests the derivative checking functionality at three levels:
 """
 
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
@@ -23,6 +22,7 @@ from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TestTimeAdjointDerivativeChecker:

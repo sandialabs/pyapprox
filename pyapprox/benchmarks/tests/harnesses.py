@@ -1,5 +1,12 @@
-#TODO: This is really intended to test at benchmark level that ground truths are correct. It is also a good example of how benchmarks can be used to compare algorithms for research development. These are integration tests that test ground truth and benchmark are consistent. E.g. optimizer gives the optima.
-#TODO: Should each submodule have tests e.g. that objective function used by bencmhark has correct derivatives verified by DerivativeChecker
+# TODO: This is really intended to test at benchmark level that
+# ground truths are correct. It is also a good example of how
+# benchmarks can be used to compare algorithms for research
+# development. These are integration tests that test ground
+# truth and benchmark are consistent. E.g. optimizer gives
+# the optima.
+# TODO: Should each submodule have tests e.g. that objective
+# function used by benchmark has correct derivatives verified
+# by DerivativeChecker
 
 """Generic test harnesses with pluggable strategies for benchmark verification.
 

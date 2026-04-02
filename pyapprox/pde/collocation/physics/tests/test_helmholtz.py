@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -21,6 +20,7 @@ from pyapprox.pde.collocation.physics.tests.test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TestHelmholtzPhysics(PhysicsTestBase):

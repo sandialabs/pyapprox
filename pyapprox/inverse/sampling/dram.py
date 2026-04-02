@@ -27,7 +27,8 @@ from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-#TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
+# TODO: This class should use bkd.fun not np.fun. We only use
+# np for bkd.asarray(np.random...)
 class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
     """
     Delayed Rejection Adaptive Metropolis (DRAM) sampler.

@@ -694,7 +694,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def qr(
-        array: NDArray[Any], mode: Literal["reduced", "complete", "r", "raw"] = "reduced"
+        array: NDArray[Any],
+        mode: Literal[
+            "reduced", "complete", "r", "raw"
+        ] = "reduced",
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         return cast(Tuple[NDArray[Any], NDArray[Any]], np.linalg.qr(array, mode=mode))
 

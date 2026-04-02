@@ -332,24 +332,6 @@ class HasEnsembleCovariance(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class HasObservationModel(Protocol, Generic[Array]):
-    """Benchmark provides an observation model for OED."""
-
-    def observation_model(self) -> Any:
-        """Return the observation model."""
-        ...
-
-
-@runtime_checkable
-class HasPredictionModel(Protocol, Generic[Array]):
-    """Benchmark provides a prediction model for OED."""
-
-    def prediction_model(self) -> Any:
-        """Return the prediction model."""
-        ...
-
-
-@runtime_checkable
 class HasExactEIG(Protocol, Generic[Array]):
     """Benchmark provides analytical expected information gain."""
 

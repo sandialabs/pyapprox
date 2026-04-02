@@ -10,7 +10,7 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolverOptions
+from pyapprox.util.rootfinding.newton import NewtonSolverOptions
 
 
 class TestSensitivities:

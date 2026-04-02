@@ -25,7 +25,11 @@ class DistributionWithInvCDF(Protocol, Generic[Array]):
         ...
 
 
-# TODO: newer versions of SciPy (v1.15+), the rvs method is being transitioned toward a more general sample method we should add sample method to pyapprox.probability classes to superseed rvs allowing consistency with scipy and samplers used here. 
+# TODO: newer versions of SciPy (v1.15+), the rvs method is
+# being transitioned toward a more general sample method. We
+# should add sample method to pyapprox.probability classes to
+# supersede rvs allowing consistency with scipy and samplers
+# used here.
 class HaltonSampler(Generic[Array]):
     """
     Halton quasi-Monte Carlo sampler.

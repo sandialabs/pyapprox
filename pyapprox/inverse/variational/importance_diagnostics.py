@@ -8,7 +8,7 @@ approximation via effective sample size.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Union
+from typing import TYPE_CHECKING, Callable, Generic, Optional, Union
 
 import numpy as np
 

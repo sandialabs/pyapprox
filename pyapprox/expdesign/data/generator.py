@@ -4,13 +4,25 @@ OED data generation utilities.
 Provides convenience functions for generating quadrature data for the
 inner and outer loops of the OED double-loop estimator, and for
 constructing joint prior-noise distributions.
+
+Also provides ``OEDData`` (a frozen dataclass holding all arrays needed
+by diagnostics) and ``generate_oed_data`` which takes a problem +
+``OEDQuadratureSampler``, draws samples, applies ``obs_map`` (and
+``qoi_map`` for prediction problems), and returns an ``OEDData``.
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any, Generic, Optional, Tuple, Union
 
 import numpy as np
 
-from pyapprox.expdesign.quadrature.strategies import get_sampler
+from pyapprox.expdesign.benchmarks.protocols import (
+    BayesianInferenceProblemProtocol,
+    PredictionOEDProblemProtocol,
+)
+from pyapprox.expdesign.quadrature.strategies import SamplerStrategy, get_sampler
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
@@ -23,6 +35,107 @@ PriorType = Union[
     IndependentJoint[Array],
     DenseCholeskyMultivariateGaussian[Array],
 ]
+
+
+@dataclass(frozen=True)
+class OEDData:
+    """Arrays needed by OED diagnostics.
+
+    Holds the outputs of forward-map evaluations and latent noise
+    samples for both the outer and inner loops of a double-loop
+    OED estimator.
+
+    All array shapes follow the ``(nqoi, nsamples)`` convention.
+
+    Attributes
+    ----------
+    outer_shapes : Array
+        Forward-map outputs at outer-loop parameter samples.
+        Shape: ``(nobs, nouter)``.
+    latent_samples : Array
+        Latent noise samples from the outer loop.
+        Shape: ``(nobs, nouter)``.
+    outer_weights : Array
+        Outer-loop quadrature weights. Shape: ``(nouter,)``.
+    inner_shapes : Array
+        Forward-map outputs at inner-loop parameter samples.
+        Shape: ``(nobs, ninner)``.
+    inner_weights : Array
+        Inner-loop quadrature weights. Shape: ``(ninner,)``.
+    qoi_vals : Array or None
+        QoI-map outputs at inner-loop parameter samples, for
+        prediction OED. Shape: ``(ninner, npred)``.
+        ``None`` for KL-OED (no QoI map).
+    """
+
+    outer_shapes: Any  # Array
+    latent_samples: Any  # Array
+    outer_weights: Any  # Array
+    inner_shapes: Any  # Array
+    inner_weights: Any  # Array
+    qoi_vals: Any = None  # Optional[Array]
+
+
+def generate_oed_data(
+    problem: BayesianInferenceProblemProtocol[Array],
+    outer_sampler: Any,  # OEDQuadratureSampler[Array]
+    inner_sampler: Any,  # OEDQuadratureSampler[Array]
+    nouter: int,
+    ninner: int,
+) -> OEDData:
+    """Generate all arrays needed by OED diagnostics.
+
+    Draws joint (prior + noise) samples from the outer sampler, draws
+    prior-only samples from the inner sampler, evaluates the forward
+    map (``obs_map``) on both, and — for prediction problems — evaluates
+    ``qoi_map`` on the inner samples.
+
+    Parameters
+    ----------
+    problem : BayesianInferenceProblemProtocol
+        Problem defining ``obs_map()`` (and ``qoi_map()`` if it
+        satisfies ``PredictionOEDProblemProtocol``).
+    outer_sampler : OEDQuadratureSampler
+        Joint sampler for outer-loop (prior + noise) samples.
+    inner_sampler : OEDQuadratureSampler
+        Joint sampler for inner-loop samples (only the prior
+        portion is used).
+    nouter : int
+        Number of outer-loop samples.
+    ninner : int
+        Number of inner-loop samples.
+
+    Returns
+    -------
+    OEDData
+        Frozen dataclass with all arrays diagnostics need.
+    """
+    obs_map = problem.obs_map()
+
+    # Outer loop: draw joint samples, split into prior + latent
+    prior_out, latent, outer_weights = outer_sampler.sample_joint(nouter)
+    outer_shapes = obs_map(prior_out)
+
+    # Inner loop: draw prior-only samples
+    prior_in, inner_weights = inner_sampler.sample_prior(ninner)
+    inner_shapes = obs_map(prior_in)
+
+    # Prediction QoI (optional)
+    qoi_vals = None
+    if isinstance(problem, PredictionOEDProblemProtocol):
+        qoi_map = problem.qoi_map()
+        bkd = problem.bkd()
+        # qoi_map returns (npred, ninner); diagnostics expect (ninner, npred)
+        qoi_vals = bkd.transpose(qoi_map(prior_in))
+
+    return OEDData(
+        outer_shapes=outer_shapes,
+        latent_samples=latent,
+        outer_weights=outer_weights,
+        inner_shapes=inner_shapes,
+        inner_weights=inner_weights,
+        qoi_vals=qoi_vals,
+    )
 
 
 def _extract_marginals(
@@ -164,6 +277,8 @@ class OEDDataGenerator(Generic[Array]):
             marginals = _extract_marginals(variable, self._bkd)
             variable = IndependentJoint(marginals, self._bkd)
 
-        strategy_cls = get_sampler(type_map[qt_lower])
+        strategy_cls: type[SamplerStrategy[Array]] = get_sampler(
+            type_map[qt_lower]
+        )
         strategy = strategy_cls()
         return strategy.sample(variable, nsamples, self._bkd, seed=seed)

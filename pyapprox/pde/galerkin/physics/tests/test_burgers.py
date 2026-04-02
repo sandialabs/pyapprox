@@ -21,7 +21,6 @@ from typing import List, Tuple
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
     ManufacturedBurgers1D,
 )
@@ -40,6 +39,7 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # =========================================================================
 # Part A: Unit Tests

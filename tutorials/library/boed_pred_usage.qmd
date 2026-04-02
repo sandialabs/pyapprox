@@ -36,8 +36,9 @@ jupyter: python3
 
 After completing this tutorial, you will be able to:
 
-- Construct a `LinearGaussianPredOEDBenchmark` and query its analytical utility
-- Use `PredictionOEDDiagnostics` to compute MSE, bias, and variance of numerical estimates
+- Construct a linear Gaussian prediction OED benchmark and query its analytical utility
+- Use `PredictionOEDDiagnostics` to compute numerical utility estimates from raw samples
+- Use `compute_estimator_mse` to decompose MSE into bias and variance
 - Explain why the **inner** loop (not outer) drives convergence for goal-oriented OED
 - Compare MC convergence rates for the standard deviation utility
 
@@ -67,10 +68,24 @@ from the inner loop dominates, unlike the EIG estimator.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks import LinearGaussianPredOEDBenchmark
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian_pred import (
+    build_linear_gaussian_pred_benchmark,
+)
+from pyapprox.expdesign.data import generate_oed_data
 from pyapprox.expdesign.diagnostics import (
     PredictionOEDDiagnostics,
+    compute_convergence_rate,
+    compute_estimator_mse,
+    compute_exact_prediction_utility,
+    get_utility_factory,
+)
+from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
     create_prediction_oed_diagnostics,
+)
+from pyapprox.expdesign.quadrature import MonteCarloSampler
+from pyapprox.expdesign.quadrature.oed import (
+    OEDQuadratureSampler,
+    build_oed_joint_distribution,
 )
 
 np.random.seed(1)
@@ -84,42 +99,82 @@ noise_std = 0.5
 prior_std = 0.5
 npred     = 1
 
-benchmark = LinearGaussianPredOEDBenchmark(
+benchmark = build_linear_gaussian_pred_benchmark(
     nobs, degree, noise_std, prior_std, npred, bkd,
 )
-diagnostics = create_prediction_oed_diagnostics(benchmark, "linear_stdev")
+problem   = benchmark.problem()
+nparams   = problem.nparams()
+
+# Create diagnostics with the linear stdev utility type
+noise_variances = bkd.full((nobs,), noise_std**2)
+diagnostics = create_prediction_oed_diagnostics(
+    noise_variances, npred, "linear_stdev", bkd,
+)
 
 # Uniform design weights
 weights = bkd.ones((nobs, 1)) / nobs
 ```
 
+The diagnostics API separates sampling from estimation. `OEDQuadratureSampler`
+draws joint (prior + noise) samples, and `generate_oed_data` evaluates
+`obs_map` and `qoi_map` on those samples:
+
+```{python}
+joint_dist = build_oed_joint_distribution(problem, bkd)
+
+def make_mc_sampler(seed):
+    """Create a MonteCarloSampler for the joint distribution."""
+    np.random.seed(seed)
+    return OEDQuadratureSampler(
+        MonteCarloSampler(joint_dist, bkd), nparams, bkd,
+    )
+```
+
 ## Analytical Reference Value
 
 ```{python}
-exact = diagnostics.exact_utility(weights)
+exact_cls, exact_args, _ = get_utility_factory("linear_stdev")
+
+exact = compute_exact_prediction_utility(
+    problem.prior_mean(),
+    problem.prior_covariance(),
+    benchmark.design_matrix(),
+    benchmark.qoi_matrix(),
+    noise_std**2,
+    weights,
+    exact_cls,
+    exact_args,
+    bkd,
+)
 ```
 
 A single numerical estimate:
 
 ```{python}
+data = generate_oed_data(
+    problem, make_mc_sampler(42), make_mc_sampler(5042), 500, 1000,
+)
 approx = diagnostics.compute_numerical_utility(
-    nouter=500,
-    ninner=1000,
-    design_weights=weights,
-    seed=42,
+    weights, data.outer_shapes, data.latent_samples,
+    data.inner_shapes, data.qoi_vals,
 )
 ```
 
 ## MSE Decomposition
 
 ```{python}
-bias, variance, mse = diagnostics.compute_mse(
-    nouter=100,
-    ninner=500,
-    nrealizations=50,
-    design_weights=weights,
-    base_seed=0,
-)
+def compute_utility_realization(nouter, ninner, seed):
+    data = generate_oed_data(
+        problem, make_mc_sampler(seed), make_mc_sampler(seed + 5000),
+        nouter, ninner,
+    )
+    return diagnostics.compute_numerical_utility(
+        weights, data.outer_shapes, data.latent_samples,
+        data.inner_shapes, data.qoi_vals,
+    )
+
+estimates = [compute_utility_realization(100, 500, seed=s) for s in range(50)]
+bias, variance, mse = compute_estimator_mse(exact, estimates)
 ```
 
 ::: {.callout-note}
@@ -134,14 +189,26 @@ holding `ninner` fixed while increasing `nouter` — the MSE barely changes.
 ```{python}
 outer_counts = [100, 500]           # fixed at modest values
 inner_counts = [100, 500, 1000, 5000]
+nrealizations = 50
 
-values_mc = diagnostics.compute_mse_for_sample_combinations(
-    outer_sample_counts=outer_counts,
-    inner_sample_counts=inner_counts,
-    nrealizations=50,
-    design_weights=weights,
-    base_seed=0,
-)
+def sweep_pred_mse(outer_list, inner_list):
+    """Compute MSE grid over outer x inner sample counts."""
+    all_mse, all_sqbias, all_var = [], [], []
+    for ninner in inner_list:
+        mse_row, sqbias_row, var_row = [], [], []
+        for nouter in outer_list:
+            ests = [compute_utility_realization(nouter, ninner, seed=s)
+                    for s in range(nrealizations)]
+            b, v, m = compute_estimator_mse(exact, ests)
+            mse_row.append(m)
+            sqbias_row.append(b**2)
+            var_row.append(v)
+        all_mse.append(bkd.asarray(mse_row))
+        all_sqbias.append(bkd.asarray(sqbias_row))
+        all_var.append(bkd.asarray(var_row))
+    return {"mse": all_mse, "sqbias": all_sqbias, "variance": all_var}
+
+values_mc = sweep_pred_mse(outer_counts, inner_counts)
 ```
 
 ```{python}
@@ -162,7 +229,7 @@ plt.show()
 mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))  # (n_inner, n_outer)
 for jj, nouter in enumerate(outer_counts):
     mse_values = mse_array[:, jj].tolist()
-    rate = PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)
+    rate = compute_convergence_rate(inner_counts, mse_values)
 ```
 
 ## AVaR Deviation Variant
@@ -172,24 +239,38 @@ Switching to AVaR deviation requires only changing the utility type in the
 
 ```{python}
 diagnostics_avar = create_prediction_oed_diagnostics(
-    benchmark, "linear_avar", beta=0.9,
+    noise_variances, npred, "linear_avar", bkd, beta=0.9,
 )
-exact_avar = diagnostics_avar.exact_utility(weights)
+
+exact_cls_avar, exact_args_avar, _ = get_utility_factory("linear_avar", beta=0.9)
+exact_avar = compute_exact_prediction_utility(
+    benchmark.problem().prior_mean(),
+    benchmark.problem().prior_covariance(),
+    benchmark.design_matrix(),
+    benchmark.qoi_matrix(),
+    noise_std**2,
+    weights,
+    exact_cls_avar,
+    exact_args_avar,
+    bkd,
+)
 ```
 
 ## Key Takeaways
 
 - For goal-oriented OED, **inner samples dominate** MSE convergence — increasing
   outer samples alone barely reduces error.
-- `PredictionOEDDiagnostics` mirrors `KLOEDDiagnostics`: same `compute_mse`,
-  `compute_mse_for_sample_combinations`, and `compute_convergence_rate` interface.
+- `PredictionOEDDiagnostics` accepts raw sample arrays — the caller generates
+  samples and passes them in, making it easy to swap sampling strategies.
+- `compute_estimator_mse` and `compute_convergence_rate` are standalone utilities
+  that work with any estimator.
 - Switching between standard deviation and AVaR utility requires only changing
   `utility_type` in the `create_prediction_oed_diagnostics` call.
 
 ## Exercises
 
-1. Run `compute_mse_for_sample_combinations` varying `outer_counts` with
-   `ninner` fixed at 2000. Confirm that the MSE does not decrease.
+1. Run the MSE sweep varying `outer_counts` with `ninner` fixed at 2000.
+   Confirm that the MSE does not decrease.
 
 2. Try `npred=3` (three QoI components). Does the analytical utility change?
    Does the convergence rate change?

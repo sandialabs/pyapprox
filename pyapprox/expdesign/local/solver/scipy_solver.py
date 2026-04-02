@@ -20,6 +20,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDSolverBase
 
+
 # TODO: We should generalize this to take any configured bindable optimizer
 # not just scipy #see pyapprox.optimization.minimize protocol.
 # This will allow us to remove the options from the __init__ method

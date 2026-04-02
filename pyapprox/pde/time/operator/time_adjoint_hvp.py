@@ -434,7 +434,10 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 if self._functional.nunique_params() > 0
                 else vvec,
             )
-            rhs_N = -(self._bkd.flatten(qss_hvp) + rss_hvp) - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
+            rhs_N = (
+                -(self._bkd.flatten(qss_hvp) + rss_hvp)
+                - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
+            )
 
         # Solve (dR/dy_N)^T · s_N = RHS
         drdy_N = self._time_residual.jacobian(fwd_sols[:, -1])
@@ -584,7 +587,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, 0, vvec)
 
         # CORRECTED RHS
-        rhs = -drduT_offdiag @ s_sols[:, 1] - self._bkd.flatten(qss_hvp) - self._bkd.flatten(qsp_hvp)
+        rhs = (
+            -drduT_offdiag @ s_sols[:, 1]
+            - self._bkd.flatten(qss_hvp)
+            - self._bkd.flatten(qsp_hvp)
+        )
         s_sols[:, 0] = self._bkd.solve(drduT_diag, rhs)
 
         return s_sols

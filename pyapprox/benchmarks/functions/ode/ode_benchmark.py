@@ -256,10 +256,10 @@ class ODEQoIFunction(Generic[Array]):
 
         time_residual = self._create_time_residual(residual)
 
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         newton_solver = NewtonSolver(time_residual)
         integrator = TimeIntegrator(
@@ -463,10 +463,10 @@ class ODEBenchmark(Generic[Array, GT]):
         # timestepper, whereas a model can accept multiple timesteppers.
         # But we should avoid passing in string and rather pass in a configured
         # time integrator
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         # Create time stepping residual
         time_residual = self._create_time_residual(stepper)

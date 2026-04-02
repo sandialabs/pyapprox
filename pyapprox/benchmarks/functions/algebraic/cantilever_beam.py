@@ -27,7 +27,6 @@ from typing import Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
 
-
 #TODO: Should we rename this file cantiler_beam_1d.py
 
 class HomogeneousBeam1DAnalytical(Generic[Array]):

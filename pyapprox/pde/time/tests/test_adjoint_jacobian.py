@@ -6,7 +6,6 @@ Uses finite difference verification to ensure adjoint gradients are correct.
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import LinearODEResidual
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
@@ -23,6 +22,7 @@ from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TestAdjointJacobian:

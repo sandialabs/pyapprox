@@ -93,8 +93,8 @@ bkd = NumpyBkd()
 benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(
     bkd, nstokes_refine=1, nadvec_diff_refine=1,
 )
-obs_model  = benchmark.observation_model()   # FEM-based PDE solver
-pred_model = benchmark.prediction_model()
+obs_model  = benchmark.obs_map()   # FEM-based PDE solver
+pred_model = benchmark.qoi_map()
 prior      = benchmark.prior()
 ```
 
@@ -109,7 +109,7 @@ unobserved locations.
 #| label: fig-domain-sensors
 
 fig, ax = plt.subplots(figsize=(9, 4))
-locs = bkd.to_numpy(benchmark.observation_locations())
+locs = bkd.to_numpy(benchmark.design_conditions())
 ax.scatter(locs[0], locs[1], s=15, c="#2C7FB8", alpha=0.7, label="Candidate sensors")
 ax.set_xlabel("x", fontsize=10)
 ax.set_ylabel("y", fontsize=10)
@@ -188,7 +188,7 @@ if not os.path.exists(filename):
         outerloop_samples,
         outerloop_shapes,
         outerloop_weights,
-        benchmark.observation_locations(),
+        benchmark.design_conditions(),
         innerloop_samples,
         innerloop_shapes,
         innerloop_weights,
@@ -277,7 +277,7 @@ design_weights, utility = solve_prediction_oed(
 from pyapprox.tutorial_figures import plot_advec_diff_design
 
 fig, ax = plt.subplots(figsize=(9, 4))
-obs_locs = bkd.to_numpy(oed_data["observation_locations"])
+obs_locs = bkd.to_numpy(oed_data["design_conditions"])
 w = bkd.to_numpy(design_weights[:, 0])
 plot_advec_diff_design(ax, obs_locs, w)
 plt.tight_layout()

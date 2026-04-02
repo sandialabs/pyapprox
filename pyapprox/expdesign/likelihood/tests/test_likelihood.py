@@ -15,7 +15,9 @@ from pyapprox.expdesign.likelihood import (
     GaussianOEDOuterLoopLikelihood,
 )
 
-# TODO: rename file to better reflect its contents and differentiate it from test_likelihood_values
+
+# TODO: rename file to better reflect its contents and
+# differentiate it from test_likelihood_values
 class TestGaussianOEDLikelihood:
     """Base test class for Gaussian OED likelihood."""
 

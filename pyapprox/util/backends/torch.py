@@ -569,7 +569,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def jacobian(
         fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
     ) -> torch.Tensor:
-        _jacobian = cast(Callable[[Callable[[torch.Tensor], torch.Tensor], torch.Tensor], torch.Tensor], torch.autograd.functional.jacobian)
+        _jacobian = cast(
+            Callable[
+                [Callable[[torch.Tensor], torch.Tensor],
+                 torch.Tensor],
+                torch.Tensor,
+            ],
+            torch.autograd.functional.jacobian,
+        )
         result: torch.Tensor = _jacobian(fun, params)
         return result
 
@@ -579,7 +586,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         params: torch.Tensor,
         vec: torch.Tensor,
     ) -> torch.Tensor:
-        _hvp = cast(Callable[[Callable[[torch.Tensor], torch.Tensor], torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]], torch.autograd.functional.hvp)
+        _hvp = cast(
+            Callable[
+                [Callable[[torch.Tensor], torch.Tensor],
+                 torch.Tensor, torch.Tensor],
+                Tuple[torch.Tensor, torch.Tensor],
+            ],
+            torch.autograd.functional.hvp,
+        )
         result: torch.Tensor = _hvp(fun, params, vec)[1]
         return result
 
@@ -590,7 +604,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         vec: torch.Tensor,
     ) -> torch.Tensor:
         # set create_graph=True so that result is differentiable.
-        _jvp = cast(Callable[..., Tuple[torch.Tensor, torch.Tensor]], torch.autograd.functional.jvp)
+        _jvp = cast(
+            Callable[
+                ..., Tuple[torch.Tensor, torch.Tensor]
+            ],
+            torch.autograd.functional.jvp,
+        )
         result: torch.Tensor = _jvp(fun, params, vec, create_graph=True)[1]
         return result
 
@@ -598,7 +617,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def hessian(
         fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
     ) -> torch.Tensor:
-        _hessian = cast(Callable[[Callable[[torch.Tensor], torch.Tensor], torch.Tensor], torch.Tensor], torch.autograd.functional.hessian)
+        _hessian = cast(
+            Callable[
+                [Callable[[torch.Tensor], torch.Tensor],
+                 torch.Tensor],
+                torch.Tensor,
+            ],
+            torch.autograd.functional.hessian,
+        )
         result: torch.Tensor = _hessian(fun, params)
         return result
 
@@ -854,7 +880,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def qr(
-        array: torch.Tensor, mode: Literal["reduced", "complete", "r", "raw"] = "reduced"
+        array: torch.Tensor,
+        mode: Literal[
+            "reduced", "complete", "r", "raw"
+        ] = "reduced",
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         result = torch.linalg.qr(array, mode=mode)
         return cast(torch.Tensor, result.Q), cast(torch.Tensor, result.R)

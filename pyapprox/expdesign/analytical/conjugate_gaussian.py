@@ -5,7 +5,9 @@ Provides analytical formulas for expected deviations when computing
 prediction OED with linear Gaussian models and conjugate priors.
 """
 
-#TODO: currently analytical only consists of analytical expressions for prediction based oed. Inference for parameters with KL is in kl_diagois elsewhere in the package
+# TODO: currently analytical only consists of analytical
+# expressions for prediction based oed. Inference for parameters
+# with KL is in kl_diagnostics elsewhere in the package
 
 import math
 from abc import ABC, abstractmethod
@@ -276,7 +278,11 @@ class ConjugateGaussianOEDExpectedAVaRDev(
     def _compute_utility(self) -> float:
         # AVaR deviation = sigma * phi(Phi^{-1}(beta)) / (1 - beta)
         sigma = float(self._bkd.sqrt(self._post_pushforward.covariance()[0, 0]))
-        return float(sigma * stats.norm.pdf(stats.norm.ppf(self._beta)) / (1.0 - self._beta))
+        return float(
+            sigma
+            * stats.norm.pdf(stats.norm.ppf(self._beta))
+            / (1.0 - self._beta)
+        )
 
 
 class ConjugateGaussianOEDExpectedKLDivergence(

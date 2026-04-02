@@ -63,7 +63,9 @@ def _shape_function_derivatives_quad(
     return dN_dxi, dN_deta
 
 
-def _shape_function_derivatives_tri() -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
+def _shape_function_derivatives_tri() -> tuple[
+    NDArray[np.floating[Any]], NDArray[np.floating[Any]]
+]:
     """Linear triangle shape function derivatives (constant).
 
     Node ordering: standard counter-clockwise.
@@ -84,7 +86,11 @@ def strain_from_displacement_2d(
     connectivity: np.ndarray,
     ux: np.ndarray,
     uy: np.ndarray,
-) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
+) -> tuple[
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+]:
     """Compute element-averaged strain tensor from nodal displacements.
 
     Uses isoparametric mapping with shape function derivatives evaluated
@@ -159,7 +165,11 @@ def stress_from_strain_2d(
     exy: np.ndarray,
     lam: np.ndarray,
     mu: np.ndarray,
-) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
+) -> tuple[
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+]:
     """Compute plane-stress Cauchy stress from strain and Lame parameters.
 
     sigma = lambda * tr(epsilon) * I + 2 * mu * epsilon

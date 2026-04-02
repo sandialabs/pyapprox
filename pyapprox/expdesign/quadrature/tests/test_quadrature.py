@@ -10,8 +10,9 @@ Tests cover:
 - OED sampler joint/prior sampling
 """
 
-# TODO: should we split up into smaller tests files.
+from __future__ import annotations
 
+# TODO: should we split up into smaller tests files.
 import numpy as np
 import pytest
 
@@ -28,22 +29,27 @@ from pyapprox.probability.univariate import (
     UniformMarginal,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestMonteCarloSampler:
     """Base test class for Monte Carlo sampler."""
 
-    def _create_gaussian_distribution(self, bkd, nvars=3):
+    def _create_gaussian_distribution(
+        self, bkd: Backend[Array], nvars: int = 3,
+    ) -> IndependentJoint[Array]:
         """Create a standard normal joint distribution."""
         marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
         return IndependentJoint(marginals, bkd)
 
-    def _create_uniform_distribution(self, bkd, nvars=3):
+    def _create_uniform_distribution(
+        self, bkd: Backend[Array], nvars: int = 3,
+    ) -> IndependentJoint[Array]:
         """Create a uniform [0, 1] joint distribution."""
         marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
         return IndependentJoint(marginals, bkd)
 
-    def test_weights_sum_to_one(self, bkd):
+    def test_weights_sum_to_one(self, bkd: Backend[Array]) -> None:
         """Test that weights sum to 1."""
         distribution = self._create_gaussian_distribution(bkd)
         sampler = MonteCarloSampler(distribution, bkd)
@@ -78,7 +84,7 @@ class TestMonteCarloSampler:
 class TestHaltonSampler:
     """Base test class for Halton sampler."""
 
-    def test_weights_sum_to_one(self, bkd):
+    def test_weights_sum_to_one(self, bkd: Backend[Array]) -> None:
         """Test that weights sum to 1."""
         sampler = HaltonSampler(3, bkd, seed=42)
         _, weights = sampler.sample(100)
@@ -182,7 +188,7 @@ class TestHaltonSampler:
 class TestSobolSampler:
     """Base test class for Sobol sampler."""
 
-    def test_weights_sum_to_one(self, bkd):
+    def test_weights_sum_to_one(self, bkd: Backend[Array]) -> None:
         """Test that weights sum to 1."""
         sampler = SobolSampler(3, bkd, seed=42)
         _, weights = sampler.sample(100)
@@ -377,39 +383,37 @@ class TestGaussianQuadratureSampler:
 
 
 class TestOEDQuadratureSampler:
-    """Base test class for OED quadrature sampler."""
+    """Tests for OED quadrature sampler with single joint sampler."""
 
-    def _create_prior_distribution(self, bkd, nvars_prior=3):
-        """Create a standard normal prior distribution."""
-        marginals = [
-            GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars_prior)
-        ]
+    def _make_std_normal_dist(self, ndim, bkd):
+        """Build a standard normal IndependentJoint distribution."""
+        marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(ndim)]
         return IndependentJoint(marginals, bkd)
 
     def test_nvars_prior_method(self, bkd):
         """Test nvars_prior() returns correct value."""
         nvars_prior = 3
         nobs = 5
-        prior_dist = self._create_prior_distribution(bkd, nvars_prior)
-        prior_sampler = MonteCarloSampler(prior_dist, bkd)
-        oed_sampler = OEDQuadratureSampler(prior_sampler, nobs, bkd)
+        ndim = nvars_prior + nobs
+        dist = self._make_std_normal_dist(ndim, bkd)
+        joint_sampler = HaltonSampler(
+            ndim, bkd, seed=42, distribution=dist
+        )
+        oed_sampler = OEDQuadratureSampler(joint_sampler, nvars_prior, bkd)
 
         assert oed_sampler.nvars_prior() == nvars_prior
+        assert oed_sampler.nobs() == nobs
 
     def test_reset(self, bkd):
         """Test that reset gives reproducible results with QMC samplers."""
         nvars_prior = 3
         nobs = 5
-        # Use Halton samplers which support deterministic reset
-        prior_sampler = HaltonSampler(
-            nvars_prior, bkd, seed=42, transform_to_normal=True
+        ndim = nvars_prior + nobs
+        dist = self._make_std_normal_dist(ndim, bkd)
+        joint_sampler = HaltonSampler(
+            ndim, bkd, seed=42, distribution=dist
         )
-        noise_sampler = HaltonSampler(
-            nobs, bkd, seed=123, transform_to_normal=True
-        )
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, nobs, bkd, noise_sampler
-        )
+        oed_sampler = OEDQuadratureSampler(joint_sampler, nvars_prior, bkd)
 
         prior1, latent1, _ = oed_sampler.sample_joint(50)
         oed_sampler.reset()
@@ -418,37 +422,72 @@ class TestOEDQuadratureSampler:
         bkd.assert_allclose(prior1, prior2, rtol=1e-12)
         bkd.assert_allclose(latent1, latent2, rtol=1e-12)
 
-    def test_custom_noise_sampler(self, bkd):
-        """Test with custom noise sampler."""
+    def test_sample_joint_shapes(self, bkd):
+        """Test sample_joint returns correct shapes."""
         nvars_prior = 3
         nobs = 5
-        prior_dist = self._create_prior_distribution(bkd, nvars_prior)
-        prior_sampler = MonteCarloSampler(prior_dist, bkd)
-        # Use Halton for noise
-        noise_sampler = HaltonSampler(nobs, bkd, start_index=0)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, nobs, bkd, noise_sampler
+        nsamples = 100
+        ndim = nvars_prior + nobs
+        dist = self._make_std_normal_dist(ndim, bkd)
+        joint_sampler = HaltonSampler(
+            ndim, bkd, seed=42, distribution=dist
+        )
+        oed_sampler = OEDQuadratureSampler(joint_sampler, nvars_prior, bkd)
+
+        prior_samples, latent_samples, weights = oed_sampler.sample_joint(
+            nsamples
         )
 
-        _, latent_samples, _ = oed_sampler.sample_joint(100)
+        assert prior_samples.shape == (nvars_prior, nsamples)
+        assert latent_samples.shape == (nobs, nsamples)
+        assert weights.shape == (nsamples,)
 
-        # Should have correct shape
-        assert latent_samples.shape == (nobs, 100)
-
-    def test_with_gaussian_prior_sampler(self, bkd):
-        """Test with Gaussian quadrature for prior."""
-        nvars = 2
+    def test_sample_prior_shapes(self, bkd):
+        """Test sample_prior returns correct shapes."""
+        nvars_prior = 3
         nobs = 5
-        npoints_1d = 3
-        prior_sampler = GaussianQuadratureSampler(nvars, bkd, npoints_1d)
-        oed_sampler = OEDQuadratureSampler(prior_sampler, nobs, bkd)
+        nsamples = 100
+        ndim = nvars_prior + nobs
+        dist = self._make_std_normal_dist(ndim, bkd)
+        joint_sampler = HaltonSampler(
+            ndim, bkd, seed=42, distribution=dist
+        )
+        oed_sampler = OEDQuadratureSampler(joint_sampler, nvars_prior, bkd)
 
-        # nsamples is ignored for Gaussian quadrature
-        prior_samples, weights = oed_sampler.sample_prior(0)
+        prior_samples, weights = oed_sampler.sample_prior(nsamples)
 
-        expected_npoints = npoints_1d**nvars
-        assert prior_samples.shape == (nvars, expected_npoints)
-        assert weights.shape == (expected_npoints,)
+        assert prior_samples.shape == (nvars_prior, nsamples)
+        assert weights.shape == (nsamples,)
+
+    def test_invalid_nparams_raises(self, bkd):
+        """Test that nparams >= joint_sampler.nvars() raises."""
+        joint_sampler = HaltonSampler(5, bkd, seed=42)
+        with pytest.raises(ValueError):
+            OEDQuadratureSampler(joint_sampler, 5, bkd)
+
+    def test_from_problem(self, bkd):
+        """Test from_problem classmethod with distribution-based factory."""
+        from pyapprox.expdesign.benchmarks.functions import (
+            build_linear_gaussian_inference_problem,
+        )
+
+        problem = build_linear_gaussian_inference_problem(
+            nobs=5, degree=2, noise_std=1.0, prior_std=1.0, bkd=bkd
+        )
+        oed_sampler = OEDQuadratureSampler.from_problem(
+            problem,
+            lambda dist, b: HaltonSampler(
+                dist.nvars(), b, seed=42, distribution=dist
+            ),
+            bkd,
+        )
+
+        assert oed_sampler.nvars_prior() == problem.nparams()
+        assert oed_sampler.nobs() == problem.nobs()
+
+        prior, latent, weights = oed_sampler.sample_joint(50)
+        assert prior.shape == (problem.nparams(), 50)
+        assert latent.shape == (problem.nobs(), 50)
 
 
 class TestQuadratureStrategies:

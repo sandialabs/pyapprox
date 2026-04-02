@@ -29,7 +29,9 @@ class ForresterModelFunction(Generic[Array]):
     C : float
         Constant shift.
     """
-    # TODO: add references section with citation Forrester, A., Sobester, A., & Keane, A. (2008). Engineering design via surrogate modelling: a practical guide. Wiley. and html link
+    # TODO: add references section with citation Forrester, A.,
+    # Sobester, A., & Keane, A. (2008). Engineering design via
+    # surrogate modelling: a practical guide. Wiley. and html link
 
     def __init__(
         self,

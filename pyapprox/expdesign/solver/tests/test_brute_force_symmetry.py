@@ -8,33 +8,39 @@ Verifies that symmetric design configurations produce equal utility values
 and that the optimal design is found correctly.
 """
 
+from typing import Any, Generic, List, Tuple
+
 import numpy as np
 import pytest
 
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+    LinearGaussianKLOEDBenchmark,
+    build_linear_gaussian_kl_benchmark,
+)
 from pyapprox.expdesign.objective import (
     create_kl_oed_objective,
 )
 from pyapprox.expdesign.solver import BruteForceKLOEDSolver
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================
 # Test Utilities
 # =============================================================================
 
 
-class LinearForwardModel:
+class LinearForwardModel(Generic[Array]):
     """Test utility: Wrap a design matrix as a FunctionProtocol.
 
     Forward model: y = A @ theta
     """
 
-    def __init__(self, design_matrix, bkd):
+    def __init__(self, design_matrix: Array, bkd: Backend[Array]) -> None:
         self._design_matrix = design_matrix
         self._bkd = bkd
 
-    def bkd(self):
+    def bkd(self) -> Backend[Array]:
         return self._bkd
 
     def nvars(self) -> int:
@@ -43,23 +49,23 @@ class LinearForwardModel:
     def nqoi(self) -> int:
         return self._design_matrix.shape[0]
 
-    def __call__(self, samples):
+    def __call__(self, samples: Array) -> Array:
         return self._bkd.dot(self._design_matrix, samples)
 
 
 def create_kl_oed_objective_from_benchmark(
-    benchmark,
-    bkd,
-    outer_sampler_type="gauss",
-    inner_sampler_type="gauss",
-    nouter_approx=100000,
-    ninner_approx=1000,
-    outer_seed=None,
-    inner_seed=None,
-):
-    """Test utility: Create KLOEDObjective from a LinearGaussianOEDBenchmark."""
-    nobs = benchmark.nobs()
-    nparams = benchmark.nparams()
+    benchmark: LinearGaussianKLOEDBenchmark[Array],
+    bkd: Backend[Array],
+    outer_sampler_type: str = "gauss",
+    inner_sampler_type: str = "gauss",
+    nouter_approx: int = 100000,
+    ninner_approx: int = 1000,
+    outer_seed: int | None = None,
+    inner_seed: int | None = None,
+) -> Any:
+    """Test utility: Create KLOEDObjective from a LinearGaussianKLOEDBenchmark."""
+    nobs = benchmark.problem().nobs()
+    nparams = benchmark.problem().nparams()
     prior_std = np.sqrt(benchmark.prior_var())
 
     # Create prior distribution
@@ -110,15 +116,15 @@ class TestBruteForceSymmetryStandalone:
     )
     def test_brute_force_utility_symmetry(
         self,
-        bkd,
-        nobs,
-        min_degree,
-        degree,
-        noise_std,
-        prior_std,
-        k,
-        expected_optimal,
-    ):
+        bkd: Backend[Array],
+        nobs: int,
+        min_degree: int,
+        degree: int,
+        noise_std: float,
+        prior_std: float,
+        k: int,
+        expected_optimal: List[int],
+    ) -> None:
         """Verify symmetric design pairs have equal utility values.
 
         For symmetric design locations in [-1, 1], pairs of designs that
@@ -127,7 +133,7 @@ class TestBruteForceSymmetryStandalone:
         Replicates legacy test at test_bayesoed.py:625-647.
         """
         # Create benchmark
-        benchmark = LinearGaussianOEDBenchmark(
+        benchmark = build_linear_gaussian_kl_benchmark(
             nobs, degree, noise_std, prior_std, bkd, min_degree=min_degree
         )
 
@@ -159,7 +165,7 @@ class TestBruteForceSymmetryStandalone:
         # These pairs are mirror images around the center of [-1, 1]
         # [0,1,2] <-> [2,3,4]: left side <-> right side
         # [0,1,3] <-> [1,3,4]: etc.
-        pairs = [
+        pairs: List[Tuple[Tuple[int, ...], Tuple[int, ...]]] = [
             ((0, 1, 2), (2, 3, 4)),
             ((0, 1, 3), (1, 3, 4)),
             ((0, 1, 4), (0, 3, 4)),
@@ -188,15 +194,15 @@ class TestBruteForceSymmetryStandalone:
     )
     def test_brute_force_optimal_design(
         self,
-        bkd,
-        nobs,
-        min_degree,
-        degree,
-        noise_std,
-        prior_std,
-        k,
-        expected_optimal,
-    ):
+        bkd: Backend[Array],
+        nobs: int,
+        min_degree: int,
+        degree: int,
+        noise_std: float,
+        prior_std: float,
+        k: int,
+        expected_optimal: List[int],
+    ) -> None:
         """Verify optimal k-subset design matches expected.
 
         For polynomial regression on [-1, 1] with nobs=5 equally spaced
@@ -206,7 +212,7 @@ class TestBruteForceSymmetryStandalone:
         Replicates legacy test at test_bayesoed.py:649.
         """
         # Create benchmark
-        benchmark = LinearGaussianOEDBenchmark(
+        benchmark = build_linear_gaussian_kl_benchmark(
             nobs, degree, noise_std, prior_std, bkd, min_degree=min_degree
         )
 
@@ -234,11 +240,13 @@ class TestBruteForceSymmetryStandalone:
             bkd.asarray(expected_optimal),
         )
 
-    def test_store_all_populates_lists(self, bkd):
+    def test_store_all_populates_lists(
+        self, bkd: Backend[Array],
+    ) -> None:
         """Test that store_all=True populates all_indices and all_eigs."""
         # Simple setup with nobs=4, k=2
         nobs = 4
-        benchmark = LinearGaussianOEDBenchmark(
+        benchmark = build_linear_gaussian_kl_benchmark(
             nobs, 2, 0.5, 0.5, bkd, min_degree=0
         )
 

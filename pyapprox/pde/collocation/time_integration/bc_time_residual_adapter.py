@@ -33,7 +33,6 @@ from pyapprox.pde.time.protocols.time_stepping import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-
 # =========================================================================
 # Level 1: Forward + Sensitivity
 # =========================================================================

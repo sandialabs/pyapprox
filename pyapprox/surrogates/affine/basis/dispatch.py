@@ -10,7 +10,7 @@ Each dispatch function returns a callable with a uniform signature so that
 MultiIndexBasis is unaware of which strategy is active.
 """
 
-from typing import Callable, List, cast
+from typing import Callable, List
 
 import numpy as np
 

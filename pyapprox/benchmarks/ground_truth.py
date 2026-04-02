@@ -131,8 +131,33 @@ class InverseGroundTruth(Generic[Array]):
 # TODO: for this to really be a ground truth we need either reference_solution
 # of analytical_solution to be provided. If both are not we need to raise an
 # error, Adding this validation check will likely break existing tests because
-# we are incorrectly using ODE ground truth just to provide a configuration of an ODE problem instance. Perhaps consider splitting this into ODEConfiguration and ODEGroundTruth, An analytical ground truth just has the analytical solution, bur a reference ground truth has all the time confirhuations, etc needed to produce
-# the reference solution. ODE ground truth seems pretty useless as is, really only useful for manufactured solution testing but benchmarks are more intended for users not developers. We really care about using ODEs for paramterized problems, eg. ODE solutions for many parameters, but storing them would be resource consuming, epescially for git repo. I think we really only need outerloop benchmark, e.g. sensitivity analysis, statistcs moment estimation, optimization and problem instances that depend on a function instance (like those based on ode, pde, algebraic). Are ground truths the bet most extnsible way to support different benchmarks that may have multiple groudn truths, e.g. momeents and sensitivity and posterior if a porblem instance suports both prior and posterior moments how do we handle that. Again reacall we want registry to find benchmarks with certain properties, e.g. prior based momnents, or posterior PDF, we also may want to extend what a benchmark provides in the future, Currently ground thruths provided many optional arguments, would it be better to make benchmarks classes with functoins that provide all ground_thruths they support and use protocols to determine broad categories when searching, or user defined custom searches that only care about one ground truth function.
+# we are incorrectly using ODE ground truth just to provide a
+# configuration of an ODE problem instance. Perhaps consider
+# splitting this into ODEConfiguration and ODEGroundTruth, An
+# analytical ground truth just has the analytical solution, but a
+# reference ground truth has all the time configurations, etc
+# needed to produce the reference solution. ODE ground truth seems
+# pretty useless as is, really only useful for manufactured
+# solution testing but benchmarks are more intended for users not
+# developers. We really care about using ODEs for parameterized
+# problems, eg. ODE solutions for many parameters, but storing
+# them would be resource consuming, especially for git repo. I
+# think we really only need outerloop benchmark, e.g. sensitivity
+# analysis, statistics moment estimation, optimization and problem
+# instances that depend on a function instance (like those based
+# on ode, pde, algebraic). Are ground truths the best most
+# extensible way to support different benchmarks that may have
+# multiple ground truths, e.g. moments and sensitivity and
+# posterior if a problem instance supports both prior and
+# posterior moments how do we handle that. Again recall we want
+# registry to find benchmarks with certain properties, e.g. prior
+# based moments, or posterior PDF, we also may want to extend
+# what a benchmark provides in the future. Currently ground
+# truths provided many optional arguments, would it be better to
+# make benchmarks classes with functions that provide all
+# ground_truths they support and use protocols to determine broad
+# categories when searching, or user defined custom searches that
+# only care about one ground truth function.
 @dataclass(frozen=True)
 class ODEGroundTruth(Generic[Array]):
     """Ground truth for ODE benchmarks.

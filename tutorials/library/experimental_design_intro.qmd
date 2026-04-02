@@ -93,10 +93,13 @@ To see this, we set up the problem and compute the exact posterior for each sens
 #| echo: false
 
 # =========================================================
-# Build the OED benchmark using CantileverBeam2DLoadOEDBenchmark
+# Build the OED benchmark
 # =========================================================
 from pyapprox.benchmarks.instances.pde.cantilever_beam import (
-    CantileverBeam2DLoadOEDBenchmark, MESH_PATHS, _find_dof,
+    MESH_PATHS, _find_dof,
+)
+from pyapprox.benchmarks.instances.pde.cantilever_beam_oed import (
+    build_cantilever_beam_oed_benchmark,
 )
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
@@ -111,7 +114,7 @@ sigma_noise = 0.375  # ~5% of tip deflection at theta_true
 
 # Create benchmark with many sensors so we can extract individual rows
 all_sensor_xs = bkd.linspace(1.0, L, 200)
-bench_all = CantileverBeam2DLoadOEDBenchmark(
+bench_all = build_cantilever_beam_oed_benchmark(
     bkd, mesh_path=MESH_PATHS[2],
     prior_mean=prior_mean,
     prior_covariance=prior_cov,

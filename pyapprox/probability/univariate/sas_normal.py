@@ -22,7 +22,6 @@ At epsilon=0, delta=1 this reduces exactly to N(xi, eta^2).
 import math
 from typing import Any, Generic
 
-from pyapprox.probability.protocols.distribution import MarginalProtocol
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend

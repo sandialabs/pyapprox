@@ -49,7 +49,9 @@ class HyperParameterList(Generic[Array]):
         return self._bkd
 
     def _validate_hyperparameters(
-        self, hyperparam_list: List[HyperParameter[Array]], bkd: Optional[Backend[Array]]
+        self,
+        hyperparam_list: List[HyperParameter[Array]],
+        bkd: Optional[Backend[Array]],
     ) -> None:
         """
         Validate the list of hyperparameters.
@@ -309,7 +311,9 @@ class HyperParameterList(Generic[Array]):
             hyp.set_active_values(active_params[cnt : cnt + hyp.nactive_params()])
             cnt += hyp.nactive_params()
 
-    def __add__(self, hyp_list: "HyperParameterList[Array]") -> "HyperParameterList[Array]":
+    def __add__(
+        self, hyp_list: "HyperParameterList[Array]",
+    ) -> "HyperParameterList[Array]":
         """
         Add two HyperParameterLists.
 
@@ -325,7 +329,9 @@ class HyperParameterList(Generic[Array]):
         """
         return self.__class__(self._hyperparam_list + hyp_list.hyperparameters())
 
-    def __radd__(self, hyp_list: "HyperParameterList[Array]") -> "HyperParameterList[Array]":
+    def __radd__(
+        self, hyp_list: "HyperParameterList[Array]",
+    ) -> "HyperParameterList[Array]":
         """
         Add two HyperParameterLists (reverse addition).
 

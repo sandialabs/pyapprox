@@ -6,7 +6,8 @@ state vector to its spatial gradient, and the chain rule gives
 dW/du = (w * dpsi) @ Dx.
 """
 
-# TODO: this is specific to collocation, should it go in collocation module or in benchmark module
+# TODO: this is specific to collocation, should it go in
+# collocation module or in benchmark module
 
 
 from typing import Callable, Generic, Optional, Tuple

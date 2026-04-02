@@ -22,4 +22,7 @@ __all__ = [
     "SampleAverageMeanPlusStdev",
 ]
 
-#TODO: should sampleaverage stats submodule be moved outside of expdesign. It used by expdesign but is more general, e.g. its used by optimization, see test_sample_average.py. Where should we put this module if we move it?
+# TODO: should sampleaverage stats submodule be moved outside
+# of expdesign. It used by expdesign but is more general, e.g.
+# its used by optimization, see test_sample_average.py. Where
+# should we put this module if we move it?

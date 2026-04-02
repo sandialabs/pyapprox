@@ -19,8 +19,8 @@ import numpy as np
 from pyapprox.inverse.sampling.metropolis import MCMCResult
 from pyapprox.util.backends.protocols import Array, Backend
 
-
-#TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
+# TODO: This class should use bkd.fun not np.fun. We only use
+# np for bkd.asarray(np.random...)
 
 class HamiltonianMonteCarlo(Generic[Array]):
     """

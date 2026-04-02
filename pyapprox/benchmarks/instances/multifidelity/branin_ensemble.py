@@ -129,4 +129,7 @@ def _branin_ensemble_3model_factory(
 ) -> BraninEnsembleBenchmark[Array]:
     return branin_ensemble_3model(bkd)
 
-# TODO: these benchmarks do not use ground truth pattern. Do we need a multi-fidelity statistics ground truth, requiring high-fidelity stats with optional low-fidelity stats, and optional pilot stats, like covariance
+# TODO: these benchmarks do not use ground truth pattern. Do we
+# need a multi-fidelity statistics ground truth, requiring
+# high-fidelity stats with optional low-fidelity stats, and
+# optional pilot stats, like covariance

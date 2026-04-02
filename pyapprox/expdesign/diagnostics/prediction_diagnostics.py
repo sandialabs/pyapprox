@@ -1,13 +1,11 @@
-"""
-Prediction OED diagnostics for MSE and convergence analysis.
+"""Prediction OED diagnostics — pure functions of raw sample arrays.
 
-Provides tools for computing bias, variance, and MSE of numerical
-prediction OED estimates compared to exact analytical values.
-"""
+Computes numerical prediction OED utility estimates from pre-generated
+samples. Sampling is the caller's responsibility.
 
-#TODO: This file is long and should be split
-#TODO: classes should use bkd.fun not np.fun, e.g. compute mse
-#TODO: float(self._bkd.to_numpy( should be bkd.to_float
+Also provides exact utility computation via conjugate Gaussian formulas
+and a registry of utility types.
+"""
 
 from typing import (
     Any,
@@ -15,14 +13,10 @@ from typing import (
     Dict,
     Generic,
     List,
-    Protocol,
+    Optional,
     Tuple,
     Type,
-    Union,
-    runtime_checkable,
 )
-
-import numpy as np
 
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedAVaRDev,
@@ -30,10 +24,6 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
-)
-from pyapprox.expdesign.benchmarks import (
-    LinearGaussianPredOEDBenchmark,
-    NonLinearGaussianOEDBenchmark,
 )
 from pyapprox.expdesign.deviation import StandardDeviationMeasure
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
@@ -43,45 +33,7 @@ from pyapprox.expdesign.statistics.avar import SampleAverageSmoothedAVaR
 from pyapprox.expdesign.statistics.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
-
-@runtime_checkable
-class PredictionOEDBenchmarkProtocol(Protocol[Array]):
-    """Protocol for prediction OED benchmarks.
-
-    Both NonLinearGaussianOEDBenchmark and LinearGaussianPredOEDBenchmark
-    satisfy this protocol.
-    """
-
-    def bkd(self) -> Backend[Array]: ...
-    def nobs(self) -> int: ...
-    def nparams(self) -> int: ...
-    def npred(self) -> int: ...
-    def noise_var(self) -> float: ...
-    def noise_std(self) -> float: ...
-    def prior_var(self) -> float: ...
-    def prior_std(self) -> float: ...
-    def design_matrix(self) -> Array: ...
-    def qoi_matrix(self) -> Array: ...
-    def noise_variances(self) -> Array: ...
-    def prior_mean(self) -> Array: ...
-    def prior_covariance(self) -> Array: ...
-    def generate_observation_data(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> tuple[Array, Array]: ...
-    def generate_latent_samples(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> Array: ...
-
-
-# Type for benchmarks accepted by diagnostics
-PredBenchmarkType = Union[
-    NonLinearGaussianOEDBenchmark[Any],
-    LinearGaussianPredOEDBenchmark[Any],
-]
+# --- Utility type registry ---
 
 # Type alias for utility factory return type
 UtilityFactoryResult = Tuple[
@@ -90,9 +42,6 @@ UtilityFactoryResult = Tuple[
     Callable[[Backend[Any]], SampleStatistic[Any]],
 ]
 
-# Registry for utility factories
-# Maps utility_type -> factory function that returns (exact_cls, exact_args,
-# noise_stat_factory)
 _UTILITY_REGISTRY: Dict[str, Callable[..., UtilityFactoryResult]] = {}
 
 
@@ -102,27 +51,12 @@ def register_utility(
     [Callable[..., UtilityFactoryResult]],
     Callable[..., UtilityFactoryResult],
 ]:
-    """
-    Decorator to register a utility factory.
+    """Decorator to register a utility factory.
 
     The factory function should accept keyword arguments and return a tuple:
     (exact_utility_class, exact_utility_args, noise_stat_factory)
 
-    where noise_stat_factory is a callable: Backend -> SampleStatistic
-
-    Parameters
-    ----------
-    name : str
-        Name to register the utility under.
-
-    Example
-    -------
-    >>> @register_utility("my_utility")
-    ... def _create_my_utility(**kwargs):
-    ...     param = kwargs.get("param", 1.0)
-    ...     def noise_stat_factory(bkd):
-    ...         return SampleAverageMean(bkd)
-    ...     return MyUtilityClass, (param,), noise_stat_factory
+    where noise_stat_factory is a callable: Backend -> SampleStatistic.
     """
 
     def decorator(
@@ -155,10 +89,9 @@ def _avar_noise_stat_factory(
     return factory
 
 
-# Register built-in utility types for lognormal (NonLinearGaussianOEDBenchmark)
-# TODO: rename to include nonlinear and the fact we are using mean, e.g nonlinear_mean_stdev, ismilary other registred deviations must specify both outer and inner stat
-@register_utility("stdev")
-def _create_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
+# Register built-in utility types for lognormal (nonlinear QoI)
+@register_utility("nonlinear_mean_stdev")
+def _create_nonlinear_mean_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     """Create lognormal expected std dev utility with mean noise statistic."""
     return (
         ConjugateGaussianOEDForLogNormalExpectedStdDev,
@@ -167,9 +100,8 @@ def _create_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     )
 
 
-#TODO: renameto include nonlinear
-@register_utility("avar_stdev")
-def _create_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
+@register_utility("nonlinear_avar_stdev")
+def _create_nonlinear_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     """Create lognormal AVaR std dev utility with AVaR noise statistic."""
     beta = kwargs.get("beta", 0.5)
     delta = kwargs.get("delta", 100000)
@@ -180,7 +112,7 @@ def _create_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     )
 
 
-# Register utility types for linear QoI (LinearGaussianPredOEDBenchmark)
+# Register utility types for linear QoI
 @register_utility("linear_stdev")
 def _create_linear_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
     """Create linear Gaussian expected std dev utility."""
@@ -203,190 +135,87 @@ def _create_linear_avar_utility(**kwargs: Any) -> UtilityFactoryResult:
     )
 
 
+# --- Diagnostics class ---
+
+
 class PredictionOEDDiagnostics(Generic[Array]):
-    """
-    Diagnostics for prediction OED estimator performance.
+    """Numerical prediction OED utility estimation from raw sample arrays.
 
-    Computes bias, variance, and MSE of numerical prediction OED estimates
-    by comparing to exact analytical values from conjugate Gaussian formulas.
-
-    Supports both nonlinear (lognormal) benchmarks and linear benchmarks.
+    This class does NOT generate samples. The caller provides
+    outer_shapes, latent_samples, inner_shapes, and qoi_vals directly.
 
     Parameters
     ----------
-    benchmark : PredBenchmarkType
-        Benchmark problem (NonLinearGaussianOEDBenchmark or
-        LinearGaussianPredOEDBenchmark).
-    exact_utility_cls : Type[ConjugateGaussianOEDPredictionUtilityBase]
-        Class for computing exact utility.
-    exact_utility_args : tuple
-        Additional arguments for the exact utility class
-        (e.g., beta for AVaR).
+    noise_variances : Array
+        Per-observation noise variances. Shape: (nobs,).
+    npred : int
+        Number of prediction QoI locations.
     noise_stat_factory : Callable[[Backend], SampleStatistic]
         Factory for the noise statistic.
-
-    Examples
-    --------
-    >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.expdesign.benchmarks import NonLinearGaussianOEDBenchmark
-    >>> from pyapprox.expdesign.diagnostics import PredictionOEDDiagnostics
-    >>> from pyapprox.expdesign.analytical import (
-    ...     ConjugateGaussianOEDForLogNormalExpectedStdDev
-    ... )
-    >>>
-    >>> bkd = NumpyBkd()
-    >>> benchmark = NonLinearGaussianOEDBenchmark(
-    ...     nobs=2, degree=3, noise_std=0.5, prior_std=0.5, bkd=bkd
-    ... )
-    >>> diagnostics = PredictionOEDDiagnostics(
-    ...     benchmark, ConjugateGaussianOEDForLogNormalExpectedStdDev, ()
-    ... )
-    >>>
-    >>> weights = bkd.ones((2, 1)) / 2
-    >>> bias, var, mse = diagnostics.compute_mse(
-    ...     nouter=100, ninner=50, nrealizations=10, design_weights=weights
-    ... )
+    bkd : Backend[Array]
+        Computational backend.
     """
 
     def __init__(
         self,
-        benchmark: PredBenchmarkType,
-        exact_utility_cls: Type[ConjugateGaussianOEDPredictionUtilityBase[Array]],
-        exact_utility_args: Tuple[Any, ...],
+        noise_variances: Array,
+        npred: int,
         noise_stat_factory: Callable[[Backend[Array]], SampleStatistic[Array]],
+        bkd: Backend[Array],
     ) -> None:
-        self._benchmark = benchmark
-        self._bkd = benchmark.bkd()
-        self._exact_utility_cls = exact_utility_cls
-        self._exact_utility_args = exact_utility_args
+        self._noise_variances = noise_variances
+        self._npred = npred
         self._noise_stat_factory = noise_stat_factory
+        self._bkd = bkd
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
         return self._bkd
 
-    def exact_utility(self, design_weights: Array) -> float:
-        """
-        Compute exact utility using conjugate Gaussian formulas.
-
-        Parameters
-        ----------
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
-
-        Returns
-        -------
-        utility : float
-            Exact expected utility value.
-        """
-        # Create exact utility object
-        # Note: Subclasses may have additional arguments beyond the base class signature
-        if self._exact_utility_args:
-            utility = self._exact_utility_cls(  # type: ignore[call-arg]
-                self._benchmark.prior_mean(),
-                self._benchmark.prior_covariance(),
-                self._benchmark.qoi_matrix(),
-                *self._exact_utility_args,
-                self._bkd,
-            )
-        else:
-            utility = self._exact_utility_cls(
-                self._benchmark.prior_mean(),
-                self._benchmark.prior_covariance(),
-                self._benchmark.qoi_matrix(),
-                self._bkd,
-            )
-
-        # Set observation matrix
-        utility.set_observation_matrix(self._benchmark.design_matrix())
-
-        # Compute weighted noise covariance
-        nobs = self._benchmark.nobs()
-        noise_var = self._benchmark.noise_var()
-        weights_flat = self._bkd.reshape(design_weights, (nobs,))
-        # Effective noise variance = base_noise_var / weight
-        effective_noise_var = noise_var / weights_flat
-        noise_cov = self._bkd.diag(effective_noise_var)
-
-        utility.set_noise_covariance(noise_cov)
-
-        return utility.value()
-
-    def _generate_qoi_vals(
-        self,
-        ninner: int,
-        seed: int,
-    ) -> Array:
-        """Generate QoI values for the inner loop.
-
-        Returns qoi_vals with shape (ninner, npred).
-
-        For NonLinearGaussianOEDBenchmark: uses exp(B @ theta).
-        For LinearGaussianPredOEDBenchmark: uses B @ theta.
-        """
-        if isinstance(self._benchmark, NonLinearGaussianOEDBenchmark):
-            _, _, exp_qoi = self._benchmark.generate_qoi_data(ninner, seed=seed)
-            # exp_qoi shape: (npred, ninner), need (ninner, npred)
-            return exp_qoi.T
-        elif isinstance(self._benchmark, LinearGaussianPredOEDBenchmark):
-            _, linear_qoi = self._benchmark.generate_qoi_data(ninner, seed=seed)
-            # linear_qoi shape: (npred, ninner), need (ninner, npred)
-            return linear_qoi.T
-        else:
-            raise TypeError(f"Unsupported benchmark type: {type(self._benchmark)}")
-
     def compute_numerical_utility(
         self,
-        nouter: int,
-        ninner: int,
         design_weights: Array,
-        seed: int = 42,
+        outer_shapes: Array,
+        latent_samples: Array,
+        inner_shapes: Array,
+        qoi_vals: Array,
+        outer_quad_weights: Optional[Array] = None,
+        inner_quad_weights: Optional[Array] = None,
+        qoi_quad_weights: Optional[Array] = None,
     ) -> float:
-        """
-        Compute numerical prediction OED utility estimate.
+        """Compute numerical prediction OED utility estimate from raw samples.
 
         Parameters
         ----------
-        nouter : int
-            Number of outer loop samples.
-        ninner : int
-            Number of inner loop samples.
         design_weights : Array
-            Design weights. Shape: (nobs, 1)
-        seed : int
-            Random seed for reproducibility.
+            Design weights. Shape: (nobs, 1).
+        outer_shapes : Array
+            obs_map(prior_samples_outer). Shape: (nobs, nouter).
+        latent_samples : Array
+            Standard normal latent samples. Shape: (nobs, nouter).
+        inner_shapes : Array
+            obs_map(prior_samples_inner). Shape: (nobs, ninner).
+        qoi_vals : Array
+            qoi_map(prior_samples_inner). Shape: (ninner, npred).
+        outer_quad_weights : Array, optional
+            Quadrature weights for outer expectation. Shape: (nouter,).
+        inner_quad_weights : Array, optional
+            Quadrature weights for inner expectation. Shape: (ninner,).
+        qoi_quad_weights : Array, optional
+            Quadrature weights for QoI aggregation. Shape: (1, npred).
 
         Returns
         -------
         utility : float
             Numerical utility estimate.
         """
-        # Generate outer loop data (observations)
-        _, outer_shapes = self._benchmark.generate_observation_data(nouter, seed=seed)
-
-        # Generate QoI values
-        qoi_vals = self._generate_qoi_vals(ninner, seed=seed + 1000)
-
-        # Generate inner shapes (observation model at inner prior samples)
-        _, inner_shapes = self._benchmark.generate_observation_data(
-            ninner, seed=seed + 1000
+        inner_likelihood = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd
         )
-
-        # Generate latent samples for reparameterization trick
-        latent_samples = self._benchmark.generate_latent_samples(nouter, seed=seed)
-
-        # Create noise variances
-        noise_variances = self._benchmark.noise_variances()
-
-        # Create likelihood
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, self._bkd)
-
-        # Create deviation and risk measures
-        deviation_measure = StandardDeviationMeasure(self._benchmark.npred(), self._bkd)
+        deviation_measure = StandardDeviationMeasure(self._npred, self._bkd)
         risk_measure = SampleAverageMean(self._bkd)
         noise_stat = self._noise_stat_factory(self._bkd)
 
-        # Create objective
         objective = PredictionOEDObjective(
             inner_likelihood,
             outer_shapes,
@@ -396,181 +225,99 @@ class PredictionOEDDiagnostics(Generic[Array]):
             deviation_measure,
             risk_measure,
             noise_stat,
-            None,  # Uniform outer weights
-            None,  # Uniform inner weights
-            None,  # Uniform QoI weights
+            outer_quad_weights,
+            inner_quad_weights,
+            qoi_quad_weights,
             self._bkd,
         )
 
-        # Compute utility
         value = objective(design_weights)
         return float(self._bkd.to_numpy(value)[0, 0])
 
-    #TODO: this method is also defined in kl_diagnostics should we consolidate
-    def compute_mse(
-        self,
-        nouter: int,
-        ninner: int,
-        nrealizations: int,
-        design_weights: Array,
-        base_seed: int = 42,
-    ) -> Tuple[float, float, float]:
-        """
-        Compute MSE of numerical prediction OED estimate.
 
-        Parameters
-        ----------
-        nouter : int
-            Number of outer loop samples.
-        ninner : int
-            Number of inner loop samples.
-        nrealizations : int
-            Number of independent realizations for variance estimation.
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
-        base_seed : int
-            Base random seed (each realization uses base_seed + i * 10000).
-
-        Returns
-        -------
-        bias : float
-            Bias = E[estimate] - exact
-        variance : float
-            Variance of the estimator.
-        mse : float
-            Mean squared error = bias^2 + variance
-        """
-        exact = self.exact_utility(design_weights)
-
-        utility_values = []
-        for i in range(nrealizations):
-            seed = base_seed + i * 10000
-            utility = self.compute_numerical_utility(
-                nouter, ninner, design_weights, seed=seed
-            )
-            utility_values.append(utility)
-
-        utility_array = np.array(utility_values)
-        mean_utility = float(np.mean(utility_array))
-        var_utility = float(np.var(utility_array))
-
-        bias = mean_utility - exact
-        mse = bias**2 + var_utility
-
-        return bias, var_utility, mse
-
-    def compute_mse_for_sample_combinations(
-        self,
-        outer_sample_counts: List[int],
-        inner_sample_counts: List[int],
-        nrealizations: int,
-        design_weights: Array,
-        base_seed: int = 42,
-    ) -> Dict[str, List[Array]]:
-        """
-        Compute MSE for different combinations of sample counts.
-
-        Parameters
-        ----------
-        outer_sample_counts : List[int]
-            List of outer loop sample counts.
-        inner_sample_counts : List[int]
-            List of inner loop sample counts.
-        nrealizations : int
-            Number of realizations per combination.
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
-        base_seed : int
-            Base random seed.
-
-        Returns
-        -------
-        values : Dict[str, List[Array]]
-            Dictionary with keys:
-            - "sqbias": List of squared-bias arrays (one per ninner)
-            - "variance": List of variance arrays (one per ninner)
-            - "mse": List of MSE arrays (one per ninner)
-        """
-        values: Dict[str, List[Array]] = {
-            "sqbias": [],
-            "variance": [],
-            "mse": [],
-        }
-
-        for ninner in inner_sample_counts:
-            bias_list = []
-            var_list = []
-            mse_list = []
-
-            for nouter in outer_sample_counts:
-                bias, variance, mse = self.compute_mse(
-                    nouter, ninner, nrealizations, design_weights, base_seed
-                )
-                bias_list.append(bias)
-                var_list.append(variance)
-                mse_list.append(mse)
-
-            values["sqbias"].append(self._bkd.asarray(bias_list) ** 2)
-            values["variance"].append(self._bkd.asarray(var_list))
-            values["mse"].append(self._bkd.asarray(mse_list))
-
-        return values
-
-    # TODO: this method is also defined in kl_diagnostics should we consolidate
-    # functionality into pyapprox.utils since it is very generic (or put in another place)
-    @staticmethod
-    def compute_convergence_rate(
-        sample_counts: List[int],
-        values: List[float],
-    ) -> float:
-        """
-        Compute convergence rate from log-log linear fit.
-
-        For Monte Carlo estimators, MSE typically decays as O(n^{-r})
-        where r is the convergence rate.
-
-        Parameters
-        ----------
-        sample_counts : List[int]
-            Sample counts (x-axis).
-        values : List[float]
-            Values (e.g., MSE) corresponding to sample counts.
-
-        Returns
-        -------
-        rate : float
-            Convergence rate (negative of log-log slope).
-            Rate of 1.0 indicates O(1/n) convergence.
-        """
-        log_n = np.log(np.array(sample_counts))
-        log_vals = np.log(np.array(values))
-
-        # Linear fit: log(val) = slope * log(n) + intercept
-        slope, _ = np.polyfit(log_n, log_vals, 1)
-
-        # Rate is negative slope (since MSE decreases with n)
-        return float(-slope)
-
-
-def create_prediction_oed_diagnostics(
-    benchmark: PredBenchmarkType,
-    utility_type: str,
-    **kwargs: Any,
-) -> PredictionOEDDiagnostics[Any]:
-    """
-    Factory function to create PredictionOEDDiagnostics.
-
-    Uses the registry to look up the appropriate exact utility class and
-    noise statistic factory.
+def compute_exact_prediction_utility(
+    prior_mean: Array,
+    prior_covariance: Array,
+    design_matrix: Array,
+    qoi_matrix: Array,
+    noise_var: float,
+    design_weights: Array,
+    exact_utility_cls: Type[ConjugateGaussianOEDPredictionUtilityBase[Array]],
+    exact_utility_args: Tuple[Any, ...],
+    bkd: Backend[Array],
+) -> float:
+    """Compute exact prediction utility using conjugate Gaussian formulas.
 
     Parameters
     ----------
-    benchmark : PredBenchmarkType
-        Benchmark problem (NonLinearGaussianOEDBenchmark or
-        LinearGaussianPredOEDBenchmark).
+    prior_mean : Array
+        Prior mean. Shape: (nparams, 1).
+    prior_covariance : Array
+        Prior covariance. Shape: (nparams, nparams).
+    design_matrix : Array
+        Observation design matrix A. Shape: (nobs, nparams).
+    qoi_matrix : Array
+        QoI design matrix B. Shape: (npred, nparams).
+    noise_var : float
+        Base noise variance.
+    design_weights : Array
+        Design weights. Shape: (nobs, 1).
+    exact_utility_cls : Type
+        Class for computing exact utility.
+    exact_utility_args : tuple
+        Additional arguments for the exact utility class.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    utility : float
+        Exact expected utility value.
+    """
+    nobs = design_matrix.shape[0]
+
+    if exact_utility_args:
+        utility = exact_utility_cls(  # type: ignore[call-arg]
+            prior_mean, prior_covariance, qoi_matrix,
+            *exact_utility_args, bkd,
+        )
+    else:
+        utility = exact_utility_cls(
+            prior_mean, prior_covariance, qoi_matrix, bkd,
+        )
+
+    utility.set_observation_matrix(design_matrix)
+
+    weights_flat = bkd.reshape(design_weights, (nobs,))
+    effective_noise_var = noise_var / weights_flat
+    noise_cov = bkd.diag(effective_noise_var)
+    utility.set_noise_covariance(noise_cov)
+
+    return utility.value()
+
+
+def create_prediction_oed_diagnostics(
+    noise_variances: Array,
+    npred: int,
+    utility_type: str,
+    bkd: Backend[Array],
+    **kwargs: Any,
+) -> PredictionOEDDiagnostics[Array]:
+    """Factory function to create PredictionOEDDiagnostics.
+
+    Uses the registry to look up the appropriate noise statistic factory.
+
+    Parameters
+    ----------
+    noise_variances : Array
+        Per-observation noise variances. Shape: (nobs,).
+    npred : int
+        Number of prediction QoI locations.
     utility_type : str
         Type of utility. Registered types: "stdev", "avar_stdev",
         "linear_stdev", "linear_avar".
+    bkd : Backend[Array]
+        Computational backend.
     **kwargs
         Additional arguments for the utility type (e.g., beta for avar).
 
@@ -583,30 +330,6 @@ def create_prediction_oed_diagnostics(
     ------
     ValueError
         If utility_type is not registered.
-
-    Examples
-    --------
-    >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.expdesign.benchmarks import (
-    ...     NonLinearGaussianOEDBenchmark, LinearGaussianPredOEDBenchmark,
-    ... )
-    >>> from pyapprox.expdesign.diagnostics import (
-    ...     create_prediction_oed_diagnostics
-    ... )
-    >>>
-    >>> bkd = NumpyBkd()
-    >>>
-    >>> # Lognormal benchmark
-    >>> bench_nl = NonLinearGaussianOEDBenchmark(
-    ...     nobs=2, degree=3, noise_std=0.5, prior_std=0.5, bkd=bkd
-    ... )
-    >>> diag = create_prediction_oed_diagnostics(bench_nl, "stdev")
-    >>>
-    >>> # Linear benchmark
-    >>> bench_l = LinearGaussianPredOEDBenchmark(
-    ...     nobs=2, degree=3, noise_std=0.5, prior_std=0.5, npred=1, bkd=bkd
-    ... )
-    >>> diag = create_prediction_oed_diagnostics(bench_l, "linear_stdev")
     """
     if utility_type not in _UTILITY_REGISTRY:
         available = get_registered_utility_types()
@@ -615,8 +338,39 @@ def create_prediction_oed_diagnostics(
         )
 
     factory = _UTILITY_REGISTRY[utility_type]
-    exact_cls, exact_args, noise_stat_factory = factory(**kwargs)
+    _, _, noise_stat_factory = factory(**kwargs)
 
     return PredictionOEDDiagnostics(
-        benchmark, exact_cls, exact_args, noise_stat_factory
+        noise_variances, npred, noise_stat_factory, bkd,
     )
+
+
+def get_utility_factory(
+    utility_type: str,
+    **kwargs: Any,
+) -> UtilityFactoryResult:
+    """Get utility factory result (exact class, args, noise stat factory).
+
+    Parameters
+    ----------
+    utility_type : str
+        Registered utility type name.
+    **kwargs
+        Additional arguments for the utility type.
+
+    Returns
+    -------
+    exact_cls : Type
+        Exact utility class.
+    exact_args : tuple
+        Additional arguments for exact utility class.
+    noise_stat_factory : Callable
+        Factory for noise statistic.
+    """
+    if utility_type not in _UTILITY_REGISTRY:
+        available = get_registered_utility_types()
+        raise ValueError(
+            f"Unknown utility_type: {utility_type}. Available types: {available}"
+        )
+    factory = _UTILITY_REGISTRY[utility_type]
+    return factory(**kwargs)

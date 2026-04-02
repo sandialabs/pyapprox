@@ -13,7 +13,7 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolverOptions
+from pyapprox.util.rootfinding.newton import NewtonSolverOptions
 
 
 class TestNonLinearCoupledEquations:

@@ -348,10 +348,10 @@ class TestAnalyticalSolutions:
 
     def test_backward_euler_forward_solve(self, bkd) -> None:
         """Test Backward Euler forward solve matches analytical solution."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         # Setup (scalar ODE for easier verification)
         a = -0.5
@@ -386,11 +386,11 @@ class TestAnalyticalSolutions:
 
     def test_backward_euler_adjoint_solve(self, bkd) -> None:
         """Test Backward Euler adjoint solve matches analytical solution."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         # Setup
         nstates = 1
@@ -439,10 +439,10 @@ class TestAnalyticalSolutions:
 
     def test_forward_euler_forward_solve(self, bkd) -> None:
         """Test Forward Euler forward solve matches analytical solution."""
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
+        from pyapprox.util.rootfinding.newton import NewtonSolver
 
         # Setup
         a = -0.5

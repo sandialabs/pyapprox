@@ -18,7 +18,6 @@ versions for comparison.
 import pytest
 import torch
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
     QuadraticODEResidual,
 )
@@ -38,6 +37,7 @@ from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # =============================================================================
 # Autograd-compatible forward simulation functions

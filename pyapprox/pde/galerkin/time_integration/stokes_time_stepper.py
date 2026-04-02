@@ -44,7 +44,11 @@ class StokesTimeStepResidual(Generic[Array]):
         Time integration method: "backward_euler" or "crank_nicolson".
     """
 
-    def __init__(self, physics: GalerkinPhysicsProtocol[Array], method: str = "backward_euler") -> None:
+    def __init__(
+        self,
+        physics: GalerkinPhysicsProtocol[Array],
+        method: str = "backward_euler",
+    ) -> None:
         if method not in ("backward_euler", "crank_nicolson"):
             raise ValueError(
                 f"method must be 'backward_euler' or 'crank_nicolson', got '{method}'"

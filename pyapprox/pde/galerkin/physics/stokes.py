@@ -330,7 +330,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             ret: NDArray[np.floating[Any]] = sum(f[i] * v[i] for i in range(nvars))
             return ret
 
-        vel_load: NDArray[np.floating[Any]] = asm(LinearForm(vel_load_form), self._vel_skfem_basis)
+        vel_load: NDArray[np.floating[Any]] = asm(
+            LinearForm(vel_load_form), self._vel_skfem_basis
+        )
         return vel_load
 
     def _assemble_pres_load(self, time: float) -> np.ndarray:
@@ -359,7 +361,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             return ret
 
         # Negate: convention is -div(u) = f_p
-        pres_load: NDArray[np.floating[Any]] = -asm(LinearForm(pres_load_form), self._pres_skfem_basis)
+        pres_load: NDArray[np.floating[Any]] = -asm(
+            LinearForm(pres_load_form),
+            self._pres_skfem_basis,
+        )
         return pres_load
 
     def _assemble_load(self, time: float) -> np.ndarray:
@@ -392,7 +397,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             )
             return ret
         if u.shape[0] == 1:
-            ret1d: NDArray[np.floating[Any]] = v[0] * (u[0] * dz[0][0]) + v[0] * (z[0] * du[0][0])
+            ret1d: NDArray[np.floating[Any]] = (
+                v[0] * (u[0] * dz[0][0])
+                + v[0] * (z[0] * du[0][0])
+            )
             return ret1d
         raise NotImplementedError("Only 1D and 2D Navier-Stokes supported")
 
@@ -407,8 +415,11 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         u = w["u_prev"]
         du = u.grad
         if u.shape[0] == 2:
-            ret: NDArray[np.floating[Any]] = v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
-                u[0] * du[1][0] + u[1] * du[1][1]
+            ret: NDArray[np.floating[Any]] = (
+                v[0]
+                * (u[0] * du[0][0] + u[1] * du[0][1])
+                + v[1]
+                * (u[0] * du[1][0] + u[1] * du[1][1])
             )
             return ret
         if u.shape[0] == 1:

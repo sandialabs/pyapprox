@@ -10,7 +10,6 @@ from pyapprox.inverse.bayesnet.inference import (
 )
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
 
-
 #TODO: use bkd.assert_allclose and  bkd.to_float
 
 class TestVariableEliminationBase:

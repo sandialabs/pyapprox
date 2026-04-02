@@ -274,7 +274,7 @@ class TestDenseCholBase:
 
 class TestLowRankBase:
     """Tests for ConditionalLowRankCholGaussian."""
-    
+
     def test_basic_properties(self, bkd) -> None:
         cond = _make_low_rank(bkd, nvars_in=2, d=3, rank=1, degree=1)
         assert cond.nvars() == 2

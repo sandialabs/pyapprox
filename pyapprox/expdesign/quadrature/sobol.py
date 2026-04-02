@@ -150,7 +150,7 @@ class SobolSampler(Generic[Array]):
             # so that 0 and 1 are not part of sequence, e.g. avoid start index 0
             # which corresponds to (0,...,0)
             # remove _self._transform_to_normal for arg list and as member variable
-            
+
             # Transform uniform to standard normal via inverse CDF
             # Clip to avoid infinities at 0 and 1
             samples_np = np.clip(samples_np, 1e-10, 1 - 1e-10)

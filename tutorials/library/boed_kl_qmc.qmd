@@ -84,9 +84,12 @@ to analyse theoretically.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+    build_linear_gaussian_kl_benchmark,
+)
 from pyapprox.expdesign.objective import create_kl_oed_objective_from_data
 from pyapprox.expdesign.quadrature.halton import HaltonSampler
+from pyapprox.expdesign.quadrature.oed import build_oed_joint_distribution
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.univariate import GaussianMarginal
 ```
@@ -99,10 +102,10 @@ convergence plots in [Verifying Convergence](boed_kl_usage.qmd).
 bkd = NumpyBkd()
 
 nobs, degree, noise_std, prior_std = 5, 2, 0.5, 0.5
-benchmark = LinearGaussianOEDBenchmark(nobs, degree, noise_std, prior_std, bkd)
-K = benchmark.nobs()      # 5 sensors
-D = benchmark.nparams()   # 3 parameters
-A = bkd.to_numpy(benchmark.design_matrix())
+benchmark = build_linear_gaussian_kl_benchmark(nobs, degree, noise_std, prior_std, bkd)
+K = benchmark.problem().nobs()      # 5 sensors
+D = benchmark.problem().nparams()   # 3 parameters
+obs_map = benchmark.problem().obs_map()
 
 weights = bkd.ones((K, 1)) / K   # uniform design weights
 true_eig = benchmark.exact_eig(weights)
@@ -141,21 +144,23 @@ a `KLOEDObjective` from pre-computed forward model outputs and latent noise,
 so swapping MC for RQMC only changes how those arrays are generated.
 
 ```{python}
-A_bkd = bkd.array(A)
 noise_var = bkd.full((K,), noise_std**2)
 
-def eig_from_outer_samples(outer_z, N_in, seed_inner):
+# Build the joint prior+noise distribution for QMC sampling
+joint_dist = build_oed_joint_distribution(benchmark.problem(), bkd)
+
+def eig_from_samples(theta_out, latent, N_in, seed_inner):
     """
-    EIG estimate from pre-drawn outer samples outer_z of shape (dim, M).
-    Rows 0:D are parameter directions, D:D+K are noise directions.
+    EIG estimate from pre-drawn outer samples.
+
+    theta_out : (D, M) — parameter samples (already in prior scale)
+    latent    : (K, M) — noise samples (already in noise scale)
     """
-    theta_out    = bkd.array(outer_z[:D, :] * prior_std)  # (D, M)
-    latent       = bkd.array(outer_z[D:, :])               # (K, M)
-    outer_shapes = bkd.dot(A_bkd, theta_out)               # (K, M)
+    outer_shapes = obs_map(theta_out)                       # (K, M)
 
     np.random.seed(seed_inner)
     theta_in     = bkd.array(np.random.randn(D, N_in) * prior_std)
-    inner_shapes = bkd.dot(A_bkd, theta_in)                # (K, N_in)
+    inner_shapes = obs_map(theta_in)                        # (K, N_in)
 
     obj = create_kl_oed_objective_from_data(
         noise_var, outer_shapes, inner_shapes, latent, bkd,
@@ -182,15 +187,18 @@ rng = np.random.default_rng(0)
 for M in outer_counts:
     ests_mc, ests_qmc = [], []
     for s in range(N_rep):
-        # MC outer draws: (dim, M)
+        # MC outer draws: scale standard normal by prior_std / noise_std
         z_mc = rng.standard_normal((dim, M))
-        ests_mc.append(eig_from_outer_samples(z_mc, N_in, seed_inner=1000+s))
+        theta_mc = bkd.array(z_mc[:D, :] * prior_std)
+        latent_mc = bkd.array(z_mc[D:, :])
+        ests_mc.append(eig_from_samples(theta_mc, latent_mc, N_in, seed_inner=1000+s))
 
-        # RQMC outer draws via HaltonSampler
-        halton = HaltonSampler(dim, bkd, transform_to_normal=True, seed=s)
-        z_qmc, _ = halton.sample(M)   # (dim, M)
-        z_qmc = bkd.to_numpy(z_qmc)
-        ests_qmc.append(eig_from_outer_samples(z_qmc, N_in, seed_inner=1000+s))
+        # RQMC outer draws via HaltonSampler with joint distribution
+        halton = HaltonSampler(dim, bkd, distribution=joint_dist, seed=s)
+        z_qmc, _ = halton.sample(M)   # (dim, M) — already in prior/noise scale
+        theta_qmc = z_qmc[:D, :]
+        latent_qmc = z_qmc[D:, :]
+        ests_qmc.append(eig_from_samples(theta_qmc, latent_qmc, N_in, seed_inner=1000+s))
 
     mse_mc.append( np.mean((np.array(ests_mc)  - true_eig)**2))
     mse_qmc.append(np.mean((np.array(ests_qmc) - true_eig)**2))

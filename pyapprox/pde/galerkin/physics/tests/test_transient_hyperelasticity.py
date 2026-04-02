@@ -18,7 +18,6 @@ from typing import List, Tuple
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
@@ -38,6 +37,7 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 from pyapprox.util.test_utils import slow_test
 
 # =========================================================================

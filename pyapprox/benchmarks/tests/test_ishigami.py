@@ -1,6 +1,7 @@
 """Tests for IshigamiFunction."""
 
-#TODO: this test class should be where function is defined not at this level which is for integration tests.
+# TODO: this test class should be where function is defined
+# not at this level which is for integration tests.
 
 import math
 

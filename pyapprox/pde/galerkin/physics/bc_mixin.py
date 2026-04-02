@@ -9,7 +9,6 @@ from typing import Any, Generic, List, Optional, Tuple
 import numpy as np
 
 from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
     DirichletBCProtocol,
     NeumannBCProtocol,
     RobinBCProtocol,

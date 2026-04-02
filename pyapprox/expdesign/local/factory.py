@@ -9,10 +9,6 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from .criteria.base import LocalOEDCriterionBase
-from .design_matrices.base import DesignMatricesBase
-from .solver.base import LocalOEDSolverBase
-
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .criteria import (
@@ -23,15 +19,18 @@ from .criteria import (
     IOptimalCriterion,
     ROptimalCriterion,
 )
+from .criteria.base import LocalOEDCriterionBase
 from .design_matrices import (
     LeastSquaresDesignMatrices,
     QuantileDesignMatrices,
 )
+from .design_matrices.base import DesignMatricesBase
 from .solver import (
     AVaRLocalOEDSolver,
     MinimaxLocalOEDSolver,
     ScipyLocalOEDSolver,
 )
+from .solver.base import LocalOEDSolverBase
 
 CriterionType = Literal["D", "A", "C", "I", "G", "R"]
 RegressionType = Literal["least_squares", "quantile"]
@@ -77,7 +76,8 @@ def create_design_matrices(
         )
 
 
-# TODO: Could we make this more extensible. Easier to add new criteria? without large if elif below
+# TODO: Could we make this more extensible. Easier to add new
+# criteria? without large if elif below
 def create_criterion(
     criterion_type: CriterionType,
     design_factors: Array,

@@ -16,8 +16,6 @@ from __future__ import annotations
 import math
 from typing import Union
 
-from pyapprox.pde.field_maps.transformed import TransformedFieldMap
-
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.benchmarks.instances.pde.elastic_bar import (
@@ -47,6 +45,7 @@ from pyapprox.pde.collocation.quadrature import (
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
 )

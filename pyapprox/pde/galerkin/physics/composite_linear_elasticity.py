@@ -17,7 +17,8 @@ When used with a single material covering all elements, this class
 is functionally equivalent to the legacy LinearElasticity class.
 """
 
-from typing import TYPE_CHECKING,  Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
@@ -244,7 +245,11 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
 
         skfem_basis = self._basis.skfem_basis()
 
-        def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        def mass_form(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(len(u)))
             return ret
 
@@ -312,7 +317,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                     force = force_flat.reshape(ndim, nelem, nquad)
                 else:
                     force = np.asarray(body_force_func(x, current_time))
-                ret: NDArray[np.floating[Any]] = sum(force[i] * v[i] for i in range(ndim))
+                ret: NDArray[np.floating[Any]] = sum(
+                    force[i] * v[i] for i in range(ndim)
+                )
                 return ret
 
             load_np = asm(LinearForm(linear_form), skfem_basis)

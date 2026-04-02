@@ -7,7 +7,7 @@ run OED optimization many times using saved data.
 """
 
 import pickle
-from typing import Any, Dict, Generic
+from typing import Dict, Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -41,7 +41,7 @@ class OEDDataManager(Generic[Array]):
         outerloop_samples: Array,
         outerloop_shapes: Array,
         outerloop_weights: Array,
-        observation_locations: Array,
+        design_conditions: Array,
         innerloop_samples: Array,
         innerloop_shapes: Array,
         innerloop_weights: Array,
@@ -61,8 +61,8 @@ class OEDDataManager(Generic[Array]):
             Model outputs for outer samples. Shape: (nobs, nouter)
         outerloop_weights : Array
             Outer loop quadrature weights. Shape: (nouter,)
-        observation_locations : Array
-            Spatial coordinates of observations. Shape: (ndim, nobs)
+        design_conditions : Array
+            Design conditions for each observation. Shape: (nobs, nconditions)
         innerloop_samples : Array
             Inner loop parameter samples. Shape: (nvars, ninner)
         innerloop_shapes : Array
@@ -79,7 +79,7 @@ class OEDDataManager(Generic[Array]):
             "outloop_samples": self._bkd.to_numpy(outerloop_samples),
             "outloop_shapes": self._bkd.to_numpy(outerloop_shapes),
             "outloop_quad_weights": self._bkd.to_numpy(outerloop_weights),
-            "observation_locations": self._bkd.to_numpy(observation_locations),
+            "design_conditions": self._bkd.to_numpy(design_conditions),
             "inloop_samples": self._bkd.to_numpy(innerloop_samples),
             "inloop_shapes": self._bkd.to_numpy(innerloop_shapes),
             "inloop_quad_weights": self._bkd.to_numpy(innerloop_weights),
@@ -115,7 +115,7 @@ class OEDDataManager(Generic[Array]):
         name : str
             Name of the array. Valid names: "outloop_samples",
             "outloop_shapes", "outloop_quad_weights",
-            "observation_locations", "inloop_samples",
+            "design_conditions", "inloop_samples",
             "inloop_shapes", "inloop_quad_weights",
             "qoi_vals", "qoi_quad_weights".
 
@@ -168,7 +168,7 @@ class OEDDataManager(Generic[Array]):
             - "outloop_samples": (nvars, nout_oed)
             - "outloop_shapes": (nobs_active, nout_oed)
             - "outloop_quad_weights": (nout_oed,)
-            - "observation_locations": (ndim, nloc_active)
+            - "design_conditions": (ndim, nloc_active)
             - "inloop_samples": (nvars, nin_oed)
             - "inloop_shapes": (nobs_active, nin_oed)
             - "inloop_quad_weights": (nin_oed,)
@@ -192,7 +192,7 @@ class OEDDataManager(Generic[Array]):
         inloop_weights = inloop_weights / self._bkd.sum(inloop_weights)
 
         # Subset observation locations
-        obs_locs = self._data["observation_locations"][:, loc_idx_np]
+        obs_locs = self._data["design_conditions"][:, loc_idx_np]
 
         # Subset QoI values (keep all QoI dims, subset samples)
         qoi_vals = self._data["qoi_vals"]
@@ -207,7 +207,7 @@ class OEDDataManager(Generic[Array]):
             "outloop_samples": outloop_samples,
             "outloop_shapes": outloop_shapes,
             "outloop_quad_weights": outloop_weights,
-            "observation_locations": obs_locs,
+            "design_conditions": obs_locs,
             "inloop_samples": inloop_samples,
             "inloop_shapes": inloop_shapes,
             "inloop_quad_weights": inloop_weights,

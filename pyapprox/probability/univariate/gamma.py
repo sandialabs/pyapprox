@@ -10,15 +10,15 @@ from typing import Any, Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import (
-    NewtonSolver,
-)
 from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.probability.univariate.beta import ScipyGaussLegendreQuadrature01
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,
     LogHyperParameter,
+)
+from pyapprox.util.rootfinding.newton import (
+    NewtonSolver,
 )
 
 

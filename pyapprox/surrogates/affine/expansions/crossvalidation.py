@@ -42,7 +42,9 @@ def get_random_k_fold_sample_indices(
     if random:
         sample_indices = bkd.asarray(np.random.permutation(sample_indices), dtype=int)
 
-    fold_sample_indices: List[Array] = [bkd.empty((0,), dtype=int) for _ in range(nfolds)]
+    fold_sample_indices: List[Array] = [
+        bkd.empty((0,), dtype=int) for _ in range(nfolds)
+    ]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):

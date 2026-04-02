@@ -11,7 +11,6 @@ import pytest
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
@@ -35,6 +34,7 @@ from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TimeAdjointOperatorWrapper:

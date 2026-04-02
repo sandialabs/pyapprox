@@ -13,13 +13,14 @@
 Contracts
 ---------
 
-Analyzed 1557 files, 7709 dependencies.
+Analyzed 1568 files, 7788 dependencies.
 ---------------------------------------
 
 Enforce dependency layers BROKEN
 Production code must not import from benchmarks BROKEN
+tutorial_figures must not be imported by production code KEPT
 
-Contracts: 0 kept, 2 broken.
+Contracts: 1 kept, 2 broken.
 
 
 ----------------
@@ -29,145 +30,61 @@ Broken contracts
 Enforce dependency layers
 -------------------------
 
-pyapprox.probability is not allowed to import pyapprox.surrogates:
+pyapprox.probability is not allowed to import pyapprox.inverse:
 
-- pyapprox.probability.conditional.tests.test_gamma -> 
-pyapprox.surrogates.affine.expansions (l.24)
+- pyapprox.probability.copula.vine.tests.test_gaussian_network_factory -> 
+pyapprox.inverse.bayesnet.inference (l.14)
 
-- pyapprox.probability.conditional.tests.test_joint -> 
-pyapprox.surrogates.affine.expansions (l.26)
+- pyapprox.probability.copula.vine.gaussian_network_factory -> 
+pyapprox.inverse.bayesnet.network (l.19)
 
-- pyapprox.probability.conditional.tests.test_gamma -> 
-pyapprox.surrogates.affine.indices (l.25)
+- pyapprox.probability.copula.vine.tests.test_gaussian_network_factory -> 
+pyapprox.inverse.bayesnet.network (l.15)
 
-- pyapprox.probability.conditional.tests.test_joint -> 
-pyapprox.surrogates.affine.indices (l.27)
+- pyapprox.probability.conditional.tests.test_copula_sas -> 
+pyapprox.inverse.variational.elbo (l.167)
 
-- pyapprox.probability.density.tests.test_pushforward -> 
-pyapprox.surrogates.kernels.matern (l.46)
 
-- pyapprox.probability.density.tests.test_pushforward -> 
-pyapprox.surrogates.affine.expansions.pce_density (l.42)
+pyapprox.probability is not allowed to import pyapprox.optimization:
 
-- pyapprox.probability.conditional.tests.test_gaussian -> 
-pyapprox.surrogates.affine.univariate (l.27)
+- pyapprox.probability.density.projection -> 
+pyapprox.optimization.minimize.scipy.diffevol (l.211)
 
-- pyapprox.probability.conditional.tests.test_beta -> 
-pyapprox.surrogates.affine.univariate (l.28)
-
-- pyapprox.probability.density.tests.test_kernel_density_basis -> 
-pyapprox.surrogates.kernels.matern (l.18, l.127)
+- pyapprox.probability.density.projection -> 
+pyapprox.optimization.minimize.scipy.trust_constr (l.214)
 
 - pyapprox.probability.density.tests.test_projection -> 
-pyapprox.surrogates.kernels.matern (l.22)
+pyapprox.optimization.minimize.scipy.trust_constr (l.339)
 
-- pyapprox.probability.density.tests.test_pushforward -> 
-pyapprox.surrogates.affine.expansions (l.39)
+- pyapprox.probability.density.projection -> 
+pyapprox.optimization.minimize.chained.chained_optimizer (l.208)
 
-- pyapprox.probability.density.piecewise_density_basis -> 
-pyapprox.surrogates.affine.univariate.piecewisepoly (l.5)
-
-- pyapprox.probability.density.tests.test_fitters -> 
-pyapprox.surrogates.affine.basis.kernel_basis (l.16)
-
-- pyapprox.probability.density.tests.test_kernel_density_basis -> 
-pyapprox.surrogates.affine.expansions.pce_density (l.15)
-
-- pyapprox.probability.conditional.tests.test_gamma -> 
-pyapprox.surrogates.affine.basis (l.23)
-
-- pyapprox.probability.conditional.tests.test_joint -> 
-pyapprox.surrogates.affine.basis (l.25)
-
-- pyapprox.probability.density.tests.test_projection -> 
-pyapprox.surrogates.affine.expansions.pce_density (l.19)
-
-- pyapprox.probability.univariate.tests.test_beta -> 
-pyapprox.surrogates.affine.univariate.globalpoly (l.18)
-
-- pyapprox.probability.conditional.tests.test_gaussian -> 
-pyapprox.surrogates.affine.expansions (l.25)
-
-- pyapprox.probability.conditional.tests.test_gaussian -> 
-pyapprox.surrogates.affine.indices (l.26)
-
-- pyapprox.probability.density.kernel_density_basis -> 
-pyapprox.surrogates.kernels.matern (l.7)
-
-- pyapprox.probability.density.tests.test_pushforward -> 
-pyapprox.surrogates.affine.basis.kernel_basis (l.38)
-
-- pyapprox.probability.conditional.tests.test_beta -> 
-pyapprox.surrogates.affine.indices (l.27)
-
-- pyapprox.probability.density.tests.test_piecewise_density_basis -> 
-pyapprox.surrogates.affine.expansions.pce_density (l.12)
-
-- pyapprox.probability.conditional.tests.test_beta -> 
-pyapprox.surrogates.affine.expansions (l.26)
-
-- pyapprox.probability.marginalization.tests.test_marginalize_distributions -> 
-pyapprox.surrogates.quadrature.tensor_product_factory (l.21)
-
-- pyapprox.probability.conditional.tests.test_gamma -> 
-pyapprox.surrogates.affine.univariate (l.26)
-
-- pyapprox.probability.conditional.tests.test_joint -> 
-pyapprox.surrogates.affine.univariate (l.28)
-
-- pyapprox.probability.density.tests.test_projection -> 
-pyapprox.surrogates.affine.basis.kernel_basis (l.18)
-
-- pyapprox.probability.univariate.tests.test_gamma -> 
-pyapprox.surrogates.affine.univariate.globalpoly (l.18)
-
-- pyapprox.probability.density.tests.test_kernel_density_basis -> 
-pyapprox.surrogates.affine.basis.kernel_basis (l.14)
-
-- pyapprox.probability.conditional.tests.test_gaussian -> 
-pyapprox.surrogates.affine.basis (l.24)
-
-- pyapprox.probability.conditional.tests.test_beta -> 
-pyapprox.surrogates.affine.basis (l.25)
-
-- pyapprox.probability.density.tests.test_fitters -> 
-pyapprox.surrogates.kernels.matern (l.17)
-
-- pyapprox.probability.conditional.tests.test_multivariate_gaussian -> 
-pyapprox.surrogates.affine.expansions.pce (l.17)
-
-- pyapprox.probability.density.kernel_density_basis -> 
-pyapprox.surrogates.affine.basis.kernel_basis (l.6)
+- pyapprox.probability.density.projection -> 
+pyapprox.optimization.minimize.protocols (l.5)
 
 
-pyapprox.expdesign is not allowed to import pyapprox.benchmarks:
+pyapprox.surrogates is not allowed to import pyapprox.benchmarks:
 
-- pyapprox.expdesign.benchmarks.lotka_volterra -> pyapprox.benchmarks.registry 
-(l.18)
+- pyapprox.surrogates.functiontrain.statistics.tests.test_moments -> 
+pyapprox.benchmarks.functions.genz (l.7)
 
-- pyapprox.expdesign.benchmarks.lotka_volterra -> 
-pyapprox.benchmarks.instances.ode.lotka_volterra (l.15)
+- pyapprox.surrogates.gaussianprocess.statistics.tests.test_sensitivity -> 
+pyapprox.benchmarks.functions.algebraic.ishigami (l.511)
 
-- pyapprox.expdesign.benchmarks.advection_diffusion -> 
-pyapprox.benchmarks.registry (l.23)
+- pyapprox.surrogates.functiontrain.statistics.tests.test_sensitivity -> 
+pyapprox.benchmarks.functions.algebraic.ishigami (l.10)
 
-- pyapprox.expdesign.benchmarks.nonlinear_gaussian -> 
-pyapprox.benchmarks.registry (l.25)
 
-- pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
-pyapprox.benchmarks.registry (l.19)
+pyapprox.sensitivity is not allowed to import pyapprox.benchmarks:
 
-- pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
-pyapprox.benchmarks.protocols (l.13)
+- pyapprox.sensitivity.tests.test_bin_based -> 
+pyapprox.benchmarks.instances.sensitivity (l.17)
 
-- pyapprox.expdesign.benchmarks.linear_gaussian_pred -> 
-pyapprox.benchmarks.registry (l.25)
+- pyapprox.sensitivity.tests.test_bin_based -> 
+pyapprox.benchmarks.functions.algebraic.ishigami (l.13)
 
-- pyapprox.expdesign.benchmarks.lotka_volterra -> 
-pyapprox.benchmarks.functions.ode (l.11)
-
-- pyapprox.expdesign.benchmarks.linear_gaussian -> pyapprox.benchmarks.registry 
-(l.28)
+- pyapprox.sensitivity.tests.test_sensitivity -> 
+pyapprox.benchmarks.instances.sensitivity (l.10)
 
 
 pyapprox.util is not allowed to import pyapprox.statest:
@@ -177,142 +94,22 @@ pyapprox.util is not allowed to import pyapprox.statest:
 - pyapprox.util.test_utils -> pyapprox.statest.acv.base (l.46)
 
 
+pyapprox.pde is not allowed to import pyapprox.benchmarks:
+
+- pyapprox.pde.galerkin.postprocessing.tests.test_elasticity -> 
+pyapprox.benchmarks.instances.pde.cantilever_beam (l.406)
+
+
 pyapprox.interface is not allowed to import pyapprox.probability:
 
 - pyapprox.interface.functions.sweeps.bounded -> 
 pyapprox.probability.transforms.affine (l.11)
 
 
-pyapprox.inverse is not allowed to import pyapprox.expdesign:
-
-- pyapprox.inverse.variational.tests.test_amortized -> 
-pyapprox.expdesign.quadrature.gaussian (l.16)
-
-
-pyapprox.optimization is not allowed to import pyapprox.benchmarks:
-
-- pyapprox.optimization.bayesian.tests.test_optimizer -> 
-pyapprox.benchmarks.functions.algebraic.rosenbrock (l.410, l.440)
-
-- pyapprox.optimization.bayesian.tests.test_optimizer -> 
-pyapprox.benchmarks.functions.algebraic.branin (l.382)
-
-- pyapprox.optimization.minimize.constraints.tests.test_sample_average -> 
-pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d (l.288)
-
-
-pyapprox.probability is not allowed to import pyapprox.inverse:
-
-- pyapprox.probability.copula.vine.gaussian_network_factory -> 
-pyapprox.inverse.bayesnet.network (l.19)
-
-- pyapprox.probability.conditional.tests.test_copula_sas -> 
-pyapprox.inverse.variational.elbo (l.167)
-
-- pyapprox.probability.copula.vine.tests.test_gaussian_network_factory -> 
-pyapprox.inverse.bayesnet.network (l.15)
-
-- pyapprox.probability.copula.vine.tests.test_gaussian_network_factory -> 
-pyapprox.inverse.bayesnet.inference (l.14)
-
-
-pyapprox.probability is not allowed to import pyapprox.optimization:
-
-- pyapprox.probability.density.tests.test_projection -> 
-pyapprox.optimization.minimize.scipy.trust_constr (l.339)
-
-- pyapprox.probability.density.projection -> 
-pyapprox.optimization.minimize.chained.chained_optimizer (l.208)
-
-- pyapprox.probability.density.projection -> 
-pyapprox.optimization.minimize.scipy.trust_constr (l.214)
-
-- pyapprox.probability.density.projection -> 
-pyapprox.optimization.minimize.protocols (l.5)
-
-- pyapprox.probability.transforms.rosenblatt -> 
-pyapprox.optimization.rootfinding.bisection (l.19)
-
-- pyapprox.probability.density.projection -> 
-pyapprox.optimization.minimize.scipy.diffevol (l.211)
-
-- pyapprox.probability.univariate.gamma -> 
-pyapprox.optimization.rootfinding.newton (l.13)
-
-- pyapprox.probability.univariate.beta -> 
-pyapprox.optimization.rootfinding.newton (l.15)
-
-
-pyapprox.optimization is not allowed to import pyapprox.expdesign:
-
-- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
-pyapprox.expdesign.statistics (l.11)
-
-- pyapprox.optimization.minimize.constraints.sample_average -> 
-pyapprox.expdesign.protocols.statistics (l.14)
-
-- pyapprox.optimization.minimize.inexact.tests.test_wrapper -> 
-pyapprox.expdesign.statistics (l.6)
-
-- pyapprox.optimization.minimize.constraints.tests.test_sample_average -> 
-pyapprox.expdesign.statistics (l.80, l.237, l.255, l.292)
-
-- pyapprox.optimization.minimize.inexact.wrapper -> 
-pyapprox.expdesign.protocols.statistics (l.11)
-
-
-pyapprox.surrogates is not allowed to import pyapprox.pde:
-
-- pyapprox.surrogates.flowmatching.ode_adapter -> 
-pyapprox.pde.time.implicit_steppers.integrator (l.25)
-
-- pyapprox.surrogates.flowmatching.tests.test_chi_squared -> 
-pyapprox.pde.time.explicit_steppers.heun (l.15)
-
-- pyapprox.surrogates.flowmatching.tests.test_gaussian_transport -> 
-pyapprox.pde.time.explicit_steppers.heun (l.14)
+pyapprox.surrogates is not allowed to import pyapprox.inverse:
 
 - pyapprox.surrogates.flowmatching.tests.test_gaussian_conjugate -> 
-pyapprox.pde.time.explicit_steppers.heun (l.27)
-
-- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
-pyapprox.pde.time.protocols.ode_residual (l.9)
-
-- pyapprox.surrogates.flowmatching.tests.test_lognormal_qoi -> 
-pyapprox.pde.time.explicit_steppers.heun (l.26)
-
-- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
-pyapprox.pde.time.explicit_steppers.forward_euler (l.5)
-
-- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
-pyapprox.pde.time.explicit_steppers.heun (l.8)
-
-- pyapprox.surrogates.flowmatching.ode_adapter -> 
-pyapprox.pde.time.explicit_steppers.forward_euler (l.21)
-
-- pyapprox.surrogates.flowmatching.ode_adapter -> 
-pyapprox.pde.time.explicit_steppers.heun (l.24)
-
-
-pyapprox.surrogates is not allowed to import pyapprox.expdesign:
-
-- pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler -> 
-pyapprox.expdesign.quadrature (l.5)
-
-- pyapprox.surrogates.gaussianprocess.adaptive.candidate_generator -> 
-pyapprox.expdesign.quadrature (l.7)
-
-- pyapprox.surrogates.gaussianprocess.statistics.tests.test_sensitivity -> 
-pyapprox.expdesign.quadrature.sobol (l.515)
-
-- pyapprox.surrogates.gaussianprocess.statistics.ensemble -> 
-pyapprox.expdesign.protocols.quadrature (l.36)
-
-- pyapprox.surrogates.gaussianprocess.statistics.ensemble -> 
-pyapprox.expdesign.quadrature.sobol (l.153)
-
-
-pyapprox.surrogates is not allowed to import pyapprox.inverse:
+pyapprox.inverse.conjugate.gaussian (l.24)
 
 - pyapprox.surrogates.affine.expansions.fitters.bayesian -> 
 pyapprox.inverse.conjugate (l.5)
@@ -320,161 +117,35 @@ pyapprox.inverse.conjugate (l.5)
 - pyapprox.surrogates.flowmatching.tests.test_lognormal_qoi -> 
 pyapprox.inverse.conjugate.gaussian (l.23)
 
-- pyapprox.surrogates.flowmatching.tests.test_gaussian_conjugate -> 
-pyapprox.inverse.conjugate.gaussian (l.24)
 
+pyapprox.expdesign is not allowed to import pyapprox.benchmarks:
 
-pyapprox.pde is not allowed to import pyapprox.benchmarks:
+- pyapprox.expdesign.benchmarks.lotka_volterra -> 
+pyapprox.benchmarks.functions.ode (l.11)
 
-- pyapprox.pde.galerkin.postprocessing.tests.test_elasticity -> 
-pyapprox.benchmarks.instances.pde.cantilever_beam (l.406)
+- pyapprox.expdesign.benchmarks.lotka_volterra -> pyapprox.benchmarks.registry 
+(l.18)
 
+- pyapprox.expdesign.benchmarks.advection_diffusion -> 
+pyapprox.benchmarks.registry (l.24)
 
-pyapprox.optimization is not allowed to import pyapprox.pde:
+- pyapprox.expdesign.benchmarks.instances.linear_gaussian -> 
+pyapprox.benchmarks.registry (l.14)
 
-- pyapprox.optimization.implicitfunction.functionals.point_evaluation -> 
-pyapprox.pde.decomposition.interface.interpolation (l.14)
+- pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
+pyapprox.benchmarks.registry (l.17)
 
-- pyapprox.optimization.implicitfunction.functionals.elasticity_2d -> 
-pyapprox.pde.collocation.post_processing.stress (l.14)
+- pyapprox.expdesign.benchmarks.instances.linear_gaussian_pred -> 
+pyapprox.benchmarks.registry (l.10)
 
-- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
-pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.14)
+- pyapprox.expdesign.benchmarks.instances.nonlinear_gaussian -> 
+pyapprox.benchmarks.registry (l.11)
 
-- pyapprox.optimization.implicitfunction.functionals.tests.test_point_evaluation
--> pyapprox.pde.collocation.basis (l.11)
+- pyapprox.expdesign.benchmarks.lotka_volterra -> 
+pyapprox.benchmarks.instances.ode.lotka_volterra (l.15)
 
-- pyapprox.optimization.implicitfunction.functionals.tests.test_point_evaluation
--> pyapprox.pde.collocation.mesh (l.12)
-
-- pyapprox.optimization.implicitfunction.functionals.point_evaluation -> 
-pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.11)
-
-- pyapprox.optimization.implicitfunction.functionals.tests.test_strain_energy_1d
--> pyapprox.pde.collocation.basis (l.18)
-
-- pyapprox.optimization.implicitfunction.functionals.tests.test_strain_energy_1d
--> pyapprox.pde.collocation.mesh (l.19)
-
-- 
-pyapprox.optimization.implicitfunction.functionals.tests.test_subdomain_integral
--> pyapprox.pde.collocation.basis (l.18)
-
-- pyapprox.optimization.implicitfunction.functionals.subdomain_integral -> 
-pyapprox.pde.collocation.quadrature.collocation_quadrature (l.16)
-
-- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
-pyapprox.pde.collocation.quadrature.collocation_quadrature (l.20)
-
-- 
-pyapprox.optimization.implicitfunction.functionals.tests.test_subdomain_integral
--> pyapprox.pde.collocation.mesh (l.19)
-
-- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
-pyapprox.pde.collocation.physics.stress_models.neo_hookean (l.17)
-
-- pyapprox.optimization.implicitfunction.functionals.subdomain_integral -> 
-pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.13)
-
-
-pyapprox.statest is not allowed to import pyapprox.benchmarks:
-
-- pyapprox.statest.aetc.tests.test_aetc_standalone -> 
-pyapprox.benchmarks.functions.multifidelity (l.795, l.869, l.926, l.1082, 
-l.1156)
-
-- pyapprox.statest.acv.tests.test_gradients -> 
-pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.12)
-
-- pyapprox.statest.tests.test_bootstrap -> 
-pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.17)
-
-- pyapprox.statest.acv.tests.test_variance -> 
-pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.15)
-
-- pyapprox.statest.groupacv.tests.test_standalone -> 
-pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.11)
-
-- pyapprox.statest.tests.test_bootstrap -> 
-pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.20)
-
-- pyapprox.statest.acv.tests.test_variance -> 
-pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.18)
-
-
-pyapprox.optimization is not allowed to import pyapprox.surrogates:
-
-- pyapprox.optimization.bayesian.tests.test_optimizer -> 
-pyapprox.surrogates.gaussianprocess.exact (l.25)
-
-- pyapprox.optimization.bayesian.tests.test_convergence -> 
-pyapprox.surrogates.gaussianprocess.exact (l.20)
-
-- pyapprox.optimization.bayesian.tests.test_batch -> 
-pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.19)
-
-- pyapprox.optimization.bayesian.tests.test_batch -> 
-pyapprox.surrogates.kernels.matern (l.22)
-
-- pyapprox.optimization.bayesian.fitter_adapter -> 
-pyapprox.surrogates.gaussianprocess.fitters.incremental_fitter (l.146)
-
-- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
-pyapprox.surrogates.quadrature (l.475)
-
-- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
-pyapprox.surrogates.sparsegrids (l.495)
-
-- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
-pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.11)
-
-- pyapprox.optimization.bayesian.tests.test_batch -> 
-pyapprox.surrogates.gaussianprocess.exact (l.18)
-
-- pyapprox.optimization.bayesian.fitter_adapter -> 
-pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.6)
-
-- pyapprox.optimization.bayesian.tests.test_convergence -> 
-pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.21)
-
-- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
-pyapprox.surrogates.kernels.matern (l.14)
-
-- pyapprox.optimization.bayesian.tests.test_optimizer -> 
-pyapprox.surrogates.kernels.matern (l.29)
-
-- pyapprox.optimization.bayesian.tests.test_convergence -> 
-pyapprox.surrogates.kernels.matern (l.24)
-
-- pyapprox.optimization.bayesian.tests.test_optimizer -> 
-pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.26)
-
-- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
-pyapprox.surrogates.affine.indices (l.474, l.494)
-
-- pyapprox.optimization.bayesian.fitter_adapter -> 
-pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter (l.94)
-
-- pyapprox.optimization.minimize.inexact.quadrature -> 
-pyapprox.surrogates.quadrature.protocols (l.12)
-
-- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
-pyapprox.surrogates.quadrature.tensor_product (l.476)
-
-- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
-pyapprox.surrogates.gaussianprocess.exact (l.10)
-
-
-pyapprox.sensitivity is not allowed to import pyapprox.benchmarks:
-
-- pyapprox.sensitivity.tests.test_bin_based -> 
-pyapprox.benchmarks.instances.sensitivity (l.17)
-
-- pyapprox.sensitivity.tests.test_sensitivity -> 
-pyapprox.benchmarks.instances.sensitivity (l.10)
-
-- pyapprox.sensitivity.tests.test_bin_based -> 
-pyapprox.benchmarks.functions.algebraic.ishigami (l.13)
+- pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
+pyapprox.benchmarks.protocols (l.13)
 
 
 pyapprox.sensitivity is not allowed to import pyapprox.expdesign:
@@ -486,31 +157,76 @@ pyapprox.expdesign.quadrature.halton (l.18)
 pyapprox.expdesign.quadrature.sobol (l.22)
 
 
-pyapprox.surrogates is not allowed to import pyapprox.benchmarks:
+pyapprox.surrogates is not allowed to import pyapprox.expdesign:
 
-- pyapprox.surrogates.functiontrain.statistics.tests.test_sensitivity -> 
-pyapprox.benchmarks.functions.algebraic.ishigami (l.10)
-
-- pyapprox.surrogates.functiontrain.statistics.tests.test_moments -> 
-pyapprox.benchmarks.functions.genz (l.7)
+- pyapprox.surrogates.gaussianprocess.adaptive.candidate_generator -> 
+pyapprox.expdesign.quadrature (l.7)
 
 - pyapprox.surrogates.gaussianprocess.statistics.tests.test_sensitivity -> 
-pyapprox.benchmarks.functions.algebraic.ishigami (l.511)
+pyapprox.expdesign.quadrature.sobol (l.515)
+
+- pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler -> 
+pyapprox.expdesign.quadrature (l.5)
+
+- pyapprox.surrogates.gaussianprocess.statistics.ensemble -> 
+pyapprox.expdesign.quadrature.sobol (l.153)
+
+- pyapprox.surrogates.gaussianprocess.statistics.ensemble -> 
+pyapprox.expdesign.protocols.quadrature (l.36)
+
+
+pyapprox.surrogates is not allowed to import pyapprox.pde:
+
+- pyapprox.surrogates.flowmatching.tests.test_lognormal_qoi -> 
+pyapprox.pde.time.explicit_steppers.heun (l.26)
+
+- pyapprox.surrogates.flowmatching.ode_adapter -> 
+pyapprox.pde.time.explicit_steppers.forward_euler (l.20)
+
+- pyapprox.surrogates.flowmatching.ode_adapter -> 
+pyapprox.pde.time.implicit_steppers.integrator (l.24)
+
+- pyapprox.surrogates.flowmatching.tests.test_chi_squared -> 
+pyapprox.pde.time.explicit_steppers.heun (l.15)
+
+- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
+pyapprox.pde.time.explicit_steppers.heun (l.8)
+
+- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
+pyapprox.pde.time.protocols.ode_residual (l.9)
+
+- pyapprox.surrogates.flowmatching.tests.test_gaussian_transport -> 
+pyapprox.pde.time.explicit_steppers.heun (l.14)
+
+- pyapprox.surrogates.flowmatching.tests.test_ode_adapter -> 
+pyapprox.pde.time.explicit_steppers.forward_euler (l.5)
+
+- pyapprox.surrogates.flowmatching.tests.test_gaussian_conjugate -> 
+pyapprox.pde.time.explicit_steppers.heun (l.27)
+
+- pyapprox.surrogates.flowmatching.ode_adapter -> 
+pyapprox.pde.time.explicit_steppers.heun (l.23)
+
+
+pyapprox.optimization is not allowed to import pyapprox.benchmarks:
+
+- pyapprox.optimization.minimize.constraints.tests.test_sample_average -> 
+pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d (l.288)
+
+- pyapprox.optimization.bayesian.tests.test_optimizer -> 
+pyapprox.benchmarks.functions.algebraic.rosenbrock (l.410, l.440)
+
+- pyapprox.optimization.bayesian.tests.test_optimizer -> 
+pyapprox.benchmarks.functions.algebraic.branin (l.382)
 
 
 pyapprox.interface is not allowed to import pyapprox.surrogates:
 
-- pyapprox.interface.functions.tests.test_marginalize -> 
-pyapprox.surrogates.quadrature.protocols (l.22)
-
 - pyapprox.interface.functions.marginalize -> 
 pyapprox.surrogates.quadrature.protocols (l.23)
 
-- pyapprox.interface.functions.plot.tests.test_pair_plot -> 
-pyapprox.surrogates.quadrature.tensor_product_factory (l.13)
-
 - pyapprox.interface.functions.tests.test_marginalize -> 
-pyapprox.surrogates.affine.univariate.globalpoly.jacobi (l.16)
+pyapprox.surrogates.quadrature.protocols (l.22)
 
 - pyapprox.interface.functions.tests.test_marginalize -> 
 pyapprox.surrogates.affine.univariate.globalpoly.quadrature (l.19)
@@ -518,14 +234,290 @@ pyapprox.surrogates.affine.univariate.globalpoly.quadrature (l.19)
 - pyapprox.interface.functions.tests.test_marginalize -> 
 pyapprox.surrogates.quadrature.tensor_product (l.25)
 
+- pyapprox.interface.functions.plot.tests.test_pair_plot -> 
+pyapprox.surrogates.quadrature.tensor_product_factory (l.13)
+
+- pyapprox.interface.functions.tests.test_marginalize -> 
+pyapprox.surrogates.affine.univariate.globalpoly.jacobi (l.16)
+
+
+pyapprox.optimization is not allowed to import pyapprox.expdesign:
+
+- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
+pyapprox.expdesign.statistics (l.11)
+
+- pyapprox.optimization.minimize.constraints.sample_average -> 
+pyapprox.expdesign.protocols.statistics (l.14)
+
+- pyapprox.optimization.minimize.inexact.wrapper -> 
+pyapprox.expdesign.protocols.statistics (l.11)
+
+- pyapprox.optimization.minimize.inexact.tests.test_wrapper -> 
+pyapprox.expdesign.statistics (l.6)
+
+- pyapprox.optimization.minimize.constraints.tests.test_sample_average -> 
+pyapprox.expdesign.statistics (l.80, l.237, l.255, l.292)
+
+
+pyapprox.optimization is not allowed to import pyapprox.surrogates:
+
+- pyapprox.optimization.bayesian.tests.test_batch -> 
+pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.19)
+
+- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
+pyapprox.surrogates.affine.indices (l.474, l.494)
+
+- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
+pyapprox.surrogates.quadrature.tensor_product (l.476)
+
+- pyapprox.optimization.minimize.inexact.quadrature -> 
+pyapprox.surrogates.quadrature.protocols (l.12)
+
+- pyapprox.optimization.bayesian.fitter_adapter -> 
+pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter (l.94)
+
+- pyapprox.optimization.bayesian.tests.test_convergence -> 
+pyapprox.surrogates.gaussianprocess.exact (l.20)
+
+- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
+pyapprox.surrogates.quadrature (l.475)
+
+- pyapprox.optimization.bayesian.tests.test_convergence -> 
+pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.21)
+
+- pyapprox.optimization.bayesian.tests.test_optimizer -> 
+pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.26)
+
+- pyapprox.optimization.bayesian.tests.test_optimizer -> 
+pyapprox.surrogates.kernels.matern (l.29)
+
+- pyapprox.optimization.bayesian.fitter_adapter -> 
+pyapprox.surrogates.gaussianprocess.fitters.incremental_fitter (l.146)
+
+- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
+pyapprox.surrogates.kernels.matern (l.14)
+
+- pyapprox.optimization.bayesian.tests.test_optimizer -> 
+pyapprox.surrogates.gaussianprocess.exact (l.25)
+
+- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
+pyapprox.surrogates.gaussianprocess.exact (l.10)
+
+- pyapprox.optimization.bayesian.tests.test_batch -> 
+pyapprox.surrogates.kernels.matern (l.22)
+
+- pyapprox.optimization.bayesian.tests.test_batch -> 
+pyapprox.surrogates.gaussianprocess.exact (l.18)
+
+- pyapprox.optimization.bayesian.tests.test_convergence -> 
+pyapprox.surrogates.kernels.matern (l.24)
+
+- pyapprox.optimization.bayesian.fitter_adapter -> 
+pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.6)
+
+- pyapprox.optimization.minimize.rol.tests.test_rol_inexact -> 
+pyapprox.surrogates.sparsegrids (l.495)
+
+- pyapprox.optimization.bayesian.tests.test_fitter_adapter -> 
+pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter (l.11)
+
+
+pyapprox.statest is not allowed to import pyapprox.benchmarks:
+
+- pyapprox.statest.aetc.tests.test_aetc_standalone -> 
+pyapprox.benchmarks.functions.multifidelity (l.795, l.869, l.926, l.1082, 
+l.1156)
+
+- pyapprox.statest.acv.tests.test_variance -> 
+pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.15)
+
+- pyapprox.statest.tests.test_bootstrap -> 
+pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.17)
+
+- pyapprox.statest.tests.test_bootstrap -> 
+pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.20)
+
+- pyapprox.statest.groupacv.tests.test_standalone -> 
+pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble (l.11)
+
+- pyapprox.statest.acv.tests.test_variance -> 
+pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.18)
+
+- pyapprox.statest.acv.tests.test_gradients -> 
+pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble (l.12)
+
 
 pyapprox.interface is not allowed to import pyapprox.benchmarks:
+
+- pyapprox.interface.functions.tests.test_timing -> 
+pyapprox.benchmarks.functions.algebraic.ishigami (l.8)
 
 - pyapprox.interface.functions.tests.test_active_set_function -> 
 pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d (l.17, l.161, l.184)
 
-- pyapprox.interface.functions.tests.test_timing -> 
-pyapprox.benchmarks.functions.algebraic.ishigami (l.8)
+
+pyapprox.inverse is not allowed to import pyapprox.expdesign:
+
+- pyapprox.inverse.variational.tests.test_amortized -> 
+pyapprox.expdesign.quadrature.gaussian (l.16)
+
+
+pyapprox.optimization is not allowed to import pyapprox.pde:
+
+- 
+pyapprox.optimization.implicitfunction.functionals.tests.test_subdomain_integral
+-> pyapprox.pde.collocation.basis (l.18)
+
+- pyapprox.optimization.implicitfunction.functionals.elasticity_2d -> 
+pyapprox.pde.collocation.post_processing.stress (l.15)
+
+- pyapprox.optimization.implicitfunction.functionals.tests.test_strain_energy_1d
+-> pyapprox.pde.collocation.mesh (l.19)
+
+- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
+pyapprox.pde.collocation.quadrature.collocation_quadrature (l.21)
+
+- pyapprox.optimization.implicitfunction.functionals.tests.test_point_evaluation
+-> pyapprox.pde.collocation.mesh (l.12)
+
+- pyapprox.optimization.implicitfunction.functionals.tests.test_strain_energy_1d
+-> pyapprox.pde.collocation.basis (l.18)
+
+- pyapprox.optimization.implicitfunction.functionals.point_evaluation -> 
+pyapprox.pde.decomposition.interface.interpolation (l.15)
+
+- pyapprox.optimization.implicitfunction.functionals.point_evaluation -> 
+pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.12)
+
+- 
+pyapprox.optimization.implicitfunction.functionals.tests.test_subdomain_integral
+-> pyapprox.pde.collocation.mesh (l.19)
+
+- pyapprox.optimization.implicitfunction.functionals.tests.test_point_evaluation
+-> pyapprox.pde.collocation.basis (l.11)
+
+- pyapprox.optimization.implicitfunction.functionals.subdomain_integral -> 
+pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.14)
+
+- pyapprox.optimization.implicitfunction.functionals.subdomain_integral -> 
+pyapprox.pde.collocation.quadrature.collocation_quadrature (l.17)
+
+- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
+pyapprox.pde.collocation.physics.stress_models.neo_hookean (l.18)
+
+- pyapprox.optimization.implicitfunction.functionals.strain_energy_1d -> 
+pyapprox.pde.collocation.basis.chebyshev.basis_1d (l.15)
+
+
+pyapprox.probability is not allowed to import pyapprox.surrogates:
+
+- pyapprox.probability.density.tests.test_projection -> 
+pyapprox.surrogates.affine.expansions.pce_density (l.19)
+
+- pyapprox.probability.density.tests.test_kernel_density_basis -> 
+pyapprox.surrogates.affine.basis.kernel_basis (l.14)
+
+- pyapprox.probability.density.tests.test_fitters -> 
+pyapprox.surrogates.affine.basis.kernel_basis (l.16)
+
+- pyapprox.probability.conditional.tests.test_gamma -> 
+pyapprox.surrogates.affine.expansions (l.24)
+
+- pyapprox.probability.conditional.tests.test_beta -> 
+pyapprox.surrogates.affine.expansions (l.26)
+
+- pyapprox.probability.conditional.tests.test_beta -> 
+pyapprox.surrogates.affine.basis (l.25)
+
+- pyapprox.probability.conditional.tests.test_gamma -> 
+pyapprox.surrogates.affine.basis (l.23)
+
+- pyapprox.probability.density.tests.test_pushforward -> 
+pyapprox.surrogates.affine.expansions.pce_density (l.42)
+
+- pyapprox.probability.conditional.tests.test_gamma -> 
+pyapprox.surrogates.affine.indices (l.25)
+
+- pyapprox.probability.univariate.tests.test_gamma -> 
+pyapprox.surrogates.affine.univariate.globalpoly (l.18)
+
+- pyapprox.probability.conditional.tests.test_beta -> 
+pyapprox.surrogates.affine.indices (l.27)
+
+- pyapprox.probability.conditional.tests.test_gaussian -> 
+pyapprox.surrogates.affine.expansions (l.25)
+
+- pyapprox.probability.conditional.tests.test_gaussian -> 
+pyapprox.surrogates.affine.basis (l.24)
+
+- pyapprox.probability.density.tests.test_piecewise_density_basis -> 
+pyapprox.surrogates.affine.expansions.pce_density (l.12)
+
+- pyapprox.probability.marginalization.tests.test_marginalize_distributions -> 
+pyapprox.surrogates.quadrature.tensor_product_factory (l.21)
+
+- pyapprox.probability.density.tests.test_projection -> 
+pyapprox.surrogates.kernels.matern (l.22)
+
+- pyapprox.probability.univariate.tests.test_beta -> 
+pyapprox.surrogates.affine.univariate.globalpoly (l.18)
+
+- pyapprox.probability.conditional.tests.test_gaussian -> 
+pyapprox.surrogates.affine.indices (l.26)
+
+- pyapprox.probability.conditional.tests.test_gamma -> 
+pyapprox.surrogates.affine.univariate (l.26)
+
+- pyapprox.probability.density.tests.test_projection -> 
+pyapprox.surrogates.affine.basis.kernel_basis (l.18)
+
+- pyapprox.probability.conditional.tests.test_beta -> 
+pyapprox.surrogates.affine.univariate (l.28)
+
+- pyapprox.probability.density.tests.test_pushforward -> 
+pyapprox.surrogates.kernels.matern (l.46)
+
+- pyapprox.probability.density.kernel_density_basis -> 
+pyapprox.surrogates.kernels.matern (l.7)
+
+- pyapprox.probability.density.tests.test_kernel_density_basis -> 
+pyapprox.surrogates.affine.expansions.pce_density (l.15)
+
+- pyapprox.probability.density.tests.test_pushforward -> 
+pyapprox.surrogates.affine.basis.kernel_basis (l.38)
+
+- pyapprox.probability.conditional.tests.test_joint -> 
+pyapprox.surrogates.affine.expansions (l.26)
+
+- pyapprox.probability.conditional.tests.test_gaussian -> 
+pyapprox.surrogates.affine.univariate (l.27)
+
+- pyapprox.probability.density.kernel_density_basis -> 
+pyapprox.surrogates.affine.basis.kernel_basis (l.6)
+
+- pyapprox.probability.conditional.tests.test_joint -> 
+pyapprox.surrogates.affine.basis (l.25)
+
+- pyapprox.probability.conditional.tests.test_multivariate_gaussian -> 
+pyapprox.surrogates.affine.expansions.pce (l.17)
+
+- pyapprox.probability.conditional.tests.test_joint -> 
+pyapprox.surrogates.affine.indices (l.27)
+
+- pyapprox.probability.density.tests.test_pushforward -> 
+pyapprox.surrogates.affine.expansions (l.39)
+
+- pyapprox.probability.density.tests.test_kernel_density_basis -> 
+pyapprox.surrogates.kernels.matern (l.18, l.127)
+
+- pyapprox.probability.density.tests.test_fitters -> 
+pyapprox.surrogates.kernels.matern (l.17)
+
+- pyapprox.probability.density.piecewise_density_basis -> 
+pyapprox.surrogates.affine.univariate.piecewisepoly (l.5)
+
+- pyapprox.probability.conditional.tests.test_joint -> 
+pyapprox.surrogates.affine.univariate (l.28)
 
 
 Production code must not import from benchmarks
@@ -534,13 +526,16 @@ Production code must not import from benchmarks
 pyapprox.expdesign is not allowed to import pyapprox.benchmarks:
 
 -   pyapprox.expdesign.benchmarks.advection_diffusion -> 
-pyapprox.benchmarks.registry (l.23)
+pyapprox.benchmarks.registry (l.24)
 
--   pyapprox.expdesign.benchmarks.linear_gaussian -> 
-pyapprox.benchmarks.registry (l.28)
+-   pyapprox.expdesign.benchmarks.instances.linear_gaussian -> 
+pyapprox.benchmarks.registry (l.14)
 
--   pyapprox.expdesign.benchmarks.linear_gaussian_pred -> 
-pyapprox.benchmarks.registry (l.25)
+-   pyapprox.expdesign.benchmarks.instances.linear_gaussian_pred -> 
+pyapprox.benchmarks.registry (l.10)
+
+-   pyapprox.expdesign.benchmarks.instances.nonlinear_gaussian -> 
+pyapprox.benchmarks.registry (l.11)
 
 -   pyapprox.expdesign.benchmarks.lotka_volterra -> 
 pyapprox.benchmarks.functions.ode (l.11)
@@ -551,14 +546,11 @@ pyapprox.benchmarks.instances.ode.lotka_volterra (l.15)
 -   pyapprox.expdesign.benchmarks.lotka_volterra -> pyapprox.benchmarks.registry
 (l.18)
 
--   pyapprox.expdesign.benchmarks.nonlinear_gaussian -> 
-pyapprox.benchmarks.registry (l.25)
-
 -   pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
 pyapprox.benchmarks.protocols (l.13)
 
 -   pyapprox.expdesign.benchmarks.tests.test_oed_discovery -> 
-pyapprox.benchmarks.registry (l.19)
+pyapprox.benchmarks.registry (l.17)
 
 
 pyapprox.interface is not allowed to import pyapprox.benchmarks:
@@ -637,5 +629,5 @@ pyapprox.benchmarks.functions.algebraic.ishigami (l.10)
 pyapprox.benchmarks.functions.algebraic.ishigami (l.511)
 
 
-ERROR conda.cli.main_run:execute(127): `conda run lint-imports --config .importlinter` failed. (See above for error)
+ERROR conda.cli.main_run:execute(127): `conda run lint-imports` failed. (See above for error)
 

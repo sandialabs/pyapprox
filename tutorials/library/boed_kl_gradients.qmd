@@ -271,9 +271,6 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
-    LinearGaussianOEDModel,
-)
 from pyapprox.expdesign.objective import (
     create_kl_oed_objective_from_data,
 )

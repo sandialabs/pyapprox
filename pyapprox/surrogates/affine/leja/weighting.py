@@ -218,7 +218,11 @@ class CompositeWeighting(Generic[Array]):
     >>> composite = CompositeWeighting(bkd, christoffel, pdf)
     """
 
-    def __init__(self, bkd: Backend[Array], *weightings: LejaWeightingProtocol[Array]) -> None:
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        *weightings: LejaWeightingProtocol[Array],
+    ) -> None:
         self._bkd = bkd
         self._weightings = weightings
 

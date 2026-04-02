@@ -13,6 +13,7 @@ import numpy as np
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.protocols import Array, Backend
 
+
 # TODO: this still uses weight based formulation of likelihood
 # We need a version that works with  weights (0,1,2,3) and removes
 # design location from liklihood computation if weight is zero (so

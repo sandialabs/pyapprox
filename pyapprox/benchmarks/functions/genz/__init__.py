@@ -25,6 +25,8 @@ __all__ = [
     "GaussianPeakFunction",
 ]
 
-# TODO: Need to port over from legacy linalg branch the other two genz functions just with FunctionProtocol
+# TODO: Need to port over from legacy linalg branch
+# the other two genz functions just with FunctionProtocol
 
-# Need to add tests of Genz functions, speicifically DerivativeChecker for jacobian and hvp.
+# Need to add tests of Genz functions, speicifically
+# DerivativeChecker for jacobian and hvp.

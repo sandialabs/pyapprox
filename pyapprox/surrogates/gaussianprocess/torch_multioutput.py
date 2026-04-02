@@ -65,7 +65,10 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
 
         super().__init__(kernel, nugget)
 
-    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor]) -> None:
+    def _configure_loss(
+        self,
+        loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor],
+    ) -> None:
         """Bind autograd-based jacobian on the loss function."""
         bkd = self._bkd
 

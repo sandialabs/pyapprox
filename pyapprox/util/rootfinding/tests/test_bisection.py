@@ -1,8 +1,8 @@
-from pyapprox.optimization.rootfinding.bisection import (
+from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.rootfinding.bisection import (
     BisectionResidualProtocol,
     BisectionSearch,
 )
-from pyapprox.util.backends.protocols import Backend
 
 
 class TestBisectionSearch:

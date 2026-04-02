@@ -46,7 +46,11 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         consistent mass. Cheaper per step but less accurate.
     """
 
-    def __init__(self, physics: GalerkinPhysicsProtocol[Array], lumped_mass: bool = False) -> None:
+    def __init__(
+        self,
+        physics: GalerkinPhysicsProtocol[Array],
+        lumped_mass: bool = False,
+    ) -> None:
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0

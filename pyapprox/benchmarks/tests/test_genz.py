@@ -12,8 +12,10 @@ Tests verify:
 3. Derivative correctness via DerivativeChecker
 4. Monte Carlo integral convergence rate (MSE ~ O(1/n))
 """
-#TODO: this test class should be where function is defined not at this level which is for integration tests.
-# TODO: these MSE convergence rate tests are good for any function/problem instance that computes statistics
+# TODO: this test class should be where function is defined
+# not at this level which is for integration tests.
+# TODO: these MSE convergence rate tests are good for any
+# function/problem instance that computes statistics
 import math
 from abc import abstractmethod
 from typing import Any

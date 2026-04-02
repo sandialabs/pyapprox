@@ -6,7 +6,8 @@ log-normal random field provides forcing. Parameters control the KLE
 coefficients, inlet velocity shape, and Reynolds number.
 """
 
-# TODO: Should benchmarks be defined here on in benchmarks module. Decide and document rule, and place in benchmarks.CONVENTIONS.md
+# TODO: Should benchmarks be defined here or in benchmarks module.
+# Decide and document rule, and place in benchmarks.CONVENTIONS.md
 
 from typing import TYPE_CHECKING, Callable, Generic, List, Tuple, Union
 
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
 import numpy as np
 
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.expdesign.benchmarks.problems.inference_problem import (
+    BayesianInferenceProblem,
+)
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -215,6 +219,8 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
+    noise_std : float
+        Observation noise standard deviation. Default 0.1.
     nstokes_refine : int
         Number of mesh refinements for Stokes solve.
     nadvec_diff_refine : int
@@ -228,6 +234,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
+        noise_std: float = 0.1,
         nstokes_refine: int = 3,
         nadvec_diff_refine: int = 3,
         nkle_terms: int = 10,
@@ -300,6 +307,19 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             pred_callable,
             bkd,
         )
+
+        # Create BayesianInferenceProblem
+        noise_variances = bkd.full((nqoi_obs,), noise_std**2)
+        self._inference_problem = BayesianInferenceProblem(
+            obs_map=self._obs_model,
+            prior=self._prior,
+            noise_variances=noise_variances,
+            bkd=bkd,
+        )
+
+    def problem(self) -> BayesianInferenceProblem[Array]:
+        """Get the inference problem (obs_map + prior + noise)."""
+        return self._inference_problem
 
     def _solve_forward(self, params_np: np.ndarray) -> Tuple[Array, Array]:
         """Full forward solve for a single parameter vector."""
@@ -466,15 +486,15 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         """Return the prior distribution."""
         return self._prior
 
-    def observation_model(self) -> FunctionFromCallable[Array]:
-        """Return the observation model (FunctionProtocol)."""
+    def obs_map(self) -> FunctionFromCallable[Array]:
+        """Return the observation map (FunctionProtocol)."""
         return self._obs_model
 
-    def prediction_model(self) -> FunctionFromCallable[Array]:
-        """Return the prediction model (FunctionProtocol)."""
+    def qoi_map(self) -> FunctionFromCallable[Array]:
+        """Return the QoI map (FunctionProtocol)."""
         return self._pred_model
 
-    def observation_locations(self) -> Array:
+    def design_conditions(self) -> Array:
         """Return sensor locations. Shape: (2, nsensors)."""
         return self._sensor_locations
 
@@ -495,4 +515,4 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 def _obstructed_advection_diffusion_oed_factory(
     bkd: Backend[Array],
 ) -> ObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    return ObstructedAdvectionDiffusionOEDBenchmark(bkd)
+    return ObstructedAdvectionDiffusionOEDBenchmark(bkd, noise_std=0.1)

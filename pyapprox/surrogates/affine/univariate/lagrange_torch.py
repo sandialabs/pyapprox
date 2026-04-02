@@ -4,8 +4,9 @@ Uses pure torch operations (no bkd.* methods) so that torch.compile
 can trace and optimize the computation graph without graph breaks.
 """
 
-import torch
 from typing import Any
+
+import torch
 
 
 def lagrange_eval_torch(

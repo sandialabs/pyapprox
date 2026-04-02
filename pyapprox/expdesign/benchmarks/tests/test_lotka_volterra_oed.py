@@ -33,12 +33,12 @@ class TestLotkaVolterraOEDBenchmark:
     def test_observation_model_nqoi(self, bkd):
         """Test observation model: species 0 and 2 at 11 times = 22 QoI."""
         bench = self._create_benchmark(bkd)
-        assert bench.observation_model().nqoi() == 22
+        assert bench.obs_map().nqoi() == 22
 
     def test_prediction_model_nqoi(self, bkd):
         """Test prediction model: species 1 at 5 odd indices = 5 QoI."""
         bench = self._create_benchmark(bkd)
-        assert bench.prediction_model().nqoi() == 5
+        assert bench.qoi_map().nqoi() == 5
 
     def test_solution_times_shape(self, bkd):
         """Test solution times: 11 points from 0 to 10."""
@@ -65,7 +65,7 @@ class TestLotkaVolterraOEDBenchmark:
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
         sample = bench.prior().rvs(1)
-        obs = bench.observation_model()(sample)
+        obs = bench.obs_map()(sample)
         assert obs.shape == (22, 1)
         # Values should be finite and positive (populations)
         obs_np = bkd.to_numpy(obs)
@@ -77,7 +77,7 @@ class TestLotkaVolterraOEDBenchmark:
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
         sample = bench.prior().rvs(1)
-        pred = bench.prediction_model()(sample)
+        pred = bench.qoi_map()(sample)
         assert pred.shape == (5, 1)
         pred_np = bkd.to_numpy(pred)
         assert np.all(np.isfinite(pred_np))
@@ -88,7 +88,7 @@ class TestLotkaVolterraOEDBenchmark:
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
         samples = bench.prior().rvs(3)
-        obs = bench.observation_model()(samples)
-        pred = bench.prediction_model()(samples)
+        obs = bench.obs_map()(samples)
+        pred = bench.qoi_map()(samples)
         assert obs.shape == (22, 3)
         assert pred.shape == (5, 3)

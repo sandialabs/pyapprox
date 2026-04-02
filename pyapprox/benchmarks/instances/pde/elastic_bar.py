@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from typing import Any, Tuple, Union
 
-from pyapprox.pde.field_maps.transformed import TransformedFieldMap
-
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
@@ -35,6 +33,7 @@ from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.zoo.elastic_bar_1d import (
     create_linear_elastic_bar_1d,
 )

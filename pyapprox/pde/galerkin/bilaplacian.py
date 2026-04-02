@@ -10,7 +10,7 @@ The bilaplacian prior is used as a Gaussian process approximation for
 Bayesian inverse problems.
 """
 
-from typing import Any, TYPE_CHECKING, Generic, List, Optional
+from typing import TYPE_CHECKING, Any, Generic, List, Optional
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -149,8 +149,15 @@ class BiLaplacianPrior(Generic[Array]):
         K_tensor = self._anisotropic_tensor
         delta = self._delta
 
-        def bilinear_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            ret: NDArray[np.floating[Any]] = dot(mul(K_tensor, grad(u)), grad(v)) + delta * u * v
+        def bilinear_form(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
+            ret: NDArray[np.floating[Any]] = (
+                dot(mul(K_tensor, grad(u)), grad(v))
+                + delta * u * v
+            )
             return ret
 
         stiffness = asm(BilinearForm(bilinear_form), skfem_basis)

@@ -15,7 +15,8 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import TYPE_CHECKING,  Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Union
+
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
@@ -304,17 +305,29 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             ei_array = EI_val
 
             @BilinearForm
-            def beam_stiffness_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def beam_stiffness_form(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 x = w.x[0]
                 elem_idx = np.clip(
                     np.searchsorted(x_nodes[1:], x), 0, len(ei_array) - 1
                 )
-                ret: NDArray[np.floating[Any]] = ei_array[elem_idx] * u.hess[0, 0] * v.hess[0, 0]
+                ret: NDArray[np.floating[Any]] = (
+                    ei_array[elem_idx]
+                    * u.hess[0, 0]
+                    * v.hess[0, 0]
+                )
                 return ret
         else:
 
             @BilinearForm
-            def beam_stiffness_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def beam_stiffness_form(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 ret: NDArray[np.floating[Any]] = EI_val * u.hess[0, 0] * v.hess[0, 0]
                 return ret
 
@@ -333,7 +346,11 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             return self._mass
 
         @BilinearForm
-        def beam_mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        def beam_mass_form(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             ret: NDArray[np.floating[Any]] = u.value * v.value
             return ret
 

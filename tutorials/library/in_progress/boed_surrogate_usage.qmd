@@ -93,8 +93,8 @@ bkd = NumpyBkd()
 
 ```{python}
 benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(bkd)
-obs_model  = benchmark.observation_model()
-pred_model = benchmark.prediction_model()
+obs_model  = benchmark.obs_map()
+pred_model = benchmark.qoi_map()
 prior      = benchmark.prior()
 
 print(f"Parameter dimension:      {prior.nvars()}")
@@ -266,10 +266,10 @@ print(f"Objective value: {utility:.6f}")
 #| label: fig-surrogate-oed-design
 
 fig, ax = plt.subplots(figsize=(9, 4))
-fe_model = benchmark.observation_model().fe_model()
+fe_model = benchmark.obs_map().fe_model()
 fe_model.stokes_model().plot_domain_boundaries(ax)
 
-obs_locs = bkd.to_numpy(benchmark.observation_locations()[:, :nobs_active])
+obs_locs = bkd.to_numpy(benchmark.design_conditions()[:, :nobs_active])
 w        = bkd.to_numpy(design_weights[:, 0])
 w_norm   = w / w.max()
 

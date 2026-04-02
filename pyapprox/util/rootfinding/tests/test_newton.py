@@ -1,10 +1,10 @@
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import (
+from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
 )
-from pyapprox.util.backends.protocols import Backend
 
 
 class TestNewtonSolver:

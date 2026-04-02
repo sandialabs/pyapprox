@@ -10,7 +10,6 @@ from pyapprox.probability.univariate import (
     ScipyContinuousMarginal,
     ScipyDiscreteMarginal,
 )
-from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 
 # TODO: This groups testing of multiple classes together. Should

@@ -19,6 +19,7 @@ from pyapprox.expdesign.local.design_matrices import (
     QuantileDesignMatrices,
 )
 
+
 class TestDOptimalCriterion:
     """Base test class for D-optimal criterion."""
 

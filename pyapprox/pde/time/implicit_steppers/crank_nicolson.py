@@ -30,7 +30,6 @@ from pyapprox.pde.time.protocols.ode_residual import (
 )
 from pyapprox.util.backends.protocols import Array
 
-
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit
 # =========================================================================
@@ -245,7 +244,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dy_n \, dp) v = -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`.
+        r"""Compute :math:`(d^2R/dy_n \, dp) v =
+        -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`.
 
         Only the :math:`f(y_n)` term contributes; :math:`y_{n-1}` is
         independent of :math:`y_n`.
@@ -264,7 +264,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dp \, dy_n) w = -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`.
+        r"""Compute :math:`(d^2R/dp \, dy_n) w =
+        -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`.
 
         Only the :math:`f(y_n)` term contributes; :math:`y_{n-1}` is fixed.
         """
@@ -316,7 +317,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dy_n^2) w = -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`.
+        r"""Compute :math:`(d^2 R_{n+1}/dy_n^2) w =
+        -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`.
 
         Evaluates the :math:`f(y_n)` contribution from :math:`R_{n+1}`.
         """
@@ -332,7 +334,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dy_n \, dp) v = -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`."""
+        r"""Compute :math:`(d^2 R_{n+1}/dy_n \, dp) v =
+        -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`."""
         return (
             -0.5
             * self._deltat
@@ -345,7 +348,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dp \, dy_n) w = -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`."""
+        r"""Compute :math:`(d^2 R_{n+1}/dp \, dy_n) w =
+        -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`."""
         return (
             -0.5
             * self._deltat

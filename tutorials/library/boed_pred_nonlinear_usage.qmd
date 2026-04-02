@@ -75,8 +75,8 @@ bkd = NumpyBkd()
 
 ```{python}
 benchmark  = LotkaVolterraOEDBenchmark(bkd)
-obs_model  = benchmark.observation_model()
-pred_model = benchmark.prediction_model()   # maps theta -> future state values
+obs_model  = benchmark.obs_map()
+pred_model = benchmark.qoi_map()   # maps theta -> future state values
 prior      = benchmark.prior()
 
 noise_std      = 0.2

@@ -143,7 +143,9 @@ class AETCBLUE(AETC[Array]):
 
         return k2, nsamples_per_subset
 
-    def _create_exploit_estimator(self, result: Tuple[Any, ...]) -> MLBLUEEstimator[Array]:
+    def _create_exploit_estimator(
+        self, result: Tuple[Any, ...]
+    ) -> MLBLUEEstimator[Array]:
         """Create MLBLUEEstimator for exploitation phase.
 
         Parameters
@@ -248,7 +250,7 @@ class AETCBLUE(AETC[Array]):
         if hasattr(product, "item"):
             product = product.item()
         elif product.ndim > 0:
-            product = bkd.flatten(product)[0]
+            product = self._bkd.flatten(product)[0]
 
         return beta_Sp[0, 0] + product
 

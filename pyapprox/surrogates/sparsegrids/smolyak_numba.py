@@ -12,7 +12,12 @@ from numba import njit, prange
 
 
 @njit(cache=True)
-def _encode_indices(indices: npt.NDArray[np.int64], nvars: int, n: int, base: int) -> npt.NDArray[np.int64]:
+def _encode_indices(
+    indices: npt.NDArray[np.int64],
+    nvars: int,
+    n: int,
+    base: int,
+) -> npt.NDArray[np.int64]:
     """Encode multi-indices as single int64 via mixed-radix packing.
 
     Parameters

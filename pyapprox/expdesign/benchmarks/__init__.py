@@ -5,18 +5,18 @@ This module provides benchmark problems with known analytical solutions
 for validating OED implementations.
 """
 
+import pyapprox.expdesign.benchmarks.instances  # noqa: F401
+
 from .advection_diffusion import ObstructedAdvectionDiffusionOEDBenchmark
-from .linear_gaussian import LinearGaussianOEDBenchmark
-from .linear_gaussian_model import LinearGaussianOEDModel
-from .linear_gaussian_pred import LinearGaussianPredOEDBenchmark
+from .instances.linear_gaussian import LinearGaussianKLOEDBenchmark
+from .instances.linear_gaussian_pred import LinearGaussianPredOEDBenchmark
+from .instances.nonlinear_gaussian import NonLinearGaussianPredOEDBenchmark
 from .lotka_volterra import LotkaVolterraOEDBenchmark
-from .nonlinear_gaussian import NonLinearGaussianOEDBenchmark
 
 __all__ = [
-    "LinearGaussianOEDBenchmark",
-    "LinearGaussianOEDModel",
-    "NonLinearGaussianOEDBenchmark",
+    "LinearGaussianKLOEDBenchmark",
     "LinearGaussianPredOEDBenchmark",
+    "NonLinearGaussianPredOEDBenchmark",
     "LotkaVolterraOEDBenchmark",
     "ObstructedAdvectionDiffusionOEDBenchmark",
 ]

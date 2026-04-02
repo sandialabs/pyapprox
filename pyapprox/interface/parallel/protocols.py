@@ -4,8 +4,9 @@ This module defines the ParallelBackendProtocol that all parallel
 execution backends must implement.
 """
 
-from typing import (    Any,
-Callable,
+from typing import (
+    Any,
+    Callable,
     Protocol,
     Sequence,
     TypeVar,

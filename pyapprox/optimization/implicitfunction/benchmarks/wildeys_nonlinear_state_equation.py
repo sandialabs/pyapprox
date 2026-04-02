@@ -6,12 +6,12 @@ from pyapprox.interface.functions.protocols.validation import (
 from pyapprox.optimization.implicitfunction.state_equations.wrappers import (
     ParameterizedStateEquationAsNewtonEquation,
 )
-from pyapprox.optimization.rootfinding.newton import (
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.validation import validate_backend
+from pyapprox.util.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverOptions,
 )
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.validation import validate_backend
 
 
 class NonLinearCoupledStateEquations(Generic[Array]):

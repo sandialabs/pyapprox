@@ -30,16 +30,17 @@ experimental_design_intro  (existing)
 
 ## New Typing API Required
 
-### Already exists (confirmed by test_kl_oed_convergence.py)
+### Current API
 ```python
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+    build_linear_gaussian_kl_benchmark,
+)
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian_pred import (
+    build_linear_gaussian_pred_benchmark,
+)
 from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
+from pyapprox.expdesign.diagnostics import (
+    PredictionOEDDiagnostics,
+    create_prediction_oed_diagnostics,
+)
 ```
-
-### Needs implementing (Claude Code task)
-```python
-from pyapprox.expdesign.benchmarks import LinearGaussianPredOEDBenchmark
-from pyapprox.expdesign.diagnostics import PredOEDDiagnostics
-```
-`PredOEDDiagnostics` should mirror `KLOEDDiagnostics` interface with a
-`deviation_type` argument ("std" | "avar") selecting the risk measure.

@@ -6,7 +6,6 @@ spectral collocation with various time integration methods.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     create_bc_enforcing_residual,
@@ -32,6 +31,7 @@ from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 _STEPPER_REGISTRY = {
     "backward_euler": BackwardEulerHVP,

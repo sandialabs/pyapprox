@@ -162,7 +162,7 @@ $$
 where $R$ is the time stepping residual and $J = \partial R / \partial y$.
 
 ```{python}
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # Create Newton solver with the time stepping residual
 newton_solver = NewtonSolver(time_residual)
@@ -262,7 +262,7 @@ Let's see how the time step affects accuracy:
 def solve_with_deltat(deltat):
     """Solve ODE with a specific time step."""
     from pyapprox.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
-    from pyapprox.optimization.rootfinding.newton import NewtonSolver
+    from pyapprox.util.rootfinding.newton import NewtonSolver
     from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 
     residual = benchmark.residual()

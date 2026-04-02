@@ -3,7 +3,6 @@
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -27,6 +26,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TestShallowIcePhysics(PhysicsTestBase):

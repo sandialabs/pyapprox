@@ -68,19 +68,19 @@ class TestAdvectionDiffusionOEDBenchmark:
         """Test observation model has nsensors QoI."""
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
-        assert bench.observation_model().nqoi() == self._nsensors
+        assert bench.obs_map().nqoi() == self._nsensors
 
     def test_prediction_model_nqoi(self, bkd):
         """Test prediction model has 1 QoI."""
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
-        assert bench.prediction_model().nqoi() == 1
+        assert bench.qoi_map().nqoi() == 1
 
-    def test_observation_locations_shape(self, bkd):
-        """Test observation locations shape is (2, nsensors)."""
+    def test_design_conditions_shape(self, bkd):
+        """Test design conditions shape is (2, nsensors)."""
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
-        locs = bench.observation_locations()
+        locs = bench.design_conditions()
         assert locs.shape == (2, self._nsensors)
 
     def test_nobservations(self, bkd):
@@ -89,11 +89,11 @@ class TestAdvectionDiffusionOEDBenchmark:
         bench = self._create_benchmark(bkd)
         assert bench.nobservations() == self._nsensors
 
-    def test_observation_locations_in_domain(self, bkd):
+    def test_design_conditions_in_domain(self, bkd):
         """Test sensor locations are within [0,1]^2."""
         self._setup_data(bkd)
         bench = self._create_benchmark(bkd)
-        locs_np = bkd.to_numpy(bench.observation_locations())
+        locs_np = bkd.to_numpy(bench.design_conditions())
         assert np.all(locs_np >= -1e-12)
         assert np.all(locs_np <= 1.0 + 1e-12)
 
@@ -105,7 +105,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
         sample = bench.prior().rvs(1)
-        obs = bench.observation_model()(sample)
+        obs = bench.obs_map()(sample)
         assert obs.shape == (self._nsensors, 1)
         obs_np = bkd.to_numpy(obs)
         assert np.all(np.isfinite(obs_np))
@@ -118,7 +118,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bench = self._create_benchmark(bkd)
         np.random.seed(42)
         sample = bench.prior().rvs(1)
-        pred = bench.prediction_model()(sample)
+        pred = bench.qoi_map()(sample)
         assert pred.shape == (1, 1)
         pred_np = bkd.to_numpy(pred)
         assert np.all(np.isfinite(pred_np))

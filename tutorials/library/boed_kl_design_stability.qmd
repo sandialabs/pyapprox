@@ -87,7 +87,7 @@ np.random.seed(1)
 bkd = NumpyBkd()
 
 benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0, deltat=2.0, stepper="heun")
-obs_model = benchmark.observation_model()
+obs_model = benchmark.obs_map()
 prior     = benchmark.prior()
 nparams   = prior.nvars()
 nobs      = obs_model.nqoi()

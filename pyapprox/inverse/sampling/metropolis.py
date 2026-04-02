@@ -35,9 +35,10 @@ class MCMCResult(Generic[Array]):
     log_posteriors: Array
 
 
-# TODO: This class should use bkd.fun not np.fun. We only use np for bkd.saarray(np.random...)
-# TODO: A lot of the DRA and this class write repeated code, e.g. def sample().
-# Can we consolidate?
+# TODO: This class should use bkd.fun not np.fun. We only use
+# np for bkd.asarray(np.random...)
+# TODO: A lot of the DRA and this class write repeated code,
+# e.g. def sample(). Can we consolidate?
 class MetropolisHastingsSampler(Generic[Array]):
     """
     Standard Metropolis-Hastings MCMC sampler.

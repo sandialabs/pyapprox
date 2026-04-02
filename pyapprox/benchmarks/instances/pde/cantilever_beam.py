@@ -21,7 +21,6 @@ from typing import (
     Dict,
     Generic,
     List,
-    Optional,
     Tuple,
     Union,
 )
@@ -29,9 +28,6 @@ from typing import (
 if TYPE_CHECKING:
     import skfem
 
-    from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
-        LinearGaussianOEDModel,
-    )
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
@@ -42,9 +38,6 @@ if TYPE_CHECKING:
         CompositeLinearElasticity,
     )
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-    from pyapprox.probability.gaussian.dense import (
-        DenseCholeskyMultivariateGaussian,
-    )
 
 import numpy as np
 
@@ -1604,279 +1597,6 @@ def cantilever_beam_2d_neohookean_spde(
     return PDEBenchmarkWrapper(inner, estimated_cost=5.0)
 
 
-# =========================================================================
-# OED benchmark: 2D load identification via superposition
-# =========================================================================
-
-
-class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
-    """OED benchmark for identifying two load parameters on a 2D cantilever beam.
-
-    The beam is subjected to a distributed surface traction on the top edge:
-
-        t_y(x) = theta_1 * (-1) + theta_2 * (-x / L)
-
-    where theta_1 is the constant load amplitude and theta_2 is the slope
-    load amplitude. The unknowns are theta = [theta_1, theta_2].
-
-    By linearity of the FEM, the y-displacement at any sensor location is:
-
-        u_y(x_sensor) = A_1(x_sensor) * theta_1 + A_2(x_sensor) * theta_2
-
-    where A_1 and A_2 are the displacements due to unit constant and unit
-    slope tractions respectively. The design matrix A (nobs, 2) is built
-    by solving two FEM problems at construction time.
-
-    Observations are:
-        y = A @ theta + noise,  noise ~ N(0, noise_cov)
-
-    This class uses composition with ``LinearGaussianOEDModel`` for all
-    shared OED logic (exact EIG, data generation, etc.).
-
-    Parameters
-    ----------
-    bkd : Backend[Array]
-        Computational backend.
-    mesh_path : str
-        Path to JSON mesh file (must have boundaries and subdomains).
-    length : float
-        Beam length.
-    height : float
-        Beam height.
-    E_mean : float
-        Young's modulus (uniform, deterministic).
-    poisson_ratio : float
-        Poisson ratio (uniform).
-    prior_mean : Array or None
-        Prior mean for theta. Shape (2, 1). Default: zeros.
-    prior_covariance : Array or None
-        Prior covariance. Shape (2, 2). Default: eye(2).
-    noise_std : float
-        Observation noise standard deviation (isotropic). Default: 0.01.
-    sensor_xs : Array or None
-        x-coordinates for y-displacement sensors along mid-height.
-        Shape (nobs,). Default: 5 equally spaced in [length/5, length].
-    """
-
-    def __init__(
-        self,
-        bkd: Backend[Array],
-        mesh_path: str = _DEFAULT_MESH_PATH,
-        length: float = 100.0,
-        height: float = 30.0,
-        E_mean: float = 1e4,
-        poisson_ratio: float = 0.3,
-        prior_mean: Optional[Array] = None,
-        prior_covariance: Optional[Array] = None,
-        noise_std: float = 0.01,
-        sensor_xs: Optional[Array] = None,
-    ) -> None:
-        from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
-            LinearGaussianOEDModel,
-        )
-        from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-        from pyapprox.pde.galerkin.boundary.implementations import (
-            DirichletBC,
-            NeumannBC,
-        )
-        from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-        from pyapprox.pde.galerkin.physics import (
-            CompositeLinearElasticity,
-        )
-        from pyapprox.pde.galerkin.solvers.steady_state import (
-            SteadyStateSolver,
-        )
-
-        self._bkd = bkd
-        self._length = length
-        self._height = height
-        self._noise_std = noise_std
-
-        # ---- Build FEM ----
-        mesh = UnstructuredMesh2D(
-            mesh_path,
-            bkd,
-            rescale_origin=(0.0, 0.0),
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        mesh.skfem_mesh()
-        subdomain_names = mesh.subdomain_names()
-        subdomain_elements = {
-            name: mesh.subdomain_elements(name) for name in subdomain_names
-        }
-
-        def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-            return np.zeros(coords.shape[1])
-
-        bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
-
-        material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
-
-        # ---- Solve two unit load cases ----
-        def _make_traction(
-            traction_func: Callable[[np.ndarray, float], np.ndarray],
-        ) -> np.ndarray:
-            bc_top = NeumannBC(basis, "top_edge", traction_func, bkd)
-            physics = CompositeLinearElasticity(
-                basis=basis,
-                material_map=material_map,
-                element_materials=subdomain_elements,
-                bkd=bkd,
-                boundary_conditions=[bc_left, bc_top],
-            )
-            solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
-            init = bkd.asarray(np.zeros(physics.nstates()))
-            result = solver.solve(init)
-            return bkd.to_numpy(result.solution)
-
-        # Case 1: constant load t_y = -1
-        def const_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-            npts = coords.shape[1]
-            traction = np.zeros((2, npts))
-            traction[1, :] = -1.0
-            return traction
-
-        sol_const = _make_traction(const_traction)
-
-        # Case 2: slope load t_y = -x/L
-        def slope_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-            x = coords[0]
-            npts = coords.shape[1]
-            traction = np.zeros((2, npts))
-            traction[1, :] = -x / length
-            return traction
-
-        sol_slope = _make_traction(slope_traction)
-
-        # ---- Set up sensor locations ----
-        if sensor_xs is None:
-            sensor_xs = bkd.linspace(length / 5.0, length, 5)
-        self._sensor_xs = sensor_xs
-        nobs = sensor_xs.shape[0]
-        sensor_xs_np = bkd.to_numpy(sensor_xs)
-
-        # ---- Build design matrix A (nobs, 2) ----
-        # For each sensor at (x_sensor, height/2), extract y-displacement
-        # from each unit solution
-        A_np = np.zeros((nobs, 2))
-        for i, sx in enumerate(sensor_xs_np):
-            dof_idx = _find_dof(basis, float(sx), height / 2.0, 1, bkd)
-            A_np[i, 0] = sol_const[dof_idx]
-            A_np[i, 1] = sol_slope[dof_idx]
-        A = bkd.asarray(A_np)
-
-        # ---- Prior and noise ----
-        nparams = 2
-        if prior_mean is None:
-            prior_mean = bkd.zeros((nparams, 1))
-        if prior_covariance is None:
-            prior_covariance = bkd.eye(nparams)
-        noise_cov = bkd.eye(nobs) * noise_std**2
-
-        # ---- Create LinearGaussianOEDModel ----
-        self._model = LinearGaussianOEDModel(
-            A,
-            prior_mean,
-            prior_covariance,
-            noise_cov,
-            bkd,
-            sensor_xs,
-        )
-        self._basis = basis
-
-    def bkd(self) -> Backend[Array]:
-        """Get the computational backend."""
-        return self._bkd
-
-    def model(self) -> "LinearGaussianOEDModel[Array]":
-        """Get the underlying LinearGaussianOEDModel."""
-        return self._model
-
-    def nobs(self) -> int:
-        """Number of sensor locations."""
-        return self._model.nobs()
-
-    def nparams(self) -> int:
-        """Number of load parameters (always 2)."""
-        return self._model.nparams()
-
-    def design_matrix(self) -> Array:
-        """Get the design matrix A. Shape: (nobs, 2)"""
-        return self._model.design_matrix()
-
-    def design_locations(self) -> Array:
-        """Get sensor x-coordinates. Shape: (nobs,)"""
-        loc = self._model.design_locations()
-        assert loc is not None
-        return loc
-
-    def sensor_xs(self) -> Array:
-        """Get sensor x-coordinates. Shape: (nobs,)"""
-        return self._sensor_xs
-
-    def prior_mean(self) -> Array:
-        """Get prior mean. Shape: (nparams, 1)"""
-        return self._model.prior_mean()
-
-    def prior_covariance(self) -> Array:
-        """Get prior covariance. Shape: (nparams, nparams)"""
-        return self._model.prior_covariance()
-
-    def noise_covariance(self) -> Array:
-        """Get noise covariance. Shape: (nobs, nobs)"""
-        return self._model.noise_covariance()
-
-    def noise_variances(self) -> Array:
-        """Get noise variances. Shape: (nobs,)"""
-        return self._model.noise_variances()
-
-    def noise_std(self) -> float:
-        """Noise standard deviation."""
-        return self._noise_std
-
-    def prior(self) -> "DenseCholeskyMultivariateGaussian[Array]":
-        """Return the prior as a Gaussian distribution."""
-        return self._model.prior()
-
-    def exact_eig(self, weights: Array) -> float:
-        """Compute exact expected information gain."""
-        return self._model.exact_eig(weights)
-
-    def d_optimal_objective(self, weights: Array) -> float:
-        """Compute D-optimal objective (negative EIG)."""
-        return self._model.d_optimal_objective(weights)
-
-    def generate_observation_data(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> tuple[Array, Array]:
-        """Generate noiseless observations."""
-        return self._model.generate_observation_data(nsamples, seed)
-
-    def generate_noisy_observations(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> tuple[Array, Array, Array]:
-        """Generate noisy observations."""
-        return self._model.generate_noisy_observations(nsamples, seed)
-
-    def generate_parameter_samples(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> Array:
-        """Generate parameter samples from the prior."""
-        return self._model.generate_parameter_samples(nsamples, seed)
-
-    def generate_latent_samples(
-        self,
-        nsamples: int,
-        seed: int = 42,
-    ) -> Array:
-        """Generate latent noise samples for reparameterization."""
-        return self._model.generate_latent_samples(nsamples, seed)
 
 
 # =========================================================================
@@ -1960,4 +1680,5 @@ def _cantilever_beam_2d_neohookean_spde_factory(
     return cantilever_beam_2d_neohookean_spde(bkd)
 
 
-# TODO: This file it to long we need to split into meaningful smaller files, e.g. utils, 1d, 2d
+# TODO: This file is too long, we need to split into meaningful
+# smaller files, e.g. utils, 1d, 2d

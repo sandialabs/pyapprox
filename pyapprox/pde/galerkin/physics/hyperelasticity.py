@@ -22,7 +22,8 @@ Uses the NeoHookeanStress model from the collocation module for stress
 and tangent computation at quadrature points.
 """
 
-from typing import TYPE_CHECKING,  Any, Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
+
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
@@ -120,7 +121,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         skfem_basis = self._basis.skfem_basis()
         ndim = self.ndim()
 
-        def mass_form(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        def mass_form(
+            u: "DiscreteField",
+            v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
             ret: NDArray[np.floating[Any]] = sum(u[i] * v[i] for i in range(ndim))
             return ret
 
@@ -156,7 +161,9 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         if ndim == 1:
 
-            def internal_force_1d(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def internal_force_1d(
+                v: "DiscreteField", w: "FormExtraParams",
+            ) -> np.ndarray:
                 # F = 1 + du/dx; grad shape (1, 1, nelem, nquad)
                 F = 1.0 + w.u_prev.grad[0, 0]
                 P = stress_model.compute_stress_1d(F, numpy_bkd)
@@ -171,7 +178,9 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         elif ndim == 2:
 
-            def internal_force_2d(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def internal_force_2d(
+                v: "DiscreteField", w: "FormExtraParams",
+            ) -> np.ndarray:
                 # Deformation gradient F = I + grad(u)
                 # w.u_prev.grad shape: (2, 2, nelem, nquad)
                 F11 = 1.0 + w.u_prev.grad[0, 0]
@@ -197,7 +206,9 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         elif ndim == 3:
 
-            def internal_force_3d(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def internal_force_3d(
+                v: "DiscreteField", w: "FormExtraParams",
+            ) -> np.ndarray:
                 # Deformation gradient F = I + grad(u)
                 # w.u_prev.grad shape: (3, 3, nelem, nquad)
                 F = tuple(
@@ -306,7 +317,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         if ndim == 1:
 
-            def tangent_1d(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def tangent_1d(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 F = 1.0 + w.u_prev.grad[0, 0]
                 dPdF = stress_model.compute_tangent_1d(F, numpy_bkd)
                 ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
@@ -320,7 +335,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         elif ndim == 2:
 
-            def tangent_2d(u: "DiscreteField", v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+            def tangent_2d(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
                 F11 = 1.0 + w.u_prev.grad[0, 0]
                 F12 = w.u_prev.grad[0, 1]
                 F21 = w.u_prev.grad[1, 0]

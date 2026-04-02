@@ -35,8 +35,9 @@ jupyter: python3
 
 After completing this tutorial, you will be able to:
 
-- Construct a `LinearGaussianOEDBenchmark` and query its exact EIG
-- Use `KLOEDDiagnostics` to decompose total MSE into squared bias and variance
+- Construct a linear Gaussian KL-OED benchmark and query its exact EIG
+- Use `KLOEDDiagnostics` with manually generated samples to estimate EIG
+- Decompose total MSE into squared bias and variance using `compute_estimator_mse`
 - Confirm empirically that outer sample count $M$ drives variance while inner
   count $N_\text{in}$ drives bias
 - Read convergence rates from `compute_convergence_rate` and match them to theory
@@ -54,8 +55,20 @@ We verify both empirically here.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
-from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
+from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+    build_linear_gaussian_kl_benchmark,
+)
+from pyapprox.expdesign.data import generate_oed_data
+from pyapprox.expdesign.diagnostics import (
+    KLOEDDiagnostics,
+    compute_convergence_rate,
+    compute_estimator_mse,
+)
+from pyapprox.expdesign.quadrature import HaltonSampler, MonteCarloSampler
+from pyapprox.expdesign.quadrature.oed import (
+    OEDQuadratureSampler,
+    build_oed_joint_distribution,
+)
 
 np.random.seed(1)
 bkd = NumpyBkd()
@@ -68,53 +81,76 @@ degree    = 2
 noise_std = 0.5
 prior_std = 0.5
 
-benchmark   = LinearGaussianOEDBenchmark(nobs, degree, noise_std, prior_std, bkd)
-diagnostics = KLOEDDiagnostics(benchmark)
+benchmark = build_linear_gaussian_kl_benchmark(nobs, degree, noise_std, prior_std, bkd)
+problem   = benchmark.problem()
+nparams   = problem.nparams()
 
 # Uniform design: equal weight on every candidate observation
 weights = bkd.ones((nobs, 1)) / nobs
 ```
 
+The diagnostics API separates sampling from estimation. `OEDQuadratureSampler`
+draws joint (prior + noise) samples from a single low-discrepancy sequence,
+and `generate_oed_data` evaluates the forward map on those samples:
+
+```{python}
+joint_dist = build_oed_joint_distribution(problem, bkd)
+
+def make_mc_sampler(seed):
+    """Create a MonteCarloSampler for the joint distribution."""
+    np.random.seed(seed)
+    return OEDQuadratureSampler(
+        MonteCarloSampler(joint_dist, bkd), nparams, bkd,
+    )
+```
+
 ## Exact EIG as Ground Truth
 
-`LinearGaussianOEDBenchmark` provides a closed-form EIG for any design weights,
+The benchmark provides a closed-form EIG for any design weights,
 giving us an exact reference against which to measure numerical error.
 
 ```{python}
-exact = diagnostics.exact_eig(weights)
+exact = benchmark.exact_eig(weights)
 ```
 
 A single numerical estimate with moderate sample counts:
 
 ```{python}
+noise_variances = bkd.full((nobs,), noise_std**2)
+diagnostics = KLOEDDiagnostics(noise_variances, bkd)
+
+data = generate_oed_data(
+    problem, make_mc_sampler(42), make_mc_sampler(5042), 200, 100,
+)
 approx = diagnostics.compute_numerical_eig(
-    nouter=200,
-    ninner=100,
-    design_weights=weights,
-    seed=42,
+    weights, data.outer_shapes, data.latent_samples, data.inner_shapes,
 )
 ```
 
 ::: {.callout-tip}
 ## Reproducibility
 
-`compute_numerical_eig` is fully reproducible when called with the same `seed`.
+Sampling is fully reproducible when using a fixed seed in `make_mc_sampler`.
 Always record your seed alongside results so experiments can be re-run exactly.
 :::
 
 ## MSE Decomposition: Bias and Variance
 
-`compute_mse` runs `nrealizations` independent estimates and decomposes total
+We run `nrealizations` independent estimates and decompose total
 MSE into squared bias and variance: $\text{MSE} = \text{bias}^2 + \text{variance}$.
 
 ```{python}
-bias, variance, mse = diagnostics.compute_mse(
-    nouter=100,
-    ninner=50,
-    nrealizations=20,
-    design_weights=weights,
-    base_seed=0,
-)
+def compute_eig_realization(nouter, ninner, seed):
+    data = generate_oed_data(
+        problem, make_mc_sampler(seed), make_mc_sampler(seed + 5000),
+        nouter, ninner,
+    )
+    return diagnostics.compute_numerical_eig(
+        weights, data.outer_shapes, data.latent_samples, data.inner_shapes,
+    )
+
+estimates = [compute_eig_realization(100, 50, seed=s) for s in range(20)]
+bias, variance, mse = compute_estimator_mse(exact, estimates)
 ```
 
 ## Outer vs. Inner: Which Budget Matters More?
@@ -129,24 +165,30 @@ outer_counts = [100, 250, 500, 1000, 2000]
 inner_counts = [50, 200]
 M_fixed      = 500
 inner_sweep  = [5, 10, 25, 50, 100, 200]
+nrealizations = 30
+
+def sweep_mse(outer_list, inner_list):
+    """Compute MSE grid over outer x inner sample counts."""
+    all_mse, all_sqbias, all_var = [], [], []
+    for ninner in inner_list:
+        mse_row, sqbias_row, var_row = [], [], []
+        for nouter in outer_list:
+            ests = [compute_eig_realization(nouter, ninner, seed=s)
+                    for s in range(nrealizations)]
+            b, v, m = compute_estimator_mse(exact, ests)
+            mse_row.append(m)
+            sqbias_row.append(b**2)
+            var_row.append(v)
+        all_mse.append(bkd.asarray(mse_row))
+        all_sqbias.append(bkd.asarray(sqbias_row))
+        all_var.append(bkd.asarray(var_row))
+    return {"mse": all_mse, "sqbias": all_sqbias, "variance": all_var}
 
 # Outer sweep
-values_mc = diagnostics.compute_mse_for_sample_combinations(
-    outer_sample_counts=outer_counts,
-    inner_sample_counts=inner_counts,
-    nrealizations=30,
-    design_weights=weights,
-    base_seed=0,
-)
+values_mc = sweep_mse(outer_counts, inner_counts)
 
 # Inner sweep: fix M, vary N_in
-values_inner = diagnostics.compute_mse_for_sample_combinations(
-    outer_sample_counts=[M_fixed],
-    inner_sample_counts=inner_sweep,
-    nrealizations=30,
-    design_weights=weights,
-    base_seed=0,
-)
+values_inner = sweep_mse([M_fixed], inner_sweep)
 ```
 
 ```{python}
@@ -169,7 +211,7 @@ plt.show()
 ```{python}
 # Convergence rates
 for ii, ninner in enumerate(inner_counts):
-    rate = KLOEDDiagnostics.compute_convergence_rate(
+    rate = compute_convergence_rate(
         outer_counts,
         bkd.to_numpy(values_mc["mse"][ii]).tolist(),
     )
@@ -185,8 +227,10 @@ For faster convergence with the same $M$, see
 
 ## Key Takeaways
 
-- `LinearGaussianOEDBenchmark` provides an exact EIG reference for any weights.
-- `KLOEDDiagnostics.compute_mse` decomposes total MSE into squared bias and
+- `build_linear_gaussian_kl_benchmark` provides an exact EIG reference for any weights.
+- The caller generates samples and passes raw arrays to `KLOEDDiagnostics` —
+  this separation makes it easy to swap MC for QMC or other sampling strategies.
+- `compute_estimator_mse` decomposes total MSE into squared bias and
   variance across independent realizations.
 - The outer sample count $M$ controls variance and follows $O(1/M)$; the inner
   count $N_\text{in}$ controls bias, which becomes negligible once $N_\text{in}
@@ -196,8 +240,8 @@ For faster convergence with the same $M$, see
 
 ## Exercises
 
-1. Run `compute_mse` with `nouter=50, ninner=5` and compare bias² to variance.
-   At this extreme, which term dominates?
+1. Run the MSE decomposition with `nouter=50, ninner=5` and compare bias² to
+   variance. At this extreme, which term dominates?
 
 2. From the right panel, estimate the convergence rate of bias² with respect to
    $N_\text{in}$. Is it faster or slower than the $O(1/M)$ outer rate? Why?

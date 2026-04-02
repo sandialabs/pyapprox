@@ -11,7 +11,7 @@ All risk measures follow the RiskMeasureProtocol:
 """
 
 from abc import abstractmethod
-from typing import Any, Generic, Optional, Protocol, runtime_checkable
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

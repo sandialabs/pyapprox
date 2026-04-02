@@ -90,7 +90,7 @@ bkd = NumpyBkd()
 
 ```{python}
 benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0)
-obs_model = benchmark.observation_model()   # maps theta -> (nobs_times * 2,)
+obs_model = benchmark.obs_map()   # maps theta -> (nobs_times * 2,)
 prior     = benchmark.prior()               # IndependentJoint over theta
 ```
 

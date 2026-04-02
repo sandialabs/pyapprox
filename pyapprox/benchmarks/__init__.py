@@ -97,8 +97,6 @@ from pyapprox.benchmarks.protocols import (
     DomainProtocol,
     GroundTruthProtocol,
     HasExactEIG,
-    HasObservationModel,
-    HasPredictionModel,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 
@@ -110,8 +108,6 @@ __all__ = [
     "BenchmarkWithPriorProtocol",
     "ConstraintProtocol",
     "ConstrainedBenchmarkProtocol",
-    "HasObservationModel",
-    "HasPredictionModel",
     "HasExactEIG",
     # Ground truth
     "SensitivityGroundTruth",

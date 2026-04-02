@@ -5,7 +5,7 @@ allocation matrix construction, and covariance block computation.
 """
 
 from itertools import combinations
-from typing import Any, TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, List
 
 import numpy as np
 

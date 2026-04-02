@@ -10,7 +10,6 @@ from typing import Generic, Tuple
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
@@ -34,6 +33,7 @@ from pyapprox.pde.time.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 _STEPPER_MAP = {
     "forward_euler": ForwardEulerHVP,

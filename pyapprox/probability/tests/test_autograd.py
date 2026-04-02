@@ -126,7 +126,7 @@ class TestGaussianMarginalAutogradFiniteDiff:
         autograd_grad = samples.grad.clone()
 
         #TODO: Use DerivativeChecker
-        
+
         # Finite difference
         eps = 1e-6
         fd_grad = torch.zeros_like(samples)

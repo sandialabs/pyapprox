@@ -9,9 +9,7 @@ Concrete implementations are in variants.py:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Tuple
-
-import numpy as np
+from typing import TYPE_CHECKING, Callable, Generic, List, Optional
 
 from pyapprox.statest.groupacv.optimization import (
     GroupACVLogDetObjective,
@@ -214,7 +212,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         """
         pass
 
-    def _set_subsets(self, model_subsets: List[Array]) -> tuple[List[Array], List[Array], Array]:
+    def _set_subsets(
+        self, model_subsets: List[Array],
+    ) -> tuple[List[Array], List[Array], Array]:
         """Template method for subset setup - DO NOT override in subclasses.
 
         This method orchestrates the subset setup process by calling hook
@@ -360,7 +360,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         ) - min_nlf_samples
 
     def _get_nelder_mead_constraints(
-        self, target_cost: float, min_nhf_samples: int, min_nlf_samples: Optional[List[int]], constraint_reg: float = 0
+        self,
+        target_cost: float,
+        min_nhf_samples: int,
+        min_nlf_samples: Optional[List[int]],
+        constraint_reg: float = 0,
     ) -> List[dict[str, object]]:
         cons = [
             {
@@ -576,7 +580,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )
         return splits
 
-    def generate_samples_per_model(self, rvs: Callable[[int], Array], npilot_samples: int = 0) -> List[Array]:
+    def generate_samples_per_model(
+        self,
+        rvs: Callable[[int], Array],
+        npilot_samples: int = 0,
+    ) -> List[Array]:
         """Generate samples for each model based on optimized allocation.
 
         Parameters
@@ -618,7 +626,10 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         if npilot_samples == 0:
             return samples_per_model
 
-        if self._bkd.max(self._partitions_per_model[0] * self._npartition_samples) < npilot_samples:
+        if self._bkd.max(
+            self._partitions_per_model[0]
+            * self._npartition_samples
+        ) < npilot_samples:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
             msg += "high-fidelity model can fit all pilot samples. "
@@ -735,7 +746,10 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _traditional_acv_weights(self) -> Array:
         beta = self._grouped_acv_beta(self.optimized_sigma())
-        assert self._bkd.allclose(self._bkd.sum(beta, axis=1), self._bkd.ones((beta.shape[0],))), (
+        assert self._bkd.allclose(
+            self._bkd.sum(beta, axis=1),
+            self._bkd.ones((beta.shape[0],)),
+        ), (
             self._bkd.sum(beta, axis=1)
         )
         alpha = self._bkd.zeros(
@@ -845,7 +859,12 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         values_per_subset = self._separate_values_per_model(values_per_model)
         return self._estimate(values_per_subset)
 
-    def _reduce_model_sample_splits(self, model_id: int, partition_id: int, nsamples_to_reduce: int) -> tuple[Array, tuple[Array, Array]]:
+    def _reduce_model_sample_splits(
+        self,
+        model_id: int,
+        partition_id: int,
+        nsamples_to_reduce: int,
+    ) -> tuple[Array, tuple[Array, Array]]:
         """return splits that occur when removing N samples of
         a partition of a given model"""
         splits_per_model = self.sample_splits()
@@ -855,7 +874,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         removed_split = lb, lb + nsamples_to_reduce
         return sample_splits, removed_split
 
-    def _remove_pilot_samples(self, npilot_samples: int, samples_per_model: List[Array]) -> tuple[List[Array], Optional[Array]]:
+    def _remove_pilot_samples(
+        self,
+        npilot_samples: int,
+        samples_per_model: List[Array],
+    ) -> tuple[List[Array], Optional[Array]]:
         active_hf_subsets = self._bkd.where(self._partitions_per_model[0] == 1)[0]
         partition_id = active_hf_subsets[
             self._bkd.argmax(self._npartition_samples[active_hf_subsets])
@@ -897,7 +920,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
         return samples_per_model, removed_samples
 
-    def insert_pilot_values(self, pilot_values: List[Array], values_per_model: List[Array]) -> List[Array]:
+    def insert_pilot_values(
+        self,
+        pilot_values: List[Array],
+        values_per_model: List[Array],
+    ) -> List[Array]:
         """Insert pilot values into the model evaluation arrays.
 
         Parameters

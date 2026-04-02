@@ -7,13 +7,23 @@ Covers: boed_kl_concept.qmd, boed_kl_usage.qmd, boed_kl_estimator.qmd,
         boed_pred_nonlinear_usage.qmd, boed_data_workflow_usage.qmd
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict, List, Sequence, Tuple
+
 import numpy as np
+import numpy.typing as npt
+from matplotlib.axes import Axes
+
+from pyapprox.util.backends.protocols import Array, Backend
+
+NDArrayFloat = npt.NDArray[np.floating[Any]]
 
 # ---------------------------------------------------------------------------
 # boed_kl_concept.qmd — all echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_kl_intuition(axes):
+def plot_kl_intuition(axes: Sequence[Axes]) -> None:
     """boed_kl_concept.qmd → fig-kl-intuition
 
     KL divergence from prior to posterior for weak and strong designs.
@@ -24,8 +34,10 @@ def plot_kl_intuition(axes):
     weak_mu, weak_std = 0.05, 0.44
     strong_mu, strong_std = 0.32, 0.14
 
-    def kl_gaussian(mu1, s1, mu2, s2):
-        return np.log(s2 / s1) + (s1**2 + (mu1 - mu2)**2) / (2 * s2**2) - 0.5
+    def kl_gaussian(mu1: float, s1: float, mu2: float, s2: float) -> float:
+        return float(
+            np.log(s2 / s1) + (s1**2 + (mu1 - mu2)**2) / (2 * s2**2) - 0.5
+        )
 
     kl_weak = kl_gaussian(weak_mu, weak_std, prior_mu, prior_std)
     kl_strong = kl_gaussian(strong_mu, strong_std, prior_mu, prior_std)
@@ -68,7 +80,7 @@ def plot_kl_intuition(axes):
     axes[1].set_title("Large KL  →  data was very informative", fontsize=10)
 
 
-def plot_eig_as_average(axes):
+def plot_eig_as_average(axes: Sequence[Axes]) -> None:
     """boed_kl_concept.qmd → fig-eig-as-average
 
     EIG as average KL divergence over sampled observations.
@@ -88,8 +100,10 @@ def plot_eig_as_average(axes):
     std_post = np.sqrt(var_post)
     mu_posts = var_post * y_samples / noise_std**2
 
-    def kl_gauss_1d(mu1, s1, mu2, s2):
-        return np.log(s2 / s1) + (s1**2 + (mu1 - mu2)**2) / (2 * s2**2) - 0.5
+    def kl_gauss_1d(mu1: float, s1: float, mu2: float, s2: float) -> float:
+        return float(
+            np.log(s2 / s1) + (s1**2 + (mu1 - mu2)**2) / (2 * s2**2) - 0.5
+        )
 
     kl_vals = np.array([kl_gauss_1d(mu, std_post, 0.0, prior_std)
                         for mu in mu_posts])
@@ -142,12 +156,14 @@ def plot_eig_as_average(axes):
     ax.spines[["top", "right"]].set_visible(False)
 
 
-def plot_eig_vs_nobs(ax):
+def plot_eig_vs_nobs(ax: Axes) -> None:
     """boed_kl_concept.qmd → fig-eig-vs-nobs
 
     EIG vs number of observations for a linear Gaussian model.
     """
-    from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+    from pyapprox.expdesign.benchmarks.instances.linear_gaussian import (
+        build_linear_gaussian_kl_benchmark,
+    )
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -157,7 +173,7 @@ def plot_eig_vs_nobs(ax):
     noise_std, prior_std, degree = 0.5, 0.5, 2
     eigs = []
     for nobs in nobs_list:
-        bench = LinearGaussianOEDBenchmark(
+        bench = build_linear_gaussian_kl_benchmark(
             nobs, degree, noise_std, prior_std, bkd)
         weights = bkd.ones((nobs, 1))
         eigs.append(bench.exact_eig(weights))
@@ -170,7 +186,7 @@ def plot_eig_vs_nobs(ax):
     ax.grid(True, alpha=0.25)
 
 
-def plot_posterior_shrinkage(axes):
+def plot_posterior_shrinkage(axes: Sequence[Axes]) -> None:
     """boed_kl_concept.qmd → fig-posterior-shrinkage
 
     Posterior shrinkage depends on sensor placement, not just count.
@@ -184,21 +200,25 @@ def plot_posterior_shrinkage(axes):
     degree = 2
     d = degree + 1
 
-    def poly_design_matrix(x_locs):
+    def poly_design_matrix(x_locs: NDArrayFloat) -> NDArrayFloat:
         return np.column_stack([x_locs**k for k in range(d)])
 
-    def gaussian_posterior_cov(A, noise_std_, prior_std_):
+    def gaussian_posterior_cov(
+        A: NDArrayFloat, noise_std_: float, prior_std_: float,
+    ) -> NDArrayFloat:
         Sigma_prior_inv = np.eye(d) / prior_std_**2
         return np.linalg.inv(A.T @ A / noise_std_**2 + Sigma_prior_inv)
 
-    def closed_form_eig(A, noise_std_, prior_std_):
+    def closed_form_eig(
+        A: NDArrayFloat, noise_std_: float, prior_std_: float,
+    ) -> float:
         Sigma_prior = np.eye(d) * prior_std_**2
         Sigma_post = gaussian_posterior_cov(A, noise_std_, prior_std_)
         _, ld_prior = np.linalg.slogdet(Sigma_prior)
         _, ld_post = np.linalg.slogdet(Sigma_post)
-        return 0.5 * (ld_prior - ld_post)
+        return float(0.5 * (ld_prior - ld_post))
 
-    def make_locations(n, design="spread"):
+    def make_locations(n: int, design: str = "spread") -> NDArrayFloat:
         if design == "clustered":
             center = 0.5
             half = 0.08
@@ -292,9 +312,16 @@ def plot_posterior_shrinkage(axes):
 # boed_kl_usage.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_boed_convergence_panels(axes, bkd, values_mc, values_inner,
-                                 outer_counts, inner_counts,
-                                 M_fixed, inner_sweep):
+def plot_boed_convergence_panels(
+    axes: Sequence[Axes],
+    bkd: Backend[Array],
+    values_mc: Dict[str, List[Array]],
+    values_inner: Dict[str, List[Array]],
+    outer_counts: List[int],
+    inner_counts: List[int],
+    M_fixed: int,
+    inner_sweep: List[int],
+) -> None:
     """boed_kl_usage.qmd → fig-convergence-panels
 
     MSE vs outer samples and bias/variance vs inner samples.
@@ -343,7 +370,7 @@ def plot_boed_convergence_panels(axes, bkd, values_mc, values_inner,
 # boed_kl_estimator.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_double_loop(ax):
+def plot_double_loop(ax: Axes) -> None:
     """boed_kl_estimator.qmd → fig-double-loop
 
     Double-loop estimator flow diagram.
@@ -362,7 +389,10 @@ def plot_double_loop(ax):
     ax.set_ylim(0, 8.0)
     ax.axis("off")
 
-    def box(a, x, y, w, h, text, fc, ec, fontsize=9.5, bold=False):
+    def box(
+        a: Axes, x: float, y: float, w: float, h: float,
+        text: str, fc: str, ec: str, fontsize: float = 9.5, bold: bool = False,
+    ) -> None:
         p = FancyBboxPatch(
             (x, y), w, h, boxstyle="round,pad=0.1",
             facecolor=fc, edgecolor=ec, linewidth=1.8, zorder=3)
@@ -372,7 +402,10 @@ def plot_double_loop(ax):
                fontweight="bold" if bold else "normal",
                zorder=4, multialignment="center")
 
-    def arrow(a, x0, y0, x1, y1, color=GREY, lw=1.6, ls="solid"):
+    def arrow(
+        a: Axes, x0: float, y0: float, x1: float, y1: float,
+        color: str = GREY, lw: float = 1.6, ls: str = "solid",
+    ) -> None:
         a.annotate(
             "", xy=(x1, y1), xytext=(x0, y0),
             arrowprops=dict(arrowstyle="-|>", color=color,
@@ -456,8 +489,13 @@ def plot_double_loop(ax):
 # boed_kl_gradients.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_eig_landscape(axes, check_pts, analytic_grads, correct_grads,
-                       wrong_grads):
+def plot_eig_landscape(
+    axes: Sequence[Axes],
+    check_pts: NDArrayFloat,
+    analytic_grads: NDArrayFloat,
+    correct_grads: NDArrayFloat,
+    wrong_grads: NDArrayFloat,
+) -> None:
     """boed_kl_gradients.qmd → fig-eig-landscape
 
     EIG landscape and C1+C2+C3 vs incomplete C1+C2 gradient comparison.
@@ -467,12 +505,15 @@ def plot_eig_landscape(axes, check_pts, analytic_grads, correct_grads,
     GREEN = "#31A354"
     GREY = "#888888"
 
-    def eig_exact(w1):
-        return 0.5 * np.log(6 + 9 * w1 - 9 * w1**2)
+    def eig_exact(
+        w1: float | NDArrayFloat,
+    ) -> np.floating[Any] | NDArrayFloat:
+        result = 0.5 * np.log(6 + 9 * w1 - 9 * w1**2)
+        return result
 
-    def eig_grad_exact(w1):
+    def eig_grad_exact(w1: float) -> float:
         det = 6 + 9 * w1 - 9 * w1**2
-        return (9 - 18 * w1) / (2 * det)
+        return float((9 - 18 * w1) / (2 * det))
 
     w_fine = np.linspace(0.01, 0.99, 300)
     eig_vals = eig_exact(w_fine)
@@ -486,9 +527,10 @@ def plot_eig_landscape(axes, check_pts, analytic_grads, correct_grads,
                label=f"Maximum: {eig_exact(0.5):.3f} nats")
     for w1 in [0.12, 0.28, 0.50, 0.72, 0.88]:
         g = eig_grad_exact(w1)
+        eig_w1 = float(eig_exact(w1))
         ax.annotate(
-            "", xy=(w1 + np.sign(g) * 0.10, eig_exact(w1)),
-            xytext=(w1, eig_exact(w1)),
+            "", xy=(w1 + np.sign(g) * 0.10, eig_w1),
+            xytext=(w1, eig_w1),
             arrowprops=dict(arrowstyle="-|>", color=ORANGE, lw=1.8,
                             mutation_scale=11))
     ax.set_xlabel("$w_1$   ($w_2 = 1 - w_1$)", fontsize=11)
@@ -530,8 +572,14 @@ def plot_eig_landscape(axes, check_pts, analytic_grads, correct_grads,
 # boed_kl_nonlinear_usage.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_lv_trajectories(axes, benchmark, obs_model, prior, sample,
-                         observations):
+def plot_lv_trajectories(
+    axes: Sequence[Axes],
+    benchmark: Any,
+    obs_model: Any,
+    prior: Any,
+    sample: NDArrayFloat,
+    observations: NDArrayFloat,
+) -> None:
     """boed_kl_nonlinear_usage.qmd → fig-lv-trajectories
 
     Lotka-Volterra trajectories for prior ensemble plus nominal trajectory.
@@ -566,7 +614,12 @@ def plot_lv_trajectories(axes, benchmark, obs_model, prior, sample,
     axes[1].set_ylabel("Population", fontsize=10)
 
 
-def plot_lv_design(axes, benchmark, design_weights, bkd):
+def plot_lv_design(
+    axes: Sequence[Axes],
+    benchmark: Any,
+    design_weights: Array,
+    bkd: Backend[Array],
+) -> None:
     """boed_kl_nonlinear_usage.qmd → fig-lv-design
 
     Optimal design weights for the Lotka-Volterra EIG problem.
@@ -590,12 +643,14 @@ def plot_lv_design(axes, benchmark, design_weights, bkd):
 # boed_kl_qmc.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_points_comparison(axes):
+def plot_points_comparison(axes: Sequence[Axes]) -> None:
     """boed_kl_qmc.qmd → fig-points-comparison
 
     200 samples in 2-D: standard MC vs randomly-shifted Halton RQMC.
     """
     from pyapprox.expdesign.quadrature.halton import HaltonSampler
+    from pyapprox.probability.joint import IndependentJoint
+    from pyapprox.probability.univariate import GaussianMarginal
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -603,7 +658,10 @@ def plot_points_comparison(axes):
     rng_mc = np.random.default_rng(0)
     pts_mc = rng_mc.standard_normal((200, 2))
 
-    halton_2d = HaltonSampler(2, bkd, transform_to_normal=True, seed=0)
+    std_normal_2d = IndependentJoint(
+        [GaussianMarginal(0.0, 1.0, bkd) for _ in range(2)], bkd,
+    )
+    halton_2d = HaltonSampler(2, bkd, distribution=std_normal_2d, seed=0)
     pts_qmc, _ = halton_2d.sample(200)
     pts_qmc = bkd.to_numpy(pts_qmc).T
 
@@ -626,7 +684,12 @@ def plot_points_comparison(axes):
     axes[0].set_ylabel("Dimension 2", fontsize=10)
 
 
-def plot_mc_vs_qmc(ax, outer_counts, mse_mc, mse_qmc):
+def plot_mc_vs_qmc(
+    ax: Axes,
+    outer_counts: List[int],
+    mse_mc: List[float],
+    mse_qmc: List[float],
+) -> None:
     """boed_kl_qmc.qmd → fig-mc-vs-qmc
 
     MSE vs outer sample count for MC and randomly-shifted Halton RQMC.
@@ -661,7 +724,12 @@ def plot_mc_vs_qmc(ax, outer_counts, mse_mc, mse_qmc):
 # boed_kl_design_stability.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_design_variability(axes, obs_times, designs_fixed, M_fixed):
+def plot_design_variability(
+    axes: Sequence[Axes],
+    obs_times: NDArrayFloat,
+    designs_fixed: List[NDArrayFloat],
+    M_fixed: int,
+) -> None:
     """boed_kl_design_stability.qmd → fig-variability
 
     Optimal design weights from independent MC realizations at fixed budget.
@@ -683,7 +751,12 @@ def plot_design_variability(axes, obs_times, designs_fixed, M_fixed):
     axes[0].legend(fontsize=9)
 
 
-def plot_design_convergence(axes, obs_times, budgets, all_designs):
+def plot_design_convergence(
+    axes: Any,
+    obs_times: NDArrayFloat,
+    budgets: List[int],
+    all_designs: Dict[int, List[NDArrayFloat]],
+) -> None:
     """boed_kl_design_stability.qmd → fig-design-convergence
 
     Design weights from independent MC realizations at increasing budget.
@@ -714,34 +787,39 @@ def plot_design_convergence(axes, obs_times, budgets, all_designs):
 # boed_pred_concept.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def _pred_concept_helpers():
+def _pred_concept_helpers() -> Tuple[
+    float, float, float, NDArrayFloat, NDArrayFloat, NDArrayFloat,
+    Any, Any, Any, Any,
+]:
     """Return shared helpers for boed_pred_concept figures."""
     sigma1, sigma2, sigma_n = 2.0, 0.5, 0.5
     Sigma0 = np.diag([sigma1**2, sigma2**2])
     Sigma0_inv = np.diag([1 / sigma1**2, 1 / sigma2**2])
     c = np.array([0., 1.])
 
-    def sensor_row(x):
+    def sensor_row(x: float) -> NDArrayFloat:
         return np.array([np.cos(np.pi * x / 2), np.sin(np.pi * x / 2)])
 
-    def posterior_cov(x_locs):
+    def posterior_cov(x_locs: List[float]) -> NDArrayFloat:
         rows = np.vstack([sensor_row(x) for x in x_locs])
         return np.linalg.inv(rows.T @ rows / sigma_n**2 + Sigma0_inv)
 
-    def pf_std(x_locs):
-        return np.sqrt(c @ posterior_cov(x_locs) @ c)
+    def pf_std(x_locs: List[float]) -> float:
+        return float(np.sqrt(c @ posterior_cov(x_locs) @ c))
 
-    def eig_val(x_locs):
+    def eig_val(x_locs: List[float]) -> float:
         Sp = posterior_cov(x_locs)
         _, ld0 = np.linalg.slogdet(Sigma0)
         _, ld1 = np.linalg.slogdet(Sp)
-        return 0.5 * (ld0 - ld1)
+        return float(0.5 * (ld0 - ld1))
 
     return (sigma1, sigma2, sigma_n, Sigma0, Sigma0_inv, c,
             sensor_row, posterior_cov, pf_std, eig_val)
 
 
-def plot_pushforward_intuition(ax_A2d, ax_B2d, ax_Apf, ax_Bpf):
+def plot_pushforward_intuition(
+    ax_A2d: Axes, ax_B2d: Axes, ax_Apf: Axes, ax_Bpf: Axes,
+) -> None:
     """boed_pred_concept.qmd → fig-pushforward-intuition
 
     2D posterior ellipses and 1D push-forward distributions.
@@ -754,7 +832,11 @@ def plot_pushforward_intuition(ax_A2d, ax_B2d, ax_Apf, ax_Bpf):
 
     np.random.seed(42)
 
-    def cov_ellipse(ax, cov, center, nstd, color, lw, ls="-", label=None):
+    def cov_ellipse(
+        ax: Axes, cov: NDArrayFloat, center: Tuple[float, float],
+        nstd: int, color: str, lw: float, ls: str = "-",
+        label: str | None = None,
+    ) -> None:
         vals, vecs = np.linalg.eigh(cov)
         order = vals.argsort()[::-1]
         vals, vecs = vals[order], vecs[:, order]
@@ -844,7 +926,7 @@ def plot_pushforward_intuition(ax_A2d, ax_B2d, ax_Apf, ax_Bpf):
                      fontsize=9, color=BLUE, pad=4)
 
 
-def plot_utility_as_average(axes):
+def plot_utility_as_average(axes: Sequence[Axes]) -> None:
     """boed_pred_concept.qmd → fig-utility-as-average
 
     Push-forward posteriors and EIG vs push-forward std comparison.
@@ -927,13 +1009,13 @@ def plot_utility_as_average(axes):
         "EIG and prediction utility disagree on the optimal sensor",
         fontsize=9.5)
     ax.grid(True, alpha=0.18)
-    ax.legend([ln1, ln2], [ln1.get_label(), ln2.get_label()],
+    ax.legend([ln1, ln2], [str(ln1.get_label()), str(ln2.get_label())],
               fontsize=9.5, loc="center right")
     ax.spines[["top"]].set_visible(False)
     ax2.spines[["top"]].set_visible(False)
 
 
-def plot_pushforward_shrinkage(axes):
+def plot_pushforward_shrinkage(axes: Sequence[Axes]) -> None:
     """boed_pred_concept.qmd → fig-pushforward-shrinkage
 
     Push-forward shrinkage: Pred-OED-optimal vs EIG-optimal sensors.
@@ -1023,7 +1105,13 @@ def plot_pushforward_shrinkage(axes):
 # boed_pred_usage.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts):
+def plot_pred_mse_mc(
+    axes: Sequence[Axes],
+    bkd: Backend[Array],
+    values_mc: Dict[str, List[Array]],
+    outer_counts: List[int],
+    inner_counts: List[int],
+) -> None:
     """boed_pred_usage.qmd → fig-pred-mse-mc
 
     MSE of goal-oriented utility estimator vs inner samples for MC.
@@ -1051,8 +1139,15 @@ def plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts):
 # boed_pred_nonlinear_usage.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_lv_pred_target(ax, benchmark, obs_model, sample, observations,
-                        predictions, bkd):
+def plot_lv_pred_target(
+    ax: Axes,
+    benchmark: Any,
+    obs_model: Any,
+    sample: Array,
+    observations: Array,
+    predictions: Array,
+    bkd: Backend[Array],
+) -> None:
     """boed_pred_nonlinear_usage.qmd → fig-lv-pred-target
 
     Observation times and prediction targets for Lotka-Volterra.
@@ -1079,7 +1174,13 @@ def plot_lv_pred_target(ax, benchmark, obs_model, sample, observations,
     ax.grid(True, alpha=0.2)
 
 
-def plot_pred_design_weights(axes, benchmark, weights_std, weights_ent, bkd):
+def plot_pred_design_weights(
+    axes: Any,
+    benchmark: Any,
+    weights_std: Array,
+    weights_ent: Array,
+    bkd: Backend[Array],
+) -> None:
     """boed_pred_nonlinear_usage.qmd → fig-lv-design-comparison
 
     Design weights for standard-deviation and entropic-deviation objectives.
@@ -1111,7 +1212,9 @@ def plot_pred_design_weights(axes, benchmark, weights_std, weights_ent, bkd):
 # boed_data_workflow_usage.qmd — echo:false → Convention A
 # ---------------------------------------------------------------------------
 
-def plot_advec_diff_design(ax, obs_locs, design_weights):
+def plot_advec_diff_design(
+    ax: Axes, obs_locs: NDArrayFloat, design_weights: NDArrayFloat,
+) -> None:
     """boed_data_workflow_usage.qmd → fig-advec-diff-design
 
     Optimal sensor weights for the advection-diffusion domain.

@@ -62,7 +62,10 @@ def chemical_reaction_surface(
     residual = ChemicalReactionResidual(bkd)
 
     # Nominal values from legacy code - shape (nparams, 1)
-    nominal_values = bkd.reshape(bkd.array([1.6, 20.75, 0.04, 1.0, 0.36, 0.016]), (-1, 1))
+    nominal_values = bkd.reshape(
+        bkd.array([1.6, 20.75, 0.04, 1.0, 0.36, 0.016]),
+        (-1, 1),
+    )
 
     # Prior ranges from legacy code:
     # a: U[0, 4], b: U[5, 35], c,d,e,f: U[0.9*nominal, 1.1*nominal]

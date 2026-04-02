@@ -19,7 +19,7 @@ PrevStepHVPEnabledTimeSteppingResidualProtocol
     Adds 3 prev_* HVP methods for cross-step schemes (Crank-Nicolson).
 """
 
-from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.pde.time.protocols.ode_residual import (
     ODEResidualProtocol,

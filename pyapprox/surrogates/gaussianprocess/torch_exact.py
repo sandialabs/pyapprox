@@ -202,7 +202,10 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
 
         return torch.stack(jacs, dim=0)  # (n_samples, nqoi, nvars)
 
-    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor]) -> None:
+    def _configure_loss(
+        self,
+        loss: GPNegativeLogMarginalLikelihoodLoss[torch.Tensor],
+    ) -> None:
         """Bind autograd-based jacobian on the loss function."""
         bkd = self._bkd
 

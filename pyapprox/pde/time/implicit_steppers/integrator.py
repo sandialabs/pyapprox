@@ -7,7 +7,6 @@ the discrete adjoint method.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
@@ -18,6 +17,7 @@ from pyapprox.pde.time.protocols.time_stepping import (
 )
 from pyapprox.pde.time.protocols.type_guards import is_hvp_enabled
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TimeIntegrator(Generic[Array]):
@@ -68,7 +68,9 @@ class TimeIntegrator(Generic[Array]):
         self._deltat = deltat
         self._verbosity = verbosity
         self._newton_solver = newton_solver
-        self._functional: Optional[TransientFunctionalWithJacobianProtocol[Array]] = None
+        self._functional: Optional[
+            TransientFunctionalWithJacobianProtocol[Array]
+        ] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

@@ -7,6 +7,7 @@ orthonormal with respect to the input probability measure.
 
 from typing import Any, Generic, List, Optional, Union
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
 )
@@ -31,7 +32,6 @@ from pyapprox.surrogates.affine.univariate.transformed import (
     NativeBasis1D,
     TransformedBasis1D,
 )
-from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

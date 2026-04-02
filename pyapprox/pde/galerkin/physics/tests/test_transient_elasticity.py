@@ -15,7 +15,6 @@ from typing import List, Tuple
 
 import numpy as np
 
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -33,6 +32,7 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # =========================================================================
 # Helpers

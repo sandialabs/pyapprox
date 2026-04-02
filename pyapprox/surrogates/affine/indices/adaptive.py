@@ -4,7 +4,7 @@ This module provides the AdaptiveIndexRefinement class that orchestrates
 adaptive refinement using priority queues and refinement criteria.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Tuple
+from typing import Callable, Generic, Optional
 
 from pyapprox.surrogates.affine.indices.basis_generator import (
     BasisIndexGenerator,

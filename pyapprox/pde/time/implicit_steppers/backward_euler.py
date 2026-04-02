@@ -29,7 +29,6 @@ from pyapprox.pde.time.protocols.ode_residual import (
 )
 from pyapprox.util.backends.protocols import Array
 
-
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit
 # =========================================================================

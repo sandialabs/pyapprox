@@ -421,7 +421,10 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self, target_cost: int, partition_ratios: Array
     ) -> float:
         model_ratios = self._partition_ratios_to_model_ratios(partition_ratios)
-        return target_cost / (self._costs[0] + self._bkd.sum(model_ratios * self._costs[1:]))
+        return target_cost / (
+            self._costs[0]
+            + self._bkd.sum(model_ratios * self._costs[1:])
+        )
 
     def _npartition_samples_from_partition_ratios(
         self, target_cost: int, partition_ratios: Array

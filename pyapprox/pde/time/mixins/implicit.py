@@ -21,7 +21,10 @@ class ImplicitStepperMixin(ABC, Generic[Array]):
 
     @abstractmethod
     def jacobian(self, state: Array) -> Array:
-        """Compute the Jacobian dR/dy_n (declared here, implemented by concrete class)."""
+        """Compute the Jacobian dR/dy_n.
+
+        Declared here, implemented by concrete class.
+        """
         ...
 
     def linsolve(self, state: Array, residual: Array) -> Array:

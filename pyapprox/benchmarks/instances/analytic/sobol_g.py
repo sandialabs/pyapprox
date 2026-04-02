@@ -28,7 +28,12 @@ class SobolGBenchmark(Generic[Array]):
     HasTotalEffects, HasSmoothness, HasEstimatedEvaluationCost.
     """
 
-    def __init__(self, inner: BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]) -> None:
+    def __init__(
+        self,
+        inner: BenchmarkWithPrior[
+            Array, SensitivityGroundTruth[Array]
+        ],
+    ) -> None:
         self._inner = inner
 
     def name(self) -> str:

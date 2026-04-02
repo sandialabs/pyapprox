@@ -193,7 +193,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = forcing_func(x, time)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    ret: NDArray[np.floating[Any]] = (
+                        vals[:, 0]
+                        if vals.shape[1] == 1
+                        else vals
+                    )
                     return ret
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
@@ -204,7 +208,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = forcing_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    ret: NDArray[np.floating[Any]] = (
+                        vals[:, 0]
+                        if vals.shape[1] == 1
+                        else vals
+                    )
                     return ret
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
@@ -312,7 +320,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = sol_func(x, t)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    ret: NDArray[np.floating[Any]] = (
+                        vals[:, 0]
+                        if vals.shape[1] == 1
+                        else vals
+                    )
                     return ret
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
@@ -324,7 +336,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             ) -> np.ndarray:
                 vals = sol_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = vals[:, 0] if vals.shape[1] == 1 else vals
+                    ret: NDArray[np.floating[Any]] = (
+                        vals[:, 0]
+                        if vals.shape[1] == 1
+                        else vals
+                    )
                     return ret
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
@@ -715,7 +731,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 x: np.ndarray, time: float,
             ) -> np.ndarray:
                 vals = forcing_func(x, time)  # (npts, ncomponents)
-                ret: NDArray[np.floating[Any]] = vals.T  # (ncomponents, npts) = (ndim, npts)
+                ret: NDArray[np.floating[Any]] = vals.T
                 return ret
         else:
 
@@ -723,7 +739,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 x: np.ndarray, time: float = 0.0,
             ) -> np.ndarray:
                 vals = forcing_func(x)  # (npts, ncomponents)
-                ret: NDArray[np.floating[Any]] = vals.T  # (ncomponents, npts) = (ndim, npts)
+                ret: NDArray[np.floating[Any]] = vals.T
                 return ret
 
         return adapted_forcing
@@ -867,7 +883,9 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
             # Convert to numpy since this runs inside skfem assembly
             u_vals = self._bkd.to_numpy(u_vals)
             # u_vals: (npts, ndim) → transpose to (ndim, npts)
-            ret: NDArray[np.floating[Any]] = alpha_val * u_vals.T + traction  # (ndim, npts)
+            ret: NDArray[np.floating[Any]] = (
+                alpha_val * u_vals.T + traction
+            )
             return ret
 
         return RobinBC(

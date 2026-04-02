@@ -4,7 +4,8 @@ Evaluates Q(u) = u(x*) at an arbitrary point x* using Lagrange interpolation
 through the collocation nodes. This is a linear functional with constant
 state Jacobian.
 """
-# TODO: this is specific to collocation, should it go in collocation module or in benchmark module
+# TODO: this is specific to collocation, should it go in
+# collocation module or in benchmark module
 
 from typing import Generic
 

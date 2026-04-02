@@ -41,4 +41,5 @@ __all__ = [
     "HomogeneousBeam1DAnalytical",
 ]
 
-#TODO: Eventchenko objective and contraints are in optimization module should they be there or here
+# TODO: Eventchenko objective and contraints are in
+# optimization module should they be there or here
