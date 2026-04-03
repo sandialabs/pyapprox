@@ -76,3 +76,7 @@ class LogHyperParameter(HyperParameter[Array]):
             return (self._bkd.exp(log_bounds[0]), self._bkd.exp(log_bounds[1]))
         else:
             return self._bkd.exp(log_bounds)
+
+# TODO: add __repr__ that prints bounds in user space exp_values
+# or refactor to make values always returned user units and have canonical
+# units e.g. log values
