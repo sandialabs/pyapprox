@@ -12,8 +12,8 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.util.transforms.affine import AffineTransform
 from pyapprox.probability.transforms import (
-    AffineTransform,
     GaussianTransform,
     IndependentGaussianTransform,
     NatafTransform,
