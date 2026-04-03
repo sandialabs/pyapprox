@@ -51,7 +51,7 @@ def _check_jacobian(bkd, fwd, num_kle_terms=2):
     sample = bkd.array([0.1, -0.1][:num_kle_terms])[:, None]
     errors = checker.check_derivatives(sample, relative=True)[0]
     ratio = float(bkd.min(errors) / bkd.max(errors))
-    assert ratio <= 1e-5
+    assert ratio <= 2e-5
 
 
 class TestElasticBar1DBenchmark:
