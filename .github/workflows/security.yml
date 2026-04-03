@@ -5,6 +5,8 @@ on:
     branches: [main, "dev/**"]
   pull_request:
     branches: [main, "dev/**"]
+  schedule:
+    - cron: '0 0 * * 1'
 
 concurrency:
   group: security-${{ github.ref }}
@@ -60,9 +62,17 @@ jobs:
             --severity-level high \
             --format sarif \
             --output bandit-report.sarif || true
+      - name: Ensure bandit SARIF exists
+        if: always()
+        run: |
+          if [ ! -f bandit-report.sarif ]; then
+            cat > bandit-report.sarif << 'SARIF'
+          {"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Bandit","rules":[]}},"results":[]}]}
+          SARIF
+          fi
       - name: Upload bandit SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit-report.sarif
           category: bandit
@@ -101,9 +111,24 @@ jobs:
             --sarif \
             --output semgrep-report.sarif \
             pyapprox/ || true
+      - name: Ensure semgrep SARIF exists
+        if: always()
+        run: |
+          if [ ! -f semgrep-report.sarif ]; then
+            cat > semgrep-report.sarif << 'SARIF'
+          {"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Semgrep","rules":[]}},"results":[]}]}
+          SARIF
+          fi
       - name: Upload semgrep SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep-report.sarif
           category: semgrep
+      - name: Fail on findings
+        run: |
+          semgrep scan \
+            --config p/python \
+            --config p/secrets \
+            --error \
+            pyapprox/
