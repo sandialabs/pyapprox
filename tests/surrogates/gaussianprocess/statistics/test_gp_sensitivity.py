@@ -24,7 +24,7 @@ from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _create_quadrature_bases(
@@ -512,7 +512,7 @@ class TestIshigamiBenchmark:
             IshigamiFunction,
             IshigamiSensitivityIndices,
         )
-        from pyapprox.expdesign.quadrature.sobol import SobolSampler
+        from pyapprox.util.sampling.sobol import SobolSampler
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )

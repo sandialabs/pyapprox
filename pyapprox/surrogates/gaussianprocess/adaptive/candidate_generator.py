@@ -4,7 +4,7 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.expdesign.quadrature import SobolSampler
+from pyapprox.util.sampling.sobol import SobolSampler
 from pyapprox.util.backends.protocols import Array, Backend
 
 

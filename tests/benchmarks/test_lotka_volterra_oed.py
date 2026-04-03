@@ -5,7 +5,7 @@ import numpy as np
 from pyapprox.benchmarks.instances.oed.lotka_volterra import (
     LotkaVolterraOEDBenchmark,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class TestLotkaVolterraOEDBenchmark:

@@ -11,7 +11,7 @@ import pytest
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")

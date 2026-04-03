@@ -27,7 +27,7 @@ from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter impor
     GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _make_bo(

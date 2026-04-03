@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from pyapprox.optimization.implicitfunction.functionals.point_evaluation import (
+from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.protocols import (

@@ -12,7 +12,7 @@ from pyapprox.probability.density.protocols import (
 from pyapprox.surrogates.affine.expansions.pce_density import (
     composite_gauss_legendre,
 )
-from pyapprox.util.test_utils import slow_test  # noqa: F401
+from tests._helpers.markers import slow_test  # noqa: F401
 
 
 class TestPiecewiseDensityBasis:

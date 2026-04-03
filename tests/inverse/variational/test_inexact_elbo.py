@@ -33,7 +33,7 @@ from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.protocols import Backend
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:

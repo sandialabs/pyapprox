@@ -15,11 +15,11 @@ https://doi.org/10.1016/j.cpc.2009.09.018
 from abc import abstractmethod
 from typing import Generic, List, Optional, Tuple
 
-from pyapprox.expdesign.quadrature.halton import (
+from pyapprox.util.sampling.halton import (
     DistributionWithInvCDF,
     HaltonSampler,
 )
-from pyapprox.expdesign.quadrature.sobol import SobolSampler
+from pyapprox.util.sampling.sobol import SobolSampler
 from pyapprox.sensitivity.variance_based.base import (
     VarianceBasedSensitivityAnalysis,
 )

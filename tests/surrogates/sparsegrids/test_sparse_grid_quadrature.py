@@ -193,7 +193,7 @@ class TestParameterizedSparseGridRule:
 
     def test_satisfies_protocol(self, bkd) -> None:
         """Rule satisfies ParameterizedQuadratureRuleProtocol."""
-        from pyapprox.surrogates.quadrature.protocols import (
+        from pyapprox.util.protocols.quadrature import (
             ParameterizedQuadratureRuleProtocol,
         )
 

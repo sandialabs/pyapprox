@@ -23,10 +23,7 @@ from pyapprox.expdesign.analytical import (
 )
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-)
+from tests._helpers.markers import slow_test, slower_test
 
 
 class TestConjugateMCExactStandalone:

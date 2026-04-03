@@ -31,7 +31,7 @@ from pyapprox.surrogates.flowmatching.ode_adapter import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _build_chi_squared_setup(bkd, degree, n_per_dim=8):

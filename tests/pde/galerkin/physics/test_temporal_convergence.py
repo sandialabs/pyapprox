@@ -33,7 +33,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _compute_convergence_rates(dt_values, errors):

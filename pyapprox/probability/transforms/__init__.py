@@ -21,13 +21,11 @@ RosenblattTransform
     General transform using conditional CDFs.
 """
 
-from .affine import AffineTransform
 from .gaussian import GaussianTransform, IndependentGaussianTransform
 from .nataf import NatafTransform
 from .rosenblatt import RosenblattTransform
 
 __all__ = [
-    "AffineTransform",
     "GaussianTransform",
     "IndependentGaussianTransform",
     "NatafTransform",

@@ -66,7 +66,7 @@ from pyapprox.surrogates.affine.indices import (
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.protocols import Backend
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # TODO: make sure all code uses bkd.fun not np.fun
 

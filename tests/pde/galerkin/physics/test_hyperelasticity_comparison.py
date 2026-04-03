@@ -57,7 +57,7 @@ from pyapprox.pde.galerkin.physics import (
     HyperelasticityPhysics as GalerkinHyperelasticityPhysics,
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # =========================================================================
 # Helpers

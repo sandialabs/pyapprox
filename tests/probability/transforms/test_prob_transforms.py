@@ -23,7 +23,7 @@ from pyapprox.probability.univariate import (
     GaussianMarginal,
     ScipyContinuousMarginal,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # TODO: should tests be split into files that mirror module structure
 

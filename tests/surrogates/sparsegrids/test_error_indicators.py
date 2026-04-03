@@ -41,9 +41,7 @@ from pyapprox.surrogates.sparsegrids.smolyak import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
-from pyapprox.util.test_utils import (
-    slower_test,
-)
+from tests._helpers.markers import slower_test
 
 # =============================================================================
 # Helper: build CandidateInfo from a selected index set + candidate

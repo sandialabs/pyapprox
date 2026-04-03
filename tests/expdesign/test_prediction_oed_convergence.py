@@ -34,9 +34,7 @@ from pyapprox.expdesign.quadrature.oed import (
     build_oed_joint_distribution,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import (
-    slow_test,
-)
+from tests._helpers.markers import slow_test
 
 
 class TestPredictionOEDConvergenceStandalone:

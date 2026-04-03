@@ -22,7 +22,7 @@ from tests._helpers.sparsegrids_helpers import (
     create_test_tensor_product_subspace,
     create_test_tensor_product_subspace_mixed,
 )
-from pyapprox.util.test_utils import slow_test, slower_test  # noqa: F401
+from tests._helpers.markers import slow_test, slower_test  # noqa: F401
 
 # =============================================================================
 # Test Configurations

@@ -20,11 +20,7 @@ from pyapprox.interface.functions.protocols import (
     FunctionWithJacobianProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-    slowest_test,
-)
+from tests._helpers.markers import slow_test, slower_test, slowest_test
 
 
 def _make_benchmark(

@@ -247,7 +247,7 @@ class HaltonStrategy(Generic[Array]):
         weights : Array
             Uniform weights (1/nsamples). Shape: (nsamples,)
         """
-        from pyapprox.expdesign.quadrature.halton import HaltonSampler
+        from pyapprox.util.sampling.halton import HaltonSampler
 
         sampler = HaltonSampler(
             distribution.nvars(),
@@ -292,7 +292,7 @@ class SobolStrategy(Generic[Array]):
         weights : Array
             Uniform weights (1/nsamples). Shape: (nsamples,)
         """
-        from pyapprox.expdesign.quadrature.sobol import SobolSampler
+        from pyapprox.util.sampling.sobol import SobolSampler
 
         sampler = SobolSampler(
             distribution.nvars(),

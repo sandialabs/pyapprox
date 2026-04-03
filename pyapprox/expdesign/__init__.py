@@ -148,7 +148,6 @@ from .objective import (
     create_prediction_oed_objective,
     create_risk_measure,
 )
-from .protocols import QuadratureSamplerProtocol
 from .quadrature import (
     GaussianQuadratureSampler,
     HaltonSampler,
@@ -204,7 +203,6 @@ __all__ = [
     "SampleAverageEntropicRisk",
     "SampleAverageSmoothedAVaR",
     # Quadrature samplers
-    "QuadratureSamplerProtocol",
     "MonteCarloSampler",
     "HaltonSampler",
     "SobolSampler",

@@ -8,7 +8,7 @@ from typing import Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.probability.transforms.affine import AffineTransform
+from pyapprox.util.transforms.affine import AffineTransform
 from pyapprox.util.backends.protocols import Array, Backend
 
 

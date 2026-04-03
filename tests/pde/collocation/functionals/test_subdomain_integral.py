@@ -12,7 +12,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
+from pyapprox.pde.collocation.functionals.subdomain_integral import (
     SubdomainIntegralFunctional,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D

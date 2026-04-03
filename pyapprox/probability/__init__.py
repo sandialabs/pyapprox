@@ -114,7 +114,6 @@ from .risk import (
 
 # Transforms
 from .transforms import (
-    AffineTransform,
     GaussianTransform,
     IndependentGaussianTransform,
     NatafTransform,
@@ -172,7 +171,6 @@ __all__ = [
     # Joint distributions
     "IndependentJoint",
     # Transforms
-    "AffineTransform",
     "GaussianTransform",
     "IndependentGaussianTransform",
     "NatafTransform",

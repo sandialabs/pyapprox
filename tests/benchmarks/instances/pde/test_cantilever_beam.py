@@ -23,7 +23,7 @@ from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import slower_test  # noqa: F401
+from tests._helpers.markers import slower_test  # noqa: F401
 
 _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests
 

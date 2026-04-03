@@ -11,7 +11,7 @@ stat classes in a future consolidation.
 
 from typing import Generic, List, cast
 
-from pyapprox.expdesign.protocols.statistics import (
+from pyapprox.util.protocols.statistics import (
     DifferentiableSampleStatisticProtocol,
     SampleStatisticProtocol,
 )

@@ -12,11 +12,7 @@ from pyapprox.statest.aetc.aetcmc import AETCMC
 from pyapprox.statest.aetc.base import AETC
 from pyapprox.statest.groupacv import GroupACVAllocationResult
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-    slowest_test,
-)
+from tests._helpers.markers import slow_test, slower_test, slowest_test
 
 
 def _make_groupacv_allocation(est, npartition_samples):

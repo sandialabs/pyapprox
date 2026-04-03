@@ -16,7 +16,7 @@ import numpy as np
 from pyapprox.benchmarks.instances.oed.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class TestAdvectionDiffusionOEDBenchmark:

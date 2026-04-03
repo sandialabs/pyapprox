@@ -22,9 +22,7 @@ from tests._helpers.benchmark_harnesses import (
     verify_forward_uq_mean,
     verify_forward_uq_variance,
 )
-from pyapprox.util.test_utils import (
-    slow_test,
-)
+from tests._helpers.markers import slow_test
 
 # Benchmarks with HasReferenceMean + HasPrior
 _MEAN_BENCHMARK_NAMES = [

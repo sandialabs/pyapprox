@@ -34,7 +34,7 @@ from pyapprox.surrogates.affine.univariate import (
 from pyapprox.surrogates.affine.univariate.lagrange import (
     LagrangeBasis1D,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 # =============================================================================

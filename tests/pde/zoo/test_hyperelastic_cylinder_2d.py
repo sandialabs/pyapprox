@@ -19,7 +19,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.interface.functions.protocols import (
     FunctionWithJacobianProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
+from pyapprox.pde.collocation.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
@@ -48,7 +48,7 @@ from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # ======================================================================
 # Helpers

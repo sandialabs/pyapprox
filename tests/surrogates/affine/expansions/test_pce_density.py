@@ -28,7 +28,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
 from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import (
     convert_orthonormal_to_monomials_1d,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class TestMonomialConversion:

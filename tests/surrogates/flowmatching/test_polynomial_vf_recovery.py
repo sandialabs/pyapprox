@@ -36,7 +36,7 @@ from pyapprox.surrogates.flowmatching.linear_path import LinearPath
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _make_vf(bkd, d, degree, m=0):

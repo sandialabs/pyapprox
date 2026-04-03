@@ -33,7 +33,7 @@ from typing import Dict, Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.expdesign.protocols.quadrature import (
+from pyapprox.util.protocols.sampling import (
     QuadratureSamplerProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.protocols import (
@@ -150,7 +150,7 @@ class GaussianProcessEnsemble(Generic[Array]):
 
         # Create default SobolSampler with uniform distribution on domain
         # Get marginals from the integral calculator
-        from pyapprox.expdesign.quadrature.sobol import SobolSampler
+        from pyapprox.util.sampling.sobol import SobolSampler
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )

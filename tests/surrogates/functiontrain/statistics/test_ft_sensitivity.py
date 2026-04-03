@@ -27,7 +27,7 @@ from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
     FunctionTrainSensitivity,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def all_nonempty_subsets(iterable: Sequence[int]) -> chain[tuple[int, ...]]:

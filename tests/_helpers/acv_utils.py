@@ -1,19 +1,10 @@
-"""Shared test utilities."""
-
+"""ACV test utilities."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-import pytest
-
 if TYPE_CHECKING:
     from pyapprox.statest.acv.allocation import ACVAllocationResult
-
-# Convenience aliases — apply the marker with "*" (all backends).
-# Existing code using @slow_test continues to work unchanged.
-slow_test = pytest.mark.slow_on("*")
-slower_test = pytest.mark.slower_on("*")
-slowest_test = pytest.mark.slowest_on("*")
 
 
 def allocate_with_allocator(

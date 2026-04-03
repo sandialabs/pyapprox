@@ -44,7 +44,7 @@ from pyapprox.pde.collocation.physics.stress_models import (
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

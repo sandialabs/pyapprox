@@ -23,9 +23,7 @@ from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     RootMFNetNode,
 )
-from pyapprox.util.test_utils import (
-    slowest_test,
-)
+from tests._helpers.markers import slowest_test
 
 
 def _create_expansion(

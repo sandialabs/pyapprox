@@ -39,11 +39,8 @@ from pyapprox.statest.statistics import (
 )
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.optional_deps import package_available
-from pyapprox.util.test_utils import (
-    allocate_with_allocator,
-    slow_test,
-    slower_test,
-)
+from tests._helpers.markers import slow_test, slower_test
+from tests._helpers.acv_utils import allocate_with_allocator
 
 
 def _make_groupacv_allocation(est, npartition_samples):

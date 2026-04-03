@@ -648,7 +648,7 @@ def plot_points_comparison(axes: Sequence[Axes]) -> None:
 
     200 samples in 2-D: standard MC vs randomly-shifted Halton RQMC.
     """
-    from pyapprox.expdesign.quadrature.halton import HaltonSampler
+    from pyapprox.util.sampling.halton import HaltonSampler
     from pyapprox.probability.joint import IndependentJoint
     from pyapprox.probability.univariate import GaussianMarginal
     from pyapprox.util.backends.numpy import NumpyBkd

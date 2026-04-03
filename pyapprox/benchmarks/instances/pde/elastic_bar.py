@@ -11,15 +11,15 @@ from typing import Any, Tuple, Union
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.optimization.implicitfunction.functionals.point_evaluation import (
+from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
-from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
+from pyapprox.pde.collocation.functionals.strain_energy_1d import (
     StrainEnergyFunctional1D,
     create_linear_strain_energy_1d,
     create_neo_hookean_strain_energy_1d,
 )
-from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
+from pyapprox.pde.collocation.functionals.subdomain_integral import (
     SubdomainIntegralFunctional,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D

@@ -45,10 +45,7 @@ from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-)
+from tests._helpers.markers import slow_test, slower_test
 
 # ===================================================================
 # Helpers

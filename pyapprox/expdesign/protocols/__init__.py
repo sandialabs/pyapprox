@@ -28,9 +28,7 @@ from .objective import (
 from .prediction import PredictionOEDObjectiveProtocol
 from .quadrature import (
     OEDQuadratureSamplerProtocol,
-    QuadratureSamplerProtocol,
 )
-from .statistics import DifferentiableSampleStatisticProtocol, SampleStatisticProtocol
 
 __all__ = [
     # Likelihood protocols
@@ -44,11 +42,7 @@ __all__ = [
     "KLOEDObjectiveProtocol",
     "PredictionOEDObjectiveProtocol",
     # Quadrature protocols
-    "QuadratureSamplerProtocol",
     "OEDQuadratureSamplerProtocol",
-    # Statistics protocols
-    "SampleStatisticProtocol",
-    "DifferentiableSampleStatisticProtocol",
     # Deviation protocols
     "DeviationMeasureProtocol",
     # OED inference/benchmark protocols

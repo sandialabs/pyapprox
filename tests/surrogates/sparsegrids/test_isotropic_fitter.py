@@ -51,11 +51,7 @@ from tests._helpers.sparsegrids_helpers import (
     create_test_joint,
     create_test_pce,
 )
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-    slowest_test,
-)
+from tests._helpers.markers import slow_test, slower_test, slowest_test
 
 # =============================================================================
 # Parametrized test configurations

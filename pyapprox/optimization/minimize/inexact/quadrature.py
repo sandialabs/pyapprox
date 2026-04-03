@@ -9,7 +9,7 @@ import math
 from collections import OrderedDict
 from typing import Generic, Tuple
 
-from pyapprox.surrogates.quadrature.protocols import (
+from pyapprox.util.protocols.quadrature import (
     ParameterizedQuadratureRuleProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

@@ -30,7 +30,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
     LaguerrePolynomial1D,
     LegendrePolynomial1D,
 )
-from pyapprox.util.test_utils import slow_test, slower_test
+from tests._helpers.markers import slow_test, slower_test
 
 
 class MarginalTestCase(NamedTuple):

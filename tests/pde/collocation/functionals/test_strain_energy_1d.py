@@ -11,7 +11,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
+from pyapprox.pde.collocation.functionals.strain_energy_1d import (
     create_linear_strain_energy_1d,
     create_neo_hookean_strain_energy_1d,
 )

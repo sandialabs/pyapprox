@@ -21,9 +21,7 @@ from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.util.test_utils import (
-    slow_test,
-)
+from tests._helpers.markers import slow_test
 
 # TODO: the module is empty and only contains a test file. Should
 # this test be somewhere else. It seems to only apply tests to copulas

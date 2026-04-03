@@ -38,7 +38,7 @@ from pyapprox.pde.time.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolver
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # =========================================================================
 # Helpers

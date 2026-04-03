@@ -39,7 +39,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

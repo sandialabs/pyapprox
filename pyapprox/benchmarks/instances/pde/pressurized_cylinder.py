@@ -22,7 +22,7 @@ from pyapprox.benchmarks.instances.pde.elastic_bar import (
     PDEBenchmarkWrapper,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
+from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
     HyperelasticAverageHoopStressFunctional,
     OuterWallRadialDisplacementFunctional,

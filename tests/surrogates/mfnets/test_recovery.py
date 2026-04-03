@@ -23,9 +23,7 @@ from pyapprox.surrogates.mfnets.nodes import (
     RootMFNetNode,
 )
 from pyapprox.surrogates.mfnets.registry import create_node_model
-from pyapprox.util.test_utils import (
-    slower_test,
-)
+from tests._helpers.markers import slower_test
 
 
 def _build_two_node_mfnet(

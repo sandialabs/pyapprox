@@ -16,8 +16,8 @@ import numpy as np
 from pyapprox.expdesign.protocols.oed import (
     GaussianInferenceProblemProtocol,
 )
-from pyapprox.expdesign.protocols import QuadratureSamplerProtocol
-from pyapprox.expdesign.quadrature.halton import DistributionWithInvCDF
+from pyapprox.util.protocols.sampling import QuadratureSamplerProtocol
+from pyapprox.util.sampling.halton import DistributionWithInvCDF
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.protocols import DistributionProtocol
 from pyapprox.probability.univariate import GaussianMarginal

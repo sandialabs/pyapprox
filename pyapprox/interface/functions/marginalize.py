@@ -25,7 +25,7 @@ from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.surrogates.quadrature.protocols import (
+    from pyapprox.util.protocols.quadrature import (
         MultivariateQuadratureRuleProtocol,
     )
 

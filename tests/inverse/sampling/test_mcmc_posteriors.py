@@ -21,9 +21,7 @@ from tests._helpers.sampling_distributions import (
     CorrelatedGaussianLogPosterior,
     GaussianMixtureLogPosterior,
 )
-from pyapprox.util.test_utils import (
-    slower_test,
-)
+from tests._helpers.markers import slower_test
 
 # TODO: Should this be split into test specific to samplers, such files already exist
 # TODO: we should be using bkd.assert_allclose and other bkd generic functions

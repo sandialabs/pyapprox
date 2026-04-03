@@ -19,7 +19,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
-from pyapprox.surrogates.quadrature.protocols import (
+from pyapprox.util.protocols.quadrature import (
     MultivariateQuadratureRuleProtocol,
 )
 from pyapprox.surrogates.quadrature.tensor_product import (

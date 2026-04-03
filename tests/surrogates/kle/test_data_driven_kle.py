@@ -15,7 +15,7 @@ from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):

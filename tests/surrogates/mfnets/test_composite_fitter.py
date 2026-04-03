@@ -11,10 +11,7 @@ from pyapprox.surrogates.mfnets.helpers import (
     generate_synthetic_data,
     randomize_coefficients,
 )
-from pyapprox.util.test_utils import (
-    slower_test,
-    slowest_test,
-)
+from tests._helpers.markers import slower_test, slowest_test
 
 
 class TestCompositeFitter:

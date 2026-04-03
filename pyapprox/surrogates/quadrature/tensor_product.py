@@ -11,7 +11,7 @@ from pyapprox.surrogates.affine.protocols import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-from .protocols import UnivariateQuadratureRuleProtocol
+from pyapprox.util.protocols.quadrature import UnivariateQuadratureRuleProtocol
 
 
 class TensorProductQuadratureRule(Generic[Array]):

@@ -15,7 +15,7 @@ from pyapprox.inverse.sampling import (
     HamiltonianMonteCarlo,
     MetropolisHastingsSampler,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 #TODO: Should this be in mcmc module?
 

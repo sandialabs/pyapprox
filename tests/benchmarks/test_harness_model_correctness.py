@@ -11,10 +11,7 @@ import pyapprox.benchmarks.instances  # noqa: F401
 from pyapprox.benchmarks.protocols import HasJacobian
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from tests._helpers.benchmark_harnesses import verify_jacobian_fd
-from pyapprox.util.test_utils import (
-    slow_test,
-    slower_test,
-)
+from tests._helpers.markers import slow_test, slower_test
 
 # ---------------------------------------------------------------------------
 # Analytic benchmarks --- fast

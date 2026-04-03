@@ -7,10 +7,10 @@ Supports Monte Carlo, quasi-Monte Carlo (Halton/Sobol), and Gaussian quadrature.
 """
 
 from .gaussian import GaussianQuadratureSampler
-from .halton import HaltonSampler
 from .monte_carlo import MonteCarloSampler
 from .oed import OEDQuadratureSampler
-from .sobol import SobolSampler
+from pyapprox.util.sampling.halton import HaltonSampler
+from pyapprox.util.sampling.sobol import SobolSampler
 from .strategies import (
     GaussStrategy,
     HaltonStrategy,

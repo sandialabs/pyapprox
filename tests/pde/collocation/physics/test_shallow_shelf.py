@@ -28,7 +28,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 
 class TestShallowShelfVelocityPhysics(PhysicsTestBase):

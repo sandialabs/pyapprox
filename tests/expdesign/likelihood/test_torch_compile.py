@@ -22,7 +22,7 @@ from pyapprox.expdesign.likelihood.compute import (
 )
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
+from tests._helpers.markers import slow_test
 
 # Fixed dimensions -- shared across all test classes to minimize recompilation.
 _NOBS = 5

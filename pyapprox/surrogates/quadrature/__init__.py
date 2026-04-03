@@ -33,12 +33,6 @@ from .cubature import (
 from .probability_measure_factory import (
     ProbabilityMeasureQuadratureFactory,
 )
-from .protocols import (
-    AdaptiveQuadratureRuleProtocol,
-    MultivariateQuadratureRuleProtocol,
-    ParameterizedQuadratureRuleProtocol,
-    UnivariateQuadratureRuleProtocol,
-)
 from .tensor_product import (
     ParameterizedTensorProductQuadratureRule,
     TensorProductQuadratureRule,
@@ -83,11 +77,6 @@ def gauss_quadrature_rule(
 
 
 __all__ = [
-    # Protocols
-    "UnivariateQuadratureRuleProtocol",
-    "MultivariateQuadratureRuleProtocol",
-    "ParameterizedQuadratureRuleProtocol",
-    "AdaptiveQuadratureRuleProtocol",
     # Tensor product
     "TensorProductQuadratureRule",
     "ParameterizedTensorProductQuadratureRule",

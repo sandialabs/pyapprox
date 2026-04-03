@@ -27,9 +27,7 @@ from pyapprox.surrogates.gaussianprocess.exact import (
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.util.test_utils import (
-    slow_test,
-)
+from tests._helpers.markers import slow_test
 
 
 def _sin_function(samples, bkd):
