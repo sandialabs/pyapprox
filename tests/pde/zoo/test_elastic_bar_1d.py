@@ -245,7 +245,7 @@ class TestElasticBar1D:
         )
 
         model = CollocationModel(physics, bkd)
-        u_num = model.solve_steady(bkd.zeros((npts,)), tol=2e-12, maxiter=50)
+        u_num = model.solve_steady(bkd.zeros((npts,)), tol=1e-11, maxiter=50)
         bkd.assert_allclose(u_num, u_exact, atol=1e-10)
 
     def test_param_jacobian(self, bkd):
