@@ -5,7 +5,7 @@ This module provides utilities to decompose composed kernels into their
 base separable kernel and variance scaling factor.
 """
 
-from typing import Tuple
+from typing import Tuple, cast
 
 from pyapprox.surrogates.kernels.composition import (
     ProductKernel,
@@ -83,7 +83,7 @@ def _decompose_kernel(
 
     # Case 1: Already separable with unit variance
     if isinstance(kernel, SeparableKernelProtocol):
-        return kernel, bkd.asarray(1.0)
+        return cast(SeparableKernelProtocol[Array], kernel), bkd.asarray(1.0)
 
     # Case 2: ProductKernel - check for PolynomialScaling * SeparableKernel
     if isinstance(kernel, ProductKernel):
@@ -109,7 +109,10 @@ def _decompose_kernel(
             # Extract s from PolynomialScaling coefficients
             s = scaling.hyp_list().get_values()[0]
             s_squared = s * s
-            return base, s_squared
+            return (
+                cast(SeparableKernelProtocol[Array], base),
+                cast(Array, s_squared),
+            )
 
         # ProductKernel but not the expected pattern
         if isinstance(k1, PolynomialScaling) or isinstance(k2, PolynomialScaling):

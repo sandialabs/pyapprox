@@ -209,51 +209,51 @@ class TestGaussianProcessStatistics:
 
         return stats, gp, marginals
 
-    def test_mean_of_mean_scalar(self, bkd) -> None:
-        """Test mean_of_mean returns a scalar."""
+    def test_input_mean_of_posterior_mean_scalar(self, bkd) -> None:
+        """Test input_mean_of_posterior_mean returns a scalar."""
         stats, _, _ = self._setup(bkd)
-        eta = stats.mean_of_mean()
+        eta = stats.input_mean_of_posterior_mean()
         # Should be a scalar (0-dim array)
         assert len(eta.shape) == 0
 
-    def test_variance_of_mean_nonnegative(self, bkd) -> None:
+    def test_gp_variance_of_posterior_mean_nonnegative(self, bkd) -> None:
         """Test Var[mu_f] >= 0."""
         stats, _, _ = self._setup(bkd)
-        var_mu = stats.variance_of_mean()
+        var_mu = stats.gp_variance_of_posterior_mean()
         assert float(bkd.to_numpy(var_mu)) >= 0.0
 
-    def test_mean_of_variance_nonnegative(self, bkd) -> None:
+    def test_input_mean_of_posterior_variance_nonnegative(self, bkd) -> None:
         """Test E[gamma_f] >= 0."""
         stats, _, _ = self._setup(bkd)
-        mean_var = stats.mean_of_variance()
+        mean_var = stats.input_mean_of_posterior_variance()
         assert float(bkd.to_numpy(mean_var)) >= 0.0
 
     def test_caching(self, bkd) -> None:
         """Test that results are cached."""
         stats, _, _ = self._setup(bkd)
-        eta1 = stats.mean_of_mean()
-        eta2 = stats.mean_of_mean()
+        eta1 = stats.input_mean_of_posterior_mean()
+        eta2 = stats.input_mean_of_posterior_mean()
         # Same object (cached)
         assert eta1 is eta2
 
-    def test_variance_of_variance_nonnegative(self, bkd) -> None:
+    def test_gp_variance_of_posterior_variance_nonnegative(self, bkd) -> None:
         """Test Var[gamma_f] >= 0."""
         stats, _, _ = self._setup(bkd)
-        var_var = stats.variance_of_variance()
+        var_var = stats.gp_variance_of_posterior_variance()
         assert float(bkd.to_numpy(var_var)) >= 0.0
 
-    def test_variance_of_variance_scalar(self, bkd) -> None:
-        """Test variance_of_variance returns a scalar."""
+    def test_gp_variance_of_posterior_variance_scalar(self, bkd) -> None:
+        """Test gp_variance_of_posterior_variance returns a scalar."""
         stats, _, _ = self._setup(bkd)
-        var_var = stats.variance_of_variance()
+        var_var = stats.gp_variance_of_posterior_variance()
         # Should be a scalar (0-dim array)
         assert len(var_var.shape) == 0
 
-    def test_variance_of_variance_caching(self, bkd) -> None:
-        """Test that variance_of_variance results are cached."""
+    def test_gp_variance_of_posterior_variance_caching(self, bkd) -> None:
+        """Test that gp_variance_of_posterior_variance results are cached."""
         stats, _, _ = self._setup(bkd)
-        var_var1 = stats.variance_of_variance()
-        var_var2 = stats.variance_of_variance()
+        var_var1 = stats.gp_variance_of_posterior_variance()
+        var_var2 = stats.gp_variance_of_posterior_variance()
         # Same object (cached)
         assert var_var1 is var_var2
 
@@ -289,8 +289,8 @@ class TestGaussianProcessStatistics:
         stats_large = GaussianProcessStatistics(gp_large, calc_large)
 
         # Variance of mean should be small with many training points
-        var_mu_large = stats_large.variance_of_mean()
-        var_mu_small = stats.variance_of_mean()
+        var_mu_large = stats_large.gp_variance_of_posterior_mean()
+        var_mu_small = stats.gp_variance_of_posterior_mean()
 
         var_large_val = float(bkd.to_numpy(var_mu_large))
         var_small_val = float(bkd.to_numpy(var_mu_small))
@@ -358,13 +358,13 @@ class TestMCComparison:
         return stats, gp, bases
 
     @slow_test
-    def test_mc_convergence_mean_of_mean(self, bkd) -> None:
+    def test_mc_convergence_input_mean_of_posterior_mean(self, bkd) -> None:
         """Compare quadrature E[mu] to MC estimate."""
         stats, gp, _ = self._setup(bkd)
         np.random.seed(12345)
 
         # Quadrature estimate
-        eta_quad = stats.mean_of_mean()
+        eta_quad = stats.input_mean_of_posterior_mean()
 
         # MC estimate - generate random samples and convert to backend array
         n_mc = 10000
@@ -383,7 +383,7 @@ class TestMCComparison:
         assert abs(eta_quad_val - eta_mc_val) < 0.05
 
     @slow_test
-    def test_mc_convergence_variance_of_mean(self, bkd) -> None:
+    def test_mc_convergence_gp_variance_of_posterior_mean(self, bkd) -> None:
         """
         Compare quadrature Var[mu_f] to MC estimate.
 
@@ -404,7 +404,7 @@ class TestMCComparison:
         np.random.seed(12345)
 
         # Quadrature estimate
-        var_quad = stats.variance_of_mean()
+        var_quad = stats.gp_variance_of_posterior_mean()
 
         # Get quadrature points and weights from the bases used by the calculator
         quad_pts, quad_wts = bases[0].quadrature_rule()
@@ -468,7 +468,7 @@ class TestMCComparison:
         )
 
     @slow_test
-    def test_mc_convergence_variance_of_variance(self, bkd) -> None:
+    def test_mc_convergence_gp_variance_of_posterior_variance(self, bkd) -> None:
         """
         Compare quadrature Var[gamma_f] to MC estimate.
 
@@ -486,7 +486,7 @@ class TestMCComparison:
         np.random.seed(12345)
 
         # Quadrature estimate
-        var_var_quad = stats.variance_of_variance()
+        var_var_quad = stats.gp_variance_of_posterior_variance()
 
         # Get quadrature points and weights from the bases used by the calculator
         quad_pts, quad_wts = bases[0].quadrature_rule()
@@ -699,7 +699,7 @@ class TestKnownMoments:
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - tolerance should be comparable to GP error
-        eta = stats.mean_of_mean()
+        eta = stats.input_mean_of_posterior_mean()
         eta_val = float(bkd.to_numpy(eta))
         bkd.assert_allclose(
             bkd.asarray([eta_val]),
@@ -709,7 +709,7 @@ class TestKnownMoments:
         )
 
         # Test mean of variance - tolerance should be comparable to GP error
-        mean_var = stats.mean_of_variance()
+        mean_var = stats.input_mean_of_posterior_variance()
         mean_var_val = float(bkd.to_numpy(mean_var))
         bkd.assert_allclose(
             bkd.asarray([mean_var_val]),
@@ -786,7 +786,7 @@ class TestKnownMoments:
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - tolerance should be comparable to GP error
-        eta = stats.mean_of_mean()
+        eta = stats.input_mean_of_posterior_mean()
         eta_val = float(bkd.to_numpy(eta))
         bkd.assert_allclose(
             bkd.asarray([eta_val]),
@@ -796,7 +796,7 @@ class TestKnownMoments:
         )
 
         # Test mean of variance - tolerance should be comparable to GP error
-        mean_var = stats.mean_of_variance()
+        mean_var = stats.input_mean_of_posterior_variance()
         mean_var_val = float(bkd.to_numpy(mean_var))
         bkd.assert_allclose(
             bkd.asarray([mean_var_val]),
@@ -864,7 +864,7 @@ class TestKnownMoments:
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - use atol since expected is 0
-        eta = stats.mean_of_mean()
+        eta = stats.input_mean_of_posterior_mean()
         eta_val = float(bkd.to_numpy(eta))
         bkd.assert_allclose(
             bkd.asarray([eta_val]),
@@ -874,7 +874,7 @@ class TestKnownMoments:
         )
 
         # Test mean of variance
-        mean_var = stats.mean_of_variance()
+        mean_var = stats.input_mean_of_posterior_variance()
         mean_var_val = float(bkd.to_numpy(mean_var))
         bkd.assert_allclose(
             bkd.asarray([mean_var_val]),

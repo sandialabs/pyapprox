@@ -398,10 +398,10 @@ calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
 # Compute moments
 stats = GaussianProcessStatistics(gp, calc)
-eta = stats.mean_of_mean()           # E[μ_f]
-var_mu = stats.variance_of_mean()    # Var[μ_f]
-E_gamma = stats.mean_of_variance()   # E[γ_f]
-Var_gamma = stats.variance_of_variance()  # Var[γ_f]
+eta = stats.input_mean_of_posterior_mean()           # E[μ_f]
+var_mu = stats.gp_variance_of_posterior_mean()    # Var[μ_f]
+E_gamma = stats.input_mean_of_posterior_variance()   # E[γ_f]
+Var_gamma = stats.gp_variance_of_posterior_variance()  # Var[γ_f]
 
 # Compute Sobol indices
 sens = GaussianProcessSensitivity(stats)

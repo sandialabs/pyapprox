@@ -505,55 +505,63 @@ class TestStatisticsWithBothTransformsVsMC:
 
         return gp, stats, stats_ref, X_mc, bkd
 
-    def test_mean_of_mean_vs_mc(self, bkd) -> None:
+    def test_input_mean_of_posterior_mean_vs_mc(self, bkd) -> None:
         """E[mu(X)] ~ (1/N) sum mu(X_i) by Monte Carlo."""
         gp, stats, _, X_mc, bkd = self._setup(bkd)
 
         mu_mc = gp.predict(X_mc)  # (nqoi, n_mc)
         mc_estimate = bkd.mean(mu_mc)
-        formula_value = stats.mean_of_mean()
+        formula_value = stats.input_mean_of_posterior_mean()
         bkd.assert_allclose(
             bkd.asarray([formula_value]),
             bkd.asarray([mc_estimate]),
             rtol=0.05,
         )
 
-    def test_mean_of_mean_matches_manual_scaling(self, bkd) -> None:
-        """mean_of_mean with input_transform matches manually-scaled GP."""
+    def test_input_mean_of_posterior_mean_matches_manual_scaling(
+        self, bkd
+    ) -> None:
+        """Posterior mean matches manually-scaled GP."""
         _, stats, stats_ref, _, bkd = self._setup(bkd)
 
         bkd.assert_allclose(
-            bkd.asarray([stats.mean_of_mean()]),
-            bkd.asarray([stats_ref.mean_of_mean()]),
+            bkd.asarray([stats.input_mean_of_posterior_mean()]),
+            bkd.asarray([stats_ref.input_mean_of_posterior_mean()]),
             rtol=1e-8,
         )
 
-    def test_variance_of_mean_matches_manual_scaling(self, bkd) -> None:
-        """variance_of_mean with input_transform matches manually-scaled GP."""
+    def test_gp_variance_of_posterior_mean_matches_manual_scaling(
+        self, bkd
+    ) -> None:
+        """GP variance of posterior mean matches manually-scaled GP."""
         _, stats, stats_ref, _, bkd = self._setup(bkd)
 
         bkd.assert_allclose(
-            bkd.asarray([stats.variance_of_mean()]),
-            bkd.asarray([stats_ref.variance_of_mean()]),
+            bkd.asarray([stats.gp_variance_of_posterior_mean()]),
+            bkd.asarray([stats_ref.gp_variance_of_posterior_mean()]),
             rtol=1e-8,
         )
 
-    def test_mean_of_variance_matches_manual_scaling(self, bkd) -> None:
-        """mean_of_variance with input_transform matches manually-scaled GP."""
+    def test_input_mean_of_posterior_variance_matches_manual_scaling(
+        self, bkd
+    ) -> None:
+        """Mean of posterior variance matches manually-scaled GP."""
         _, stats, stats_ref, _, bkd = self._setup(bkd)
 
         bkd.assert_allclose(
-            bkd.asarray([stats.mean_of_variance()]),
-            bkd.asarray([stats_ref.mean_of_variance()]),
+            bkd.asarray([stats.input_mean_of_posterior_variance()]),
+            bkd.asarray([stats_ref.input_mean_of_posterior_variance()]),
             rtol=1e-8,
         )
 
-    def test_variance_of_variance_matches_manual_scaling(self, bkd) -> None:
-        """variance_of_variance with input_transform matches manually-scaled GP."""
+    def test_gp_variance_of_posterior_variance_matches_manual_scaling(
+        self, bkd
+    ) -> None:
+        """Variance of posterior variance matches manually-scaled GP."""
         _, stats, stats_ref, _, bkd = self._setup(bkd)
 
         bkd.assert_allclose(
-            bkd.asarray([stats.variance_of_variance()]),
-            bkd.asarray([stats_ref.variance_of_variance()]),
+            bkd.asarray([stats.gp_variance_of_posterior_variance()]),
+            bkd.asarray([stats_ref.gp_variance_of_posterior_variance()]),
             rtol=1e-8,
         )

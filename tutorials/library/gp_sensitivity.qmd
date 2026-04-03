@@ -227,6 +227,40 @@ Note that $\Sobol{3} \approx 0$ (no main effect for $x_3$) but $\SobolT{3} > 0$
 (due to the $x_1 x_3$ interaction term $0.1\,x_3^4\sin(x_1)$).
 
 
+## Sobol Indices of the Posterior Mean
+
+The indices computed above include the GP's **epistemic uncertainty** --- the
+denominator $\Var_{\boldsymbol{\xi}}[\mu^*]$ accounts for the fact that the GP
+is uncertain about the true function. An alternative is to treat the posterior
+mean $\mu^*$ as a deterministic surrogate and compute its Sobol indices
+directly:
+
+$$
+\Sobol{i}^{(\mathrm{pm})}
+= \frac{\Var_{\xi_i}[\E_{\boldsymbol{\xi}_{\sim i}}[\mu^*]]}
+       {\Var_{\boldsymbol{\xi}}[\mu^*]}
+$$
+
+where the denominator is the **spatial variance** of the posterior mean,
+`input_variance_of_posterior_mean()`. When the GP fits well (posterior variance
+small everywhere in the input domain), these indices agree closely with the
+epistemic versions above.
+
+```{python}
+# Posterior-mean Sobol indices
+main_pm = sens.main_effect_indices_of_posterior_mean()
+total_pm = sens.total_effect_indices_of_posterior_mean()
+
+S1_pm = np.array([float(bkd.to_numpy(main_pm[d])) for d in range(nvars)])
+ST_pm = np.array([float(bkd.to_numpy(total_pm[d])) for d in range(nvars)])
+
+# Compare to epistemic indices
+print("Main effects:     epistemic vs posterior-mean")
+for d in range(nvars):
+    print(f"  x_{d}: {S1_gp[d]:.4f}  vs  {S1_pm[d]:.4f}")
+```
+
+
 ## Fix-and-Freeze Verification
 
 As an independent check, we compute Sobol indices via the Saltelli/Jansen
@@ -320,7 +354,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
 )
 
 ensemble = GaussianProcessEnsemble(gp, sens)
-S_dist = ensemble.compute_sobol_distribution(
+S_dist = ensemble.sobol_distribution_refit(
     n_realizations=500,
     n_sample_points=800,
     seed=42,

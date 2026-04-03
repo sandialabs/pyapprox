@@ -115,7 +115,7 @@ class TestGaussianProcessSensitivity:
         sens, stats = self._setup(bkd)
         index = bkd.asarray([1.0, 0.0])
         V = sens.conditional_variance(index)
-        total_var = stats.mean_of_variance()
+        total_var = stats.input_mean_of_posterior_variance()
 
         V_val = float(bkd.to_numpy(V))
         total_val = float(bkd.to_numpy(total_var))
@@ -512,10 +512,10 @@ class TestIshigamiBenchmark:
             IshigamiFunction,
             IshigamiSensitivityIndices,
         )
-        from pyapprox.util.sampling.sobol import SobolSampler
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )
+        from pyapprox.util.sampling.sobol import SobolSampler
 
         # Use a=0, b=0.01 for cross terms between x1 and x3
         # x2 has no effect, so we only need 1 point in that dimension
@@ -701,7 +701,7 @@ class TestConditionalPAndU:
         # All ones = everything conditioned
         index = bkd.asarray([1.0, 1.0])
         cond_var = sens.conditional_variance(index)
-        mean_var = stats.mean_of_variance()
+        mean_var = stats.input_mean_of_posterior_variance()
 
         # These should be equal
         bkd.assert_allclose(
@@ -713,3 +713,254 @@ class TestConditionalPAndU:
                 "conditioning should equal mean of variance"
             ),
         )
+
+
+class TestSobolIndicesOfPosteriorMean:
+    """
+    Test Sobol indices computed from the GP posterior mean only.
+
+    These indices treat μ*(x) as a deterministic surrogate and decompose
+    Var_X[μ*(X)] into conditional variance contributions.
+    """
+
+    def _setup(self, bkd):
+        np.random.seed(42)
+
+        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
+        gp.hyp_list().set_all_inactive()
+
+        n_train = 15
+        X_train_np = np.random.rand(2, n_train) * 2 - 1
+        X_train = bkd.array(X_train_np)
+        y_train = bkd.reshape(
+            bkd.sin(math.pi * X_train[0, :])
+            * bkd.cos(math.pi * X_train[1, :]),
+            (1, -1),
+        )
+
+        gp.fit(X_train, y_train)
+
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+        ]
+        nquad_points = 30
+        bases = _create_quadrature_bases(marginals, nquad_points, bkd)
+
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
+        )
+        stats = GaussianProcessStatistics(gp, calc)
+        sens = GaussianProcessSensitivity(stats)
+
+        return sens, stats
+
+    def test_cond_var_of_posterior_mean_zero_index(self, bkd) -> None:
+        """index=[0,0] → 0 since P_p = ττ^T so ζ_p = η²."""
+        sens, _ = self._setup(bkd)
+        index = bkd.asarray([0.0, 0.0])
+        cond_var = sens.conditional_variance_of_posterior_mean(index)
+
+        bkd.assert_allclose(
+            cond_var,
+            bkd.asarray(0.0),
+            atol=5e-6,
+            err_msg=(
+                "Conditional variance of posterior mean "
+                "with no conditioning should be 0"
+            ),
+        )
+
+    def test_cond_var_of_posterior_mean_full_index(self, bkd) -> None:
+        """index=[1,1] → input_variance_of_posterior_mean()."""
+        sens, stats = self._setup(bkd)
+        index = bkd.asarray([1.0, 1.0])
+        cond_var = sens.conditional_variance_of_posterior_mean(index)
+        total_var = stats.input_variance_of_posterior_mean()
+
+        bkd.assert_allclose(
+            cond_var,
+            total_var,
+            rtol=1e-10,
+            err_msg=(
+                "Conditional variance of posterior mean with full "
+                "conditioning should equal input_variance_of_posterior_mean"
+            ),
+        )
+
+    def test_main_effect_of_posterior_mean_bounds(self, bkd) -> None:
+        """0 <= S_i <= 1 and sum <= 1."""
+        sens, _ = self._setup(bkd)
+        main_effects = sens.main_effect_indices_of_posterior_mean()
+
+        total = 0.0
+        for i, S_i in main_effects.items():
+            S_i_val = float(bkd.to_numpy(S_i))
+            assert S_i_val >= 0.0, f"S_{i} = {S_i_val} should be >= 0"
+            assert S_i_val <= 1.0 + 1e-10, (
+                f"S_{i} = {S_i_val} should be <= 1"
+            )
+            total += S_i_val
+
+        assert total <= 1.0 + 1e-10, (
+            f"Sum of main effects {total} should be <= 1"
+        )
+
+    def test_total_ge_main_of_posterior_mean(self, bkd) -> None:
+        """T_i >= S_i for all variables."""
+        sens, _ = self._setup(bkd)
+        main_effects = sens.main_effect_indices_of_posterior_mean()
+        total_effects = sens.total_effect_indices_of_posterior_mean()
+
+        for i in range(sens.nvars()):
+            S_i = float(bkd.to_numpy(main_effects[i]))
+            T_i = float(bkd.to_numpy(total_effects[i]))
+            assert T_i >= S_i - 1e-10, (
+                f"T_{i} = {T_i} should be >= S_{i} = {S_i}"
+            )
+
+    @slow_test
+    def test_convergence_to_epistemic(self, bkd) -> None:
+        """Dense training → posterior variance → 0, both modes agree."""
+        np.random.seed(42)
+
+        k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-10)
+        gp.hyp_list().set_all_inactive()
+
+        # Dense 15×15 grid
+        n_1d = 15
+        x1 = bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = bkd.meshgrid(x1, x2)
+        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
+        y_train = bkd.reshape(
+            bkd.sin(math.pi * X_train[0, :])
+            * bkd.cos(math.pi * X_train[1, :]),
+            (1, -1),
+        )
+        gp.fit(X_train, y_train)
+
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+        ]
+        bases = _create_quadrature_bases(marginals, 40, bkd)
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
+        )
+        stats = GaussianProcessStatistics(gp, calc)
+        sens = GaussianProcessSensitivity(stats)
+
+        main_epistemic = sens.main_effect_indices()
+        main_pm = sens.main_effect_indices_of_posterior_mean()
+
+        for i in range(2):
+            S_epi = float(bkd.to_numpy(main_epistemic[i]))
+            S_pm = float(bkd.to_numpy(main_pm[i]))
+            assert abs(S_pm - S_epi) < 0.1, (
+                f"S_{i}^(pm) = {S_pm:.4f} should be close to "
+                f"S_{i}^(epi) = {S_epi:.4f} with dense training"
+            )
+
+    @slow_test
+    def test_additive_function_of_posterior_mean(self, bkd) -> None:
+        """f = x1 + x2 → analytical S_0 = S_1 = 0.5."""
+        np.random.seed(42)
+
+        k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-8)
+        gp.hyp_list().set_all_inactive()
+
+        n_1d = 10
+        x1 = bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = bkd.meshgrid(x1, x2)
+        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
+        y_train = bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
+        gp.fit(X_train, y_train)
+
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+        ]
+        bases = _create_quadrature_bases(marginals, 40, bkd)
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
+        )
+        stats = GaussianProcessStatistics(gp, calc)
+        sens = GaussianProcessSensitivity(stats)
+
+        main_pm = sens.main_effect_indices_of_posterior_mean()
+        S_0 = float(bkd.to_numpy(main_pm[0]))
+        S_1 = float(bkd.to_numpy(main_pm[1]))
+
+        assert abs(S_0 - 0.5) < 0.1, f"Expected S_0 ≈ 0.5, got {S_0}"
+        assert abs(S_1 - 0.5) < 0.1, f"Expected S_1 ≈ 0.5, got {S_1}"
+
+    @slow_test
+    def test_ishigami_of_posterior_mean(self, bkd) -> None:
+        """Well-fitted Ishigami GP: posterior-mean indices near analytical."""
+        np.random.seed(42)
+        pi = float(bkd.to_numpy(bkd.asarray(np.pi)))
+
+        from pyapprox.benchmarks.functions.algebraic.ishigami import (
+            IshigamiFunction,
+            IshigamiSensitivityIndices,
+        )
+        from pyapprox.probability.joint.independent import (
+            IndependentJoint,
+        )
+        from pyapprox.util.sampling.sobol import SobolSampler
+
+        a, b = 0.0, 0.01
+        ishigami = IshigamiFunction(bkd, a=a, b=b)
+        indices = IshigamiSensitivityIndices(bkd, a=a, b=b)
+
+        S_exact = [
+            float(bkd.to_numpy(indices.main_effects()[i, 0]))
+            for i in range(3)
+        ]
+
+        kernel = SquaredExponentialKernel(
+            [1.0, 1.0, 1.0], (0.1, 10.0), 3, bkd
+        )
+        gp = ExactGaussianProcess(kernel, nvars=3, bkd=bkd, nugget=1e-10)
+
+        marginals = [UniformMarginal(-pi, pi, bkd) for _ in range(3)]
+        dist = IndependentJoint(marginals, bkd)
+        sampler = SobolSampler(3, bkd, distribution=dist, seed=42)
+        n_train = 700
+        X_train, _ = sampler.sample(n_train)
+        y_train = ishigami(X_train)
+        gp.fit(X_train, y_train)
+
+        bases = _create_quadrature_bases(marginals, 40, bkd)
+        calc = SeparableKernelIntegralCalculator(
+            gp, bases, marginals, bkd=bkd
+        )
+        stats = GaussianProcessStatistics(gp, calc)
+        sens = GaussianProcessSensitivity(stats)
+
+        main_pm = sens.main_effect_indices_of_posterior_mean()
+        for i in range(3):
+            S_pm = float(bkd.to_numpy(main_pm[i]))
+            bkd.assert_allclose(
+                bkd.asarray([S_pm]),
+                bkd.asarray([S_exact[i]]),
+                atol=1e-3,
+                err_msg=(
+                    f"S_{i}^(pm) = {S_pm:.4f}, "
+                    f"expected {S_exact[i]:.4f}"
+                ),
+            )

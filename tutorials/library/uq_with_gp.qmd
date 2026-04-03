@@ -210,16 +210,16 @@ stats = GaussianProcessStatistics(gp, calc)
 
 ```{python}
 # Mean of GP mean: E_xi[mu*(xi)]
-eta = stats.mean_of_mean()
+eta = stats.input_mean_of_posterior_mean()
 
 # Variance of GP mean: V_xi[mu*(xi)]  (uncertainty from limited training data)
-var_mu = stats.variance_of_mean()
+var_mu = stats.gp_variance_of_posterior_mean()
 
 # Mean of GP variance: E_xi[gamma_f(xi)]  (expected posterior variance)
-mean_var = stats.mean_of_variance()
+mean_var = stats.input_mean_of_posterior_variance()
 
 # Variance of GP variance: V_xi[gamma_f(xi)]
-var_var = stats.variance_of_variance()
+var_var = stats.gp_variance_of_posterior_variance()
 ```
 
 ::: {.callout-note}

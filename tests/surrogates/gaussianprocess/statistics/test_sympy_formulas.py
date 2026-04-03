@@ -3,7 +3,7 @@ SymPy verification tests for GP statistics formulas.
 
 These tests verify the algebraic correctness of formulas from:
   docs/plans/gp_integration/02_1_mean_of_gp.qmd (mean and variance of GP mean)
-  docs/plans/gp_integration/02_2_2_variance_of_variance.qmd (variance of variance)
+  docs/plans/gp_integration/02_2_2_gp_variance_of_posterior_variance.qmd
 
 Tests use SymPy to verify symbolic expressions match expected forms.
 This catches formula errors early and serves as executable documentation.
@@ -18,10 +18,10 @@ class TestMeanOfGPMeanFormulas:
     Reference: docs/plans/gp_integration/02_1_mean_of_gp.qmd
 
     Code mapping (moments.py):
-    - eta = tau^T A^{-1} y -> mean_of_mean() returns eta = tau @ alpha
-    - varpi = tau^T A^{-1} tau -> computed as tau @ A_inv_tau in variance_of_mean()
-    - varsigma**2 = u - varpi -> computed as varsigma_sq = u - tau @ A_inv_tau
-    - Var[mu_f] = s**2 * varsigma**2 -> variance_of_mean() returns s2 * varsigma_sq
+    - eta = tau^T A^{-1} y -> input_mean_of_posterior_mean()
+    - varpi = tau^T A^{-1} tau -> gp_variance_of_posterior_mean()
+    - varsigma**2 = u - varpi
+    - Var[mu_f] = s**2 * varsigma**2
     """
 
     def test_varpi_derivation(self) -> None:
@@ -114,7 +114,7 @@ class TestMeanOfGPMeanFormulas:
 class TestVarianceOfVarianceFormulas:
     """SymPy tests for variance of variance formulas.
 
-    Reference: docs/plans/gp_integration/02_2_2_variance_of_variance.qmd
+    Reference: docs/plans/gp_integration/02_2_2_gp_variance_of_posterior_variance.qmd
     """
 
     def test_E_Xi2_Xk2_from_isserlis(self) -> None:

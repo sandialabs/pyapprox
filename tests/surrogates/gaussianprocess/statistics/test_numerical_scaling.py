@@ -283,25 +283,25 @@ class TestStatisticsScalingEndToEnd:
         ... wait, let's just check numerically.
         """
         stats_by_s, s_values = self._setup(bkd)
-        ref_eta = stats_by_s[s_values[0]].mean_of_mean()
+        ref_eta = stats_by_s[s_values[0]].input_mean_of_posterior_mean()
         for s in s_values[1:]:
-            eta = stats_by_s[s].mean_of_mean()
+            eta = stats_by_s[s].input_mean_of_posterior_mean()
             bkd.assert_allclose(
                 bkd.asarray([eta]),
                 bkd.asarray([ref_eta]),
                 rtol=1e-6,
             )
 
-    def test_variance_of_mean_scales_as_s2(self, bkd) -> None:
+    def test_gp_variance_of_posterior_mean_scales_as_s2(self, bkd) -> None:
         """Var[mu] = s**2 * varsigma**2 should scale proportionally to s**2."""
         stats_by_s, s_values = self._setup(bkd)
         ref_s = s_values[0]
         ref_s2 = ref_s * ref_s
-        ref_var = stats_by_s[ref_s].variance_of_mean()
+        ref_var = stats_by_s[ref_s].gp_variance_of_posterior_mean()
 
         for s in s_values[1:]:
             s2 = s * s
-            var_mu = stats_by_s[s].variance_of_mean()
+            var_mu = stats_by_s[s].gp_variance_of_posterior_mean()
             expected_ratio = s2 / ref_s2
             actual_ratio = var_mu / ref_var
             bkd.assert_allclose(
@@ -310,7 +310,7 @@ class TestStatisticsScalingEndToEnd:
                 rtol=1e-6,
             )
 
-    def test_mean_of_variance_affine_in_s2(self, bkd) -> None:
+    def test_input_mean_of_posterior_variance_affine_in_s2(self, bkd) -> None:
         """E[gamma] = (zeta - eta**2) + s**2*(v**2 - varsigma**2) is affine in s**2.
 
         Extract the affine coefficients from two s values, then verify
@@ -322,8 +322,8 @@ class TestStatisticsScalingEndToEnd:
         s1_sq = s1 * s1
         s2_sq = s2_val * s2_val
 
-        E_gamma_1 = stats_by_s[s1].mean_of_variance()
-        E_gamma_2 = stats_by_s[s2_val].mean_of_variance()
+        E_gamma_1 = stats_by_s[s1].input_mean_of_posterior_variance()
+        E_gamma_2 = stats_by_s[s2_val].input_mean_of_posterior_variance()
 
         # E[gamma](s**2) = A + B*s**2
         B = (E_gamma_2 - E_gamma_1) / (s2_sq - s1_sq)
@@ -332,18 +332,18 @@ class TestStatisticsScalingEndToEnd:
         for s in s_values:
             s_sq = s * s
             expected = A + B * s_sq
-            actual = stats_by_s[s].mean_of_variance()
+            actual = stats_by_s[s].input_mean_of_posterior_variance()
             bkd.assert_allclose(
                 bkd.asarray([actual]),
                 bkd.asarray([expected]),
                 rtol=1e-6,
             )
 
-    def test_variance_of_variance_nonnegative(self, bkd) -> None:
+    def test_gp_variance_of_posterior_variance_nonnegative(self, bkd) -> None:
         """Var[gamma] should be non-negative for all s."""
         stats_by_s, s_values = self._setup(bkd)
         for s in s_values:
-            var_var = stats_by_s[s].variance_of_variance()
+            var_var = stats_by_s[s].gp_variance_of_posterior_variance()
             assert float(bkd.to_numpy(bkd.asarray([var_var]))[0]) >= 0.0, (
                 f"Var[gamma] should be non-negative for s={s}"
             )
@@ -427,12 +427,12 @@ class TestStatisticsVsMonteCarlo:
 
         return stats, gp, marginals, X_mc, nvars, nquad
 
-    def test_mean_of_mean_vs_mc(self, bkd) -> None:
+    def test_input_mean_of_posterior_mean_vs_mc(self, bkd) -> None:
         """E[mu(X)] approx (1/N) Sum mu(X_i) by Monte Carlo."""
         stats, gp, _, X_mc, _, _ = self._setup(bkd)
         mu_mc = gp.predict(X_mc)  # (nqoi, n_mc)
         mc_estimate = bkd.mean(mu_mc)
-        formula_value = stats.mean_of_mean()
+        formula_value = stats.input_mean_of_posterior_mean()
         bkd.assert_allclose(
             bkd.asarray([formula_value]),
             bkd.asarray([mc_estimate]),
@@ -498,12 +498,12 @@ class TestStatisticsVsMonteCarlo:
         return mu_samples, gamma_samples
 
     @slow_test
-    def test_variance_of_mean_vs_mc(self, bkd) -> None:
+    def test_gp_variance_of_posterior_mean_vs_mc(self, bkd) -> None:
         """Var[mu_f | y] = Var[integral f(z) rho(z) dz | y] via GP realizations."""
         stats, gp, marginals, _, _, nquad = self._setup(bkd)
         mu_samples, _ = self._sample_posterior_statistics(bkd, gp, marginals, nquad)
         mc_var = np.var(mu_samples)
-        formula_value = stats.variance_of_mean()
+        formula_value = stats.gp_variance_of_posterior_mean()
         bkd.assert_allclose(
             bkd.asarray([formula_value]),
             bkd.asarray([mc_var]),
@@ -511,7 +511,7 @@ class TestStatisticsVsMonteCarlo:
         )
 
     @slow_test
-    def test_mean_of_variance_vs_mc(self, bkd) -> None:
+    def test_input_mean_of_posterior_variance_vs_mc(self, bkd) -> None:
         """E[gamma_f] via GP realizations.
 
         E[gamma_f] = E[int f**2 rho dz - (int f rho dz)**2].
@@ -519,7 +519,7 @@ class TestStatisticsVsMonteCarlo:
         stats, gp, marginals, _, _, nquad = self._setup(bkd)
         _, gamma_samples = self._sample_posterior_statistics(bkd, gp, marginals, nquad)
         mc_mean_gamma = np.mean(gamma_samples)
-        formula_value = stats.mean_of_variance()
+        formula_value = stats.input_mean_of_posterior_variance()
         bkd.assert_allclose(
             bkd.asarray([formula_value]),
             bkd.asarray([mc_mean_gamma]),

@@ -4,10 +4,10 @@ Tests for output scaling in GP statistics.
 Verifies that statistics in original space match the expected transformation
 of statistics computed in scaled space:
 
-- mean_of_mean(B) approx sigma_y * mean_of_mean(A) + mu_y
-- variance_of_mean(B) approx sigma_y**2 * variance_of_mean(A)
-- mean_of_variance(B) approx sigma_y**2 * mean_of_variance(A)
-- variance_of_variance(B) approx sigma_y**4 * variance_of_variance(A)
+- input_mean_of_posterior_mean(B) ≈ σ_y * ...(A) + μ_y
+- gp_variance_of_posterior_mean(B) ≈ σ_y² * ...(A)
+- input_mean_of_posterior_variance(B) ≈ σ_y² * ...(A)
+- gp_variance_of_posterior_variance(B) ≈ σ_y⁴ * ...(A)
 - conditional_variance(B) approx sigma_y**2 * conditional_variance(A)
 - Sobol indices are invariant to output scaling
 
@@ -122,11 +122,11 @@ class TestOutputScaling:
 
         return stats_a, stats_b, sens_a, sens_b, scaler
 
-    def test_mean_of_mean(self, bkd) -> None:
-        """mean_of_mean(B) approx sigma_y * mean_of_mean(A) + mu_y"""
+    def test_input_mean_of_posterior_mean(self, bkd) -> None:
+        """input_mean_of_posterior_mean(B) ≈ σ_y * ...(A) + μ_y."""
         stats_a, stats_b, _, _, scaler = self._setup(bkd)
-        eta_a = stats_a.mean_of_mean()
-        eta_b = stats_b.mean_of_mean()
+        eta_a = stats_a.input_mean_of_posterior_mean()
+        eta_b = stats_b.input_mean_of_posterior_mean()
 
         sigma_y = scaler.scale()[0]
         mu_y = scaler.shift()[0]
@@ -134,33 +134,33 @@ class TestOutputScaling:
 
         bkd.assert_allclose(bkd.asarray([eta_b]), bkd.asarray([expected]), rtol=1e-10)
 
-    def test_variance_of_mean(self, bkd) -> None:
-        """variance_of_mean(B) approx sigma_y**2 * variance_of_mean(A)"""
+    def test_gp_variance_of_posterior_mean(self, bkd) -> None:
+        """gp_variance_of_posterior_mean(B) ≈ σ_y² * ...(A)."""
         stats_a, stats_b, _, _, scaler = self._setup(bkd)
-        var_a = stats_a.variance_of_mean()
-        var_b = stats_b.variance_of_mean()
+        var_a = stats_a.gp_variance_of_posterior_mean()
+        var_b = stats_b.gp_variance_of_posterior_mean()
 
         sigma_y_sq = scaler.scale()[0] ** 2
         expected = sigma_y_sq * var_a
 
         bkd.assert_allclose(bkd.asarray([var_b]), bkd.asarray([expected]), rtol=1e-10)
 
-    def test_mean_of_variance(self, bkd) -> None:
-        """mean_of_variance(B) approx sigma_y**2 * mean_of_variance(A)"""
+    def test_input_mean_of_posterior_variance(self, bkd) -> None:
+        """input_mean_of_posterior_variance(B) ≈ σ_y² * ...(A)."""
         stats_a, stats_b, _, _, scaler = self._setup(bkd)
-        mov_a = stats_a.mean_of_variance()
-        mov_b = stats_b.mean_of_variance()
+        mov_a = stats_a.input_mean_of_posterior_variance()
+        mov_b = stats_b.input_mean_of_posterior_variance()
 
         sigma_y_sq = scaler.scale()[0] ** 2
         expected = sigma_y_sq * mov_a
 
         bkd.assert_allclose(bkd.asarray([mov_b]), bkd.asarray([expected]), rtol=1e-10)
 
-    def test_variance_of_variance(self, bkd) -> None:
-        """variance_of_variance(B) approx sigma_y**4 * variance_of_variance(A)"""
+    def test_gp_variance_of_posterior_variance(self, bkd) -> None:
+        """gp_variance_of_posterior_variance(B) ≈ σ_y⁴ * ...(A)."""
         stats_a, stats_b, _, _, scaler = self._setup(bkd)
-        vov_a = stats_a.variance_of_variance()
-        vov_b = stats_b.variance_of_variance()
+        vov_a = stats_a.gp_variance_of_posterior_variance()
+        vov_b = stats_b.gp_variance_of_posterior_variance()
 
         sigma_y_4 = scaler.scale()[0] ** 4
         expected = sigma_y_4 * vov_a
@@ -209,13 +209,11 @@ class TestOutputScaling:
         """Verify gp.predict() and stats are in the same (original) space."""
         _, stats_b, _, _, scaler = self._setup(bkd)
 
-        # mean_of_mean is the integral of predict() over input space.
-        # For a GP fitted to data with mean ~50, mean_of_mean should be ~50.
-        eta = stats_b.mean_of_mean()
+        # The integrated posterior mean for data with mean ~50 should be ~50.
+        eta = stats_b.input_mean_of_posterior_mean()
 
-        # The original y has mean ~50, so eta should be in that ballpark.
-        # Just verify it's not in scaled space (which would be ~0).
+        # Verify it's not in scaled space (which would be ~0).
         float(bkd.to_numpy(scaler.shift()[0:1])[0])
         assert abs(float(bkd.to_numpy(bkd.asarray([eta]))[0])) > 1.0, (
-            "mean_of_mean appears to be in scaled space, not original"
+            "input_mean_of_posterior_mean appears to be in scaled space, not original"
         )

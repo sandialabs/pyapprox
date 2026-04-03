@@ -440,7 +440,7 @@ class TestAdaptiveGPBuilder:
         stats = GaussianProcessStatistics(gp, calc)
 
         # Compute mean via statistics
-        gp_mean = stats.mean_of_mean()
+        gp_mean = stats.input_mean_of_posterior_mean()
 
         # Compute MC estimate of mean
         np.random.seed(123)

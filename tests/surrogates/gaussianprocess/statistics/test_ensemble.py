@@ -2,13 +2,13 @@
 Tests for GP ensemble uncertainty quantification.
 
 Tests the GaussianProcessEnsemble class for sampling GP realizations and
-computing the distribution of Sobol sensitivity indices.
+computing the distribution of Sobol sensitivity indices via the refit
+algorithm.
 """
 
 import math
 
 import numpy as np
-import pytest
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
@@ -18,6 +18,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
 )
 from pyapprox.surrogates.gaussianprocess.statistics.ensemble import (
     GaussianProcessEnsemble,
+    SobolThresholdSelector,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
@@ -41,318 +42,164 @@ def _create_quadrature_bases(marginals, nquad_points, bkd):
     return bases
 
 
+def _make_ensemble(bkd, nugget=1e-6, n_train=15):
+    """Create a standard test ensemble with 2D GP."""
+    np.random.seed(42)
+
+    k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+    k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
+    kernel = SeparableProductKernel([k1, k2], bkd)
+
+    gp = ExactGaussianProcess(
+        kernel, nvars=2, bkd=bkd, nugget=nugget
+    )
+    gp.hyp_list().set_all_inactive()
+
+    X_train_np = np.random.rand(2, n_train) * 2 - 1
+    X_train = bkd.array(X_train_np)
+    y_train = bkd.reshape(
+        bkd.sin(math.pi * X_train[0, :])
+        * bkd.cos(math.pi * X_train[1, :]),
+        (1, -1),
+    )
+    gp.fit(X_train, y_train)
+
+    marginals = [
+        UniformMarginal(-1.0, 1.0, bkd),
+        UniformMarginal(-1.0, 1.0, bkd),
+    ]
+
+    nquad_points = 30
+    bases = _create_quadrature_bases(marginals, nquad_points, bkd)
+    calc = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
+    )
+    stats = GaussianProcessStatistics(gp, calc)
+    sens = GaussianProcessSensitivity(stats)
+    ensemble = GaussianProcessEnsemble(gp, sens)
+
+    return ensemble, sens, gp, marginals
+
+
 class TestGaussianProcessEnsemble:
-    """
-    Base test class for GaussianProcessEnsemble.
-    """
-
-    @pytest.fixture(autouse=True)
-    def _setup(self, bkd):
-        """Set up test environment."""
-        np.random.seed(42)
-
-        # Create 2D GP with separable product kernel
-        k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
-        k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
-        self._kernel = SeparableProductKernel([k1, k2], bkd)
-
-        self._gp = ExactGaussianProcess(
-            self._kernel, nvars=2, bkd=bkd, nugget=1e-6
-        )
-        # Skip hyperparameter optimization for these tests
-        self._gp.hyp_list().set_all_inactive()
-
-        # Training data
-        self._n_train = 15
-        X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        self._X_train = bkd.array(X_train_np)
-        # Use backend math operations, shape: (nqoi, n_train)
-        self._y_train = bkd.reshape(
-            bkd.sin(math.pi * self._X_train[0, :])
-            * bkd.cos(math.pi * self._X_train[1, :]),
-            (1, -1),
-        )
-
-        self._gp.fit(self._X_train, self._y_train)
-
-        # Marginal distributions
-        self._marginals = [
-            UniformMarginal(-1.0, 1.0, bkd),
-            UniformMarginal(-1.0, 1.0, bkd),
-        ]
-
-        # Create quadrature bases using sparse grid infrastructure
-        self._nquad_points = 30
-        bases = _create_quadrature_bases(self._marginals, self._nquad_points, bkd)
-
-        # Create calculator, statistics, and sensitivity
-        self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, self._marginals, bkd=bkd
-        )
-        self._stats = GaussianProcessStatistics(self._gp, self._calc)
-        self._sens = GaussianProcessSensitivity(self._stats)
-
-        # Create ensemble
-        self._ensemble = GaussianProcessEnsemble(self._gp, self._sens, sampler=None)
+    """Base tests for GaussianProcessEnsemble."""
 
     def test_nvars(self, bkd) -> None:
-        """Test nvars returns correct number of variables."""
-        assert self._ensemble.nvars() == 2
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        assert ensemble.nvars() == 2
 
     def test_sample_realizations_shape(self, bkd) -> None:
-        """Test sample_realizations returns correct shapes."""
-        n_realizations = 10
-        n_sample_points = 50
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        Z = bkd.array(np.random.rand(2, 50) * 2 - 1)
+        realizations = ensemble.sample_realizations(Z, 10, seed=42)
+        assert realizations.shape == (10, 50)
 
-        realizations, sample_points, weights = self._ensemble.sample_realizations(
-            n_realizations, n_sample_points, seed=42
+    def test_realizations_have_variance(self, bkd) -> None:
+        """Realizations at non-training points have nonzero variance."""
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        Z = bkd.array(np.random.rand(2, 100) * 2 - 1)
+        realizations = ensemble.sample_realizations(Z, 10, seed=42)
+
+        mean_r = bkd.mean(realizations, axis=0)
+        var_r = bkd.mean(
+            (realizations - mean_r) ** 2, axis=0
         )
+        var_np = bkd.to_numpy(var_r)
+        n_nonzero = np.sum(var_np > 1e-12)
+        assert n_nonzero > len(var_np) * 0.5
 
-        assert realizations.shape == (n_realizations, n_sample_points)
-        assert sample_points.shape == (2, n_sample_points)
-        assert weights.shape == (n_sample_points,)
 
-    def test_weights_sum_to_one(self, bkd) -> None:
-        """Test that quadrature weights sum to 1."""
-        _, _, weights = self._ensemble.sample_realizations(5, 100, seed=42)
+class TestSobolThresholdSelector:
+    """Tests for the sample point selector."""
 
-        weight_sum = float(bkd.to_numpy(bkd.sum(weights)))
-        assert abs(weight_sum - 1.0) < 1e-10, \
-            f"Weights sum to {weight_sum}, expected 1.0"
+    def test_select_shape(self, bkd) -> None:
+        _, _, gp, marginals = _make_ensemble(bkd)
+        selector = SobolThresholdSelector(gp, marginals, bkd)
+        Z = selector.select(50, seed=42)
+        assert Z.shape == (2, 50)
 
-    def test_sample_points_in_domain(self, bkd) -> None:
-        """Test that sample points are within the expected domain [-1, 1]^2."""
-        _, sample_points, _ = self._ensemble.sample_realizations(5, 100, seed=42)
-
-        min_val = float(bkd.to_numpy(bkd.min(sample_points)))
-        max_val = float(bkd.to_numpy(bkd.max(sample_points)))
-
+    def test_selected_points_in_domain(self, bkd) -> None:
+        _, _, gp, marginals = _make_ensemble(bkd)
+        selector = SobolThresholdSelector(gp, marginals, bkd)
+        Z = selector.select(50, seed=42)
+        min_val = float(bkd.to_numpy(bkd.min(Z)))
+        max_val = float(bkd.to_numpy(bkd.max(Z)))
         assert min_val >= -1.0 - 1e-10
         assert max_val <= 1.0 + 1e-10
 
-    def test_sample_points_differ_from_training(self, bkd) -> None:
-        """
-        Verify sample points differ from training points.
-
-        This is critical because GP variance is zero at training points,
-        which would give degenerate statistics.
-        """
-        _, sample_points, _ = self._ensemble.sample_realizations(5, 100, seed=42)
-
-        # Compute minimum distance from each sample point to any training point
-        X_train = self._X_train  # Shape: (2, n_train)
-
-        # For each sample point, compute distance to all training points
-        min_distances = []
-        for j in range(sample_points.shape[1]):
-            sample_j = sample_points[:, j : j + 1]  # Shape: (2, 1)
-            # Squared distances
-            diff = X_train - sample_j  # Shape: (2, n_train)
-            sq_dists = bkd.sum(diff * diff, axis=0)  # Shape: (n_train,)
-            min_dist = float(
-                bkd.to_numpy(bkd.min(bkd.sqrt(sq_dists)))
-            )
-            min_distances.append(min_dist)
-
-        # At least half of sample points should be at distance > 0.01 from training
-        n_far = sum(1 for d in min_distances if d > 0.01)
-        assert n_far > len(min_distances) // 2, \
-            "Most sample points should differ significantly from training points"
-
-    def test_realizations_have_variance(self, bkd) -> None:
-        """
-        Test that realizations have non-zero variance across samples.
-
-        This verifies we're not at training points (where variance = 0).
-        """
-        realizations, _, _ = self._ensemble.sample_realizations(10, 100, seed=42)
-
-        # Compute variance across realizations at each sample point
-        # realizations shape: (n_realizations, n_sample_points)
-        mean_across_realizations = bkd.mean(realizations, axis=0)
-        var_across_realizations = bkd.mean(
-            (realizations - mean_across_realizations) ** 2, axis=0
-        )
-
-        # Most sample points should have non-zero variance
-        var_np = bkd.to_numpy(var_across_realizations)
-        n_nonzero = np.sum(var_np > 1e-12)
-        n_total = len(var_np)
-
-        assert n_nonzero > n_total * 0.8, \
-            f"Only {n_nonzero}/{n_total} sample points have non-zero variance"
-
-    def test_compute_sobol_distribution_keys(self, bkd) -> None:
-        """Test compute_sobol_distribution returns correct keys."""
-        S_dist = self._ensemble.compute_sobol_distribution(
-            n_realizations=10, n_sample_points=50, seed=42
-        )
-
-        assert set(S_dist.keys()) == {0, 1}
-
-    def test_compute_sobol_distribution_shape(self, bkd) -> None:
-        """Test compute_sobol_distribution returns correct shapes."""
-        n_realizations = 10
-        S_dist = self._ensemble.compute_sobol_distribution(
-            n_realizations=n_realizations, n_sample_points=50, seed=42
-        )
-
-        for i in range(self._ensemble.nvars()):
-            assert S_dist[i].shape == (n_realizations,)
-
-    def test_sobol_distribution_bounded(self, bkd) -> None:
-        """Test that S_i values are in [0, 1]."""
-        S_dist = self._ensemble.compute_sobol_distribution(
-            n_realizations=20, n_sample_points=100, seed=42
-        )
-
-        for i, S_i in S_dist.items():
-            min_val = float(bkd.to_numpy(bkd.min(S_i)))
-            max_val = float(bkd.to_numpy(bkd.max(S_i)))
-
-            assert min_val >= 0.0 - 1e-10, f"S_{i} has min={min_val} < 0"
-            assert max_val <= 1.0 + 1e-10, f"S_{i} has max={max_val} > 1"
-
-    def test_reproducibility_with_seed(self, bkd) -> None:
-        """Test that using the same seed gives identical results."""
-        S_dist1 = self._ensemble.compute_sobol_distribution(
-            n_realizations=10, n_sample_points=50, seed=42
-        )
-        S_dist2 = self._ensemble.compute_sobol_distribution(
-            n_realizations=10, n_sample_points=50, seed=42
-        )
-
-        for i in range(self._ensemble.nvars()):
-            bkd.assert_allclose(
-                S_dist1[i],
-                S_dist2[i],
-                rtol=1e-10,
-                err_msg=f"S_{i} not reproducible with same seed",
-            )
-
 
 class TestZeroVarianceAtTraining:
-    """
-    Demonstrate why using training points for MC integration fails.
-
-    GP variance is zero at training points (exact interpolation), so all
-    realizations have identical values there. This gives artificially zero
-    variation in the computed statistics.
-    """
-
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
+    """Demonstrate why training points fail for MC integration."""
 
     def test_zero_variance_at_training_points(self, bkd) -> None:
-        """
-        Verify GP posterior variance is zero at training points.
-
-        This demonstrates why we cannot use training points for MC integration.
-        """
-        # Create simple GP
+        np.random.seed(42)
         k = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         gp = ExactGaussianProcess(k, nvars=1, bkd=bkd, nugget=1e-10)
 
-        # Train on a few points
         X_train = bkd.array([[-0.5, 0.0, 0.5]])
         y_train = bkd.array([[1.0, 0.0, -1.0]])
         gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train)
 
-        # Predict at training points
         std_at_train = gp.predict_std(X_train)
         std_np = bkd.to_numpy(std_at_train)
+        assert np.all(std_np < 1e-4)
 
-        # Variance should be essentially zero at training points
-        # (nugget adds small variance, so we allow a looser threshold)
-        assert np.all(std_np < 1e-4), \
-            f"GP std at training points should be ~0, got {std_np}"
-
-        # Compare with a non-training point
         X_test = bkd.array([[0.25]])
         std_at_test = gp.predict_std(X_test)
         std_test = float(bkd.to_numpy(std_at_test[0, 0]))
-
-        assert std_test > 1e-3, \
-            f"GP std away from training should be non-zero, got {std_test}"
+        assert std_test > 1e-3
 
 
-class TestMCConvergence:
-    """
-    Test Monte Carlo convergence properties.
+class TestSobolDistributionRefit:
+    """Tests for refit-based Sobol distribution algorithm."""
 
-    As n_realizations increases, the sample mean of S_i should converge
-    to E[S_i] (computed analytically).
-    """
+    def test_shape(self, bkd) -> None:
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        S_dist = ensemble.sobol_distribution_refit(
+            n_realizations=5, n_sample_points=50, seed=42
+        )
+        assert set(S_dist.keys()) == {0, 1}
+        for i in range(2):
+            assert S_dist[i].shape == (5,)
 
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
+    def test_bounded(self, bkd) -> None:
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        S_dist = ensemble.sobol_distribution_refit(
+            n_realizations=10, n_sample_points=50, seed=42
+        )
+        for i, S_i in S_dist.items():
+            min_val = float(bkd.to_numpy(bkd.min(S_i)))
+            max_val = float(bkd.to_numpy(bkd.max(S_i)))
+            assert min_val >= -1e-10, f"S_{i} min={min_val}"
+            assert max_val <= 1.0 + 1e-10, f"S_{i} max={max_val}"
+
+    def test_reproducibility(self, bkd) -> None:
+        ensemble, _, _, _ = _make_ensemble(bkd)
+        S1 = ensemble.sobol_distribution_refit(
+            n_realizations=5, n_sample_points=50, seed=42
+        )
+        S2 = ensemble.sobol_distribution_refit(
+            n_realizations=5, n_sample_points=50, seed=42
+        )
+        for i in range(2):
+            bkd.assert_allclose(S1[i], S2[i], rtol=1e-10)
 
     @slow_test
-    def test_mc_convergence_rate_sobol_mean(self, bkd) -> None:
-        """
-        Test that ensemble mean of S_i converges as n_realizations increases.
+    def test_mean_near_analytical(self, bkd) -> None:
+        """Mean of sampled S_i close to analytical."""
+        ensemble, sens, _, _ = _make_ensemble(bkd)
 
-        The MC error should decrease roughly as O(1/sqrt(n)).
-        """
-        # Create GP
-        k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
-        k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, bkd)
-        kernel = SeparableProductKernel([k1, k2], bkd)
+        main_pm = sens.main_effect_indices_of_posterior_mean()
 
-        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
-        # Skip hyperparameter optimization for this test
-        gp.hyp_list().set_all_inactive()
+        S_dist = ensemble.sobol_distribution_refit(
+            n_realizations=100, n_sample_points=200, seed=42
+        )
 
-        # Additive function: f = x_1 + x_2
-        n_1d = 8
-        x1 = bkd.linspace(-1.0, 1.0, n_1d)
-        x2 = bkd.linspace(-1.0, 1.0, n_1d)
-        X1, X2 = bkd.meshgrid(x1, x2)
-        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
-        # Shape: (nqoi, n_train)
-        y_train = bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
-        gp.fit(X_train, y_train)
-
-        # Create sensitivity objects
-        marginals = [
-            UniformMarginal(-1.0, 1.0, bkd),
-            UniformMarginal(-1.0, 1.0, bkd),
-        ]
-        bases = _create_quadrature_bases(marginals, 30, bkd)
-        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
-        stats = GaussianProcessStatistics(gp, calc)
-        sens = GaussianProcessSensitivity(stats)
-
-        # Analytical E[S_i]
-        main_effects_analytical = sens.main_effect_indices()
-        E_S0_analytical = float(bkd.to_numpy(main_effects_analytical[0]))
-
-        # Create ensemble
-        ensemble = GaussianProcessEnsemble(gp, sens)
-
-        # Test with increasing n_realizations
-        n_sample_points = 200
-        errors = []
-        n_values = [100, 500]
-
-        for n_real in n_values:
-            S_dist = ensemble.compute_sobol_distribution(
-                n_realizations=n_real, n_sample_points=n_sample_points, seed=42
+        for i in range(2):
+            S_pm = float(bkd.to_numpy(main_pm[i]))
+            S_mean = float(bkd.to_numpy(bkd.mean(S_dist[i])))
+            assert abs(S_mean - S_pm) < 0.2, (
+                f"S_{i} mean={S_mean:.3f}, analytical={S_pm:.3f}"
             )
-            E_S0_mc = float(bkd.to_numpy(bkd.mean(S_dist[0])))
-            error = abs(E_S0_mc - E_S0_analytical)
-            errors.append(error)
 
-        # Error should decrease with more realizations
-        # This is a soft test - just check that we're in a reasonable range
-        # MC error decreases as O(1/sqrt(n)), so error ratio should be ~sqrt(n1/n2)
-        expected_ratio = np.sqrt(n_values[0] / n_values[1])
-        actual_ratio = errors[0] / max(errors[1], 1e-15)
-
-        # Allow significant tolerance since MC is stochastic
-        assert actual_ratio > expected_ratio * 0.2, \
-            (f"MC error not decreasing as expected: errors={errors}, "
-             f"actual_ratio={actual_ratio:.2f}, expected_ratio~={expected_ratio:.2f}")

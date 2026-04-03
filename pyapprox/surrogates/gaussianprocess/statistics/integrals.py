@@ -566,7 +566,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         For separable kernels: Gamma = prod_k Gamma_k (element-wise product).
 
         This integral is needed for the correct vartheta_2 formula in
-        variance_of_variance().
+        gp_variance_of_posterior_variance().
 
         Returns
         -------

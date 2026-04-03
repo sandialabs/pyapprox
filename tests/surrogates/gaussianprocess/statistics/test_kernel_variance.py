@@ -235,35 +235,35 @@ class TestUnitScalingEquivalence:
 
         return stats_bare, stats_unit, sens_bare, sens_unit
 
-    def test_mean_of_mean(self, bkd) -> None:
+    def test_input_mean_of_posterior_mean(self, bkd) -> None:
         stats_bare, stats_unit, _, _ = self._setup(bkd)
         bkd.assert_allclose(
-            bkd.asarray([stats_unit.mean_of_mean()]),
-            bkd.asarray([stats_bare.mean_of_mean()]),
+            bkd.asarray([stats_unit.input_mean_of_posterior_mean()]),
+            bkd.asarray([stats_bare.input_mean_of_posterior_mean()]),
             rtol=1e-10,
         )
 
-    def test_variance_of_mean(self, bkd) -> None:
+    def test_gp_variance_of_posterior_mean(self, bkd) -> None:
         stats_bare, stats_unit, _, _ = self._setup(bkd)
         bkd.assert_allclose(
-            bkd.asarray([stats_unit.variance_of_mean()]),
-            bkd.asarray([stats_bare.variance_of_mean()]),
+            bkd.asarray([stats_unit.gp_variance_of_posterior_mean()]),
+            bkd.asarray([stats_bare.gp_variance_of_posterior_mean()]),
             rtol=1e-10,
         )
 
-    def test_mean_of_variance(self, bkd) -> None:
+    def test_input_mean_of_posterior_variance(self, bkd) -> None:
         stats_bare, stats_unit, _, _ = self._setup(bkd)
         bkd.assert_allclose(
-            bkd.asarray([stats_unit.mean_of_variance()]),
-            bkd.asarray([stats_bare.mean_of_variance()]),
+            bkd.asarray([stats_unit.input_mean_of_posterior_variance()]),
+            bkd.asarray([stats_bare.input_mean_of_posterior_variance()]),
             rtol=1e-10,
         )
 
-    def test_variance_of_variance(self, bkd) -> None:
+    def test_gp_variance_of_posterior_variance(self, bkd) -> None:
         stats_bare, stats_unit, _, _ = self._setup(bkd)
         bkd.assert_allclose(
-            bkd.asarray([stats_unit.variance_of_variance()]),
-            bkd.asarray([stats_bare.variance_of_variance()]),
+            bkd.asarray([stats_unit.gp_variance_of_posterior_variance()]),
+            bkd.asarray([stats_bare.gp_variance_of_posterior_variance()]),
             rtol=1e-10,
         )
 
