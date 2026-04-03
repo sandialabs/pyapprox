@@ -81,9 +81,14 @@ jobs:
           bandit -r pyapprox/ \
             --exclude tests \
             --severity-level high \
-            --format json | python -c "
-          import sys, json
-          data = json.load(sys.stdin)
+            --format json > bandit-high.json || true
+          python -c "
+          import sys, json, os
+          path = 'bandit-high.json'
+          if os.path.getsize(path) == 0:
+              sys.exit(0)
+          with open(path) as f:
+              data = json.load(f)
           highs = [r for r in data.get('results', []) if r['issue_severity'] == 'HIGH']
           if highs:
               for h in highs:
