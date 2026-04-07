@@ -35,7 +35,9 @@ from ._bayesian import (  # noqa: F401
     plot_trace_and_histogram,
 )
 from ._boed import (  # noqa: F401
+    plot_advec_diff_concentration,
     plot_advec_diff_design,
+    plot_advec_diff_velocity,
     plot_boed_convergence_panels,
     plot_design_convergence,
     plot_design_variability,

@@ -1231,3 +1231,57 @@ def plot_advec_diff_design(
     ax.set_ylabel("y", fontsize=10)
     ax.set_aspect("equal")
     ax.set_title("Optimal sensor placement: advection-diffusion", fontsize=11)
+
+
+def plot_advec_diff_velocity(
+    ax: Axes,
+    vel_x: NDArrayFloat,
+    vel_y: NDArrayFloat,
+    vel_magnitude: NDArrayFloat,
+    scalar_vel_skfem_basis: Any,
+    stokes_skfem_mesh: Any,
+) -> None:
+    """boed_data_workflow_usage.qmd → fig-advec-diff-velocity
+
+    Velocity magnitude (filled) with quiver overlay for one
+    parameter realization.
+    """
+    import matplotlib.pyplot as plt
+    from skfem.visuals.matplotlib import plot as skfemplot
+
+    skfemplot(scalar_vel_skfem_basis, vel_magnitude, ax=ax, shading="gouraud")
+    # Quiver on mesh nodes
+    coords = stokes_skfem_mesh.p
+    doflocs = scalar_vel_skfem_basis.doflocs
+    vx_at_nodes = scalar_vel_skfem_basis.interpolator(vel_x)(doflocs)
+    vy_at_nodes = scalar_vel_skfem_basis.interpolator(vel_y)(doflocs)
+    # Subsample for readability
+    step = max(1, doflocs.shape[1] // 200)
+    ax.quiver(
+        doflocs[0, ::step], doflocs[1, ::step],
+        vx_at_nodes[::step], vy_at_nodes[::step],
+        color="k", alpha=0.6, scale=None, width=0.003,
+    )
+    ax.set_xlabel("x", fontsize=10)
+    ax.set_ylabel("y", fontsize=10)
+    ax.set_aspect("equal")
+    ax.set_title("Velocity field (magnitude + direction)", fontsize=11)
+
+
+def plot_advec_diff_concentration(
+    ax: Axes,
+    concentration: NDArrayFloat,
+    adr_skfem_basis: Any,
+) -> None:
+    """boed_data_workflow_usage.qmd → fig-advec-diff-concentration
+
+    Final-time concentration field for one parameter realization.
+    """
+    import matplotlib.pyplot as plt
+    from skfem.visuals.matplotlib import plot as skfemplot
+
+    skfemplot(adr_skfem_basis, concentration, ax=ax, shading="gouraud")
+    ax.set_xlabel("x", fontsize=10)
+    ax.set_ylabel("y", fontsize=10)
+    ax.set_aspect("equal")
+    ax.set_title("Concentration at final time", fontsize=11)

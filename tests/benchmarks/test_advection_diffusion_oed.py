@@ -15,6 +15,8 @@ import numpy as np
 
 from pyapprox_benchmarks.instances.oed.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
+    _build_obstructed_mesh,
+    _solve_stokes,
 )
 from tests._helpers.markers import slow_test
 
@@ -96,6 +98,54 @@ class TestAdvectionDiffusionOEDBenchmark:
         locs_np = bkd.to_numpy(bench.design_conditions())
         assert np.all(locs_np >= -1e-12)
         assert np.all(locs_np <= 1.0 + 1e-12)
+
+    def test_velocity_component_ordering(self, numpy_bkd):
+        """Verify interleaved DOF extraction gives physically correct velocity.
+
+        For left-to-right channel flow, the x-component should have
+        positive mean and the y-component should have near-zero mean.
+        A bug in DOF ordering (block vs interleaved) would swap or mix
+        components.
+        """
+        bkd = numpy_bkd
+        mesh = _build_obstructed_mesh(bkd, nrefine=1)
+        sol, stokes, vel_basis, pres_basis = _solve_stokes(
+            mesh, bkd, reynolds_num=10.0, vel_shape_params=[2.0, 2.0],
+        )
+        vel_ndofs = stokes.vel_ndofs()
+        vel_state = bkd.to_numpy(sol[:vel_ndofs])
+
+        # Interleaved extraction
+        vel_x = vel_state[0::2]
+        vel_y = vel_state[1::2]
+
+        # For channel flow from left to right:
+        # mean(vx) should be positive and much larger than |mean(vy)|
+        assert vel_x.mean() > 0.05, (
+            f"mean(vx)={vel_x.mean():.4f} should be positive for L-to-R flow"
+        )
+        assert abs(vel_y.mean()) < vel_x.mean(), (
+            f"|mean(vy)|={abs(vel_y.mean()):.4f} should be smaller than "
+            f"mean(vx)={vel_x.mean():.4f}"
+        )
+
+    @slow_test
+    def test_solve_for_plotting(self, numpy_bkd):
+        """Test solve_for_plotting returns correct data."""
+        bkd = numpy_bkd
+        self._setup_data(bkd)
+        bench = self._create_benchmark(bkd)
+        np.random.seed(42)
+        sample = bench.prior().rvs(1)
+        data = bench.solve_for_plotting(sample)
+
+        assert data["vel_x"].ndim == 1
+        assert data["vel_y"].shape == data["vel_x"].shape
+        assert data["vel_magnitude"].shape == data["vel_x"].shape
+        assert data["concentration"].ndim == 1
+        assert np.all(np.isfinite(data["vel_magnitude"]))
+        assert np.all(np.isfinite(data["concentration"]))
+        assert np.all(data["vel_magnitude"] >= 0)
 
     @slow_test
     def test_observation_model_evaluation(self, numpy_bkd):

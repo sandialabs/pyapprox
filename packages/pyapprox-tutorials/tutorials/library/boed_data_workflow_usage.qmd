@@ -121,6 +121,58 @@ plt.tight_layout()
 plt.show()
 ```
 
+## Visualizing the Physics
+
+Before diving into the OED workflow, it helps to see what the forward model
+actually produces. We draw a single sample from the prior and solve both the
+Stokes (velocity) and advection-diffusion (concentration) equations. Both plots
+use the same parameter realization so the velocity field is the one that drives
+the tracer transport shown in the concentration plot.
+
+```{python}
+# Draw one sample from the prior and solve both Stokes and ADR
+sample = prior.rvs(1)
+plot_data = benchmark.solve_for_plotting(sample)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Velocity magnitude with quiver arrows showing flow direction for one prior realization. The Stokes equations are solved on the obstructed domain; the resulting velocity field drives the advection-diffusion equation."
+#| label: fig-advec-diff-velocity
+
+from pyapprox_tutorials.figures import (
+    plot_advec_diff_velocity,
+    plot_advec_diff_concentration,
+)
+
+fig, ax = plt.subplots(figsize=(9, 4))
+plot_advec_diff_velocity(
+    ax,
+    plot_data["vel_x"],
+    plot_data["vel_y"],
+    plot_data["vel_magnitude"],
+    plot_data["vel_scalar_skfem_basis"],
+    plot_data["stokes_skfem_mesh"],
+)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Tracer concentration at the final time for the same parameter realization. The source (KLE forcing field) is transported by the velocity field shown above."
+#| label: fig-advec-diff-concentration
+
+fig, ax = plt.subplots(figsize=(9, 4))
+plot_advec_diff_concentration(
+    ax,
+    plot_data["concentration"],
+    plot_data["adr_skfem_basis"],
+)
+plt.tight_layout()
+plt.show()
+```
+
 ## Phase 1: Generate and Save the Dataset
 
 ```{python}

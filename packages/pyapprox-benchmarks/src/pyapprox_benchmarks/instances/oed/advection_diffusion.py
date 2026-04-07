@@ -9,7 +9,16 @@ coefficients, inlet velocity shape, and Reynolds number.
 # TODO: Should benchmarks be defined here or in benchmarks module.
 # Decide and document rule, and place in benchmarks.CONVENTIONS.md
 
-from typing import TYPE_CHECKING, Callable, Generic, List, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Tuple,
+    Union,
+)
 
 if TYPE_CHECKING:
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
@@ -133,11 +142,10 @@ def _extract_velocity_callable(
     vel_ndofs = stokes.vel_ndofs()
     vel_state_np = bkd.to_numpy(sol[:vel_ndofs])
 
-    # skfem ElementVector DOFs are block-ordered:
-    # [comp0_dof0, comp0_dof1,..., comp1_dof0,...]
-    nscalar = vel_ndofs // 2
-    vel_x = vel_state_np[:nscalar]
-    vel_y = vel_state_np[nscalar:]
+    # skfem ElementVector DOFs are interleaved:
+    # [comp0_dof0, comp1_dof0, comp0_dof1, comp1_dof1, ...]
+    vel_x = vel_state_np[0::2]
+    vel_y = vel_state_np[1::2]
 
     # Get skfem basis for velocity components (scalar P2)
     vel_skfem = vel_basis.skfem_basis()
@@ -319,8 +327,18 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         """Get the inference problem (obs_map + prior + noise)."""
         return self._inference_problem
 
-    def _solve_forward(self, params_np: np.ndarray) -> Tuple[Array, Array]:
-        """Full forward solve for a single parameter vector."""
+    def _solve_forward_full(
+        self, params_np: np.ndarray,
+    ) -> Dict[str, Any]:
+        """Full forward solve returning all intermediates.
+
+        Returns a dict with keys:
+            - "adr_solutions": Array, shape (ndofs, ntimes)
+            - "adr_times": Array, shape (ntimes,)
+            - "stokes_sol": Array, Stokes solution vector
+            - "stokes_physics": StokesPhysics object
+            - "vel_basis": VectorLagrangeBasis for velocity
+        """
         from pyapprox.pde.galerkin.boundary.implementations import (
             RobinBC,
         )
@@ -402,7 +420,68 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             config,
         )
 
-        return solutions, times
+        return {
+            "adr_solutions": solutions,
+            "adr_times": times,
+            "stokes_sol": sol,
+            "stokes_physics": stokes,
+            "vel_basis": vel_basis,
+        }
+
+    def _solve_forward(self, params_np: np.ndarray) -> Tuple[Array, Array]:
+        """Full forward solve for a single parameter vector."""
+        result = self._solve_forward_full(params_np)
+        return result["adr_solutions"], result["adr_times"]
+
+    def solve_for_plotting(
+        self, sample: Array,
+    ) -> Dict[str, Any]:
+        """Solve for a single parameter sample, returning data for plotting.
+
+        Parameters
+        ----------
+        sample : Array
+            Parameter vector. Shape: (nparams,) or (nparams, 1)
+
+        Returns
+        -------
+        dict with keys:
+            - "stokes_sol": np.ndarray, Stokes solution DOF vector
+            - "vel_basis": VectorLagrangeBasis for velocity
+            - "stokes_mesh": skfem mesh for Stokes
+            - "concentration": np.ndarray, final-time concentration (nodal)
+            - "adr_basis": LagrangeBasis for ADR
+            - "adr_mesh": skfem mesh for ADR
+        """
+        bkd = self._bkd
+        sample_np = bkd.to_numpy(sample).ravel()
+        result = self._solve_forward_full(sample_np)
+
+        stokes = result["stokes_physics"]
+        vel_ndofs = stokes.vel_ndofs()
+        stokes_sol_np = bkd.to_numpy(result["stokes_sol"])
+
+        # Extract velocity components (interleaved DOF ordering)
+        vel_x = stokes_sol_np[:vel_ndofs:2]
+        vel_y = stokes_sol_np[1:vel_ndofs:2]
+        vel_mag = np.sqrt(vel_x**2 + vel_y**2)
+
+        adr_solutions = result["adr_solutions"]
+        concentration = bkd.to_numpy(adr_solutions[:, -1])
+
+        vel_basis = result["vel_basis"]
+        scalar_vel_skfem = vel_basis.scalar_basis().skfem_basis()
+
+        return {
+            "vel_x": vel_x,
+            "vel_y": vel_y,
+            "vel_magnitude": vel_mag,
+            "vel_scalar_skfem_basis": scalar_vel_skfem,
+            "stokes_skfem_mesh": self._stokes_mesh.skfem_mesh(),
+            "concentration": concentration,
+            "adr_skfem_basis": self._adr_basis.skfem_basis(),
+            "adr_skfem_mesh": self._adr_mesh.skfem_mesh(),
+        }
 
     def _extract_obs(self, solutions: Array) -> np.ndarray:
         """Extract observations from a forward solve solution."""
