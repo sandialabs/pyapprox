@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyapprox-tutorials"
+dynamic = ["version"]
+description = "Tutorials and tutorial figure helpers for the PyApprox library"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
+]
+
+dependencies = [
+    "pyapprox",
+    "pyapprox-benchmarks",
+]
+
+[tool.hatch.version]
+source = "vcs"
+root = "../.."
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/pyapprox_tutorials/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyapprox_tutorials"]

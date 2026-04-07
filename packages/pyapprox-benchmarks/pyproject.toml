@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyapprox-benchmarks"
+dynamic = ["version"]
+description = "Benchmark problems for the PyApprox library"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
+]
+
+dependencies = [
+    "pyapprox",
+]
+
+[project.optional-dependencies]
+fem = ["scikit-fem>=9.0"]
+
+[tool.hatch.version]
+source = "vcs"
+root = "../.."
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/pyapprox_benchmarks/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyapprox_benchmarks"]

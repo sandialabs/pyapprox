@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyapprox"
+dynamic = ["version"]
+description = "High-dimensional function approximation, uncertainty quantification, and experimental design"
+readme = "../../README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    {name = "John D. Jakeman", email = "29109026+jdjakem@users.noreply.github.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+keywords = ["uncertainty-quantification", "surrogate-modeling", "gaussian-process",
+            "experimental-design", "multi-fidelity"]
+
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.11",
+    "matplotlib>=3.7",
+    "sympy>=1.12",
+    "torch>=2.0",
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+fem = ["scikit-fem>=9.0"]
+umbridge = ["umbridge>=0.7"]
+numba = ["numba>=0.58", "numpy<2.3"]
+parallel = ["joblib>=1.3", "mpire>=2.8"]
+cvxpy = ["cvxpy>=1.4"]
+rol = ["rol-python"]
+test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2", "pyapprox-benchmarks"]
+lint = ["mypy>=1.8", "ruff>=0.3", "import-linter>=2.0"]
+docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
+docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy]"]
+all = ["pyapprox[docs-build,rol,test,lint]"]
+
+[project.urls]
+Homepage = "https://github.com/sandialabs/pyapprox"
+Documentation = "https://sandialabs.github.io/pyapprox/"
+Repository = "https://github.com/sandialabs/pyapprox"
+Issues = "https://github.com/sandialabs/pyapprox/issues"
+
+[tool.hatch.version]
+source = "vcs"
+root = "../.."
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/pyapprox/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyapprox"]
+include = [
+  "src/pyapprox/py.typed",
+]
