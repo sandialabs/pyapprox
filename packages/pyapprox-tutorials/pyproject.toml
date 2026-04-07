@@ -19,7 +19,7 @@ dependencies = [
 
 [tool.hatch.version]
 source = "vcs"
-root = "../.."
+raw-options.root = "../.."
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/pyapprox_tutorials/_version.py"

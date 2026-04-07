@@ -32,8 +32,6 @@ forbidden_modules =
     pyapprox.pde
     pyapprox.statest
     pyapprox.expdesign
-    pyapprox.benchmarks
-    pyapprox.tutorial_figures
 
 [importlinter:contract:interface-isolation]
 name = interface must not import domain modules
@@ -51,46 +49,3 @@ forbidden_modules =
     pyapprox.pde
     pyapprox.statest
     pyapprox.expdesign
-    pyapprox.benchmarks
-    pyapprox.tutorial_figures
-
-# ── Contract 3: Production code must not import from benchmarks ──────────
-[importlinter:contract:benchmarks-are-leaf]
-name = Production code must not import from benchmarks
-type = forbidden
-source_modules =
-    pyapprox.util
-    pyapprox.interface
-    pyapprox.probability
-    pyapprox.optimization
-    pyapprox.ode
-    pyapprox.surrogates
-    pyapprox.inverse
-    pyapprox.generative
-    pyapprox.sensitivity
-    pyapprox.pde
-    pyapprox.statest
-    pyapprox.expdesign
-forbidden_modules =
-    pyapprox.benchmarks
-
-# ── Contract 4: tutorial_figures not importable from production code ─────
-[importlinter:contract:no-tutorial-figures]
-name = tutorial_figures must not be imported by production code
-type = forbidden
-source_modules =
-    pyapprox.benchmarks
-    pyapprox.expdesign
-    pyapprox.sensitivity
-    pyapprox.pde
-    pyapprox.statest
-    pyapprox.surrogates
-    pyapprox.inverse
-    pyapprox.generative
-    pyapprox.probability
-    pyapprox.optimization
-    pyapprox.ode
-    pyapprox.interface
-    pyapprox.util
-forbidden_modules =
-    pyapprox.tutorial_figures
