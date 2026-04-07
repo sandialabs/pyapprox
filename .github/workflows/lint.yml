@@ -19,17 +19,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check pyapprox/
+      - run: ruff check packages/pyapprox/src/pyapprox/
 
   mypy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install mypy numpy torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e ".[dev]"
+      - run: pip install -e "packages/pyapprox[lint]"
       - name: mypy ratchet (must not exceed baseline)
-        run: bash scripts/mypy_diff.sh 1711
+        run: bash scripts/mypy_diff.sh 1711 packages/pyapprox/src/pyapprox/
 

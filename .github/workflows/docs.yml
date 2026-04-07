@@ -23,11 +23,11 @@ jobs:
           python-version: "3.12"
       - uses: quarto-dev/quarto-actions/setup@v2
       - run: |
-          pip install -e ".[docs-build]"
+          pip install -e "packages/pyapprox[docs-build]" -e packages/pyapprox-benchmarks -e packages/pyapprox-tutorials
           pip install ipykernel
           python -m ipykernel install --user
       - name: Render tutorials
-        run: cd tutorials && ./build.sh --notebooks 2>&1 | tee /tmp/quarto-build.log
+        run: cd packages/pyapprox-tutorials/tutorials && ./build.sh --notebooks 2>&1 | tee /tmp/quarto-build.log
       - name: Check for unresolved crossrefs
         run: |
           if grep "Unable to resolve crossref\|Unable to resolve link target" /tmp/quarto-build.log | grep -v "notebooks/.*\.ipynb" | grep -q .; then
@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tutorial-build-logs
-          path: tutorials/library/_build_logs/
+          path: packages/pyapprox-tutorials/tutorials/library/_build_logs/
           retention-days: 7
           if-no-files-found: ignore
       - name: Deploy to GitHub Pages
@@ -48,4 +48,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./tutorials/library/_site
+          publish_dir: ./packages/pyapprox-tutorials/tutorials/library/_site

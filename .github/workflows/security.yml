@@ -17,10 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e .
+      - run: pip install -e packages/pyapprox
       - run: pip install pip-audit
       - name: Run pip-audit
         run: pip-audit --format json --output pip-audit-report.json
@@ -57,7 +59,7 @@ jobs:
       - run: pip install bandit[toml]
       - name: Run bandit
         run: |
-          bandit -r pyapprox/ \
+          bandit -r packages/pyapprox/src/pyapprox/ \
             --exclude tests \
             --severity-level high \
             --format sarif \
@@ -78,7 +80,7 @@ jobs:
           category: bandit
       - name: Fail on HIGH findings
         run: |
-          bandit -r pyapprox/ \
+          bandit -r packages/pyapprox/src/pyapprox/ \
             --exclude tests \
             --severity-level high
   semgrep:
@@ -100,7 +102,7 @@ jobs:
             --config p/secrets \
             --sarif \
             --output semgrep-report.sarif \
-            pyapprox/ || true
+            packages/pyapprox/src/pyapprox/ || true
       - name: Ensure semgrep SARIF exists
         if: always()
         run: |
@@ -121,4 +123,4 @@ jobs:
             --config p/python \
             --config p/secrets \
             --error \
-            pyapprox/
+            packages/pyapprox/src/pyapprox/
