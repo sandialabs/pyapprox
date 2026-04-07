@@ -3,19 +3,10 @@
 import pytest
 
 from pyapprox.util.optional_deps import package_available
+from pyapprox_benchmarks.functions.algebraic.quadratic import add, square
 
 HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")
-
-
-def _square(x: int) -> int:
-    """Simple function for testing."""
-    return x * x
-
-
-def _add(x: int, y: int) -> int:
-    """Simple function for starmap testing."""
-    return x + y
 
 
 @pytest.mark.skipif(not HAS_JOBLIB, reason="joblib not installed")
@@ -30,7 +21,7 @@ class TestJoblibBackend:
 
         backend = JoblibBackend(n_jobs=2)
         items = [1, 2, 3, 4]
-        result = backend.map(_square, items)
+        result = backend.map(square, items)
         assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
@@ -40,7 +31,7 @@ class TestJoblibBackend:
         )
 
         backend = JoblibBackend(n_jobs=2)
-        result = backend.map(_square, [])
+        result = backend.map(square, [])
         assert list(result) == []
 
     def test_starmap_basic(self):
@@ -51,7 +42,7 @@ class TestJoblibBackend:
 
         backend = JoblibBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
-        result = backend.starmap(_add, items)
+        result = backend.starmap(add, items)
         assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
@@ -75,7 +66,7 @@ class TestJoblibBackend:
         backend = JoblibBackend(n_jobs=4)
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
-        result = backend.map(_square, items, n_jobs=2)
+        result = backend.map(square, items, n_jobs=2)
         assert list(result) == [1, 4, 9, 16]
 
 
@@ -91,7 +82,7 @@ class TestMpireBackend:
 
         backend = MpireBackend(n_jobs=2)
         items = [1, 2, 3, 4]
-        result = backend.map(_square, items)
+        result = backend.map(square, items)
         assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
@@ -101,7 +92,7 @@ class TestMpireBackend:
         )
 
         backend = MpireBackend(n_jobs=2)
-        result = backend.map(_square, [])
+        result = backend.map(square, [])
         assert list(result) == []
 
     def test_starmap_basic(self):
@@ -112,7 +103,7 @@ class TestMpireBackend:
 
         backend = MpireBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
-        result = backend.starmap(_add, items)
+        result = backend.starmap(add, items)
         assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
@@ -135,7 +126,7 @@ class TestMpireBackend:
         backend = MpireBackend(n_jobs=4)
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
-        result = backend.map(_square, items, n_jobs=2)
+        result = backend.map(square, items, n_jobs=2)
         assert list(result) == [1, 4, 9, 16]
 
 
@@ -151,7 +142,7 @@ class TestFuturesBackend:
 
         backend = FuturesBackend(n_jobs=2)
         items = [1, 2, 3, 4]
-        result = backend.map(_square, items)
+        result = backend.map(square, items)
         assert list(result) == [1, 4, 9, 16]
 
     def test_map_empty(self):
@@ -161,7 +152,7 @@ class TestFuturesBackend:
         )
 
         backend = FuturesBackend(n_jobs=2)
-        result = backend.map(_square, [])
+        result = backend.map(square, [])
         assert list(result) == []
 
     def test_starmap_basic(self):
@@ -172,7 +163,7 @@ class TestFuturesBackend:
 
         backend = FuturesBackend(n_jobs=2)
         items = [(1, 2), (3, 4), (5, 6)]
-        result = backend.starmap(_add, items)
+        result = backend.starmap(add, items)
         assert list(result) == [3, 7, 11]
 
     def test_backend_name(self):
@@ -195,7 +186,7 @@ class TestFuturesBackend:
         backend = FuturesBackend(n_jobs=4)
         items = [1, 2, 3, 4]
         # Override with n_jobs=2
-        result = backend.map(_square, items, n_jobs=2)
+        result = backend.map(square, items, n_jobs=2)
         assert list(result) == [1, 4, 9, 16]
 
 

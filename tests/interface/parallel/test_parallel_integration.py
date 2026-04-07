@@ -4,80 +4,16 @@ Tests parallel execution with real functions and verifies
 consistency between parallel and sequential execution.
 """
 
-from typing import Generic
-
 import numpy as np
 import pytest
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
+from pyapprox_benchmarks.functions.algebraic.quadratic import QuadraticFunction
+from pyapprox_benchmarks.functions.algebraic.rosenbrock import RosenbrockFunction
 from tests._helpers.markers import slow_test
 
 HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")
-
-
-class QuadraticFunction(Generic[Array]):
-    """Simple quadratic function for testing: f(x) = sum(x^2)."""
-
-    def __init__(self, bkd: Backend[Array], nvars: int = 3):
-        self._bkd = bkd
-        self._nvars = nvars
-        # Pre-compute identity matrix for correct dtype
-        self._eye = bkd.eye(nvars)
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nvars(self) -> int:
-        return self._nvars
-
-    def nqoi(self) -> int:
-        return 1
-
-    def __call__(self, samples: Array) -> Array:
-        return self._bkd.sum(samples**2, axis=0, keepdims=True)
-
-    def jacobian(self, sample: Array) -> Array:
-        # df/dx_i = 2*x_i, returned as (1, nvars)
-        return 2 * sample.T
-
-    def hessian(self, sample: Array) -> Array:
-        # d^2f/dx_i dx_j = 2*delta_ij
-        return 2 * self._eye
-
-    def hvp(self, sample: Array, vec: Array) -> Array:
-        # Hessian is 2*I, so HVP = 2*vec
-        return 2 * vec
-
-
-# TODO: imoprt this from benchmarks
-class RosenbrockFunction(Generic[Array]):
-    """Rosenbrock function: f(x,y) = (1-x)^2 + 100*(y-x^2)^2."""
-
-    def __init__(self, bkd: Backend[Array]):
-        self._bkd = bkd
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nvars(self) -> int:
-        return 2
-
-    def nqoi(self) -> int:
-        return 1
-
-    def __call__(self, samples: Array) -> Array:
-        x = samples[0:1, :]
-        y = samples[1:2, :]
-        return (1 - x) ** 2 + 100 * (y - x**2) ** 2
-
-    def jacobian(self, sample: Array) -> Array:
-        x = sample[0, 0]
-        y = sample[1, 0]
-        df_dx = -2 * (1 - x) - 400 * x * (y - x**2)
-        df_dy = 200 * (y - x**2)
-        return self._bkd.asarray([[df_dx, df_dy]])
 
 
 class TestIntegration:

@@ -3,6 +3,12 @@
 These functions implement FunctionWithJacobianAndHVPProtocol directly.
 """
 
+from pyapprox_benchmarks.functions.algebraic.quadratic import (
+    DiagonalQuadraticFunction,
+    QuadraticFunction,
+    add,
+    square,
+)
 from pyapprox_benchmarks.functions.algebraic.branin import (
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
@@ -39,4 +45,8 @@ __all__ = [
     "CantileverBeam1DAnalytical",
     "CantileverBeam2DAnalytical",
     "HomogeneousBeam1DAnalytical",
+    "QuadraticFunction",
+    "DiagonalQuadraticFunction",
+    "square",
+    "add",
 ]
