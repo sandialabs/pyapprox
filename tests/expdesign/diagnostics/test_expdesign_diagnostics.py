@@ -254,10 +254,12 @@ class TestPredictionOEDDiagnosticsFactory:
     ) -> None:
         """All expected utility types are registered."""
         types = get_registered_utility_types()
-        assert "nonlinear_mean_stdev" in types
-        assert "nonlinear_avar_stdev" in types
-        assert "linear_stdev" in types
-        assert "linear_avar" in types
+        assert "linear_mean_mean_stdev" in types
+        assert "linear_mean_mean_entropic" in types
+        assert "linear_avar_mean_avar" in types
+        assert "linear_mean_avar_stdev" in types
+        assert "nonlinear_mean_mean_stdev" in types
+        assert "nonlinear_avar_mean_stdev" in types
 
     def test_create_diagnostics_returns_correct_type(
         self, bkd: Backend[Array],
@@ -267,6 +269,6 @@ class TestPredictionOEDDiagnosticsFactory:
 
         noise_variances = bkd.full((5,), 0.25)
         diag = create_prediction_oed_diagnostics(
-            noise_variances, 1, "nonlinear_mean_stdev", bkd,
+            noise_variances, 1, "nonlinear_mean_mean_stdev", bkd,
         )
         assert isinstance(diag, PredictionOEDDiagnostics)

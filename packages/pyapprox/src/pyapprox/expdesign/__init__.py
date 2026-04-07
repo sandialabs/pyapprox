@@ -95,6 +95,7 @@ local
 
 # Analytical utilities (conjugate priors)
 from .analytical import (
+    ConjugateGaussianOEDAVaROfExpectedStdDev,
     ConjugateGaussianOEDExpectedAVaRDev,
     ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
@@ -187,6 +188,7 @@ __all__ = [
     "ConjugateGaussianOEDExpectedStdDev",
     "ConjugateGaussianOEDExpectedEntropicDev",
     "ConjugateGaussianOEDExpectedAVaRDev",
+    "ConjugateGaussianOEDAVaROfExpectedStdDev",
     "ConjugateGaussianOEDExpectedKLDivergence",
     "ConjugateGaussianOEDForLogNormalExpectedStdDev",
     "ConjugateGaussianOEDForLogNormalAVaRStdDev",

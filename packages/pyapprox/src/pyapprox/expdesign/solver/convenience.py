@@ -1,15 +1,15 @@
 """Convenience functions for solving OED problems."""
 
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
+from pyapprox.expdesign.deviation import DeviationMeasure
 from pyapprox.expdesign.objective.factory import (
     create_kl_oed_objective_from_data,
 )
 from pyapprox.expdesign.objective.prediction_factory import (
-    DeviationType,
-    RiskType,
     create_prediction_oed_objective,
 )
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .relaxed import RelaxedKLOEDSolver, RelaxedOEDConfig, RelaxedOEDSolver
@@ -63,17 +63,24 @@ def solve_prediction_oed(
     latent_samples: Array,
     qoi_vals: Array,
     bkd: Backend[Array],
-    deviation_type: DeviationType = "stdev",
-    risk_type: RiskType = "mean",
-    noise_stat_type: RiskType = "mean",
+    deviation_type: str = "stdev",
+    risk_type: str = "mean",
+    noise_stat_type: str = "mean",
     alpha: float = 0.5,
     delta: float = 100.0,
     config: Optional[RelaxedOEDConfig] = None,
+    deviation_measure: Optional[DeviationMeasure[Array]] = None,
+    risk_measure: Optional[SampleStatistic[Array]] = None,
+    noise_stat: Optional[SampleStatistic[Array]] = None,
+    risk_kwargs: Optional[Dict[str, Any]] = None,
+    noise_stat_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Array, float]:
     """Solve prediction OED problem in one function call.
 
     Convenience function that creates a prediction OED objective and solves
-    in one step using RelaxedOEDSolver.
+    in one step using RelaxedOEDSolver. All parameters related to deviation,
+    risk, and noise statistic are forwarded to
+    ``create_prediction_oed_objective``.
 
     Parameters
     ----------
@@ -89,18 +96,28 @@ def solve_prediction_oed(
         QoI values at inner samples. Shape: (ninner, npred)
     bkd : Backend[Array]
         Computational backend.
-    deviation_type : {"stdev", "entropic", "avar"}, optional
+    deviation_type : str, optional
         Type of deviation measure. Default: "stdev"
-    risk_type : {"mean", "variance"}, optional
+    risk_type : str, optional
         Risk measure over predictions. Default: "mean"
-    noise_stat_type : {"mean", "variance"}, optional
+    noise_stat_type : str, optional
         Statistic over data realizations. Default: "mean"
     alpha : float, optional
-        Risk parameter for entropic/AVaR. Default: 0.5
+        Risk parameter for deviation measure only. Default: 0.5
     delta : float, optional
-        Smoothing parameter for AVaR. Default: 100.0
+        Smoothing parameter for deviation measure only. Default: 100.0
     config : RelaxedOEDConfig, optional
         Solver configuration.
+    deviation_measure : DeviationMeasure, optional
+        Pre-configured deviation measure. Overrides ``deviation_type``.
+    risk_measure : SampleStatistic, optional
+        Pre-configured risk measure. Overrides ``risk_type``.
+    noise_stat : SampleStatistic, optional
+        Pre-configured noise statistic. Overrides ``noise_stat_type``.
+    risk_kwargs : dict, optional
+        Extra kwargs for ``create_risk_measure`` (risk measure).
+    noise_stat_kwargs : dict, optional
+        Extra kwargs for ``create_risk_measure`` (noise statistic).
 
     Returns
     -------
@@ -121,6 +138,11 @@ def solve_prediction_oed(
         noise_stat_type=noise_stat_type,
         alpha=alpha,
         delta=delta,
+        deviation_measure=deviation_measure,
+        risk_measure=risk_measure,
+        noise_stat=noise_stat,
+        risk_kwargs=risk_kwargs,
+        noise_stat_kwargs=noise_stat_kwargs,
     )
     solver = RelaxedOEDSolver(objective, config)
     return solver.solve()

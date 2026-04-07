@@ -303,6 +303,68 @@ class ConjugateGaussianOEDExpectedKLDivergence(
         )
 
 
+class ConjugateGaussianOEDAVaROfExpectedStdDev(
+    ConjugateGaussianOEDPredictionUtilityBase[Array]
+):
+    """
+    AVaR of per-prediction standard deviations.
+
+    For a linear Gaussian model with npred prediction QoIs, computes
+    AVaR_{beta}({sigma_1, ..., sigma_npred}) where sigma_j is the
+    posterior standard deviation of QoI j.
+
+    Parameters
+    ----------
+    prior_mean : Array
+        Prior mean. Shape: (nvars, 1)
+    prior_cov : Array
+        Prior covariance. Shape: (nvars, nvars)
+    qoi_mat : Array
+        QoI prediction matrix. Shape: (npred, nvars)
+    beta : float
+        AVaR quantile level.
+    bkd : Backend[Array]
+        Computational backend.
+    delta : float, optional
+        Smoothing parameter for AVaR. Default: 100000
+    """
+
+    def __init__(
+        self,
+        prior_mean: Array,
+        prior_cov: Array,
+        qoi_mat: Array,
+        beta: float,
+        bkd: Backend[Array],
+        delta: float = 100000,
+    ) -> None:
+        self._beta = beta
+        self._delta = delta
+        super().__init__(prior_mean, prior_cov, qoi_mat, bkd)
+
+    def _compute_utility(self) -> float:
+        from pyapprox.risk.avar import SampleAverageSmoothedAVaR
+
+        npred = self._qoi_mat.shape[0]
+        post_cov = self._post_pushforward.covariance()
+
+        # Compute per-prediction standard deviations
+        sigmas = []
+        for j in range(npred):
+            sigma_j = float(self._bkd.sqrt(post_cov[j, j]))
+            sigmas.append(sigma_j)
+
+        # Apply AVaR to the vector of sigmas with uniform weights
+        sigma_arr = self._bkd.reshape(
+            self._bkd.asarray(sigmas), (1, npred)
+        )
+        weights = self._bkd.full((1, npred), 1.0 / npred)
+
+        avar = SampleAverageSmoothedAVaR(self._beta, self._bkd, delta=self._delta)
+        result = avar(sigma_arr, weights)
+        return float(self._bkd.to_numpy(result)[0, 0])
+
+
 class ConjugateGaussianOEDForLogNormalExpectedStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):

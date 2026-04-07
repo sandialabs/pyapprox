@@ -7,6 +7,7 @@ Also provides exact utility computation via conjugate Gaussian formulas
 and a registry of utility types.
 """
 
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
@@ -19,13 +20,20 @@ from typing import (
 )
 
 from pyapprox.expdesign.analytical import (
+    ConjugateGaussianOEDAVaROfExpectedStdDev,
     ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
-from pyapprox.expdesign.deviation import StandardDeviationMeasure
+from pyapprox.expdesign.deviation import (
+    AVaRDeviationMeasure,
+    DeviationMeasure,
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
+)
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import PredictionOEDObjective
 from pyapprox.risk import SampleAverageMean
@@ -33,35 +41,59 @@ from pyapprox.risk.avar import SampleAverageSmoothedAVaR
 from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
+# --- UtilityConfig dataclass ---
+
+
+@dataclass
+class UtilityConfig:
+    """Configuration for a prediction OED utility type.
+
+    Bundles together the factories for deviation measure, risk measure,
+    and noise statistic, along with the exact analytical class and its
+    extra constructor arguments.
+
+    Attributes
+    ----------
+    deviation_factory : Callable[[int, Backend], DeviationMeasure]
+        Factory that takes ``(npred, bkd)`` and returns a deviation measure.
+    risk_factory : Callable[[Backend], SampleStatistic]
+        Factory that takes ``(bkd,)`` and returns a risk measure.
+    noise_stat_factory : Callable[[Backend], SampleStatistic]
+        Factory that takes ``(bkd,)`` and returns a noise statistic.
+    exact_cls : Type[ConjugateGaussianOEDPredictionUtilityBase]
+        Analytical class for computing exact utility.
+    exact_args : tuple
+        Extra positional arguments for ``exact_cls`` (inserted between
+        ``qoi_mat`` and ``bkd``).
+    """
+
+    deviation_factory: Callable[[int, Backend[Any]], DeviationMeasure[Any]]
+    risk_factory: Callable[[Backend[Any]], SampleStatistic[Any]]
+    noise_stat_factory: Callable[[Backend[Any]], SampleStatistic[Any]]
+    exact_cls: Type[ConjugateGaussianOEDPredictionUtilityBase[Any]]
+    exact_args: Tuple[Any, ...] = field(default_factory=tuple)
+
+
 # --- Utility type registry ---
 
-# Type alias for utility factory return type
-UtilityFactoryResult = Tuple[
-    Type[ConjugateGaussianOEDPredictionUtilityBase[Any]],
-    Tuple[Any, ...],
-    Callable[[Backend[Any]], SampleStatistic[Any]],
-]
-
-_UTILITY_REGISTRY: Dict[str, Callable[..., UtilityFactoryResult]] = {}
+_UTILITY_REGISTRY: Dict[str, Callable[..., UtilityConfig]] = {}
 
 
 def register_utility(
     name: str,
 ) -> Callable[
-    [Callable[..., UtilityFactoryResult]],
-    Callable[..., UtilityFactoryResult],
+    [Callable[..., UtilityConfig]],
+    Callable[..., UtilityConfig],
 ]:
     """Decorator to register a utility factory.
 
-    The factory function should accept keyword arguments and return a tuple:
-    (exact_utility_class, exact_utility_args, noise_stat_factory)
-
-    where noise_stat_factory is a callable: Backend -> SampleStatistic.
+    The factory function should accept keyword arguments and return a
+    ``UtilityConfig`` instance.
     """
 
     def decorator(
-        func: Callable[..., UtilityFactoryResult],
-    ) -> Callable[..., UtilityFactoryResult]:
+        func: Callable[..., UtilityConfig],
+    ) -> Callable[..., UtilityConfig]:
         _UTILITY_REGISTRY[name] = func
         return func
 
@@ -73,65 +105,98 @@ def get_registered_utility_types() -> List[str]:
     return list(_UTILITY_REGISTRY.keys())
 
 
-def _mean_noise_stat_factory(bkd: Backend[Any]) -> SampleStatistic[Any]:
-    """Factory for SampleAverageMean noise statistic."""
-    return SampleAverageMean(bkd)
+# --- Registered utility types ---
+
+# Linear model utilities
 
 
-def _avar_noise_stat_factory(
-    beta: float, delta: float = 100000
-) -> Callable[[Backend[Any]], SampleStatistic[Any]]:
-    """Factory for SampleAverageSmoothedAVaR noise statistic."""
-
-    def factory(bkd: Backend[Any]) -> SampleStatistic[Any]:
-        return SampleAverageSmoothedAVaR(beta, bkd, delta=delta)
-
-    return factory
-
-
-# Register built-in utility types for lognormal (nonlinear QoI)
-@register_utility("nonlinear_mean_stdev")
-def _create_nonlinear_mean_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
-    """Create lognormal expected std dev utility with mean noise statistic."""
-    return (
-        ConjugateGaussianOEDForLogNormalExpectedStdDev,
-        (),
-        _mean_noise_stat_factory,
+@register_utility("linear_mean_mean_stdev")
+def _create_linear_mean_mean_stdev(**kwargs: Any) -> UtilityConfig:
+    """Linear Gaussian, mean noise stat, mean risk, stdev deviation."""
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
+        exact_cls=ConjugateGaussianOEDExpectedStdDev,
     )
 
 
-@register_utility("nonlinear_avar_stdev")
-def _create_nonlinear_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
-    """Create lognormal AVaR std dev utility with AVaR noise statistic."""
+@register_utility("linear_mean_mean_entropic")
+def _create_linear_mean_mean_entropic(**kwargs: Any) -> UtilityConfig:
+    """Linear Gaussian, mean noise stat, mean risk, entropic deviation."""
+    lamda = kwargs.get("lamda", 0.5)
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: EntropicDeviationMeasure(
+            npred, lamda, bkd
+        ),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
+        exact_cls=ConjugateGaussianOEDExpectedEntropicDev,
+        exact_args=(lamda,),
+    )
+
+
+@register_utility("linear_avar_mean_avar")
+def _create_linear_avar_mean_avar(**kwargs: Any) -> UtilityConfig:
+    """Linear Gaussian, AVaR noise stat, mean risk, AVaR deviation."""
     beta = kwargs.get("beta", 0.5)
     delta = kwargs.get("delta", 100000)
-    return (
-        ConjugateGaussianOEDForLogNormalAVaRStdDev,
-        (beta,),
-        _avar_noise_stat_factory(beta, delta),
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: AVaRDeviationMeasure(
+            npred, beta, bkd, delta
+        ),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageSmoothedAVaR(
+            beta, bkd, delta=delta
+        ),
+        exact_cls=ConjugateGaussianOEDExpectedAVaRDev,
+        exact_args=(beta,),
     )
 
 
-# Register utility types for linear QoI
-@register_utility("linear_stdev")
-def _create_linear_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
-    """Create linear Gaussian expected std dev utility."""
-    return (
-        ConjugateGaussianOEDExpectedStdDev,
-        (),
-        _mean_noise_stat_factory,
-    )
-
-
-@register_utility("linear_avar")
-def _create_linear_avar_utility(**kwargs: Any) -> UtilityFactoryResult:
-    """Create linear Gaussian AVaR deviation utility."""
+@register_utility("linear_mean_avar_stdev")
+def _create_linear_mean_avar_stdev(**kwargs: Any) -> UtilityConfig:
+    """Linear Gaussian, mean noise stat, AVaR risk, stdev deviation."""
     beta = kwargs.get("beta", 0.5)
     delta = kwargs.get("delta", 100000)
-    return (
-        ConjugateGaussianOEDExpectedAVaRDev,
-        (beta,),
-        _avar_noise_stat_factory(beta, delta),
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageSmoothedAVaR(
+            beta, bkd, delta=delta
+        ),
+        noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
+        exact_cls=ConjugateGaussianOEDAVaROfExpectedStdDev,
+        exact_args=(beta,),
+    )
+
+
+# Nonlinear (lognormal) model utilities
+
+
+@register_utility("nonlinear_mean_mean_stdev")
+def _create_nonlinear_mean_mean_stdev(**kwargs: Any) -> UtilityConfig:
+    """Lognormal QoI, mean noise stat, mean risk, stdev deviation."""
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
+        exact_cls=ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    )
+
+
+@register_utility("nonlinear_avar_mean_stdev")
+def _create_nonlinear_avar_mean_stdev(**kwargs: Any) -> UtilityConfig:
+    """Lognormal QoI, AVaR noise stat, mean risk, stdev deviation."""
+    beta = kwargs.get("beta", 0.5)
+    delta = kwargs.get("delta", 100000)
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageSmoothedAVaR(
+            beta, bkd, delta=delta
+        ),
+        exact_cls=ConjugateGaussianOEDForLogNormalAVaRStdDev,
+        exact_args=(beta,),
     )
 
 
@@ -150,8 +215,12 @@ class PredictionOEDDiagnostics(Generic[Array]):
         Per-observation noise variances. Shape: (nobs,).
     npred : int
         Number of prediction QoI locations.
+    deviation_factory : Callable[[int, Backend], DeviationMeasure]
+        Factory that takes ``(npred, bkd)`` and returns a deviation measure.
+    risk_factory : Callable[[Backend], SampleStatistic]
+        Factory that takes ``(bkd,)`` and returns a risk measure.
     noise_stat_factory : Callable[[Backend], SampleStatistic]
-        Factory for the noise statistic.
+        Factory that takes ``(bkd,)`` and returns a noise statistic.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -160,11 +229,15 @@ class PredictionOEDDiagnostics(Generic[Array]):
         self,
         noise_variances: Array,
         npred: int,
+        deviation_factory: Callable[[int, Backend[Array]], DeviationMeasure[Array]],
+        risk_factory: Callable[[Backend[Array]], SampleStatistic[Array]],
         noise_stat_factory: Callable[[Backend[Array]], SampleStatistic[Array]],
         bkd: Backend[Array],
     ) -> None:
         self._noise_variances = noise_variances
         self._npred = npred
+        self._deviation_factory = deviation_factory
+        self._risk_factory = risk_factory
         self._noise_stat_factory = noise_stat_factory
         self._bkd = bkd
 
@@ -212,8 +285,8 @@ class PredictionOEDDiagnostics(Generic[Array]):
         inner_likelihood = GaussianOEDInnerLoopLikelihood(
             self._noise_variances, self._bkd
         )
-        deviation_measure = StandardDeviationMeasure(self._npred, self._bkd)
-        risk_measure = SampleAverageMean(self._bkd)
+        deviation_measure = self._deviation_factory(self._npred, self._bkd)
+        risk_measure = self._risk_factory(self._bkd)
         noise_stat = self._noise_stat_factory(self._bkd)
 
         objective = PredictionOEDObjective(
@@ -296,6 +369,54 @@ def compute_exact_prediction_utility(
     return utility.value()
 
 
+def get_utility_factory(
+    utility_type: str,
+    **kwargs: Any,
+) -> UtilityConfig:
+    """Get utility configuration for a registered utility type.
+
+    Parameters
+    ----------
+    utility_type : str
+        Registered utility type name. Available types:
+
+        - ``"linear_mean_mean_stdev"``: StdDev deviation, mean risk, mean
+          noise stat. Exact class: ``ConjugateGaussianOEDExpectedStdDev``.
+        - ``"linear_mean_mean_entropic"``: Entropic deviation, mean risk,
+          mean noise stat. Kwarg: ``lamda``. Exact class:
+          ``ConjugateGaussianOEDExpectedEntropicDev``.
+        - ``"linear_avar_mean_avar"``: AVaR deviation, mean risk, AVaR
+          noise stat. Kwargs: ``beta``, ``delta``. Exact class:
+          ``ConjugateGaussianOEDExpectedAVaRDev``.
+        - ``"linear_mean_avar_stdev"``: StdDev deviation, AVaR risk, mean
+          noise stat. Kwargs: ``beta``, ``delta``. Exact class:
+          ``ConjugateGaussianOEDAVaROfExpectedStdDev``.
+        - ``"nonlinear_mean_mean_stdev"``: StdDev deviation, mean risk,
+          mean noise stat (lognormal QoI). Exact class:
+          ``ConjugateGaussianOEDForLogNormalExpectedStdDev``.
+        - ``"nonlinear_avar_mean_stdev"``: StdDev deviation, mean risk,
+          AVaR noise stat (lognormal QoI). Kwargs: ``beta``, ``delta``.
+          Exact class: ``ConjugateGaussianOEDForLogNormalAVaRStdDev``.
+
+    **kwargs
+        Additional arguments for the utility type (e.g., ``beta`` for AVaR,
+        ``lamda`` for entropic).
+
+    Returns
+    -------
+    UtilityConfig
+        Configuration containing deviation/risk/noise_stat factories,
+        exact analytical class, and extra arguments.
+    """
+    if utility_type not in _UTILITY_REGISTRY:
+        available = get_registered_utility_types()
+        raise ValueError(
+            f"Unknown utility_type: {utility_type}. Available types: {available}"
+        )
+    factory = _UTILITY_REGISTRY[utility_type]
+    return factory(**kwargs)
+
+
 def create_prediction_oed_diagnostics(
     noise_variances: Array,
     npred: int,
@@ -305,7 +426,7 @@ def create_prediction_oed_diagnostics(
 ) -> PredictionOEDDiagnostics[Array]:
     """Factory function to create PredictionOEDDiagnostics.
 
-    Uses the registry to look up the appropriate noise statistic factory.
+    Uses the registry to look up the appropriate component factories.
 
     Parameters
     ----------
@@ -314,8 +435,7 @@ def create_prediction_oed_diagnostics(
     npred : int
         Number of prediction QoI locations.
     utility_type : str
-        Type of utility. Registered types: "stdev", "avar_stdev",
-        "linear_stdev", "linear_avar".
+        Registered utility type name (see ``get_utility_factory``).
     bkd : Backend[Array]
         Computational backend.
     **kwargs
@@ -331,46 +451,10 @@ def create_prediction_oed_diagnostics(
     ValueError
         If utility_type is not registered.
     """
-    if utility_type not in _UTILITY_REGISTRY:
-        available = get_registered_utility_types()
-        raise ValueError(
-            f"Unknown utility_type: {utility_type}. Available types: {available}"
-        )
-
-    factory = _UTILITY_REGISTRY[utility_type]
-    _, _, noise_stat_factory = factory(**kwargs)
+    config = get_utility_factory(utility_type, **kwargs)
 
     return PredictionOEDDiagnostics(
-        noise_variances, npred, noise_stat_factory, bkd,
+        noise_variances, npred,
+        config.deviation_factory, config.risk_factory, config.noise_stat_factory,
+        bkd,
     )
-
-
-def get_utility_factory(
-    utility_type: str,
-    **kwargs: Any,
-) -> UtilityFactoryResult:
-    """Get utility factory result (exact class, args, noise stat factory).
-
-    Parameters
-    ----------
-    utility_type : str
-        Registered utility type name.
-    **kwargs
-        Additional arguments for the utility type.
-
-    Returns
-    -------
-    exact_cls : Type
-        Exact utility class.
-    exact_args : tuple
-        Additional arguments for exact utility class.
-    noise_stat_factory : Callable
-        Factory for noise statistic.
-    """
-    if utility_type not in _UTILITY_REGISTRY:
-        available = get_registered_utility_types()
-        raise ValueError(
-            f"Unknown utility_type: {utility_type}. Available types: {available}"
-        )
-    factory = _UTILITY_REGISTRY[utility_type]
-    return factory(**kwargs)

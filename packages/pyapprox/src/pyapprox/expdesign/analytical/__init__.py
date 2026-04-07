@@ -6,6 +6,7 @@ in prediction OED when using linear Gaussian models with conjugate priors.
 """
 
 from .conjugate_gaussian import (
+    ConjugateGaussianOEDAVaROfExpectedStdDev,
     ConjugateGaussianOEDExpectedAVaRDev,
     ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
@@ -20,6 +21,7 @@ __all__ = [
     "ConjugateGaussianOEDExpectedStdDev",
     "ConjugateGaussianOEDExpectedEntropicDev",
     "ConjugateGaussianOEDExpectedAVaRDev",
+    "ConjugateGaussianOEDAVaROfExpectedStdDev",
     "ConjugateGaussianOEDExpectedKLDivergence",
     "ConjugateGaussianOEDForLogNormalExpectedStdDev",
     "ConjugateGaussianOEDForLogNormalAVaRStdDev",

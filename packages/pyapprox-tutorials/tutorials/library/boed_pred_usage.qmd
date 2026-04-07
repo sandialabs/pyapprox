@@ -108,7 +108,7 @@ nparams   = problem.nparams()
 # Create diagnostics with the linear stdev utility type
 noise_variances = bkd.full((nobs,), noise_std**2)
 diagnostics = create_prediction_oed_diagnostics(
-    noise_variances, npred, "linear_stdev", bkd,
+    noise_variances, npred, "linear_mean_mean_stdev", bkd,
 )
 
 # Uniform design weights
@@ -133,7 +133,8 @@ def make_mc_sampler(seed):
 ## Analytical Reference Value
 
 ```{python}
-exact_cls, exact_args, _ = get_utility_factory("linear_stdev")
+config = get_utility_factory("linear_mean_mean_stdev")
+exact_cls, exact_args = config.exact_cls, config.exact_args
 
 exact = compute_exact_prediction_utility(
     problem.prior_mean(),
@@ -239,10 +240,11 @@ Switching to AVaR deviation requires only changing the utility type in the
 
 ```{python}
 diagnostics_avar = create_prediction_oed_diagnostics(
-    noise_variances, npred, "linear_avar", bkd, beta=0.9,
+    noise_variances, npred, "linear_avar_mean_avar", bkd, beta=0.9,
 )
 
-exact_cls_avar, exact_args_avar, _ = get_utility_factory("linear_avar", beta=0.9)
+config_avar = get_utility_factory("linear_avar_mean_avar", beta=0.9)
+exact_cls_avar, exact_args_avar = config_avar.exact_cls, config_avar.exact_args
 exact_avar = compute_exact_prediction_utility(
     benchmark.problem().prior_mean(),
     benchmark.problem().prior_covariance(),
