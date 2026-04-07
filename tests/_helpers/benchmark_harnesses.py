@@ -44,7 +44,7 @@ from typing import Any, Optional, Protocol
 
 import numpy as np
 
-from pyapprox.benchmarks.protocols import (
+from pyapprox_benchmarks.protocols import (
     HasEstimatedEvaluationCost,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

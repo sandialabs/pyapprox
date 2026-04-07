@@ -62,7 +62,7 @@ models and prior to apply any recipe to your problem.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
 from pyapprox.statest.statistics import MultiOutputMean
@@ -380,7 +380,7 @@ When the HF model produces multiple QoIs, estimating them jointly can reduce var
 for each individual QoI compared to running separate scalar ACVs.
 
 ```{python}
-from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
     multioutput_ensemble_3x3,
 )
 

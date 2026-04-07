@@ -69,10 +69,10 @@ plot on the right confirms that model outputs are tightly correlated ($\rho \app
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
-from pyapprox.tutorial_figures._cv_acv import plot_model_surfaces
+from pyapprox_tutorials.figures._cv_acv import plot_model_surfaces
 
 bkd = NumpyBkd()
 np.random.seed(0)
@@ -134,7 +134,7 @@ always reduces (or at worst equals) the MC variance.
 #| label: fig-variance-reduction-vs-rho
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._cv_acv import plot_variance_reduction_vs_rho
+from pyapprox_tutorials.figures._cv_acv import plot_variance_reduction_vs_rho
 
 fig, ax = plt.subplots(figsize=(7, 4))
 plot_variance_reduction_vs_rho(ax)
@@ -157,10 +157,10 @@ confirming that CVMC is unbiased. But the CVMC histogram is dramatically narrowe
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
-from pyapprox.tutorial_figures._cv_acv import plot_cvmc_histograms
+from pyapprox_tutorials.figures._cv_acv import plot_cvmc_histograms
 
 bkd = NumpyBkd()
 np.random.seed(0)

@@ -55,7 +55,7 @@ We continue with the beam model and QMC samplers from the [previous tutorial](qu
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.analytic.cantilever_beam import (
+from pyapprox_benchmarks.instances.analytic.cantilever_beam import (
     cantilever_beam_1d_analytical,
 )
 from pyapprox.expdesign.quadrature.halton import HaltonSampler

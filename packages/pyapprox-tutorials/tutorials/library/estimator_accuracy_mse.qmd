@@ -120,7 +120,7 @@ $$
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
     psd_multioutput_ensemble_3x3,
 )
 
@@ -158,7 +158,7 @@ B_true = bkd.to_numpy(
 #| echo: false
 #| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."
 #| label: fig-mean-mse-convergence
-from pyapprox.tutorial_figures._forward_uq import plot_mean_mse_convergence
+from pyapprox_tutorials.figures._forward_uq import plot_mean_mse_convergence
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 empirical_var_of_mean, M_values = plot_mean_mse_convergence(
@@ -197,7 +197,7 @@ The key observation: **the variance estimator also converges at rate $1/M$**, bu
 #| echo: false
 #| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."
 #| label: fig-mean-vs-var-convergence
-from pyapprox.tutorial_figures._forward_uq import plot_mean_vs_var_convergence
+from pyapprox_tutorials.figures._forward_uq import plot_mean_vs_var_convergence
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_mean_vs_var_convergence(
@@ -358,7 +358,7 @@ theoretical_est_cov = np.block([
     [block_mv.T,  block_vv],
 ])
 
-from pyapprox.tutorial_figures._forward_uq import plot_estimator_covariance
+from pyapprox_tutorials.figures._forward_uq import plot_estimator_covariance
 
 labels = (
     [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(K)]
@@ -380,7 +380,7 @@ plt.show()
 #| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."
 #| label: fig-diagonal-variances
 
-from pyapprox.tutorial_figures._forward_uq import plot_diagonal_variances
+from pyapprox_tutorials.figures._forward_uq import plot_diagonal_variances
 
 fig, ax = plt.subplots(figsize=(12, 4))
 plot_diagonal_variances(empirical_est_cov, theoretical_est_cov, labels, ax)

@@ -16,7 +16,7 @@ def plot_level_variances(ax1, ax2):
     Variance of level corrections vs cost per sample for the
     5-model polynomial hierarchy.
     """
-    from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
     from pyapprox.util.backends.numpy import NumpyBkd
@@ -73,7 +73,7 @@ def plot_mlmc_vs_mc(axes):
 
     Distribution of MC and MLMC mean estimates at equal total cost.
     """
-    from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
     from pyapprox.statest import MLMCEstimator

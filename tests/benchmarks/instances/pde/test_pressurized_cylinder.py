@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.instances.pde.pressurized_cylinder import (
+from pyapprox_benchmarks.instances.pde.pressurized_cylinder import (
     hyperelastic_pressurized_cylinder_2d,
     pressurized_cylinder_2d,
 )
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

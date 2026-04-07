@@ -94,7 +94,7 @@ concentrate most of the correction work at negligible expense.
 #| label: fig-level-variances
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._hierarchy import plot_level_variances
+from pyapprox_tutorials.figures._hierarchy import plot_level_variances
 
 fig, ax1 = plt.subplots(figsize=(9, 4.5))
 ax2 = ax1.twinx()
@@ -140,7 +140,7 @@ across the hierarchy.
 #| label: fig-mlmc-vs-mc
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._hierarchy import plot_mlmc_vs_mc
+from pyapprox_tutorials.figures._hierarchy import plot_mlmc_vs_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
 target_cost, n_trials = plot_mlmc_vs_mc(axes)

@@ -194,7 +194,7 @@ $\rho_{\alpha\kappa}$ is controlled by a single parameter $\theta_1$.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
 
@@ -242,7 +242,7 @@ theoretical_reductions = np.array(theoretical_reductions)
 #| fig-cap: "Empirical variance reduction (dots) versus the theoretical prediction $1 - \\rho^2$ (line) across a range of model correlations. The agreement confirms @eq-variance-reduction."
 #| label: fig-verification
 
-from pyapprox.tutorial_figures._cv_acv import plot_cv_verification
+from pyapprox_tutorials.figures._cv_acv import plot_cv_verification
 
 # Recover rho values for x-axis
 rho_vals = np.sqrt(1 - theoretical_reductions)

@@ -285,7 +285,7 @@ class TestSampleAverageConstraint:
         Uses CantileverBeam2DConstraints with uncertainty in X and Y
         (random variables) and design variables w and t.
         """
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DAnalytical,
             CantileverBeam2DConstraints,
         )

@@ -11,7 +11,7 @@ import pytest
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.benchmarks.functions.ode.linear_ode import (
+from pyapprox_benchmarks.functions.ode.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )

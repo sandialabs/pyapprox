@@ -106,7 +106,7 @@ with $\hat{\mu}_0(\mathcal{Z}_0)$, and each one can reduce HF variance independe
 #| label: fig-direct-vs-indirect
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._cv_acv import plot_direct_vs_indirect
+from pyapprox_tutorials.figures._cv_acv import plot_direct_vs_indirect
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 plot_direct_vs_indirect(axes)
@@ -135,10 +135,10 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
-from pyapprox.tutorial_figures._cv_acv import plot_acv_ceiling
+from pyapprox_tutorials.figures._cv_acv import plot_acv_ceiling
 
 bkd = NumpyBkd()
 benchmark = polynomial_ensemble_5model(bkd)

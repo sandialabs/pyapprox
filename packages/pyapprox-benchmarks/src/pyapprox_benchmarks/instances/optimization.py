@@ -6,8 +6,8 @@
 Use pyapprox.benchmarks.instances.analytic instead.
 """
 
-from pyapprox.benchmarks.instances.analytic.branin import branin_2d
-from pyapprox.benchmarks.instances.analytic.rosenbrock import (
+from pyapprox_benchmarks.instances.analytic.branin import branin_2d
+from pyapprox_benchmarks.instances.analytic.rosenbrock import (
     rosenbrock_2d,
     rosenbrock_10d,
 )

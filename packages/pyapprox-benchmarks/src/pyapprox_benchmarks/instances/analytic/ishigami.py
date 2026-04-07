@@ -7,14 +7,14 @@ analytical Sobol indices.
 import math
 from typing import Generic, Optional
 
-from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
+from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.protocols import DomainProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox_benchmarks.protocols import DomainProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal

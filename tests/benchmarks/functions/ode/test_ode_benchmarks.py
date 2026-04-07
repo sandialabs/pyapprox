@@ -6,13 +6,13 @@ and ChemicalReactionResidual using TimeAdjointDerivativeChecker.
 """
 
 
-from pyapprox.benchmarks.functions.ode.chemical_reaction import (
+from pyapprox_benchmarks.functions.ode.chemical_reaction import (
     ChemicalReactionResidual,
 )
-from pyapprox.benchmarks.functions.ode.coupled_springs import (
+from pyapprox_benchmarks.functions.ode.coupled_springs import (
     CoupledSpringsResidual,
 )
-from pyapprox.benchmarks.functions.ode.hastings_ecology import (
+from pyapprox_benchmarks.functions.ode.hastings_ecology import (
     HastingsEcologyResidual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd

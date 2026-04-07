@@ -6,7 +6,7 @@ Uses finite difference verification to ensure adjoint gradients are correct.
 
 import numpy as np
 
-from pyapprox.benchmarks.functions.ode.linear_ode import LinearODEResidual
+from pyapprox_benchmarks.functions.ode.linear_ode import LinearODEResidual
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )

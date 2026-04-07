@@ -86,7 +86,7 @@ where $W = \mathrm{diag}(w_i)$ are quadrature weights.
 ```{python}
 #| label: fig-mesh-kle-overview
 #| fig-cap: "Left: covariance matrix $C(x,x')$ for the exponential kernel with $\\ell = 0.5$. Centre: the first five `MeshKLE` eigenfunctions. Right: the Gram matrix $\\Phi^T W \\Phi$ verifying weighted orthonormality (should be the identity)."
-from pyapprox.tutorial_figures._kle import plot_mesh_kle_overview
+from pyapprox_tutorials.figures._kle import plot_mesh_kle_overview
 
 nterms = 5
 ell = 0.5
@@ -119,7 +119,7 @@ the eigenvalues are $\lambda_k = \sigma_k^2 / (N_s - 1)$.
 ```{python}
 #| label: fig-data-driven-eigenfunctions
 #| fig-cap: "`DataDrivenKLE` eigenfunctions (solid) vs `MeshKLE` reference (dashed) for increasing sample counts $N_s = 50, 500, 5000$. With few samples the empirical modes are noisy; by $N_s = 5000$ they closely match the kernel-based reference."
-from pyapprox.tutorial_figures._kle import plot_data_driven_eigenfunctions
+from pyapprox_tutorials.figures._kle import plot_data_driven_eigenfunctions
 
 # Generate samples from the MeshKLE to use as "data"
 N_samples_list = [50, 500, 5000]
@@ -152,7 +152,7 @@ match the analytical eigenfunctions closely.
 ```{python}
 #| label: fig-eigenvalue-convergence
 #| fig-cap: "Left: relative eigenvalue error of `DataDrivenKLE` vs sample count $N_s$, decaying as $1/\\sqrt{N_s}$. Right: effect of quadrature weights on the first two eigenfunctions at $N_s = 500$. Weights improve accuracy when the mesh spacing is non-uniform."
-from pyapprox.tutorial_figures._kle import plot_eigenvalue_convergence
+from pyapprox_tutorials.figures._kle import plot_eigenvalue_convergence
 
 Ns_range = np.logspace(1.5, 4, 25, dtype=int)
 errors = np.zeros((len(Ns_range), nterms))
@@ -204,7 +204,7 @@ The error in eigenvalue $k$ scales as $O(h^2)$ for the trapezoid rule.
 #| label: fig-mesh-convergence
 #| fig-cap: "Left: `MeshKLE` eigenvalue convergence with mesh refinement (relative to the analytical solution), showing $O(h^2)$ convergence for the trapezoid rule. Right: summary comparison of `MeshKLE` vs `DataDrivenKLE` properties."
 from pyapprox.surrogates.kle import AnalyticalExponentialKLE1D
-from pyapprox.tutorial_figures._kle import plot_mesh_convergence
+from pyapprox_tutorials.figures._kle import plot_mesh_convergence
 
 npts_list = [20, 40, 80, 160, 320]
 
@@ -254,7 +254,7 @@ The reconstruction with $K$ terms is $\hat{f}(x) = \sum_{k=1}^K c_k\, \sqrt{\lam
 ```{python}
 #| label: fig-field-reconstruction
 #| fig-cap: "Reconstruction of a test field from its KLE projection using $K = 1, 3, 5$ terms. The shaded area shows the pointwise error. The RMSE decreases as $K$ increases, driven by the eigenvalue spectrum."
-from pyapprox.tutorial_figures._kle import plot_field_reconstruction
+from pyapprox_tutorials.figures._kle import plot_field_reconstruction
 
 # Generate a "new" realization for reconstruction
 z_new = bkd.array(rng.standard_normal((nterms, 1)))

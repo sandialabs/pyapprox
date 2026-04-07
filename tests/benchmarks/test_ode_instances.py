@@ -3,13 +3,13 @@
 # TODO: this test class should be where function is defined
 # not at this level which is for integration tests.
 
-from pyapprox.benchmarks.instances.ode import (
+from pyapprox_benchmarks.instances.ode import (
     chemical_reaction_surface,
     coupled_springs_2mass,
     hastings_ecology_3species,
     lotka_volterra_3species,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
 

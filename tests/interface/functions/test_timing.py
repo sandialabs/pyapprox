@@ -5,7 +5,7 @@ from typing import Generic
 
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
 )
 from pyapprox.interface.functions.fromcallable.function import (

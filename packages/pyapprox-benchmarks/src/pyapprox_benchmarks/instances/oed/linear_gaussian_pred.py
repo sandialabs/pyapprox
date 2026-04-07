@@ -7,16 +7,16 @@ conjugate Gaussian formulas.
 
 from typing import Generic
 
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.functions.algebraic.linear_gaussian_oed import (
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
     build_linear_qoi_map,
 )
-from pyapprox.benchmarks.problems.inverse import (
+from pyapprox_benchmarks.problems.inverse import (
     build_linear_gaussian_inference_problem,
 )
-from pyapprox.benchmarks.ground_truth import OEDGroundTruth
-from pyapprox.benchmarks.problems.oed import PredictionOEDProblem
+from pyapprox_benchmarks.ground_truth import OEDGroundTruth
+from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
 from pyapprox.util.backends.protocols import Array, Backend
 
 

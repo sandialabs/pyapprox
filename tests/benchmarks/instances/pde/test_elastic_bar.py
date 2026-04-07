@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.instances.pde.elastic_bar import elastic_bar_1d
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.instances.pde.elastic_bar import elastic_bar_1d
+from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

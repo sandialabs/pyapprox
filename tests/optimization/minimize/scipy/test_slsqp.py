@@ -4,7 +4,7 @@ import pytest
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.benchmarks.functions.algebraic.evutushenko import (
+from pyapprox_benchmarks.functions.algebraic.evutushenko import (
     EvtushenkoNonLinearConstraint,
     EvtushenkoObjective,
 )

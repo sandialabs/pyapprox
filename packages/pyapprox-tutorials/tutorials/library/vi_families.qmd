@@ -72,7 +72,7 @@ import math
 
 ```{python}
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
 )
 from pyapprox.probability.likelihood import (
@@ -307,7 +307,7 @@ print(f"Negative ELBO: {result_full.neg_elbo():.4f}")
 #| echo: false
 #| fig-cap: "Diagonal vs. full-covariance Gaussian VI on the 2D composite beam posterior. Left: the diagonal (mean-field) Gaussian has axis-aligned ellipses --- it cannot represent the posterior's tilt. Right: the full-covariance Gaussian tilts its ellipses to match the posterior correlation, producing a substantially better fit and a lower negative ELBO."
 #| label: fig-family-comparison
-from pyapprox.tutorial_figures._vi import plot_family_comparison
+from pyapprox_tutorials.figures._vi import plot_family_comparison
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 plot_family_comparison(
@@ -444,7 +444,7 @@ print(f"VI posterior mean: {rec_mean:.4f}")
 #| echo: false
 #| fig-cap: "Beta VI on the coin-flip problem. The VI approximation (blue dashed) closely matches the exact conjugate posterior (orange). The Beta variational family naturally respects the parameter bounds $p \\in (0, 1)$."
 #| label: fig-beta-vi
-from pyapprox.tutorial_figures._vi import plot_beta_vi
+from pyapprox_tutorials.figures._vi import plot_beta_vi
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_beta_vi(prior_alpha, prior_beta, exact_posterior_alpha,

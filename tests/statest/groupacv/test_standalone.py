@@ -8,7 +8,7 @@ from mathematical definitions.
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
 )

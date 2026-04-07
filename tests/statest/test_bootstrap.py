@@ -14,10 +14,10 @@ These tests use the typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
 )
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
 from pyapprox.statest.acv.variants import (

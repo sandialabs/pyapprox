@@ -65,7 +65,7 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
 )
-from pyapprox.tutorial_figures._quadrature import (
+from pyapprox_tutorials.figures._quadrature import (
     plot_gauss_nodes,
     plot_quad_convergence_comparison,
     plot_gauss_hermite,

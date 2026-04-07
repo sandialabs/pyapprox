@@ -61,7 +61,7 @@ If we can identify the dominant inputs, we can:
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import cantilever_beam_1d
+from pyapprox_benchmarks import cantilever_beam_1d
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
@@ -126,7 +126,7 @@ where:
 #| fig-cap: "Variance decomposition for beam tip deflection. Each slice shows the fraction of total variance attributable to each KLE input. The first KLE term dominates because it represents the lowest-frequency spatial mode of the stiffness field."
 #| label: fig-variance-decomposition
 
-from pyapprox.tutorial_figures._sensitivity import plot_variance_decomposition
+from pyapprox_tutorials.figures._sensitivity import plot_variance_decomposition
 
 qoi_plot = 0  # tip deflection
 fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -177,7 +177,7 @@ Key properties:
 #| fig-cap: "First-order and total-order Sobol indices for tip deflection and maximum curvature. When the bars are similar in height, interactions are weak. When the total-order bar is much taller, the input participates in interactions with other inputs."
 #| label: fig-sobol-bar-chart
 
-from pyapprox.tutorial_figures._sensitivity import plot_sobol_bar_chart
+from pyapprox_tutorials.figures._sensitivity import plot_sobol_bar_chart
 
 # Plot only QoIs with nonzero variance (skip sigma_int, index 1)
 plot_qois = [0, 2]
@@ -204,7 +204,7 @@ A quick visual check supports the sensitivity indices. @fig-scatter-dominant sho
 #| fig-cap: "Scatter plots confirming sensitivity rankings. Left: QoI vs. dominant KLE input (clear trend explains high S_i). Right: QoI vs. least influential input (no trend, low S_i)."
 #| label: fig-scatter-dominant
 
-from pyapprox.tutorial_figures._sensitivity import plot_scatter_dominant
+from pyapprox_tutorials.figures._sensitivity import plot_scatter_dominant
 
 qoi_plot = 0
 np.random.seed(99)

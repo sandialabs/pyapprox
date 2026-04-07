@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.benchmarks.functions.algebraic.linear_state_equation import (
+from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (
     LinearStateEquation,
 )
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (

@@ -71,7 +71,7 @@ import torch
 torch.set_default_dtype(torch.float64)
 
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.benchmarks.instances.multifidelity.forrester_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.forrester_ensemble import (
     forrester_ensemble_2model,
 )
 
@@ -93,7 +93,7 @@ costs_per_eval = [0.05, 1.0]     # seconds per evaluation
 #| fig-cap: "The Forrester multi-fidelity benchmark. The high-fidelity function (black) is expensive; the low-fidelity approximation (orange dashed) is cheap but biased. Both share the same oscillatory structure --- the MFGP can exploit this correlation."
 #| label: fig-forrester-functions
 
-from pyapprox.tutorial_figures._gp import plot_forrester_functions
+from pyapprox_tutorials.figures._gp import plot_forrester_functions
 
 x_plot = bkd.asarray(np.linspace(0, 1, 200).reshape(1, -1))
 xr = np.linspace(0, 1, 200)
@@ -252,7 +252,7 @@ l2_hf_few = np.linalg.norm(y_test_hf - hf_few_pred) / np.linalg.norm(y_test_hf)
 #| fig-cap: "Three GP surrogates compared. **Top**: multi-fidelity GP using 100 LF + 4 HF samples. **Middle**: HF-only GP at equal budget. **Bottom**: HF-only GP using only the same 4 HF samples as the MF model --- the wide uncertainty bands show how much information the 100 cheap LF evaluations contribute. Shaded bands show $\\pm 2\\sigma$."
 #| label: fig-predictions-uncertainty
 
-from pyapprox.tutorial_figures._gp import plot_predictions_uncertainty
+from pyapprox_tutorials.figures._gp import plot_predictions_uncertainty
 
 xr = np.linspace(0, 1, 200)
 xs_hf = bkd.to_numpy(X_hf).ravel()
@@ -285,7 +285,7 @@ the high-fidelity level.
 #| fig-cap: "Joint prior kernel matrix across 30 sorted test points for both fidelity levels. The off-diagonal block (LF--HF) shows strong cross-level covariance --- this is the inter-level information that the multi-fidelity GP exploits."
 #| label: fig-kernel-matrix
 
-from pyapprox.tutorial_figures._gp import plot_kernel_matrix
+from pyapprox_tutorials.figures._gp import plot_kernel_matrix
 
 n_cov = 30
 X_cov_unsorted = x_test[:, :n_cov]

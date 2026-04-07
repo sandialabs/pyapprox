@@ -1,7 +1,7 @@
-from pyapprox.benchmarks.functions.algebraic.evutushenko.constraints import (
+from pyapprox_benchmarks.functions.algebraic.evutushenko.constraints import (
     EvtushenkoNonLinearConstraint,
 )
-from pyapprox.benchmarks.functions.algebraic.evutushenko.objective import (
+from pyapprox_benchmarks.functions.algebraic.evutushenko.objective import (
     EvtushenkoObjective,
 )
 

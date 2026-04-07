@@ -99,7 +99,7 @@ from pyapprox.surrogates.sparsegrids import (
 )
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.tutorial_figures._sparse_grids import plot_model_hierarchy
+from pyapprox_tutorials.figures._sparse_grids import plot_model_hierarchy
 
 epsilons = {0: 0.5, 1: 0.0}
 z_plot = np.linspace(-1, 1, 300)
@@ -164,7 +164,7 @@ Configuration variables parameterize the *solver settings* that control model fi
 #| fig-cap: "Configuration variables as mesh refinement levels. Each panel shows a different combination of $x$- and $y$-mesh resolution, illustrating how two independent configuration variables control solver fidelity."
 #| label: fig-config-vars
 
-from pyapprox.tutorial_figures._sparse_grids import plot_config_vars
+from pyapprox_tutorials.figures._sparse_grids import plot_config_vars
 
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 plot_config_vars(axes)
@@ -290,7 +290,7 @@ The selected subspace indices show how the algorithm balances physical resolutio
 #| fig-cap: "Selected multi-indices for the 1D physical + 1 config variable problem. Blue boxes are cheap model evaluations ($\\alpha=0$); red boxes are expensive model evaluations ($\\alpha=1$). The algorithm uses many physical levels for the cheap model and few for the expensive one."
 #| label: fig-mf-indices-1d
 
-from pyapprox.tutorial_figures._sparse_grids import plot_mf_indices_1d
+from pyapprox_tutorials.figures._sparse_grids import plot_mf_indices_1d
 
 sel = result.indices
 sel_np = bkd.to_numpy(sel).astype(int)
@@ -313,7 +313,7 @@ The animation below shows how the adaptive algorithm builds the multi-index set 
 #| fig-cap: "Animated multi-index refinement. Solid boxes are selected subspaces; dashed boxes are candidates. The algorithm alternates between cheap ($\\alpha=0$, blue) and expensive ($\\alpha=1$, red) model evaluations."
 #| label: fig-mf-animation
 
-from pyapprox.tutorial_figures._sparse_grids import plot_mf_animation
+from pyapprox_tutorials.figures._sparse_grids import plot_mf_animation
 
 # Build a fresh fitter for animation
 tp_factory_anim = TensorProductSubspaceFactory(bkd, phys_factories, growth)
@@ -404,7 +404,7 @@ for step in range(15):
 #| fig-cap: "Multi-index refinement convergence in manual mode. The error estimate (blue) tracks the true test error (red) closely, validating the built-in error indicator."
 #| label: fig-mf-manual-convergence
 
-from pyapprox.tutorial_figures._sparse_grids import plot_mf_manual_convergence
+from pyapprox_tutorials.figures._sparse_grids import plot_mf_manual_convergence
 
 fig, ax = plt.subplots(figsize=(8, 4))
 steps = range(1, len(error_estimates) + 1)
@@ -503,7 +503,7 @@ while len(snaps_cw) < n_frames:
 #| fig-cap: "Side-by-side comparison of unweighted (left) and cost-weighted (right) refinement paths. The cost-weighted algorithm defers expensive model evaluations, reaching the same accuracy at lower total cost."
 #| label: fig-cost-weighted-animation
 
-from pyapprox.tutorial_figures._sparse_grids import plot_cost_weighted_animation
+from pyapprox_tutorials.figures._sparse_grids import plot_cost_weighted_animation
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
 html_cw = plot_cost_weighted_animation(
@@ -615,7 +615,7 @@ With two physical variables and one configuration variable, each selected subspa
 #| fig-cap: "Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$ for the 2D physical + 1 config variable problem, shown as 3D voxels. Blue voxels ($\\alpha=0$) represent cheap model evaluations spanning many physical levels; red voxels ($\\alpha=1$) represent expensive model evaluations at fewer physical levels."
 #| label: fig-mf-indices-2d
 
-from pyapprox.tutorial_figures._sparse_grids import plot_mf_indices_2d
+from pyapprox_tutorials.figures._sparse_grids import plot_mf_indices_2d
 
 sel_2d = result_2d.indices
 sel_2d_np = bkd.to_numpy(sel_2d).astype(int)
@@ -644,7 +644,7 @@ from pyapprox.interface.functions.plot.plot2d_rectangular import (
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
-from pyapprox.tutorial_figures._sparse_grids import plot_mf_2d_accuracy
+from pyapprox_tutorials.figures._sparse_grids import plot_mf_2d_accuracy
 
 plot_limits = [-1.0, 1.0, -1.0, 1.0]
 

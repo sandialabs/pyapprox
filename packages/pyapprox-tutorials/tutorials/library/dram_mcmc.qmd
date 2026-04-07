@@ -57,7 +57,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam import (
     cantilever_beam_1d,
 )
 from pyapprox.probability.likelihood import (
@@ -188,7 +188,7 @@ The [previous tutorial](mcmc_sampling.qmd) used a well-tuned proposal and the ch
 #| echo: false
 #| fig-cap: "Effect of proposal width on chain behavior. Left: too narrow — the chain takes tiny steps and explores slowly (high acceptance, high autocorrelation). Center: well-tuned — healthy mixing, the chain moves freely through the posterior. Right: too wide — most proposals land in low-density regions and are rejected, causing the chain to stick in place for long stretches."
 #| label: fig-proposal-width
-from pyapprox.tutorial_figures._bayesian import plot_proposal_width
+from pyapprox_tutorials.figures._bayesian import plot_proposal_width
 
 fig, axes = plt.subplots(3, 2, figsize=(13, 10))
 plot_proposal_width(axes, run_mh, xi1_true, xi2_true)
@@ -211,7 +211,7 @@ The acceptance rate provides a quick diagnostic. @fig-acceptance-rate sweeps the
 #| echo: false
 #| fig-cap: "Acceptance rate and effective sample size (ESS) vs. proposal width. The optimal proposal width produces an acceptance rate of roughly $25\\text{--}40\\%$ for 2D problems. Too narrow → high acceptance but low ESS. Too wide → low acceptance and low ESS."
 #| label: fig-acceptance-rate
-from pyapprox.tutorial_figures._bayesian import plot_acceptance_rate
+from pyapprox_tutorials.figures._bayesian import plot_acceptance_rate
 
 fig, ax1 = plt.subplots(figsize=(8, 4.5))
 ax2 = ax1.twinx()
@@ -235,7 +235,7 @@ The chain starts wherever we place it and needs time to find the high-density re
 #| echo: false
 #| fig-cap: "Effect of burn-in removal. The red histogram (all samples) is visibly shifted from the true value because the burn-in transient pulls the distribution toward the starting point. The blue histogram (burn-in removed) centers on the true value. The inset trace plot shows the transient approach phase (gray region)."
 #| label: fig-burnin
-from pyapprox.tutorial_figures._bayesian import plot_burnin
+from pyapprox_tutorials.figures._bayesian import plot_burnin
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
 plot_burnin(ax, run_mh, xi1_true)
@@ -253,7 +253,7 @@ Even after burn-in, consecutive chain samples are correlated --- the walker's po
 #| echo: false
 #| fig-cap: "Autocorrelation of the $\\xi_1$ chain for three proposal widths. The well-tuned chain (green) decorrelates within ~20 steps. The too-narrow chain (blue) stays correlated for hundreds of steps. The too-wide chain (red) also decorrelates slowly due to frequent rejections."
 #| label: fig-autocorrelation
-from pyapprox.tutorial_figures._bayesian import plot_autocorrelation
+from pyapprox_tutorials.figures._bayesian import plot_autocorrelation
 
 configs = [
     {"sigma": np.array([0.05, 0.05]), "label": "Too narrow", "color": "#2C7FB8"},
@@ -280,7 +280,7 @@ Standard Metropolis-Hastings has a binary outcome: accept or reject. If a propos
 #| echo: false
 #| fig-cap: "Delayed Rejection in action. Top: the first proposal (large step) lands in a low-density region and is rejected. Bottom: a second proposal (smaller step) is tried from the same current position. It lands in a higher-density region and is accepted. Without DR, the chain would have stayed put."
 #| label: fig-delayed-rejection
-from pyapprox.tutorial_figures._bayesian import plot_delayed_rejection
+from pyapprox_tutorials.figures._bayesian import plot_delayed_rejection
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
 plot_delayed_rejection(ax1, ax2, tip_model_1d, y_obs_1d, sigma_noise_1d,
@@ -308,7 +308,7 @@ where $\hat{\boldsymbol{\Sigma}}_t$ is the sample covariance of the chain so far
 #| echo: false
 #| fig-cap: "Adaptive Metropolis learns the posterior shape. Left: initial isotropic proposal (circle) — the chain makes many rejected moves perpendicular to the posterior ridge. Right: after adaptation, the proposal aligns with the posterior's correlation structure (tilted ellipse) — the chain moves efficiently along the ridge."
 #| label: fig-adaptive-proposal
-from pyapprox.tutorial_figures._bayesian import plot_adaptive_proposal
+from pyapprox_tutorials.figures._bayesian import plot_adaptive_proposal
 
 # Run adaptive MH
 n_steps_am = 3000
@@ -355,7 +355,7 @@ The adapted proposal ellipse is tilted to align with the posterior's correlation
 #| echo: false
 #| fig-cap: "Comparison of four MCMC variants on the KLE beam problem (3,000 steps each). Top row: trace plots of $\\xi_1$. Bottom row: 2D scatter of posterior samples with ESS annotations. Focus on ESS rather than acceptance rate — DR achieves 90% acceptance but the lowest ESS, because most accepted moves are tiny second-stage steps that barely advance the chain."
 #| label: fig-dram-comparison
-from pyapprox.tutorial_figures._bayesian import plot_dram_comparison
+from pyapprox_tutorials.figures._bayesian import plot_dram_comparison
 
 n_compare = 3000
 burnin_comp = 500

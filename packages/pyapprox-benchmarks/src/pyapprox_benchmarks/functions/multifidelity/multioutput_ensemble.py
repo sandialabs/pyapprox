@@ -10,7 +10,7 @@ Reference: Dixon et al. (2024), SIAM/ASA JUQ
 import math
 from typing import Callable, Generic, List, Sequence
 
-from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
+from pyapprox_benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
 from pyapprox.util.backends.protocols import Array, Backend

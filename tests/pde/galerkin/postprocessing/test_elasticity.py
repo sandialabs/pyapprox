@@ -403,7 +403,7 @@ class TestVonMisesWithFEMSolve:
         _bkd = numpy_bkd
         from skfem.models.elasticity import lame_parameters
 
-        from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+        from pyapprox_benchmarks.instances.pde.cantilever_beam import (
             _DEFAULT_MESH_PATH,
         )
         from pyapprox.pde.galerkin.basis import VectorLagrangeBasis

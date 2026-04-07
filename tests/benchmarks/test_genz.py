@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.genz import (
+from pyapprox_benchmarks.functions.genz import (
     CornerPeakFunction,
     GaussianPeakFunction,
     OscillatoryFunction,

@@ -118,7 +118,7 @@ samples_indep = variable_indep.rvs(3000)
 #| fig-cap: "Independent Beta prior. $E_1$ has a Beta(2,6) marginal (left-skewed) and $E_2$ has a Beta(6,2) marginal (right-skewed), both on $\\pm 10\\%$ of nominal. The contours are axis-aligned because the parameters are uncorrelated."
 #| label: fig-indep-beta
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._forward_uq import plot_indep_beta
+from pyapprox_tutorials.figures._forward_uq import plot_indep_beta
 
 fig, axes = plt.subplots(2, 2, figsize=(6, 6),
                           gridspec_kw={"width_ratios": [3, 1],
@@ -179,7 +179,7 @@ print(f"Empirical correlation: {corr:.3f}")
 #| echo: false
 #| fig-cap: "Gaussian copula with Beta marginals ($\\rho = 0.95$). The strong correlation produces a crescent-shaped cloud. The marginals remain Beta(2,6) and Beta(6,2) --- only the dependence structure has changed."
 #| label: fig-copula-beta
-from pyapprox.tutorial_figures._forward_uq import plot_copula_beta
+from pyapprox_tutorials.figures._forward_uq import plot_copula_beta
 
 fig, axes = plt.subplots(2, 2, figsize=(6, 6),
                           gridspec_kw={"width_ratios": [3, 1],
@@ -210,7 +210,7 @@ Ignoring correlation when it exists leads to incorrect uncertainty estimates.
 #| echo: false
 #| fig-cap: "Two prior specifications for $(E_1, E_2)$. Left: independent Beta marginals. Right: Gaussian copula with the same Beta marginals and $\\rho = 0.95$. The choice of prior directly affects the push-forward distribution of the QoI."
 #| label: fig-two-priors
-from pyapprox.tutorial_figures._forward_uq import plot_two_priors
+from pyapprox_tutorials.figures._forward_uq import plot_two_priors
 
 plotter = variable_indep.plotter()
 plotter_cop = variable_copula.plotter()

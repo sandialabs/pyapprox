@@ -467,7 +467,7 @@ class TestOEDQuadratureSampler:
 
     def test_from_problem(self, bkd):
         """Test from_problem classmethod with distribution-based factory."""
-        from pyapprox.benchmarks.problems.inverse import (
+        from pyapprox_benchmarks.problems.inverse import (
             build_linear_gaussian_inference_problem,
         )
 

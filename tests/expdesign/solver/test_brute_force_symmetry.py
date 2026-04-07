@@ -13,7 +13,7 @@ from typing import Any, Generic, List, Tuple
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.instances.oed.linear_gaussian import (
     LinearGaussianKLOEDBenchmark,
     build_linear_gaussian_kl_benchmark,
 )

@@ -8,7 +8,7 @@ but using the typing Backend protocol.
 import math
 from typing import Callable, Generic, List, Optional, Sequence
 
-from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
+from pyapprox_benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
 from pyapprox.util.backends.protocols import Array, Backend

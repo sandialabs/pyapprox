@@ -508,7 +508,7 @@ class TestIshigamiBenchmark:
         pi = float(bkd.to_numpy(bkd.asarray(np.pi)))
 
         # Import utilities
-        from pyapprox.benchmarks.functions.algebraic.ishigami import (
+        from pyapprox_benchmarks.functions.algebraic.ishigami import (
             IshigamiFunction,
             IshigamiSensitivityIndices,
         )
@@ -914,7 +914,7 @@ class TestSobolIndicesOfPosteriorMean:
         np.random.seed(42)
         pi = float(bkd.to_numpy(bkd.asarray(np.pi)))
 
-        from pyapprox.benchmarks.functions.algebraic.ishigami import (
+        from pyapprox_benchmarks.functions.algebraic.ishigami import (
             IshigamiFunction,
             IshigamiSensitivityIndices,
         )

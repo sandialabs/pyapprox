@@ -8,12 +8,12 @@ protocols. Tests access maps via bm.problem().obs_map() for consistency.
 import numpy as np
 
 # Ensure all OED benchmarks are registered by importing the package
-import pyapprox.benchmarks.instances.oed  # noqa: F401
-from pyapprox.benchmarks.protocols import (
+import pyapprox_benchmarks.instances.oed  # noqa: F401
+from pyapprox_benchmarks.protocols import (
     KLOEDBenchmarkProtocol,
     PredictionOEDBenchmarkProtocol,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.expdesign.protocols.oed import (
     BayesianInferenceProblemProtocol,
     GaussianInferenceProblemProtocol,

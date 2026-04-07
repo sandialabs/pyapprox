@@ -1,7 +1,7 @@
 """Tests for the analytical 2D cantilever beam model."""
 
 
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
     CantileverBeam2DConstraints,
     CantileverBeam2DObjective,
@@ -273,8 +273,8 @@ class TestCantileverBeam2DRegistry:
     def test_registry_access(self):
         """Verify benchmark is accessible from registry."""
         # Trigger registration
-        import pyapprox.benchmarks.instances.analytic.cantilever_beam_2d  # noqa: F401
-        from pyapprox.benchmarks.registry import BenchmarkRegistry
+        import pyapprox_benchmarks.instances.analytic.cantilever_beam_2d  # noqa: F401
+        from pyapprox_benchmarks.registry import BenchmarkRegistry
 
         bkd = NumpyBkd()
         bm = BenchmarkRegistry.get(

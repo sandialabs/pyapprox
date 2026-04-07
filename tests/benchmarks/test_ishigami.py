@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

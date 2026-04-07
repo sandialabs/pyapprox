@@ -118,7 +118,7 @@ so $\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*$.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
 from pyapprox.statest.statistics import MultiOutputMean
@@ -375,7 +375,7 @@ for fam, result_fam in [("gmf", result_gmf), ("grd", result_grd), ("gis", result
     if ri_list is None:
         ri_list = fam_ri
 
-from pyapprox.tutorial_figures._multifidelity_advanced import plot_pacv_cross_family
+from pyapprox_tutorials.figures._multifidelity_advanced import plot_pacv_cross_family
 
 fig, ax = plt.subplots(figsize=(11, 5))
 plot_pacv_cross_family(ri_list, results, fam_names, fam_cols, mc_var,

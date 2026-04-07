@@ -69,7 +69,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.oed.advection_diffusion import (
+from pyapprox_benchmarks.instances.oed.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
 from pyapprox.expdesign.data import OEDDataGenerator, OEDDataManager
@@ -274,7 +274,7 @@ design_weights, utility = solve_prediction_oed(
 ```{python}
 #| fig-cap: "Optimal sensor weights for the advection-diffusion domain. Circle area is proportional to weight; the OED concentrates budget on sensors where the flow signal is strongest."
 #| label: fig-advec-diff-design
-from pyapprox.tutorial_figures import plot_advec_diff_design
+from pyapprox_tutorials.figures import plot_advec_diff_design
 
 fig, ax = plt.subplots(figsize=(9, 4))
 obs_locs = bkd.to_numpy(oed_data["design_conditions"])

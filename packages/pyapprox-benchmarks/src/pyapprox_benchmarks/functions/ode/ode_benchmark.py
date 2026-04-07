@@ -15,8 +15,8 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.util.backends.protocols import Array, Backend
 
 GT = TypeVar("GT")

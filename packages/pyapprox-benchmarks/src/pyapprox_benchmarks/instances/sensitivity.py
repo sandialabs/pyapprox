@@ -6,8 +6,8 @@
 Use pyapprox.benchmarks.instances.analytic instead.
 """
 
-from pyapprox.benchmarks.instances.analytic.ishigami import ishigami_3d
-from pyapprox.benchmarks.instances.analytic.sobol_g import (
+from pyapprox_benchmarks.instances.analytic.ishigami import ishigami_3d
+from pyapprox_benchmarks.instances.analytic.sobol_g import (
     sobol_g_4d,
     sobol_g_6d,
 )

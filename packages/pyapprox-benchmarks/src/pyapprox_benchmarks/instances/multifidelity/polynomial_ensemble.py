@@ -6,11 +6,11 @@ estimators (MLMC, MFMC, ACV) with known analytical statistics.
 
 from typing import Generic, List
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )

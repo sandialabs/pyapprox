@@ -788,7 +788,7 @@ class TestExploreStep:
 
     def _create_aetcblue(self, bkd, nmodels: int = 3):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox.benchmarks.functions.multifidelity import (
+        from pyapprox_benchmarks.functions.multifidelity import (
             TunableModelEnsemble,
         )
 
@@ -862,7 +862,7 @@ class TestExploitProducesMean:
 
     def _create_aetcblue(self, bkd):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox.benchmarks.functions.multifidelity import (
+        from pyapprox_benchmarks.functions.multifidelity import (
             TunableModelEnsemble,
         )
 
@@ -919,7 +919,7 @@ class TestFullEstimatePipeline:
 
     def _create_aetcblue(self, bkd):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox.benchmarks.functions.multifidelity import (
+        from pyapprox_benchmarks.functions.multifidelity import (
             TunableModelEnsemble,
         )
 
@@ -1075,7 +1075,7 @@ class TestOptimalLossOracleVsMC:
     @slower_test
     def test_optimal_loss_oracle_vs_mc(self) -> None:
         """Test k1 from oracle stats matches k1 from MC with many samples."""
-        from pyapprox.benchmarks.functions.multifidelity import (
+        from pyapprox_benchmarks.functions.multifidelity import (
             TunableModelEnsemble,
         )
 
@@ -1149,7 +1149,7 @@ class TestMSEMatchesLoss:
 
     def _create_aetcblue(self):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox.benchmarks.functions.multifidelity import (
+        from pyapprox_benchmarks.functions.multifidelity import (
             TunableModelEnsemble,
         )
         from pyapprox.optimization.minimize.chained.chained_optimizer import (

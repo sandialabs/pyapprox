@@ -78,7 +78,7 @@ The residual must implement:
 ### Example: Lotka-Volterra Residual
 
 ```{python}
-from pyapprox.benchmarks import lotka_volterra_3species
+from pyapprox_benchmarks import lotka_volterra_3species
 
 benchmark = lotka_volterra_3species(bkd)
 residual = benchmark.residual()

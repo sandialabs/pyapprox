@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
+from pyapprox_benchmarks.functions.algebraic.rosenbrock import (
     RosenbrockFunction,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

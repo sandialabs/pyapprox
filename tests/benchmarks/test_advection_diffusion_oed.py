@@ -13,7 +13,7 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.benchmarks.instances.oed.advection_diffusion import (
+from pyapprox_benchmarks.instances.oed.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
 from tests._helpers.markers import slow_test

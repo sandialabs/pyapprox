@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.branin import (
+from pyapprox_benchmarks.functions.algebraic.branin import (
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
     BraninFunction,

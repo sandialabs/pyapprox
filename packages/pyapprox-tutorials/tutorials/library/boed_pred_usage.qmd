@@ -68,7 +68,7 @@ from the inner loop dominates, unlike the EIG estimator.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.oed.linear_gaussian_pred import (
+from pyapprox_benchmarks.instances.oed.linear_gaussian_pred import (
     build_linear_gaussian_pred_benchmark,
 )
 from pyapprox.expdesign.data import generate_oed_data
@@ -215,7 +215,7 @@ values_mc = sweep_pred_mse(outer_counts, inner_counts)
 #| echo: false
 #| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."
 #| label: fig-pred-mse-mc
-from pyapprox.tutorial_figures import plot_pred_mse_mc
+from pyapprox_tutorials.figures import plot_pred_mse_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts)

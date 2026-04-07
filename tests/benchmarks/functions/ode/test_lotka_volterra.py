@@ -5,7 +5,7 @@ Uses TimeAdjointDerivativeChecker for all derivative tests.
 """
 
 
-from pyapprox.benchmarks.functions.ode.lotka_volterra import (
+from pyapprox_benchmarks.functions.ode.lotka_volterra import (
     LotkaVolterraResidual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd

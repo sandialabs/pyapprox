@@ -7,7 +7,7 @@ from typing import Sequence
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )

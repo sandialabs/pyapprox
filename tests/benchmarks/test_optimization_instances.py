@@ -1,11 +1,11 @@
 """Tests for optimization benchmark instances."""
 
-from pyapprox.benchmarks.instances.optimization import (
+from pyapprox_benchmarks.instances.optimization import (
     rosenbrock_2d,
     rosenbrock_10d,
 )
-from pyapprox.benchmarks.protocols import BenchmarkProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.protocols import BenchmarkProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
 # TODO: this test class should be where function is defined
@@ -114,7 +114,7 @@ class TestBenchmarkRegistryOptimization:
 
     def test_rosenbrock_2d_registered(self) -> None:
         """Test rosenbrock_2d is registered."""
-        from pyapprox.benchmarks.instances import optimization  # noqa: F401
+        from pyapprox_benchmarks.instances import optimization  # noqa: F401
 
         bkd = NumpyBkd()
         benchmark = BenchmarkRegistry.get("rosenbrock_2d", bkd)
@@ -122,7 +122,7 @@ class TestBenchmarkRegistryOptimization:
 
     def test_rosenbrock_10d_registered(self) -> None:
         """Test rosenbrock_10d is registered."""
-        from pyapprox.benchmarks.instances import optimization  # noqa: F401
+        from pyapprox_benchmarks.instances import optimization  # noqa: F401
 
         bkd = NumpyBkd()
         benchmark = BenchmarkRegistry.get("rosenbrock_10d", bkd)
@@ -130,7 +130,7 @@ class TestBenchmarkRegistryOptimization:
 
     def test_benchmarks_in_analytic_category(self) -> None:
         """Test optimization benchmarks are in analytic category."""
-        from pyapprox.benchmarks.instances import analytic  # noqa: F401
+        from pyapprox_benchmarks.instances import analytic  # noqa: F401
 
         analytic_benchmarks = BenchmarkRegistry.list_category("analytic")
         assert "rosenbrock_2d" in analytic_benchmarks

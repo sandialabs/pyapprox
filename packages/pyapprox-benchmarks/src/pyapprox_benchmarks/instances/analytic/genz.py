@@ -6,16 +6,16 @@ known analytical integrals.
 
 from typing import Generic, Optional
 
-from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
-from pyapprox.benchmarks.functions.genz import (
+from pyapprox_benchmarks.benchmark import Benchmark, BoxDomain
+from pyapprox_benchmarks.functions.genz import (
     CornerPeakFunction,
     GaussianPeakFunction,
     OscillatoryFunction,
     ProductPeakFunction,
 )
-from pyapprox.benchmarks.ground_truth import QuadratureGroundTruth
-from pyapprox.benchmarks.protocols import DomainProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.ground_truth import QuadratureGroundTruth
+from pyapprox_benchmarks.protocols import DomainProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 

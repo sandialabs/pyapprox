@@ -274,7 +274,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.expdesign.objective import (
     create_kl_oed_objective_from_data,
 )
-from pyapprox.tutorial_figures import plot_eig_landscape
+from pyapprox_tutorials.figures import plot_eig_landscape
 
 bkd = NumpyBkd()
 rng = np.random.default_rng(42)

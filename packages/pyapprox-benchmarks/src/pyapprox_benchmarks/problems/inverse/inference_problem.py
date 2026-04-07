@@ -10,7 +10,7 @@ Designed to be movable to pyapprox/inverse/ later.
 
 from typing import Generic
 
-from pyapprox.benchmarks.functions.algebraic.linear_gaussian_oed import (
+from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     build_linear_obs_map,
 )
 from pyapprox.interface.functions.protocols import FunctionProtocol

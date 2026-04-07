@@ -6,7 +6,7 @@
 Use pyapprox.benchmarks.instances.analytic instead.
 """
 
-from pyapprox.benchmarks.instances.analytic.genz import (
+from pyapprox_benchmarks.instances.analytic.genz import (
     genz_corner_peak_2d,
     genz_gaussian_peak_2d,
     genz_gaussian_peak_5d,

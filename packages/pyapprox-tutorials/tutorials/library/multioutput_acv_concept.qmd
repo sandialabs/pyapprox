@@ -107,7 +107,7 @@ QoIs jointly and is uniformly better for QoI 0.
 #| label: fig-moacv-soacv
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._multifidelity_advanced import plot_moacv_vs_soacv
+from pyapprox_tutorials.figures._multifidelity_advanced import plot_moacv_vs_soacv
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
 plot_moacv_vs_soacv(ax)

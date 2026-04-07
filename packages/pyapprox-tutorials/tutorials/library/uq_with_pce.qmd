@@ -54,7 +54,7 @@ We use a 1D Euler--Bernoulli cantilever beam with spatially varying bending stif
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam import (
     cantilever_beam_1d,
 )
 from pyapprox.surrogates.affine.expansions.pce import (
@@ -138,7 +138,7 @@ $$
 #| label: fig-marginal-densities
 
 from pyapprox.interface.functions.timing import timed
-from pyapprox.tutorial_figures._pce import plot_pce_marginal_densities
+from pyapprox_tutorials.figures._pce import plot_pce_marginal_densities
 
 # Measure per-evaluation cost of beam model and PCE
 timed_model = timed(model)
@@ -233,7 +233,7 @@ For Monte Carlo, we use all $N$ samples directly. For PCE, we increase the polyn
 #| fig-cap: "PCE vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For PCE, the degree increases with the budget (oversampling ratio = 2). Lines show median over 20 repetitions; bands show 10th--90th percentiles."
 #| label: fig-pce-vs-mc
 
-from pyapprox.tutorial_figures._pce import plot_pce_vs_mc
+from pyapprox_tutorials.figures._pce import plot_pce_vs_mc
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_pce_vs_mc(model, prior, marginals, ls_fitter, bkd,

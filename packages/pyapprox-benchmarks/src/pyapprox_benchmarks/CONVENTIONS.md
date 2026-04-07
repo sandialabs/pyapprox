@@ -1,6 +1,6 @@
 # PyApprox Benchmark Conventions
 
-This document defines the conventions for creating and using benchmarks in `pyapprox.benchmarks`.
+This document defines the conventions for creating and using benchmarks in `pyapprox_benchmarks`.
 
 ## Overview
 
@@ -142,7 +142,7 @@ def ensemble(self) -> Sequence[FunctionProtocol[Array]]:
 All benchmarks must be registered with the `BenchmarkRegistry`:
 
 ```python
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 @BenchmarkRegistry.register(
     "my_benchmark_name",
@@ -156,7 +156,7 @@ def _my_benchmark_factory(bkd: Backend[Array]) -> Benchmark[Array]:
 **Usage:**
 
 ```python
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
 bkd = NumpyBkd()
@@ -240,10 +240,10 @@ Create the pre-configured instance in `instances/[category].py`:
 
 ```python
 # instances/optimization.py
-from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
-from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.functions.algebraic.my_function import MyFunction
+from pyapprox_benchmarks.benchmark import Benchmark, BoxDomain
+from pyapprox_benchmarks.ground_truth import OptimizationGroundTruth
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.functions.algebraic.my_function import MyFunction
 
 def my_function_2d(bkd: Backend[Array]) -> Benchmark[Array, OptimizationGroundTruth]:
     """Create 2D my_function benchmark with standard parameters."""

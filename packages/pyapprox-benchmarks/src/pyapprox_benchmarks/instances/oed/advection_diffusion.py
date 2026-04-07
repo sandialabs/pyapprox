@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.problems.inverse import BayesianInferenceProblem
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

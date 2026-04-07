@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any, Tuple, Union
 
-from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
+from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )

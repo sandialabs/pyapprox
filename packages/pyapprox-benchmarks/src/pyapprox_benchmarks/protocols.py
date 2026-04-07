@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Generic, List, Protocol, Sequence, runtime_checkable
 
-from pyapprox.benchmarks.ground_truth import OEDGroundTruth
+from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox.expdesign.protocols.oed import (
     KLOEDProblemProtocol,
     PredictionOEDProblemProtocol,

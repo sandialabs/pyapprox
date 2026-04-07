@@ -223,7 +223,7 @@ bkd = NumpyBkd()
 
 # Build a small linear Gaussian problem
 nobs, degree, noise_std, prior_std = 3, 2, 0.5, 0.5
-from pyapprox.benchmarks.functions.algebraic.linear_gaussian_oed import _build_vandermonde
+from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import _build_vandermonde
 
 obs_locations = bkd.linspace(-1.0, 1.0, nobs)
 A = _build_vandermonde(obs_locations, 0, degree, bkd)

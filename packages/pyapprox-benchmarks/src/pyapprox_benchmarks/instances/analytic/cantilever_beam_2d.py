@@ -7,12 +7,12 @@ and Uniform marginals for cross-section dimensions (w, t).
 Matches the legacy CantileverBeamModel variable distributions.
 """
 
-from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
 )
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal

@@ -9,7 +9,7 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam import (
     MESH_PATHS,
     CompositeBeam1DForwardModel,
     cantilever_beam_1d,
@@ -19,8 +19,8 @@ from pyapprox.benchmarks.instances.pde.cantilever_beam import (
     cantilever_beam_2d_neohookean,
     cantilever_beam_2d_neohookean_spde,
 )
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slower_test  # noqa: F401
@@ -403,7 +403,7 @@ class TestFEMvsAnalytical:
 
     def test_uniform_EI_matches_analytical(self):
         """CompositeBeam1DForwardModel vs CantileverBeam1DAnalytical."""
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
             CantileverBeam1DAnalytical,
         )
 
@@ -443,7 +443,7 @@ class TestFEMvsAnalytical:
 
     def test_analytical_jacobian(self):
         """Verify analytical Jacobian via DerivativeChecker."""
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
             CantileverBeam1DAnalytical,
         )
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (

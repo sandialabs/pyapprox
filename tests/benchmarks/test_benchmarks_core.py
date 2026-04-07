@@ -2,18 +2,18 @@
 
 import pytest
 
-from pyapprox.benchmarks.benchmark import (
+from pyapprox_benchmarks.benchmark import (
     BoxDomain,
 )
-from pyapprox.benchmarks.ground_truth import (
+from pyapprox_benchmarks.ground_truth import (
     OptimizationGroundTruth,
     QuadratureGroundTruth,
     SensitivityGroundTruth,
 )
-from pyapprox.benchmarks.protocols import (
+from pyapprox_benchmarks.protocols import (
     DomainProtocol,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
 

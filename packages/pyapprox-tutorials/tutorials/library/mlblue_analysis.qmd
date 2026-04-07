@@ -234,7 +234,7 @@ tutorial and verify @eq-variance against empirical variance from repeated trials
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
 
@@ -307,7 +307,7 @@ for seed in range(n_trials):
 estimates = np.array(estimates)
 true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
 
-from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_verify
+from pyapprox_tutorials.figures._multifidelity_advanced import plot_mlblue_verify
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
 plot_mlblue_verify(estimates, true_mean, var_theo, subsets_idx, m_counts, ax)
@@ -346,7 +346,7 @@ cv1_floor = float(beta @ np.linalg.solve(Psi_inf, beta))
 
 mc_var_N1 = cov[0, 0]    # MC variance with N=1 HF sample
 
-from pyapprox.tutorial_figures._multifidelity_advanced import plot_mlblue_m_sweep
+from pyapprox_tutorials.figures._multifidelity_advanced import plot_mlblue_m_sweep
 
 fig, ax = plt.subplots(figsize=(8, 4))
 plot_mlblue_m_sweep(m3_vals, vars_sweep, cv1_floor, mc_var_N1, ax)

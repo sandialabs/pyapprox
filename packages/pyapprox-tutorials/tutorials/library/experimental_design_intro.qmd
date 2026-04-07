@@ -74,7 +74,7 @@ L = 100.0
 #| echo: false
 #| fig-cap: "Composite cantilever beam with uncertain loading $t_y(x) = -(\\theta_1 + \\theta_2\\, x/L)$. The beam has stiff skins (blue) and a compliant core (orange) with five circular holes. Two candidate sensor locations are marked: tip (green) and midpoint (purple). Both measure the vertical deflection at their location."
 #| label: fig-beam-setup
-from pyapprox.tutorial_figures import plot_beam_setup
+from pyapprox_tutorials.figures import plot_beam_setup
 
 fig, ax = plt.subplots(figsize=(11, 4.5))
 plot_beam_setup(ax)
@@ -95,10 +95,10 @@ To see this, we set up the problem and compute the exact posterior for each sens
 # =========================================================
 # Build the OED benchmark
 # =========================================================
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam import (
     MESH_PATHS, _find_dof,
 )
-from pyapprox.benchmarks.instances.pde.cantilever_beam_oed import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam_oed import (
     build_cantilever_beam_oed_benchmark,
 )
 from pyapprox.inverse.conjugate.gaussian import (
@@ -165,7 +165,7 @@ post_mid = compute_posterior(a_mid.reshape(1, -1), np.array([y_mid]))
 #| echo: false
 #| fig-cap: "Same prior, same budget, different posteriors. The tip sensor (green) and midpoint sensor (purple) each constrain a different combination of $(\\theta_1, \\theta_2)$. The posterior ellipses are elongated in different directions --- each sensor leaves a different parameter combination unresolved."
 #| label: fig-two-posteriors
-from pyapprox.tutorial_figures import plot_two_posteriors
+from pyapprox_tutorials.figures import plot_two_posteriors
 
 fig, ax = plt.subplots(figsize=(8, 7))
 plot_two_posteriors(prior_dist, post_tip, post_mid, theta_true, ax)
@@ -190,7 +190,7 @@ The coefficients $a_1$ and $a_2$ encode how strongly the measurement at $x_s$ re
 #| echo: false
 #| fig-cap: "Response surfaces for the two sensor locations. Contours show deflection as a function of $(\\theta_1, \\theta_2)$. The contour orientation differs --- the tip (left) and midpoint (right) have different sensitivity to the two load parameters. The bold black curve marks the observed-value level set: the data constrains $\\boldsymbol{\\theta}$ to lie near this curve. The red X marks the true parameter values."
 #| label: fig-response-surfaces
-from pyapprox.tutorial_figures import plot_response_surfaces
+from pyapprox_tutorials.figures import plot_response_surfaces
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 plot_response_surfaces(a_tip, a_mid, y_tip, y_mid, theta_true, fig, axes)
@@ -248,7 +248,7 @@ $$
 #| echo: false
 #| fig-cap: "Combining sensors. Left: two sensors at the tip --- the strong signal from both measurements reduces noise effectively. Center: one at the tip plus one at the midpoint --- diversity adds some new information, but the midpoint's weaker signal limits the gain. Right: posterior covariance determinant for all three configurations."
 #| label: fig-combined-experiments
-from pyapprox.tutorial_figures import plot_combined_experiments
+from pyapprox_tutorials.figures import plot_combined_experiments
 
 # Two-sensor posteriors
 def two_sensor_posterior(x1, x2, seed):
@@ -322,7 +322,7 @@ With EIG as our design criterion, we can systematically search over all candidat
 #| echo: false
 #| fig-cap: "Expected Information Gain vs. sensor position along the beam. The tip region is most informative because deflection is largest there, giving the best signal-to-noise ratio. The clamped end provides almost no information (near-zero deflection regardless of parameters)."
 #| label: fig-eig-sweep
-from pyapprox.tutorial_figures import plot_eig_sweep
+from pyapprox_tutorials.figures import plot_eig_sweep
 
 x_candidates = bkd.to_numpy(all_sensor_xs)
 eig_values = np.array([
@@ -345,7 +345,7 @@ For two sensors, we search over all pairs $(x_1, x_2)$. @fig-eig-2sensor-heatmap
 #| echo: false
 #| fig-cap: "EIG heatmap for two-sensor designs. Each pixel shows the EIG for the sensor pair $(x_1, x_2)$. The diagonal corresponds to placing both sensors at the same location. The star marks the optimal pair."
 #| label: fig-eig-2sensor-heatmap
-from pyapprox.tutorial_figures import plot_eig_2sensor_heatmap
+from pyapprox_tutorials.figures import plot_eig_2sensor_heatmap
 
 n_sweep = 40
 x_sweep = np.linspace(2, L, n_sweep)

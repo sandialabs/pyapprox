@@ -18,7 +18,7 @@ versions for comparison.
 import pytest
 import torch
 
-from pyapprox.benchmarks.functions.ode.linear_ode import (
+from pyapprox_benchmarks.functions.ode.linear_ode import (
     QuadraticODEResidual,
 )
 from pyapprox.ode.explicit_steppers.forward_euler import (

@@ -1,6 +1,6 @@
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.linear_state_equation import (
+from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (
     LinearStateEquation,
 )
 

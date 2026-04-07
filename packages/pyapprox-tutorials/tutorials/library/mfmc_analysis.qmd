@@ -234,7 +234,7 @@ hierarchy before solving again.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
 from pyapprox.statest.statistics import MultiOutputMean
@@ -273,7 +273,7 @@ for a, r in enumerate(r_star):
 #| fig-cap: "MFMC and MC variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."
 #| label: fig-variance-verify
 
-from pyapprox.tutorial_figures._hierarchy import plot_mfmc_variance_verify
+from pyapprox_tutorials.figures._hierarchy import plot_mfmc_variance_verify
 
 stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(bkd.asarray(cov_true))

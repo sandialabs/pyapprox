@@ -83,7 +83,7 @@ requires $f$ to have $M$ bounded derivatives.  For functions with a **discontinu
 #| fig-cap: "A step function interpolated by global Lagrange and piecewise linear polynomials at M=13. Lagrange shows Gibbs-like oscillations; piecewise linear confines the error to cells adjacent to the discontinuity."
 #| label: fig-gibbs
 
-from pyapprox.tutorial_figures._interpolation import plot_gibbs
+from pyapprox_tutorials.figures._interpolation import plot_gibbs
 
 def fun_step(x):
     y = np.zeros_like(x)
@@ -129,7 +129,7 @@ Piecewise polynomial interpolation divides $[a, b]$ into cells and fits a low-de
 The `PiecewiseLinear`, `PiecewiseQuadratic`, and `PiecewiseCubic` classes each take a 1D array of nodes and a backend.  The `__call__` method evaluates all basis functions at given points.
 
 ```{python}
-from pyapprox.tutorial_figures._interpolation import plot_piecewise_basis
+from pyapprox_tutorials.figures._interpolation import plot_piecewise_basis
 
 M = 7
 nodes_1d = bkd.array(np.linspace(-1, 1, M))
@@ -184,7 +184,7 @@ where $C_p$ depends only on the polynomial degree $p$.  Doubling the number of p
 #| fig-cap: "Convergence of piecewise linear and cubic interpolants on a smooth function. Slopes confirm $O(h^2)$ and $O(h^4)$ theory."
 #| label: fig-pw-convergence
 
-from pyapprox.tutorial_figures._interpolation import plot_pw_convergence
+from pyapprox_tutorials.figures._interpolation import plot_pw_convergence
 
 def f_smooth(x):
     return np.exp(np.sin(2 * np.pi * x))
@@ -237,7 +237,7 @@ The convergence plot below uses the $L^\infty$ (max) norm $\|f - f_M\|_\infty = 
 #| fig-cap: "Error vs. $M$ for $|x - 1/3|$ (kink at $x = 1/3$). Piecewise linear converges at $O(M^{-1})$; global Lagrange converges much more slowly."
 #| label: fig-discontinuous
 
-from pyapprox.tutorial_figures._interpolation import plot_discontinuous
+from pyapprox_tutorials.figures._interpolation import plot_discontinuous
 
 def fun_kink(x):
     return np.abs(x - 1.0 / 3.0)

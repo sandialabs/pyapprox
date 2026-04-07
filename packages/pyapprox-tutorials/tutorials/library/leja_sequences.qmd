@@ -102,7 +102,7 @@ The first point $z^{(1)}$ is typically chosen as the maximum of $v$ alone; subse
 #| label: fig-leja-growth
 #| echo: false
 
-from pyapprox.tutorial_figures._interpolation import plot_leja_growth
+from pyapprox_tutorials.figures._interpolation import plot_leja_growth
 
 poly = LegendrePolynomial1D(bkd)
 poly.set_nterms(30)
@@ -131,7 +131,7 @@ The key observation is that the 3-point sequence is a **subset** of the 15-point
 The Christoffel function weighting makes the resulting points near-optimal for polynomial interpolation with respect to the target probability measure.
 
 ```{python}
-from pyapprox.tutorial_figures._interpolation import plot_node_distribution
+from pyapprox_tutorials.figures._interpolation import plot_node_distribution
 
 # Build a Leja sequence on [-1, 1] with Christoffel weighting
 poly_leg = LegendrePolynomial1D(bkd)
@@ -185,7 +185,7 @@ assert np.allclose(n10, n15[:10]), "10-pt not nested in 15-pt"
 `LagrangeBasis1D` accepts any quadrature rule callable with signature `(npoints) → (samples, weights)`.  We can pass `leja.quadrature_rule` directly:
 
 ```{python}
-from pyapprox.tutorial_figures._interpolation import plot_lagrange_on_leja
+from pyapprox_tutorials.figures._interpolation import plot_lagrange_on_leja
 
 # Build a Lagrange basis on Leja points
 basis_leja = LagrangeBasis1D(bkd, leja.quadrature_rule)
@@ -235,7 +235,7 @@ For a uniform distribution the three families — Leja, Clenshaw-Curtis, and Gau
 #| fig-cap: "Interpolation error vs. M for an analytic function. Leja and CC achieve comparable exponential convergence; Gauss is slightly more efficient but non-nested."
 #| label: fig-leja-convergence
 
-from pyapprox.tutorial_figures._interpolation import plot_leja_convergence
+from pyapprox_tutorials.figures._interpolation import plot_leja_convergence
 
 def f_test(x):
     return np.exp(np.cos(np.pi * x))
@@ -343,7 +343,7 @@ Two-point optimization typically produces more accurate quadrature weights, espe
 #| fig-cap: "Quadrature error for one-point vs. two-point optimized Leja sequences. Two-point optimization improves accuracy for moderate M."
 #| label: fig-two-point-quadrature
 
-from pyapprox.tutorial_figures._interpolation import plot_two_point_quadrature
+from pyapprox_tutorials.figures._interpolation import plot_two_point_quadrature
 
 def f_quad_test(x):
     """Test integrand: Runge-like function."""
@@ -388,7 +388,7 @@ For a $\text{Beta}(\alpha, \beta)$ distribution on $[0, 1]$, the matched orthogo
 #| label: fig-leja-beta
 
 from scipy.stats import beta as beta_dist
-from pyapprox.tutorial_figures._interpolation import plot_leja_beta
+from pyapprox_tutorials.figures._interpolation import plot_leja_beta
 
 alpha_s, beta_s = 3.0, 5.0
 rv_beta = beta_dist(alpha_s, beta_s)

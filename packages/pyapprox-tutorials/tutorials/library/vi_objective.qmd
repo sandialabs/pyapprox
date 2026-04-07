@@ -64,7 +64,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     HomogeneousBeam1DAnalytical,
 )
 from pyapprox.probability.likelihood import (
@@ -75,7 +75,7 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.tutorial_figures._vi import _beam_exact_posterior, plot_overlap_intuition
+from pyapprox_tutorials.figures._vi import _beam_exact_posterior, plot_overlap_intuition
 
 bkd = NumpyBkd()
 
@@ -137,7 +137,7 @@ To make this concrete, @fig-kl-landscape evaluates the KL divergence for every p
 #| echo: false
 #| fig-cap: "The KL divergence between $q = \\mathcal{N}(\\mu, \\sigma^2)$ and the exact beam posterior, evaluated over a grid of $(\\mu, \\sigma)$. Dark red means high mismatch; dark blue means low. The white star marks the minimum — the best Gaussian approximation. Labeled circles show candidates: poorly-fit candidates sit high on the surface; the best sits at the bottom."
 #| label: fig-kl-landscape
-from pyapprox.tutorial_figures._vi import plot_kl_landscape
+from pyapprox_tutorials.figures._vi import plot_kl_landscape
 
 fig, ax = plt.subplots(figsize=(9, 6))
 plot_kl_landscape(E_grid, post_exact, ax, fig)
@@ -192,7 +192,7 @@ The ELBO balances these forces --- just as Bayes' theorem balances the likelihoo
 #| echo: false
 #| fig-cap: "The two terms of the ELBO, evaluated as functions of $\\mu$ (with $\\sigma$ fixed at the optimal value). Left: the expected log-likelihood peaks near the data-consistent region. Center: the KL penalty from the prior is a bowl centered at the prior mean ($\\mu = 12{,}000$). Right: the negative ELBO (their combination) has a single minimum between the prior mean and the MLE — exactly where the posterior sits."
 #| label: fig-elbo-two-terms
-from pyapprox.tutorial_figures._vi import plot_elbo_two_terms
+from pyapprox_tutorials.figures._vi import plot_elbo_two_terms
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
 plot_elbo_two_terms(

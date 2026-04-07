@@ -7,11 +7,11 @@ methods (MFNets, co-kriging) on a nonlinear 2D problem.
 
 from typing import Generic, List
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.multifidelity.branin_ensemble import (
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.functions.multifidelity.branin_ensemble import (
     BraninEnsemble,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )

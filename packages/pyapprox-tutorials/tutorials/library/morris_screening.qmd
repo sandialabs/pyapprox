@@ -86,7 +86,7 @@ We use the Ishigami function, which has three variables with distinct roles:
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import ishigami_3d
+from pyapprox_benchmarks import ishigami_3d
 from pyapprox.sensitivity import MorrisSensitivityAnalysis
 
 bkd = NumpyBkd()

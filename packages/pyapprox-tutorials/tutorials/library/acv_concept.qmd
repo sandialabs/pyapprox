@@ -80,10 +80,10 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
-from pyapprox.tutorial_figures._cv_acv import plot_unknown_mean_problem
+from pyapprox_tutorials.figures._cv_acv import plot_unknown_mean_problem
 
 bkd = NumpyBkd()
 benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
@@ -153,7 +153,7 @@ Because $f_\kappa$ is cheap, large $r$ is usually affordable.
 #| label: fig-variance-reduction-vs-r
 
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._cv_acv import plot_acv_variance_reduction_vs_r
+from pyapprox_tutorials.figures._cv_acv import plot_acv_variance_reduction_vs_r
 
 fig, ax = plt.subplots(figsize=(8, 4.5))
 plot_acv_variance_reduction_vs_r(ax)

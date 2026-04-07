@@ -55,7 +55,7 @@ We verify both empirically here.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.instances.oed.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
 from pyapprox.expdesign.data import generate_oed_data
@@ -195,7 +195,7 @@ values_inner = sweep_mse([M_fixed], inner_sweep)
 #| echo: false
 #| fig-cap: "Left: MSE vs. outer sample count M for two inner counts (MC quadrature). Both curves nearly collapse and follow O(1/M), confirming that variance — not bias — drives the outer convergence. Right: bias² and variance vs. inner sample count N_in for fixed M=500. Bias² decays rapidly once N_in ≳ 50; variance (set by M) stays flat, confirming the budget separation."
 #| label: fig-convergence-panels
-from pyapprox.tutorial_figures import plot_boed_convergence_panels
+from pyapprox_tutorials.figures import plot_boed_convergence_panels
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 fig.suptitle("Outer budget drives variance; inner budget drives bias",

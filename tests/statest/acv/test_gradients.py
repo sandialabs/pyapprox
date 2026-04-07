@@ -9,7 +9,7 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (

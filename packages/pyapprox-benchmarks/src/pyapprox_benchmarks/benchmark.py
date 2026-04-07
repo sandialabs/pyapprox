@@ -7,7 +7,7 @@ protocols. They use composition, not inheritance.
 from dataclasses import dataclass
 from typing import Any, Generic, Sequence, TypeVar
 
-from pyapprox.benchmarks.protocols import (
+from pyapprox_benchmarks.protocols import (
     ConstraintProtocol,
     DomainProtocol,
     GroundTruthProtocol,

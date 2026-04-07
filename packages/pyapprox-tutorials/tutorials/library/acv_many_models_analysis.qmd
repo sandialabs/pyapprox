@@ -139,7 +139,7 @@ many cheap LF samples are worth buying to tighten the correction.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
 from pyapprox.statest.statistics import MultiOutputMean
@@ -209,7 +209,7 @@ for r in r_values:
 r_fine = np.linspace(1.01, 55, 300)
 theory_line = 1 - (r_fine - 1) / r_fine * rho**2
 
-from pyapprox.tutorial_figures._cv_acv import plot_acv_two_model_verification
+from pyapprox_tutorials.figures._cv_acv import plot_acv_two_model_verification
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_acv_two_model_verification(r_values, empirical_reductions, rho,
@@ -399,7 +399,7 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
     polynomial_ensemble_5model,
 )
 from pyapprox.statest.statistics import MultiOutputMean
@@ -442,7 +442,7 @@ for name, est in estimators.items():
         allocator = ACVAllocator(est, optimizer=optimizer)
     est.set_allocation(allocator.allocate(target_cost))
 
-from pyapprox.tutorial_figures._cv_acv import plot_allocation_matrices
+from pyapprox_tutorials.figures._cv_acv import plot_allocation_matrices
 
 fig, axes = plt.subplots(1, 4, figsize=(20, 5))
 plot_allocation_matrices(estimators, bkd, axes)
@@ -512,7 +512,7 @@ for P_t in target_costs_sweep:
     mfmc_vars_emp.append(mfmc_ests_t.var())
     acvmf_vars_emp.append(acvmf_ests_t.var())
 
-from pyapprox.tutorial_figures._cv_acv import plot_variance_verification
+from pyapprox_tutorials.figures._cv_acv import plot_variance_verification
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
 plot_variance_verification(target_costs_sweep, mc_vars_pred, mc_vars_emp,

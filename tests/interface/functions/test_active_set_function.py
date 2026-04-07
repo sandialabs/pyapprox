@@ -14,7 +14,7 @@ class TestActiveSetFunction:
     """Base test class for ActiveSetFunction."""
 
     def _setup(self, bkd):
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DAnalytical,
         )
 
@@ -158,7 +158,7 @@ class TestActiveSetFunction:
 
     def test_with_constraints_model(self, bkd):
         """Works with CantileverBeam2DConstraints."""
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DConstraints,
         )
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -181,7 +181,7 @@ class TestActiveSetFunction:
 
     def test_with_objective_model(self, bkd):
         """Works with CantileverBeam2DObjective."""
-        from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+        from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DObjective,
         )
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (

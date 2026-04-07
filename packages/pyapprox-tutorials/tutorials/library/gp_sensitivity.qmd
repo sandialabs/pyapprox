@@ -129,7 +129,7 @@ $$
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import ishigami_3d
+from pyapprox_benchmarks import ishigami_3d
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
@@ -291,7 +291,7 @@ known analytical values. @fig-gp-sobol shows both estimates side-by-side.
 #| fig-cap: "GP-based Sobol indices for the Ishigami function. Bars show GP kernel-integral estimates; dots show fix-and-freeze (Saltelli/Jansen) estimates; dashed lines mark the analytical ground truth."
 #| label: fig-gp-sobol
 
-from pyapprox.tutorial_figures._gp import plot_gp_sobol
+from pyapprox_tutorials.figures._gp import plot_gp_sobol
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 plot_gp_sobol(axes, nvars, S1_gp, ST_gp, S1_ff, ST_ff, gt_main, gt_total)
@@ -366,7 +366,7 @@ S_dist = ensemble.sobol_distribution_refit(
 #| fig-cap: "Distribution of first-order Sobol indices across 500 GP posterior realizations. Histograms show the spread due to GP uncertainty; vertical dashed lines mark the analytical ground truth. Narrow distributions indicate the GP has enough training data to pin down the sensitivity structure."
 #| label: fig-sobol-distribution
 
-from pyapprox.tutorial_figures._gp import plot_sobol_distribution
+from pyapprox_tutorials.figures._gp import plot_sobol_distribution
 
 fig, axes = plt.subplots(1, nvars, figsize=(12, 3.5), sharey=True)
 plot_sobol_distribution(axes, nvars, S_dist, gt_main, bkd)

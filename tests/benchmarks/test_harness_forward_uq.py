@@ -9,13 +9,13 @@ Uses ``verify_forward_uq_mean`` and ``verify_forward_uq_variance`` from
 # slow, slower, slowest or unmarked (fast). update this file to use
 # such naming syntax. Similarly for other test files in this module
 
-import pyapprox.benchmarks.instances  # noqa: F401
-from pyapprox.benchmarks.protocols import (
+import pyapprox_benchmarks.instances  # noqa: F401
+from pyapprox_benchmarks.protocols import (
     HasPrior,
     HasReferenceMean,
     HasReferenceVariance,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from tests._helpers.benchmark_harnesses import (
     MCMeanEstimator,
     MCVarianceEstimator,

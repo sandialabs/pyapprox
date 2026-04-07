@@ -73,7 +73,7 @@ $$
 #| echo: false
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._function_train import plot_ft_rank1_contours
+from pyapprox_tutorials.figures._function_train import plot_ft_rank1_contours
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8))
 cf = plot_ft_rank1_contours(axes)
@@ -115,7 +115,7 @@ add them:
 
 ```{python}
 #| echo: false
-from pyapprox.tutorial_figures._function_train import plot_ft_highrank_contours
+from pyapprox_tutorials.figures._function_train import plot_ft_highrank_contours
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.0))
 plot_ft_highrank_contours(axes, fig=fig)
@@ -170,7 +170,7 @@ product determines the rank of the result in linear algebra.
 #| echo: false
 #| fig-cap: "A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2."
 #| label: fig-core-diagram
-from pyapprox.tutorial_figures._function_train import plot_core_diagram
+from pyapprox_tutorials.figures._function_train import plot_core_diagram
 
 fig, ax = plt.subplots(figsize=(10, 3.5))
 plot_core_diagram(ax)
@@ -204,7 +204,7 @@ expression is just an ordinary chain of matrix multiplications that produces a s
 #| echo: false
 #| fig-cap: "A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar."
 #| label: fig-ft-3var
-from pyapprox.tutorial_figures._function_train import plot_ft_3var
+from pyapprox_tutorials.figures._function_train import plot_ft_3var
 
 fig, ax = plt.subplots(figsize=(13, 4.2))
 plot_ft_3var(ax)
@@ -405,7 +405,7 @@ ft_fitted = mse_result.surrogate()
 ```{python}
 #| fig-cap: "Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable."
 #| label: fig-ft-fitted
-from pyapprox.tutorial_figures._function_train import plot_ft_fitted
+from pyapprox_tutorials.figures._function_train import plot_ft_fitted
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
 plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig=fig)
@@ -424,7 +424,7 @@ The rank $r$ is the single number that determines how much interaction between
 variables the FT can represent. A quick experiment illustrates this:
 
 ```{python}
-from pyapprox.tutorial_figures._function_train import plot_ft_rank_comparison
+from pyapprox_tutorials.figures._function_train import plot_ft_rank_comparison
 from pyapprox.interface.functions.plot.plot2d_rectangular import meshgrid_samples
 
 npts = 100

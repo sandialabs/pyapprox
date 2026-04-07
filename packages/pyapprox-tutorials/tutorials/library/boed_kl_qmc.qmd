@@ -84,7 +84,7 @@ to analyse theoretically.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.instances.oed.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
 from pyapprox.expdesign.objective import create_kl_oed_objective_from_data
@@ -126,7 +126,7 @@ points tile the space without clusters or gaps.
 #| echo: false
 #| fig-cap: "200 samples in 2-D: standard MC (left) vs. randomly-shifted Halton RQMC (right). MC produces clusters and gaps by chance; RQMC tiles the space evenly while remaining a valid unbiased estimator due to the random shift."
 #| label: fig-points-comparison
-from pyapprox.tutorial_figures import plot_points_comparison
+from pyapprox_tutorials.figures import plot_points_comparison
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), sharex=True, sharey=True)
 fig.suptitle("Sample coverage: MC vs. RQMC (200 points, 2-D)",
@@ -208,7 +208,7 @@ for M in outer_counts:
 #| echo: false
 #| fig-cap: "MSE vs. outer sample count M for standard MC (blue) and randomly-shifted Halton RQMC (orange). Both follow O(1/M) asymptotically, but RQMC achieves a smaller constant — consistently lower MSE at every sample count."
 #| label: fig-mc-vs-qmc
-from pyapprox.tutorial_figures import plot_mc_vs_qmc
+from pyapprox_tutorials.figures import plot_mc_vs_qmc
 
 fig, ax = plt.subplots(figsize=(8, 4.8))
 plot_mc_vs_qmc(ax, outer_counts, mse_mc, mse_qmc)

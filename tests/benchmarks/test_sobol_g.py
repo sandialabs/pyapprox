@@ -5,7 +5,7 @@
 
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.sobol_g import (
+from pyapprox_benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
     SobolGSensitivityIndices,
 )

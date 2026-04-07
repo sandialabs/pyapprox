@@ -1,6 +1,6 @@
 """Fixed benchmark instances with known ground truth."""
 
-from pyapprox.benchmarks.instances.analytic import (
+from pyapprox_benchmarks.instances.analytic import (
     branin_2d,
     cantilever_beam_1d_analytical,
     cantilever_beam_2d_analytical,
@@ -16,20 +16,20 @@ from pyapprox.benchmarks.instances.analytic import (
     sobol_g_4d,
     sobol_g_6d,
 )
-from pyapprox.benchmarks.instances.multifidelity import (
+from pyapprox_benchmarks.instances.multifidelity import (
     multioutput_ensemble_3x3,
     polynomial_ensemble_3model,
     polynomial_ensemble_5model,
     psd_multioutput_ensemble_3x3,
     tunable_ensemble_3model,
 )
-from pyapprox.benchmarks.instances.ode import (
+from pyapprox_benchmarks.instances.ode import (
     chemical_reaction_surface,
     coupled_springs_2mass,
     hastings_ecology_3species,
     lotka_volterra_3species,
 )
-from pyapprox.benchmarks.instances.pde import (
+from pyapprox_benchmarks.instances.pde import (
     cantilever_beam_1d,
     cantilever_beam_2d_linear,
     cantilever_beam_2d_neohookean,

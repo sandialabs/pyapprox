@@ -81,7 +81,7 @@ from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.tutorial_figures._quadrature import (
+from pyapprox_tutorials.figures._quadrature import (
     plot_smolyak_combo,
     plot_sg_points,
     plot_point_counts,

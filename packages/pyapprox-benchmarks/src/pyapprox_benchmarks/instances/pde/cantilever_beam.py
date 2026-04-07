@@ -66,12 +66,12 @@ MESH_PATHS = {
     ),
 }
 
-from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.instances.pde.elastic_bar import (
+from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
+from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox_benchmarks.instances.pde.elastic_bar import (
     PDEBenchmarkWrapper,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
     create_spde_lognormal_kle_field_map,

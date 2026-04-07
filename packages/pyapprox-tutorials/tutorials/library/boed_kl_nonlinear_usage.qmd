@@ -75,7 +75,7 @@ all possible parameter realizations, is most informative.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.oed.lotka_volterra import LotkaVolterraOEDBenchmark
+from pyapprox_benchmarks.instances.oed.lotka_volterra import LotkaVolterraOEDBenchmark
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -109,7 +109,7 @@ observations = obs_model(sample).reshape((2, -1))    # shape (2, T)
 #| echo: false
 #| fig-cap: "Lotka-Volterra ODE trajectories for 30 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."
 #| label: fig-lv-trajectories
-from pyapprox.tutorial_figures import plot_lv_trajectories
+from pyapprox_tutorials.figures import plot_lv_trajectories
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=False)
 plot_lv_trajectories(axes, benchmark, obs_model, prior, sample, observations)
@@ -218,7 +218,7 @@ about the parameters, on average.*
 ```{python}
 #| fig-cap: "Optimal design weights for the Lotka-Volterra EIG problem. Each bar is one candidate observation time for one of the two measured states. The OED concentrates observations near the population peak — where sensitivity to the interaction parameters is highest."
 #| label: fig-lv-design
-from pyapprox.tutorial_figures import plot_lv_design
+from pyapprox_tutorials.figures import plot_lv_design
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 plot_lv_design(axes, benchmark, design_weights, bkd)

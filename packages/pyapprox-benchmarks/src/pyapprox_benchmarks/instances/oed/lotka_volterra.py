@@ -8,15 +8,15 @@ records species 1 at every other time point.
 
 from typing import Generic, Tuple
 
-from pyapprox.benchmarks.functions.ode import (
+from pyapprox_benchmarks.functions.ode import (
     ODEFunctionalProtocol,
     ODEQoIFunction,
 )
-from pyapprox.benchmarks.instances.ode.lotka_volterra import (
+from pyapprox_benchmarks.instances.ode.lotka_volterra import (
     lotka_volterra_3species,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.problems.inverse import BayesianInferenceProblem
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox.util.backends.protocols import Array, Backend
 
 

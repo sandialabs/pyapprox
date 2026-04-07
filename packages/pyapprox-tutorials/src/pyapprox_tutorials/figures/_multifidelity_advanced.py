@@ -244,7 +244,7 @@ def plot_mlblue_ceiling(ax):
     """
     import copy
 
-    from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
     from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
@@ -529,7 +529,7 @@ def plot_pacv_enumeration(ax):
 
     Predicted variance for all valid GMF recursion indices at budget P=100.
     """
-    from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
@@ -619,7 +619,7 @@ def plot_pacv_ceiling(ax):
 
     Variance vs cost ceiling plot: MLMC, MFMC, ACVMF, best GMF.
     """
-    from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
         polynomial_ensemble_5model,
     )
     from pyapprox.statest.acv import GMFEstimator, MFMCEstimator, MLMCEstimator
@@ -773,7 +773,7 @@ def plot_moacv_vs_soacv(ax):
 
     Estimator variance for QoI 0 vs target cost: MOACV vs SOACV vs MC.
     """
-    from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
         multioutput_ensemble_3x3,
     )
     from pyapprox.statest.acv.search import ACVSearch
@@ -891,7 +891,7 @@ def plot_bad_model(ax):
 
     Three-model vs best two-model ACVMF variance across rho_01 values.
     """
-    from pyapprox.benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks import tunable_ensemble_3model
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -974,7 +974,7 @@ def plot_correlation_heatmaps(axes, fig):
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-    from pyapprox.benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks import tunable_ensemble_3model
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -1013,7 +1013,7 @@ def plot_ensemble_nmodels(ax):
 
     Best 1-LF vs 2-LF ACVMF variance ratio across rho_01 values.
     """
-    from pyapprox.benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks import tunable_ensemble_3model
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -1089,7 +1089,7 @@ def plot_pilot_tradeoff(axes):
 
     MSE vs pilot size with/without pilot cost deduction.
     """
-    from pyapprox.benchmarks import polynomial_ensemble_3model
+    from pyapprox_benchmarks import polynomial_ensemble_3model
     from pyapprox.statest import MCEstimator, MFMCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 

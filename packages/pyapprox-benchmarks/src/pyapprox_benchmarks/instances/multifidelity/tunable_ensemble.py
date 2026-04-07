@@ -6,11 +6,11 @@ for testing multifidelity estimators with tunable correlation structure.
 
 from typing import Generic, List
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.functions.multifidelity.tunable_ensemble import (
     TunableModelEnsemble,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )

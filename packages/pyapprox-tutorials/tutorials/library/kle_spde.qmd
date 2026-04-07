@@ -94,7 +94,7 @@ $$\gamma \leftrightarrow \text{diffusion}, \quad
 #| label: fig-matern-kernels-paths
 #| fig-cap: "Left: Matern kernel functions for four smoothness values $\\nu$, all with $\\ell = 0.4$. Centre and right: sample paths from Matern-1/2 (rough, non-differentiable) and Matern-3/2 (once differentiable). The SPDE bilaplacian prior produces Matern-3/2 in 1D."
 from scipy.special import kv
-from pyapprox.tutorial_figures._kle import plot_matern_kernels_paths
+from pyapprox_tutorials.figures._kle import plot_matern_kernels_paths
 
 x_plot = np.linspace(0, 2, 200)
 mesh_plot = bkd.array(x_plot[None, :])
@@ -156,7 +156,7 @@ This uses only sparse matrices, giving $O(N)$ memory instead of $O(N^2)$.
 ```{python}
 #| label: fig-spde-overview
 #| fig-cap: "Left: SPDE eigenfunctions on $[0, 2]$. Centre: five sample paths with $\\pm 2\\sigma$ envelope from `pointwise_variance()`. Right: eigenvalue comparison between the sparse SPDE KLE and the dense `MeshKLE` with Matern-3/2 kernel. They agree at low modes but differ near the boundary."
-from pyapprox.tutorial_figures._kle import plot_spde_overview
+from pyapprox_tutorials.figures._kle import plot_spde_overview
 
 # Parameters for ell_c = 0.5 in 1D
 ell_c = 0.5
@@ -222,7 +222,7 @@ grows relative to $\ell_c$.
 ```{python}
 #| label: fig-boundary-artefacts
 #| fig-cap: "Pointwise variance of the SPDE KLE for three domain sizes. On the short domain ($L/\\ell_c = 2$) the variance drops significantly near boundaries due to Robin BCs. As the domain grows relative to $\\ell_c$, the interior variance approaches the target $\\sigma^2 = 1$ and boundary effects become negligible."
-from pyapprox.tutorial_figures._kle import plot_boundary_artefacts
+from pyapprox_tutorials.figures._kle import plot_boundary_artefacts
 
 ell_c_fixed = 0.5
 domain_data = []
@@ -266,7 +266,7 @@ The eigenvalue solve cost also differs significantly:
 ```{python}
 #| label: fig-memory-scaling
 #| fig-cap: "Left: memory and eigenvalue-solve cost scaling of the dense covariance matrix ($O(N^2)$) vs the sparse SPDE precision operator ($O(N)$). Right: SPDE sample paths for three correlation lengths $\\ell_c = 0.3, 0.5, 0.8$, showing shorter $\\ell_c$ produces rougher fields."
-from pyapprox.tutorial_figures._kle import plot_memory_scaling
+from pyapprox_tutorials.figures._kle import plot_memory_scaling
 
 # Scaling data
 N_vals = np.array([100, 300, 500, 1000, 2000, 5000])
@@ -316,7 +316,7 @@ Given target correlation length $\ell_c$ and marginal std $\sigma$:
 ```{python}
 #| label: fig-spde-parameters
 #| fig-cap: "Left: max relative eigenvalue error between SPDE and dense KLE as the domain length $L$ increases, confirming asymptotic convergence. Right: empirical covariance at the domain midpoint from 2000 Monte Carlo samples for three correlation lengths."
-from pyapprox.tutorial_figures._kle import plot_spde_parameters
+from pyapprox_tutorials.figures._kle import plot_spde_parameters
 
 # Empirical covariance at midpoint for each correlation length
 mid = nx_s // 2
@@ -379,7 +379,7 @@ plt.show()
 #| label: fig-method-comparison
 #| fig-cap: "Summary comparison of the three KLE methods: `MeshKLE` (dense kernel), `DataDrivenKLE` (SVD of samples), and `SPDEMaternKLE` (sparse PDE operator)."
 #| echo: false
-from pyapprox.tutorial_figures._kle import plot_method_comparison
+from pyapprox_tutorials.figures._kle import plot_method_comparison
 
 fig, ax = plt.subplots(figsize=(11, 3.5))
 plot_method_comparison(ax)

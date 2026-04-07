@@ -2,9 +2,9 @@
 
 import math
 
-from pyapprox.benchmarks.instances.sensitivity import ishigami_3d
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.instances.sensitivity import ishigami_3d
+from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 
 # TODO: this test class should be where function is defined
@@ -147,7 +147,7 @@ class TestBenchmarkRegistrySensitivity:
     def test_ishigami_registered(self) -> None:
         """Test ishigami_3d is registered."""
         # Import to trigger registration
-        from pyapprox.benchmarks.instances import sensitivity  # noqa: F401
+        from pyapprox_benchmarks.instances import sensitivity  # noqa: F401
 
         bkd = NumpyBkd()
         benchmark = BenchmarkRegistry.get("ishigami_3d", bkd)
@@ -155,6 +155,6 @@ class TestBenchmarkRegistrySensitivity:
 
     def test_ishigami_in_analytic_category(self) -> None:
         """Test ishigami_3d is in analytic category."""
-        from pyapprox.benchmarks.instances import analytic  # noqa: F401
+        from pyapprox_benchmarks.instances import analytic  # noqa: F401
 
         assert "ishigami_3d" in BenchmarkRegistry.list_category("analytic")

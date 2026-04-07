@@ -3,7 +3,7 @@
 # TODO: this test class should be where function is defined
 # not at this level which is for integration tests.
 
-from pyapprox.benchmarks.instances.quadrature import (
+from pyapprox_benchmarks.instances.quadrature import (
     genz_corner_peak_2d,
     genz_gaussian_peak_2d,
     genz_gaussian_peak_5d,
@@ -11,7 +11,7 @@ from pyapprox.benchmarks.instances.quadrature import (
     genz_oscillatory_5d,
     genz_product_peak_2d,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 
 class TestGenzOscillatory2D:

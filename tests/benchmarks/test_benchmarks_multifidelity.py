@@ -6,28 +6,28 @@
 
 import pytest
 
-from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
 )
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
     PolynomialModelFunction,
 )
-from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
+from pyapprox_benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
-from pyapprox.benchmarks.functions.multifidelity.tunable_ensemble import (
+from pyapprox_benchmarks.functions.multifidelity.tunable_ensemble import (
     TunableModelEnsemble,
 )
-from pyapprox.benchmarks.instances.multifidelity import (
+from pyapprox_benchmarks.instances.multifidelity import (
     multioutput_ensemble_3x3,
     polynomial_ensemble_3model,
     polynomial_ensemble_5model,
     psd_multioutput_ensemble_3x3,
     tunable_ensemble_3model,
 )
-from pyapprox.benchmarks.protocols import (
+from pyapprox_benchmarks.protocols import (
     HasEnsembleCovariance,
     HasEnsembleMeans,
     HasEnsembleModels,
@@ -36,7 +36,7 @@ from pyapprox.benchmarks.protocols import (
     HasPrior,
     HasSmoothness,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )

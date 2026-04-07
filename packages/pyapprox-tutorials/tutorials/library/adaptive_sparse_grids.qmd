@@ -75,7 +75,7 @@ from pyapprox.interface.functions.plot.plot2d_rectangular import (
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
-from pyapprox.tutorial_figures._quadrature import (
+from pyapprox_tutorials.figures._quadrature import (
     plot_additive_function,
     plot_index_set,
     plot_points_compare,

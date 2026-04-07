@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Generic, Optional, Union
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.ode import (
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.functions.ode import (
     ODEBenchmark,
     ODEQoIFunction,
     ODETimeConfig,
 )
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.functions.ode.lotka_volterra import (
+from pyapprox_benchmarks.ground_truth import ODEGroundTruth
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.functions.ode.lotka_volterra import (
     LotkaVolterraResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

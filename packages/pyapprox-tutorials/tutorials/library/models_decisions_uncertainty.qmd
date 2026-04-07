@@ -54,7 +54,7 @@ This tutorial is the first in a series introducing core UQ concepts and the PyAp
 import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures import plot_mdu_beam_geometry
+from pyapprox_tutorials.figures import plot_mdu_beam_geometry
 
 fig, ax = plt.subplots(figsize=(10, 4))
 plot_mdu_beam_geometry(ax)
@@ -84,7 +84,7 @@ Solving this PDE with a finite element method produces a rich, high-dimensional 
 #| echo: false
 #| fig-cap: "Von Mises stress on the deformed mesh (magnified) with undeformed outline. Stress concentrations appear at the holes near the clamped end."
 #| label: fig-reference-solution
-from pyapprox.tutorial_figures import plot_reference_solution
+from pyapprox_tutorials.figures import plot_reference_solution
 
 fig, ax = plt.subplots(figsize=(10, 4))
 plot_reference_solution(fig, ax)
@@ -121,7 +121,7 @@ So far, we solved the beam at fixed, nominal material properties. But in practic
 #| echo: false
 #| fig-cap: "Effect of parameter uncertainty. Left: stiff materials ($E_1 = 2.5{\\times}10^4$, $E_2 = 6{\\times}10^3$). Right: soft materials ($E_1 = 1.2{\\times}10^4$, $E_2 = 3{\\times}10^3$). The same load produces roughly twice the deflection in the softer beam."
 #| label: fig-parameter-uncertainty
-from pyapprox.tutorial_figures import plot_uncertainty_sources
+from pyapprox_tutorials.figures import plot_uncertainty_sources
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3.5),
                                gridspec_kw={"right": 0.88})

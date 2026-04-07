@@ -158,7 +158,7 @@ makes the estimator a nested loop rather than two independent sweeps.
 #| fig-cap: "Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε) jointly and forms y(w) via the reparameterization. The observation y^(m) is passed to the inner loop (orange, right), which draws independent θ* samples and averages their likelihoods to approximate the marginal evidence. The outer log-likelihood ℓₘ and inner log-evidence feed the final EIG estimate (green, bottom)."
 #| label: fig-double-loop
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures import plot_double_loop
+from pyapprox_tutorials.figures import plot_double_loop
 
 fig, ax = plt.subplots(figsize=(13, 7.5))
 plot_double_loop(ax)

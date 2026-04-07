@@ -48,4 +48,6 @@ htmlcov/
 # Quarto
 _freeze/
 _site/
+_book/
+_build_logs/
 .quarto/

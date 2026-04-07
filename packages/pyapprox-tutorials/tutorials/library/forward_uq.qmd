@@ -69,7 +69,7 @@ $$
 import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._forward_uq import plot_forward_uq_schematic
+from pyapprox_tutorials.figures._forward_uq import plot_forward_uq_schematic
 
 fig, axes = plt.subplots(1, 3, figsize=(11, 3),
                          gridspec_kw={"width_ratios": [1, 0.5, 1]})
@@ -98,7 +98,7 @@ This is a linear function of $q_0$: doubling the load doubles the deflection. If
 #| echo: false
 #| fig-cap: "Linear propagation of uncertainty. A Gaussian input on $q_0$ produces a Gaussian push-forward on $\\delta_{\\text{tip}}$. Because the model is linear, the shape is preserved."
 #| label: fig-linear-propagation
-from pyapprox.tutorial_figures._forward_uq import plot_linear_propagation
+from pyapprox_tutorials.figures._forward_uq import plot_linear_propagation
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.5),
                          gridspec_kw={"width_ratios": [1, 0.15, 1]})
@@ -126,7 +126,7 @@ This is a **nonlinear** function of $E$: the relationship $\delta_{\text{tip}} \
 #| echo: false
 #| fig-cap: "Nonlinear propagation of uncertainty. The tip deflection is proportional to $1/E$, so a symmetric Gaussian input on $E$ produces a right-skewed output distribution. The red dashed curve is a Gaussian with matching mean and variance --- the actual push-forward is clearly non-Gaussian."
 #| label: fig-nonlinear-propagation
-from pyapprox.tutorial_figures._forward_uq import plot_nonlinear_propagation
+from pyapprox_tutorials.figures._forward_uq import plot_nonlinear_propagation
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.5),
                          gridspec_kw={"width_ratios": [1, 0.15, 1]})
@@ -148,7 +148,7 @@ Two factors determine the push-forward distribution: the input distribution and 
 #| echo: false
 #| fig-cap: "Same model, different inputs. A narrow input distribution on $E$ (10% CV, blue) produces a concentrated output; a wide input (25% CV, red) produces a broader, more skewed output. The choice of input distribution directly affects the conclusions we draw about the QoI."
 #| label: fig-different-priors
-from pyapprox.tutorial_figures._forward_uq import plot_different_priors
+from pyapprox_tutorials.figures._forward_uq import plot_different_priors
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.5))
 plot_different_priors(ax1, ax2)
@@ -169,7 +169,7 @@ Because deflection scales as $L^4$, even a modest change in length significantly
 #| echo: false
 #| fig-cap: "Same input, different models. Identical samples of $E$ are propagated through two Euler-Bernoulli beam models with different lengths ($L_1 = 100$, $L_2 = 110$). The $L^4$ dependence amplifies the length difference, shifting and broadening the push-forward."
 #| label: fig-different-models
-from pyapprox.tutorial_figures._forward_uq import plot_different_models
+from pyapprox_tutorials.figures._forward_uq import plot_different_models
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.5))
 plot_different_models(ax1, ax2)
@@ -190,7 +190,7 @@ In practice, however, decision makers rarely need the full PDF. They need specif
 #| echo: false
 #| fig-cap: "Summary statistics extracted from a push-forward PDF. The mean and median locate the center; the standard deviation and quantile interval describe the spread; the failure probability quantifies the chance that the QoI exceeds a critical threshold."
 #| label: fig-summary-statistics
-from pyapprox.tutorial_figures._forward_uq import plot_summary_statistics
+from pyapprox_tutorials.figures._forward_uq import plot_summary_statistics
 
 # Generate the nonlinear push-forward samples
 L, H, q0_nom = 100.0, 30.0, 10.0

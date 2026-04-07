@@ -335,7 +335,7 @@ We now apply importance sampling to a realistic engineering model. We use the an
 
 ```{python}
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.instances.analytic.cantilever_beam import (
+from pyapprox_benchmarks.instances.analytic.cantilever_beam import (
     cantilever_beam_1d_analytical,
 )
 

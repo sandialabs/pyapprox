@@ -59,7 +59,7 @@ Complete [Pilot Studies Concept](pilot_studies_concept.qmd) and
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks import polynomial_ensemble_3model
+from pyapprox_benchmarks import polynomial_ensemble_3model
 from pyapprox.statest import MultiOutputMean, MFMCEstimator, MCEstimator
 
 bkd = NumpyBkd()
@@ -236,7 +236,7 @@ off-diagonal covariance entries are harder to estimate from finite samples.
 #| fig-cap: "MSE vs pilot size for three HF–MF correlation levels controlled by $\\theta_1$ in the tunable ensemble, at fixed $P=100$. Dotted lines show the oracle ACV variance for each correlation level."
 #| label: fig-corr-sensitivity
 
-from pyapprox.benchmarks import tunable_ensemble_3model
+from pyapprox_benchmarks import tunable_ensemble_3model
 
 # theta1 controls rho_01: larger theta1 → higher correlation
 theta_vals = [1.4, 1.0, 0.6]

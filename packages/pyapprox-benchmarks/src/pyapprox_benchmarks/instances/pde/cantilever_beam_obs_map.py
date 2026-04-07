@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 # Reuse _find_dof from the main cantilever beam module
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.instances.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
     _find_dof,
 )

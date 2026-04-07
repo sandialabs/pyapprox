@@ -12,7 +12,7 @@ Design Principles:
 - Backend-agnostic using Backend[Array] protocol
 """
 
-from pyapprox.benchmarks.benchmark import (
+from pyapprox_benchmarks.benchmark import (
     Benchmark,
     BenchmarkWithPrior,
     BoxDomain,
@@ -20,7 +20,7 @@ from pyapprox.benchmarks.benchmark import (
 )
 
 # Functions
-from pyapprox.benchmarks.functions.algebraic import (
+from pyapprox_benchmarks.functions.algebraic import (
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
     BraninFunction,
@@ -33,24 +33,24 @@ from pyapprox.benchmarks.functions.algebraic import (
     SobolGFunction,
     SobolGSensitivityIndices,
 )
-from pyapprox.benchmarks.functions.genz import (
+from pyapprox_benchmarks.functions.genz import (
     CornerPeakFunction,
     GaussianPeakFunction,
     OscillatoryFunction,
     ProductPeakFunction,
 )
-from pyapprox.benchmarks.functions.multifidelity import (
+from pyapprox_benchmarks.functions.multifidelity import (
     PolynomialEnsemble,
     PolynomialModelFunction,
 )
 
 # ODE Benchmarks
-from pyapprox.benchmarks.functions.ode import (
+from pyapprox_benchmarks.functions.ode import (
     ODEBenchmark,
     ODEQoIFunction,
     ODETimeConfig,
 )
-from pyapprox.benchmarks.ground_truth import (
+from pyapprox_benchmarks.ground_truth import (
     InverseGroundTruth,
     MultifidelityGroundTruth,
     ODEGroundTruth,
@@ -60,7 +60,7 @@ from pyapprox.benchmarks.ground_truth import (
 )
 
 # Instances (also registers with BenchmarkRegistry)
-from pyapprox.benchmarks.instances import (
+from pyapprox_benchmarks.instances import (
     branin_2d,
     cantilever_beam_1d,
     cantilever_beam_1d_analytical,
@@ -89,7 +89,7 @@ from pyapprox.benchmarks.instances import (
     sobol_g_6d,
     tunable_ensemble_3model,
 )
-from pyapprox.benchmarks.protocols import (
+from pyapprox_benchmarks.protocols import (
     BenchmarkProtocol,
     BenchmarkWithPriorProtocol,
     ConstrainedBenchmarkProtocol,
@@ -100,7 +100,7 @@ from pyapprox.benchmarks.protocols import (
     KLOEDBenchmarkProtocol,
     PredictionOEDBenchmarkProtocol,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 __all__ = [
     # Protocols

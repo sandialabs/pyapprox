@@ -1,13 +1,13 @@
 """Coupled springs 2-mass ODE benchmark instance."""
 
-from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
-from pyapprox.benchmarks.instances.ode.lotka_volterra import (
+from pyapprox_benchmarks.benchmark import BoxDomain
+from pyapprox_benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
+from pyapprox_benchmarks.ground_truth import ODEGroundTruth
+from pyapprox_benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.functions.ode.coupled_springs import (
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.functions.ode.coupled_springs import (
     CoupledSpringsResidual,
 )
 from pyapprox.probability.joint.independent import IndependentJoint

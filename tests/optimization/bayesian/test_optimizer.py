@@ -379,7 +379,7 @@ class TestBayesianOptimizerSlow:
         bkd = numpy_bkd
         np.random.seed(42)
 
-        from pyapprox.benchmarks.functions.algebraic.branin import (
+        from pyapprox_benchmarks.functions.algebraic.branin import (
             BraninFunction,
         )
 
@@ -407,7 +407,7 @@ class TestBayesianOptimizerSlow:
         bkd = numpy_bkd
         np.random.seed(42)
 
-        from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
+        from pyapprox_benchmarks.functions.algebraic.rosenbrock import (
             RosenbrockFunction,
         )
 
@@ -437,7 +437,7 @@ class TestBayesianOptimizerSlow:
         bkd = numpy_bkd
         np.random.seed(42)
 
-        from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
+        from pyapprox_benchmarks.functions.algebraic.rosenbrock import (
             RosenbrockFunction,
         )
 

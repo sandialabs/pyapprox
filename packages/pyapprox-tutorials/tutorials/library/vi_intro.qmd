@@ -57,7 +57,7 @@ Variational inference (VI) takes a third approach. Instead of evaluating the pos
 #| fig-cap: "Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve."
 #| label: fig-two-strategies
 import matplotlib.pyplot as plt
-from pyapprox.tutorial_figures._vi import plot_two_strategies
+from pyapprox_tutorials.figures._vi import plot_two_strategies
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_two_strategies(ax1, ax2)
@@ -83,12 +83,12 @@ We place a Gaussian prior on $E$ and observe tip deflection with Gaussian noise.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
-from pyapprox.tutorial_figures._vi import _grid_integrate, _beam_exact_posterior
+from pyapprox_tutorials.figures._vi import _grid_integrate, _beam_exact_posterior
 ```
 
 ```{python}
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     HomogeneousBeam1DAnalytical,
 )
 from pyapprox.probability.likelihood import (
@@ -168,7 +168,7 @@ The posterior is a curve. A Gaussian is also a curve, controlled by two knobs: t
 #| echo: false
 #| fig-cap: "Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically."
 #| label: fig-candidate-gallery
-from pyapprox.tutorial_figures._vi import plot_candidate_gallery
+from pyapprox_tutorials.figures._vi import plot_candidate_gallery
 
 fig, ax = plt.subplots(figsize=(10, 5))
 plot_candidate_gallery(E_grid, post_exact, exact_mean, exact_std, E_true, ax)
@@ -186,7 +186,7 @@ VI does not try every possible Gaussian. It starts from an initial guess and ite
 #| fig-cap: "VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged."
 #| label: fig-optimization-snapshots
 import math
-from pyapprox.tutorial_figures._vi import plot_optimization_snapshots, _make_degree0_expansion
+from pyapprox_tutorials.figures._vi import plot_optimization_snapshots, _make_degree0_expansion
 
 fig, axes = plt.subplots(1, 4, figsize=(16, 3.5), sharey=True)
 plot_optimization_snapshots(
@@ -285,7 +285,7 @@ The objective function (called the **ELBO**) measures how well the variational d
 #| echo: false
 #| fig-cap: "Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width."
 #| label: fig-vi-result
-from pyapprox.tutorial_figures._vi import plot_vi_result
+from pyapprox_tutorials.figures._vi import plot_vi_result
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_vi_result(E_grid, post_exact, vi_mean, vi_stdev, E_true, ax)
@@ -302,7 +302,7 @@ Both MCMC and VI should produce the same answer on this problem. @fig-vi-vs-mcmc
 #| echo: false
 #| fig-cap: "Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve."
 #| label: fig-vi-vs-mcmc
-from pyapprox.tutorial_figures._vi import plot_vi_vs_mcmc
+from pyapprox_tutorials.figures._vi import plot_vi_vs_mcmc
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 plot_vi_vs_mcmc(
@@ -324,7 +324,7 @@ A Gaussian can approximate any unimodal, roughly symmetric posterior. But what i
 #| echo: false
 #| fig-cap: "A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory."
 #| label: fig-bimodal
-from pyapprox.tutorial_figures._vi import plot_bimodal
+from pyapprox_tutorials.figures._vi import plot_bimodal
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
 plot_bimodal(ax1, ax2)

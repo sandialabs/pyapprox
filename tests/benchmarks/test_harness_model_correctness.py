@@ -7,9 +7,9 @@ PDE benchmarks (expensive) are gated behind ``@slow_test`` /
 ``@slower_test`` decorators.
 """
 
-import pyapprox.benchmarks.instances  # noqa: F401
-from pyapprox.benchmarks.protocols import HasJacobian
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+import pyapprox_benchmarks.instances  # noqa: F401
+from pyapprox_benchmarks.protocols import HasJacobian
+from pyapprox_benchmarks.registry import BenchmarkRegistry
 from tests._helpers.benchmark_harnesses import verify_jacobian_fd
 from tests._helpers.markers import slow_test, slower_test
 

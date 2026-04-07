@@ -94,7 +94,7 @@ Let's verify that PyApprox is installed correctly by importing key modules.
 from pyapprox.util.backends.numpy import NumpyBkd
 
 # Benchmark problems for testing
-from pyapprox.benchmarks import (
+from pyapprox_benchmarks import (
     lotka_volterra_3species,
     ishigami_3d,
 )

@@ -10,11 +10,11 @@ import warnings
 import numpy as np
 import pytest
 
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )
-from pyapprox.benchmarks.instances.sensitivity import (
+from pyapprox_benchmarks.instances.sensitivity import (
     ishigami_3d,
     sobol_g_4d,
 )
