@@ -7,7 +7,7 @@ explicit VaR estimation using a smoothing approach.
 
 from typing import Generic
 
-from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 

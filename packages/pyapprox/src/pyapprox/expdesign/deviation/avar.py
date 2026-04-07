@@ -7,7 +7,7 @@ Computes AVaR[qoi | obs] - E[qoi | obs].
 from typing import Generic
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
-from pyapprox.expdesign.statistics.avar import SampleAverageSmoothedAVaR
+from pyapprox.risk.avar import SampleAverageSmoothedAVaR
 from pyapprox.util.backends.protocols import Array, Backend
 
 

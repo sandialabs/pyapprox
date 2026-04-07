@@ -16,7 +16,7 @@ from ..deviation import (
     StandardDeviationMeasure,
 )
 from ..likelihood import GaussianOEDInnerLoopLikelihood
-from ..statistics import (
+from pyapprox.risk import (
     SampleAverageMean,
     SampleAverageVariance,
     SampleStatistic,

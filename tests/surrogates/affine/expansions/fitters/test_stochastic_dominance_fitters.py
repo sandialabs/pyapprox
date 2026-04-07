@@ -21,7 +21,7 @@ from pyapprox.optimization.minimize.differentiable_approximations import (
     SmoothLogBasedMaxFunction,
 )
 from pyapprox.probability import UniformMarginal
-from pyapprox.probability.risk import DisutilitySSD
+from pyapprox.risk import DisutilitySSD
 from pyapprox.probability.univariate.discrete import CustomDiscreteMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -554,19 +554,15 @@ class TestStochasticDominanceFitters:
 
         # Use DisutilitySSD to check condition
         # E[max(0, eta - f(X))] <= E[max(0, eta - Y)] for all eta
-        dssd = DisutilitySSD(bkd)
-
-        # Set eta values to the surrogate values (at these points we check)
         eta_vals = surrogate_values[0]
-        dssd.set_eta(eta_vals)
+        dssd = DisutilitySSD(eta_vals, bkd)
+        weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         # Compute disutility for surrogate predictions
-        dssd.set_samples(surrogate_values)
-        surrogate_disutil = dssd()
+        surrogate_disutil = dssd(surrogate_values, weights)[:, 0]
 
         # Compute disutility for training data
-        dssd.set_samples(train_values.T)
-        train_disutil = dssd()
+        train_disutil = dssd(train_values.T, weights)[:, 0]
 
         # SSD requires: train_disutil <= surrogate_disutil (data dominates surrogate)
         # Allow small tolerance for numerical optimization

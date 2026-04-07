@@ -282,7 +282,7 @@ n_quad = quad_samples.shape[1]
 from pyapprox.optimization.minimize.constraints.sample_average import (
     SampleAverageConstraint,
 )
-from pyapprox.expdesign.statistics import SampleAverageMeanPlusStdev
+from pyapprox.risk import SampleAverageMeanPlusStdev
 
 # Use mean - 3*stdev >= 0, equivalently: -(mean + 3*stdev of negated constraint)
 # But since our constraints are c_i >= 0, we want E[c_i] - k*std[c_i] >= 0.

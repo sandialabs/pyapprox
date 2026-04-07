@@ -4,18 +4,13 @@ Sample average mean plus standard deviation statistic.
 Computes: E[f] + factor * StdDev[f]
 
 This is a common risk measure for robust optimization.
-
-TODO: Investigate consolidating SampleStatistic classes
-(expdesign/statistics/) with RiskMeasureBase classes
-(probability/risk/measures.py). They compute overlapping quantities
-(mean+stdev, entropic risk, AVaR) with different APIs.
 """
 
 from typing import Generic
 
-from pyapprox.expdesign.statistics.base import SampleStatistic
-from pyapprox.expdesign.statistics.mean import SampleAverageMean
-from pyapprox.expdesign.statistics.variance import SampleAverageStdev
+from pyapprox.risk.base import SampleStatistic
+from pyapprox.risk.mean import SampleAverageMean
+from pyapprox.risk.variance import SampleAverageStdev
 from pyapprox.util.backends.protocols import Array, Backend
 
 

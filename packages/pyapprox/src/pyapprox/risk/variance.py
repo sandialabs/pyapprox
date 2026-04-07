@@ -7,8 +7,8 @@ Standard deviation: StdDev[f] = sqrt(Var[f])
 
 from typing import Generic
 
-from pyapprox.expdesign.statistics.base import SampleStatistic
-from pyapprox.expdesign.statistics.mean import SampleAverageMean
+from pyapprox.risk.base import SampleStatistic
+from pyapprox.risk.mean import SampleAverageMean
 from pyapprox.util.backends.protocols import Array, Backend
 
 

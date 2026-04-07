@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from pyapprox.expdesign.statistics import (
+from pyapprox.risk import (
     SampleAverageEntropicRisk,
     SampleAverageMean,
     SampleAverageSmoothedAVaR,

@@ -11,10 +11,7 @@ import numpy as np
 import pytest
 
 from pyapprox.probability import UniformMarginal
-from pyapprox.probability.risk import (
-    AverageValueAtRisk,
-    SafetyMarginRiskMeasure,
-)
+from pyapprox.risk import ExactAVaR, SampleAverageMeanPlusStdev
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.conservative import (
@@ -137,7 +134,7 @@ class TestConservativeFitters:
         strength = 1.0
 
         # Create risk measure for comparison
-        risk_measure = SafetyMarginRiskMeasure(bkd, strength)
+        risk_stat = SampleAverageMeanPlusStdev(strength, bkd)
 
         fitter = ConservativeLstSqFitter(bkd, strength=strength)
 
@@ -153,12 +150,11 @@ class TestConservativeFitters:
 
             # Compute risk of surrogate predictions
             predictions = result(samples)  # (1, nsamples)
-            risk_measure.set_samples(predictions)
-            surrogate_risk = float(risk_measure())
+            weights = bkd.full((1, nsamples), 1.0 / nsamples)
+            surrogate_risk = float(risk_stat(predictions, weights)[0, 0])
 
             # Compute risk of training data
-            risk_measure.set_samples(train_values)
-            data_risk = float(risk_measure())
+            data_risk = float(risk_stat(train_values, weights)[0, 0])
 
             # Conservative condition must hold
             assert surrogate_risk >= data_risk - 1e-10, (
@@ -266,7 +262,7 @@ class TestConservativeFitters:
         quantile = 0.5
 
         # Create risk measure for comparison
-        risk_measure = AverageValueAtRisk(bkd, quantile)
+        risk_stat = ExactAVaR(quantile, bkd)
 
         fitter = ConservativeQuantileFitter(bkd, quantile=quantile)
 
@@ -282,12 +278,11 @@ class TestConservativeFitters:
 
             # Compute risk of surrogate predictions
             predictions = result(samples)  # (1, nsamples)
-            risk_measure.set_samples(predictions)
-            surrogate_risk = float(risk_measure())
+            weights = bkd.full((1, nsamples), 1.0 / nsamples)
+            surrogate_risk = float(risk_stat(predictions, weights)[0, 0])
 
             # Compute risk of training data
-            risk_measure.set_samples(train_values)
-            data_risk = float(risk_measure())
+            data_risk = float(risk_stat(train_values, weights)[0, 0])
 
             # Conservative condition must hold
             assert surrogate_risk >= data_risk - 1e-10, (

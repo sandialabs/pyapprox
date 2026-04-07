@@ -77,7 +77,7 @@ class TestSampleAverageConstraint:
         constraint_lb=None,
         constraint_ub=None,
     ):
-        from pyapprox.expdesign.statistics import SampleAverageMean
+        from pyapprox.risk import SampleAverageMean
         from pyapprox.optimization.minimize.constraints.sample_average import (
             SampleAverageConstraint,
         )
@@ -234,7 +234,7 @@ class TestSampleAverageConstraint:
 
     def test_with_mean_plus_stdev_stat(self, bkd):
         """Works with SampleAverageMeanPlusStdev statistic."""
-        from pyapprox.expdesign.statistics import (
+        from pyapprox.risk import (
             SampleAverageMeanPlusStdev,
         )
 
@@ -252,7 +252,7 @@ class TestSampleAverageConstraint:
 
     def test_with_mean_plus_stdev_derivative_checker(self, bkd):
         """Validate mean+stdev jacobian via DerivativeChecker."""
-        from pyapprox.expdesign.statistics import (
+        from pyapprox.risk import (
             SampleAverageMeanPlusStdev,
         )
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -289,7 +289,7 @@ class TestSampleAverageConstraint:
             CantileverBeam2DAnalytical,
             CantileverBeam2DConstraints,
         )
-        from pyapprox.expdesign.statistics import SampleAverageMean
+        from pyapprox.risk import SampleAverageMean
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )

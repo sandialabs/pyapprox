@@ -14,10 +14,7 @@ This allows adjusting the constant coefficient to achieve conservativeness.
 
 from typing import Any, Generic, Optional
 
-from pyapprox.probability.risk import (
-    AverageValueAtRisk,
-    SafetyMarginRiskMeasure,
-)
+from pyapprox.risk import ExactAVaR, SampleAverageMeanPlusStdev
 from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -60,7 +57,7 @@ class ConservativeLstSqFitter(Generic[Array]):
         self._bkd = bkd
         self._strength = strength
         self._base_fitter = LeastSquaresFitter(bkd, rcond=rcond)
-        self._risk_measure = SafetyMarginRiskMeasure(bkd, strength)
+        self._stat = SampleAverageMeanPlusStdev(strength, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -125,8 +122,9 @@ class ConservativeLstSqFitter(Generic[Array]):
         residuals = values.T - bkd.dot(Phi, params)  # (nsamples, 1)
 
         # 5. Set constant coefficient to risk measure of residuals
-        self._risk_measure.set_samples(residuals.T)  # (1, nsamples)
-        params[0, 0] = self._risk_measure()
+        nsamples = residuals.shape[0]
+        weights = bkd.full((1, nsamples), 1.0 / nsamples)
+        params[0, 0] = self._stat(residuals.T, weights)[0, 0]
 
         # 6. Create fitted expansion
         fitted_expansion = expansion.with_params(params)
@@ -170,7 +168,7 @@ class ConservativeQuantileFitter(Generic[Array]):
         self._bkd = bkd
         self._quantile = quantile
         self._base_fitter = QuantileFitter(bkd, quantile, options)
-        self._risk_measure = AverageValueAtRisk(bkd, quantile)
+        self._stat = ExactAVaR(quantile, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -236,8 +234,9 @@ class ConservativeQuantileFitter(Generic[Array]):
         residuals = values.T - bkd.dot(Phi, params)  # (nsamples, 1)
 
         # 5. Set constant coefficient to risk measure of residuals
-        self._risk_measure.set_samples(residuals.T)  # (1, nsamples)
-        params[0, 0] = self._risk_measure()
+        nsamples = residuals.shape[0]
+        weights = bkd.full((1, nsamples), 1.0 / nsamples)
+        params[0, 0] = self._stat(residuals.T, weights)[0, 0]
 
         # 6. Create fitted expansion
         fitted_expansion = expansion.with_params(params)

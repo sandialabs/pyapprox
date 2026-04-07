@@ -8,7 +8,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("pyrol"):
     pytest.skip("pyrol not installed", allow_module_level=True)
 
-from pyapprox.expdesign.statistics import SampleAverageMean
+from pyapprox.risk import SampleAverageMean
 from pyapprox.optimization.minimize.inexact.fixed import (
     FixedSampleStrategy,
 )

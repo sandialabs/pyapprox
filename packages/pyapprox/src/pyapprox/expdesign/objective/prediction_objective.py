@@ -15,7 +15,7 @@ from typing import Generic, Optional
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.expdesign.evidence import Evidence
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
-from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 

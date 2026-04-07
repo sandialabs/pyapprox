@@ -8,7 +8,7 @@ This is also known as the certainty equivalent for exponential utility.
 
 from typing import Generic
 
-from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 

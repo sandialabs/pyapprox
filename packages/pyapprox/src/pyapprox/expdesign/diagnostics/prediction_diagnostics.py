@@ -28,9 +28,9 @@ from pyapprox.expdesign.analytical import (
 from pyapprox.expdesign.deviation import StandardDeviationMeasure
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import PredictionOEDObjective
-from pyapprox.expdesign.statistics import SampleAverageMean
-from pyapprox.expdesign.statistics.avar import SampleAverageSmoothedAVaR
-from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.risk import SampleAverageMean
+from pyapprox.risk.avar import SampleAverageSmoothedAVaR
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 # --- Utility type registry ---

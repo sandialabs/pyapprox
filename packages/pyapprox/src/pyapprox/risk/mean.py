@@ -6,11 +6,12 @@ Computes the weighted mean: E[f] = sum_i w_i * f_i
 
 from typing import Generic
 
-from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 # TODO: should we delete SampleAverageMean or make it a light
 # weight wrapper of SampleAverageMeanPlusStddev
+
 
 class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
     """

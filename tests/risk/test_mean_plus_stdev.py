@@ -11,7 +11,7 @@ Tests cover:
 
 import numpy as np
 
-from pyapprox.expdesign.statistics import (
+from pyapprox.risk import (
     SampleAverageMean,
     SampleAverageMeanPlusStdev,
     SampleAverageStdev,

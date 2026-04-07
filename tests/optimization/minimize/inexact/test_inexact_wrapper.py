@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pyapprox.expdesign.statistics import SampleAverageMean
+from pyapprox.risk import SampleAverageMean
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

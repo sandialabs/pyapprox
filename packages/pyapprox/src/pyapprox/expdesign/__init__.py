@@ -163,7 +163,7 @@ from .solver import (
     solve_kl_oed,
     solve_prediction_oed,
 )
-from .statistics import (
+from pyapprox.risk import (
     SampleAverageEntropicRisk,
     SampleAverageMean,
     SampleAverageSmoothedAVaR,

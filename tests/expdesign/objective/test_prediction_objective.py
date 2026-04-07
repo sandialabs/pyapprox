@@ -17,7 +17,7 @@ from pyapprox.expdesign.deviation import (
 )
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import PredictionOEDObjective
-from pyapprox.expdesign.statistics import (
+from pyapprox.risk import (
     SampleAverageMean,
     SampleAverageVariance,
 )
