@@ -14,14 +14,14 @@ dist/
 __pycache__/
 .DS_Store
 
-pyapprox/cython/*.pyd
-pyapprox/cython/*.c
 .vscode/
 .venv*/
 .env/
 
-# Hatch-vcs generated version file
-pyapprox/_version.py
+# Hatch-vcs generated version files
+packages/pyapprox/src/pyapprox/_version.py
+packages/pyapprox-benchmarks/src/pyapprox_benchmarks/_version.py
+packages/pyapprox-tutorials/src/pyapprox_tutorials/_version.py
 
 # Patch files
 *.patch

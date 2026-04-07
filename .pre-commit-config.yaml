@@ -8,7 +8,7 @@ repos:
     rev: "1.8.3"
     hooks:
       - id: bandit
-        args: ["-r", "--severity-level", "high", "--exclude", "pyapprox/tests,tutorials/"]
+        args: ["-r", "--severity-level", "high", "--exclude", "tests/,packages/pyapprox-tutorials/"]
 
   - repo: https://github.com/pypa/pip-audit
     rev: v2.9.0

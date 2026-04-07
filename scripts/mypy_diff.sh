@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BASELINE="${1:-1711}"
-DIR="${2:-pyapprox/}"
+DIR="${2:-packages/pyapprox/src/pyapprox/}"
 
 OUTPUT=$(mypy "$DIR" --strict 2>&1 || true)
 COUNT=$(echo "$OUTPUT" | grep -oE 'Found [0-9]+ errors?' | grep -oE '[0-9]+' || echo "0")
