@@ -23,6 +23,8 @@ likelihood
     Likelihood functions for Bayesian inference.
 risk
     Analytical risk measures for specific distributions.
+copula
+    Copula models for dependence structures.
 
 Examples
 --------
@@ -54,19 +56,6 @@ from .covariance import (
     DenseCholeskyCovarianceOperator,
     DiagonalCovarianceOperator,
     OperatorBasedCovarianceOperator,
-)
-
-# Density estimation
-from .density import (
-    DensityBasisProtocol,
-    DensityFitterProtocol,
-    ISEOptimizingFitter,
-    KDEFitter,
-    KernelDensityBasis,
-    LinearDensityFitter,
-    PiecewiseDensityBasis,
-    ProjectionDensityFitter,
-    PushforwardDensity,
 )
 
 # Multivariate Gaussian distributions
@@ -181,14 +170,4 @@ __all__ = [
     "ModelBasedLogLikelihood",
     # Risk measures
     "GaussianAnalyticalRiskMeasures",
-    # Density estimation
-    "DensityBasisProtocol",
-    "DensityFitterProtocol",
-    "PiecewiseDensityBasis",
-    "KernelDensityBasis",
-    "LinearDensityFitter",
-    "KDEFitter",
-    "ProjectionDensityFitter",
-    "ISEOptimizingFitter",
-    "PushforwardDensity",
 ]

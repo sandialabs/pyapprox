@@ -16,18 +16,18 @@ from pyapprox.pde.collocation.time_integration.physics_adapter import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunHVP
-from pyapprox.pde.time.implicit_steppers.backward_euler import (
+from pyapprox.ode.explicit_steppers.heun import HeunHVP
+from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerHVP,
 )
-from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
+from pyapprox.ode.implicit_steppers.crank_nicolson import (
     CrankNicolsonHVP,
 )
-from pyapprox.pde.time.implicit_steppers.integrator import (
+from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.util.backends.protocols import Array, Backend

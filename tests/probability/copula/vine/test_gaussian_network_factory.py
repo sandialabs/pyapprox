@@ -13,7 +13,7 @@ import pytest
 
 from pyapprox.inverse.bayesnet.inference import compute_marginal
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
-from pyapprox.probability.copula.vine.gaussian_network_factory import (
+from tests.probability.copula.vine.gaussian_network_factory import (
     dvine_from_gaussian_network,
 )
 from pyapprox.probability.gaussian.dense import (

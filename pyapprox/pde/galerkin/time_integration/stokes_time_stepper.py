@@ -23,7 +23,7 @@ import numpy as np
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
 
 

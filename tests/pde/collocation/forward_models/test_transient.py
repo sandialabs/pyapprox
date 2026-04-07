@@ -38,8 +38,8 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
-from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 
 
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):

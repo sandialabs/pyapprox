@@ -23,12 +23,12 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsODEAdapter,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
-from pyapprox.pde.time.explicit_steppers import (
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.explicit_steppers import (
     ForwardEulerHVP,
     HeunHVP,
 )
-from pyapprox.pde.time.implicit_steppers import (
+from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )

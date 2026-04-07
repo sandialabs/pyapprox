@@ -17,7 +17,7 @@ from pyapprox.interface.functions.protocols import (
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.zoo.diffusion import (
     create_steady_diffusion_1d,
     create_transient_diffusion_1d,

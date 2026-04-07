@@ -34,7 +34,6 @@ from pyapprox.probability.copula.vine import (
     DVineCopula,
     compute_dvine_partial_correlations,
     correlation_from_partial_correlations,
-    dvine_from_gaussian_network,
     precision_bandwidth,
 )
 
@@ -55,7 +54,6 @@ __all__ = [
     "register_bivariate_copula",
     "list_bivariate_copulas",
     "DVineCopula",
-    "dvine_from_gaussian_network",
     "precision_bandwidth",
     "compute_dvine_partial_correlations",
     "correlation_from_partial_correlations",

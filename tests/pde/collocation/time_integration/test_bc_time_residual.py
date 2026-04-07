@@ -19,7 +19,7 @@ from pyapprox.pde.collocation.time_integration import (
     PhysicsToODEResidualAdapter,
     create_bc_enforcing_residual,
 )
-from pyapprox.pde.time.implicit_steppers.backward_euler import (
+from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerAdjoint,
     BackwardEulerHVP,
     BackwardEulerStepper,

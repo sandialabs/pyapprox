@@ -132,7 +132,7 @@ $$
 This is a nonlinear equation in $y_n$ that requires Newton iteration.
 
 ```{python}
-from pyapprox.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerResidual
 
 # Wrap the ODE residual for Backward Euler
 time_residual = BackwardEulerResidual(residual)
@@ -145,7 +145,7 @@ print(f"Time stepping method: {type(time_residual).__name__}")
 For higher accuracy, use Crank-Nicolson:
 
 ```{python}
-from pyapprox.pde.time.implicit_steppers.crank_nicolson import CrankNicolsonResidual
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonResidual
 
 cn_residual = CrankNicolsonResidual(residual)
 print(f"Crank-Nicolson is 2nd order accurate")
@@ -177,7 +177,7 @@ print(f"  Default max iterations: 50")
 The `TimeIntegrator` orchestrates the full time integration:
 
 ```{python}
-from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
 # Get time configuration
 time_config = benchmark.time_config()
@@ -261,9 +261,9 @@ Let's see how the time step affects accuracy:
 ```{python}
 def solve_with_deltat(deltat):
     """Solve ODE with a specific time step."""
-    from pyapprox.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
+    from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerResidual
     from pyapprox.util.rootfinding.newton import NewtonSolver
-    from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
+    from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
     residual = benchmark.residual()
     residual.set_param(gt.nominal_parameters)

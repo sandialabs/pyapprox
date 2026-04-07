@@ -18,6 +18,10 @@ from pyapprox.util.linalg.protocols import (
     IncrementalFactorizerProtocol,
     PivotedFactorizerProtocol,
 )
+from pyapprox.util.linalg.sparse_dispatch import (
+    solve_maybe_sparse,
+    sparse_or_dense_solve,
+)
 from pyapprox.util.linalg.randomized import (
     DenseMatVecOperator,
     DenseSymmetricMatVecOperator,
@@ -47,6 +51,9 @@ __all__ = [
     "get_final_pivots_from_sequential_pivots",
     # Pivoted QR
     "PivotedQRFactorizer",
+    # Sparse dispatch
+    "solve_maybe_sparse",
+    "sparse_or_dense_solve",
     # Randomized
     "MatVecOperator",
     "SymmetricMatVecOperator",

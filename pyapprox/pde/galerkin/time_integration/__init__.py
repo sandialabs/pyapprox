@@ -19,7 +19,7 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
 from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.ode.config import TimeIntegrationConfig
 
 __all__ = [
     "GalerkinPhysicsODEAdapter",

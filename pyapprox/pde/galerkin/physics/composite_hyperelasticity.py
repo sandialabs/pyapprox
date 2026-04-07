@@ -36,7 +36,7 @@ from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 

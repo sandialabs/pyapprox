@@ -21,11 +21,11 @@ wrapper based on the inner stepper's protocol level.
 from typing import Generic, Tuple, cast, overload
 
 from pyapprox.pde.collocation.physics.base import AbstractPhysics
-from pyapprox.pde.time.protocols.ode_residual import (
+from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
 )
-from pyapprox.pde.time.protocols.time_stepping import (
+from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
     PrevStepHVPEnabledTimeSteppingResidualProtocol,

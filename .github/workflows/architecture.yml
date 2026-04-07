@@ -41,8 +41,8 @@ jobs:
           echo "=== Contract Summary ==="
           grep -E "^(KEPT|BROKEN)" import_linter_results.txt || true
 
-          # Count individual violation lines
-          VIOLATIONS=$(grep -c "^- " import_linter_results.txt || echo "0")
+          # Count cycle dependency lines (intra-package cycles)
+          VIOLATIONS=$(grep -c "^- \." import_linter_results.txt || echo "0")
           echo "Current violations: $VIOLATIONS"
 
           # Read baseline from committed file
@@ -56,6 +56,17 @@ jobs:
             echo "New violations were introduced. Fix them or update the baseline"
             echo "with explicit approval."
             exit 1
+          fi
+
+          # Fail if any non-acyclic contract is broken
+          if grep -q "BROKEN" import_linter_results.txt; then
+            BROKEN=$(grep "BROKEN" import_linter_results.txt | grep -v "circular dependencies" || true)
+            if [ -n "$BROKEN" ]; then
+              echo ""
+              echo "Non-acyclic contracts broken:"
+              echo "$BROKEN"
+              exit 1
+            fi
           fi
 
           echo "Architecture violations: $VIOLATIONS (baseline: $BASELINE)"

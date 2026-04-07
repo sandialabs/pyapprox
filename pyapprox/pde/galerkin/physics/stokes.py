@@ -31,7 +31,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     CallableDirichletBC,
 )
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:

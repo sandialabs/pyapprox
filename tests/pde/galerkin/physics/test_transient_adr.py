@@ -36,7 +36,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.time.implicit_steppers import (
+from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )

@@ -26,7 +26,7 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.util.backends.protocols import Array, Backend
 
 

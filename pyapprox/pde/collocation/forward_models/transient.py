@@ -13,11 +13,11 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.pde.time.config import TimeIntegrationConfig
-from pyapprox.pde.time.functionals.all_states_endpoint import (
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.pde.time.operator.time_adjoint_hvp import (
+from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend

@@ -54,15 +54,15 @@ class TestCoupledSpringsResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-        from pyapprox.pde.time.implicit_steppers.backward_euler import (
+        from pyapprox.ode.functionals.endpoint import EndpointFunctional
+        from pyapprox.ode.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
         )
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator import TimeAdjointOperatorWithHVP
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
         from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -123,15 +123,15 @@ class TestHastingsEcologyResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-        from pyapprox.pde.time.implicit_steppers.backward_euler import (
+        from pyapprox.ode.functionals.endpoint import EndpointFunctional
+        from pyapprox.ode.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
         )
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator import TimeAdjointOperatorWithHVP
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
         from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -191,15 +191,15 @@ class TestChemicalReactionResidual:
 
     def test_jacobians_with_checker(self, numpy_bkd):
         """Test Jacobians using TimeAdjointDerivativeChecker."""
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-        from pyapprox.pde.time.implicit_steppers.backward_euler import (
+        from pyapprox.ode.functionals.endpoint import EndpointFunctional
+        from pyapprox.ode.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
         )
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator import TimeAdjointOperatorWithHVP
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
         from pyapprox.util.rootfinding.newton import NewtonSolver

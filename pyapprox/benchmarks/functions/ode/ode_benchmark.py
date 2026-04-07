@@ -255,7 +255,7 @@ class ODEQoIFunction(Generic[Array]):
 
         time_residual = self._create_time_residual(residual)
 
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
         from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -289,25 +289,25 @@ class ODEQoIFunction(Generic[Array]):
     def _create_time_residual(self, residual: Any) -> Any:
         """Create time stepping residual based on stepper type."""
         if self._stepper_type == "backward_euler":
-            from pyapprox.pde.time.implicit_steppers.backward_euler import (
+            from pyapprox.ode.implicit_steppers.backward_euler import (
                 BackwardEulerHVP,
             )
 
             return BackwardEulerHVP(residual)
         elif self._stepper_type == "forward_euler":
-            from pyapprox.pde.time.explicit_steppers.forward_euler import (
+            from pyapprox.ode.explicit_steppers.forward_euler import (
                 ForwardEulerHVP,
             )
 
             return ForwardEulerHVP(residual)
         elif self._stepper_type == "heun":
-            from pyapprox.pde.time.explicit_steppers.heun import (
+            from pyapprox.ode.explicit_steppers.heun import (
                 HeunHVP,
             )
 
             return HeunHVP(residual)
         elif self._stepper_type == "crank_nicolson":
-            from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
+            from pyapprox.ode.implicit_steppers.crank_nicolson import (
                 CrankNicolsonHVP,
             )
 
@@ -462,7 +462,7 @@ class ODEBenchmark(Generic[Array, GT]):
         # timestepper, whereas a model can accept multiple timesteppers.
         # But we should avoid passing in string and rather pass in a configured
         # time integrator
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
         from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -482,25 +482,25 @@ class ODEBenchmark(Generic[Array, GT]):
     def _create_time_residual(self, stepper: str) -> Any:
         """Create time stepping residual based on stepper type."""
         if stepper == "backward_euler":
-            from pyapprox.pde.time.implicit_steppers.backward_euler import (
+            from pyapprox.ode.implicit_steppers.backward_euler import (
                 BackwardEulerHVP,
             )
 
             return BackwardEulerHVP(self._residual)
         elif stepper == "forward_euler":
-            from pyapprox.pde.time.explicit_steppers.forward_euler import (
+            from pyapprox.ode.explicit_steppers.forward_euler import (
                 ForwardEulerHVP,
             )
 
             return ForwardEulerHVP(self._residual)
         elif stepper == "heun":
-            from pyapprox.pde.time.explicit_steppers.heun import (
+            from pyapprox.ode.explicit_steppers.heun import (
                 HeunHVP,
             )
 
             return HeunHVP(self._residual)
         elif stepper == "crank_nicolson":
-            from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
+            from pyapprox.ode.implicit_steppers.crank_nicolson import (
                 CrankNicolsonHVP,
             )
 

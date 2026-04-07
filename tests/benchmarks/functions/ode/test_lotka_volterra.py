@@ -87,14 +87,14 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def _create_operator_with_endpoint(self):
         """Create TimeAdjointOperatorWithHVP with EndpointFunctional."""
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-        from pyapprox.pde.time.implicit_steppers.backward_euler import (
+        from pyapprox.ode.functionals.endpoint import EndpointFunctional
+        from pyapprox.ode.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
         )
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
+        from pyapprox.ode.operator import TimeAdjointOperatorWithHVP
         from pyapprox.util.rootfinding.newton import NewtonSolver
 
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
@@ -118,14 +118,14 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def _create_operator_with_mse(self):
         """Create TimeAdjointOperatorWithHVP with TransientMSEFunctional."""
-        from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
-        from pyapprox.pde.time.implicit_steppers.backward_euler import (
+        from pyapprox.ode.functionals.mse import TransientMSEFunctional
+        from pyapprox.ode.implicit_steppers.backward_euler import (
             BackwardEulerHVP,
         )
-        from pyapprox.pde.time.implicit_steppers.integrator import (
+        from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
+        from pyapprox.ode.operator import TimeAdjointOperatorWithHVP
         from pyapprox.util.rootfinding.newton import NewtonSolver
 
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
@@ -155,7 +155,7 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def test_ode_derivatives_with_endpoint(self):
         """Test ODE-level derivatives using TimeAdjointDerivativeChecker."""
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
 
@@ -195,7 +195,7 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def test_endpoint_jacobian(self):
         """Test full Jacobian with EndpointFunctional."""
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
 
@@ -208,7 +208,7 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def test_endpoint_hvp(self):
         """Test full HVP with EndpointFunctional."""
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
 
@@ -221,7 +221,7 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def test_mse_jacobian(self):
         """Test full Jacobian with TransientMSEFunctional."""
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
 
@@ -234,7 +234,7 @@ class TestLotkaVolterraWithTimeAdjoint:
 
     def test_mse_hvp(self):
         """Test full HVP with TransientMSEFunctional."""
-        from pyapprox.pde.time.operator.check_derivatives import (
+        from pyapprox.ode.operator.check_derivatives import (
             TimeAdjointDerivativeChecker,
         )
 

@@ -18,8 +18,8 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.pde.time.implicit_steppers import BackwardEulerHVP
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
+from pyapprox.ode.implicit_steppers import BackwardEulerHVP
 
 
 class TestPhysicsAdapterBase:

@@ -330,7 +330,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         from pyapprox.pde.galerkin.time_integration.galerkin_model import (
             GalerkinModel,
         )
-        from pyapprox.pde.time.config import TimeIntegrationConfig
+        from pyapprox.ode.config import TimeIntegrationConfig
 
         bkd = self._bkd
 

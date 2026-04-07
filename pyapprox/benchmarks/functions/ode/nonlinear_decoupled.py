@@ -1,6 +1,6 @@
 from typing import Generic, Optional
 
-from pyapprox.pde.time.implicit_steppers.protocols import (
+from pyapprox.ode.implicit_steppers.protocols import (
     ImplicitODEResidualProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

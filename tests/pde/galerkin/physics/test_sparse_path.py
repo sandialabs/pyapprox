@@ -31,7 +31,7 @@ from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamFEM,
 )
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-from pyapprox.pde.sparse_utils import (
+from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
