@@ -102,6 +102,8 @@ from .analytical import (
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+    LogNormalQoIAVaRDataMeanStdDevObjective,
 )
 
 # Data generation and management
@@ -192,6 +194,8 @@ __all__ = [
     "ConjugateGaussianOEDExpectedKLDivergence",
     "ConjugateGaussianOEDForLogNormalExpectedStdDev",
     "ConjugateGaussianOEDForLogNormalAVaRStdDev",
+    "ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev",
+    "LogNormalQoIAVaRDataMeanStdDevObjective",
     # Deviation measures
     "DeviationMeasure",
     "StandardDeviationMeasure",

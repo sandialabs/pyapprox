@@ -387,6 +387,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.erfinv(array)
 
     @staticmethod
+    def ndtr(array: torch.Tensor) -> torch.Tensor:
+        return torch.special.ndtr(array)
+
+    @staticmethod
     def gammaln(array: torch.Tensor) -> torch.Tensor:
         return torch.lgamma(array)
 

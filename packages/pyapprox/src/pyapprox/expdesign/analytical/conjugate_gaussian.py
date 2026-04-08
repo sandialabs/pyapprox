@@ -9,9 +9,10 @@ prediction OED with linear Gaussian models and conjugate priors.
 # expressions for prediction based oed. Inference for parameters
 # with KL is in kl_diagnostics elsewhere in the package
 
+import itertools
 import math
 from abc import ABC, abstractmethod
-from typing import Generic, Optional
+from typing import Generic, List, Optional, Tuple
 
 from scipy import stats
 
@@ -436,3 +437,218 @@ class ConjugateGaussianOEDForLogNormalAVaRStdDev(
             math.sqrt(float(self._bkd.to_numpy(sigma_hat_sq)[0, 0])),
         )
         return math.sqrt(factor) * risk_measures.AVaR(self._beta)
+
+
+class ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+    ConjugateGaussianOEDPredictionUtilityBase[Array]
+):
+    """
+    E_y[AVaR_alpha over vector lognormal Std(W_j|y)] for diagnostics.
+
+    Non-differentiable version (returns float via value()) for use in
+    the diagnostics registry. For gradient-based optimization, use
+    ``LogNormalQoIAVaRDataMeanStdDevObjective`` instead.
+
+    Uses the general formula that handles arbitrary (non-equal) posterior
+    variances across QoI locations. The ordering of D_j = K_j * exp(tau_j)
+    depends on the random posterior slope mu_1^*. The formula enumerates
+    all C(Q,2) crossing thresholds on mu_1^* where pairs of D values swap
+    order, partitions the real line into intervals of fixed ordering, and
+    integrates the AVaR tail contribution in each interval.
+
+    Parameters
+    ----------
+    prior_mean : Array
+        Prior mean. Shape: (nvars, 1)
+    prior_cov : Array
+        Prior covariance. Shape: (nvars, nvars)
+    qoi_mat : Array
+        QoI prediction matrix. Shape: (npred, nvars). Must be degree-1
+        basis (2 columns: [1, x_j]).
+    alpha : float
+        AVaR level in [0, 1).
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        prior_mean: Array,
+        prior_cov: Array,
+        qoi_mat: Array,
+        alpha: float,
+        bkd: Backend[Array],
+    ) -> None:
+        self._alpha = alpha
+        super().__init__(prior_mean, prior_cov, qoi_mat, bkd)
+
+    def _compute_utility(self) -> float:
+        bkd = self._bkd
+        npred = self._qoi_mat.shape[0]
+        m = math.ceil(npred * (1 - self._alpha))
+
+        Cmat = self._Cmat
+        nu_vec = self._nu_vec
+        if self._posterior is None:
+            raise ValueError("must call set_noise_covariance()")
+        Sigma_star = self._posterior.posterior_covariance()
+
+        # Per-QoI statistics
+        x_vals: List[float] = []
+        nu_j_vals: List[float] = []
+        sigma_tau_j_sq_vals: List[float] = []
+        sigma_post_j_sq_vals: List[float] = []
+        K_vals: List[float] = []
+        log_K_vals: List[float] = []
+
+        for j in range(npred):
+            psi_j = self._qoi_mat[j : j + 1]
+            x_j = float(bkd.to_numpy(self._qoi_mat[j, 1]))
+            nu_j = float(bkd.to_numpy((psi_j @ nu_vec)[0, 0]))
+            sigma_tau_j_sq = float(
+                bkd.to_numpy((psi_j @ Cmat @ psi_j.T)[0, 0])
+            )
+            sigma_post_j_sq = float(
+                bkd.to_numpy((psi_j @ Sigma_star @ psi_j.T)[0, 0])
+            )
+            K_j = (
+                math.exp(sigma_post_j_sq / 2)
+                * math.sqrt(math.exp(sigma_post_j_sq) - 1)
+            )
+            x_vals.append(x_j)
+            nu_j_vals.append(nu_j)
+            sigma_tau_j_sq_vals.append(sigma_tau_j_sq)
+            sigma_post_j_sq_vals.append(sigma_post_j_sq)
+            K_vals.append(K_j)
+            log_K_vals.append(math.log(K_j))
+
+        # alpha=0 special case: all terms, no ordering needed
+        if self._alpha == 0.0:
+            total = 0.0
+            for j in range(npred):
+                total += K_vals[j] * math.exp(
+                    nu_j_vals[j] + sigma_tau_j_sq_vals[j] / 2
+                )
+            return total / m
+
+        # Distribution of mu_1^*: marginal from (mu_0^*, mu_1^*) ~ N(nu, C)
+        c_11 = float(bkd.to_numpy(Cmat[1, 1]))
+        nu_1 = float(bkd.to_numpy(nu_vec[1, 0]))
+        std_mu1 = math.sqrt(c_11)
+
+        # Compute all crossing thresholds:
+        # D_i > D_j iff K_i*exp(tau_i) > K_j*exp(tau_j)
+        # iff log(K_i) + tau_i > log(K_j) + tau_j
+        # iff (x_i - x_j)*mu_1^* > log(K_j/K_i) + (nu_j - nu_i) [at prior mean level, not needed]
+        # Actually: log(D_j) = log(K_j) + tau_j and tau_j = mu_0^* + x_j*mu_1^*
+        # So D_i > D_j iff (x_i - x_j)*mu_1^* > log(K_j) - log(K_i) [conditioned on mu_0^* cancelling]
+        # Wait: tau_i - tau_j = (x_i - x_j)*mu_1^*, and log(D_i) - log(D_j)
+        #   = log(K_i/K_j) + (x_i - x_j)*mu_1^*
+        # So D_i > D_j iff (x_i - x_j)*mu_1^* > log(K_j/K_i)
+        # Threshold: mu_1^* = log(K_j/K_i) / (x_i - x_j)  when x_i != x_j
+        thresholds: List[float] = []
+        for i, j in itertools.combinations(range(npred), 2):
+            dx = x_vals[i] - x_vals[j]
+            if abs(dx) < 1e-15:
+                continue
+            t = (log_K_vals[j] - log_K_vals[i]) / dx
+            thresholds.append(t)
+
+        thresholds = sorted(set(thresholds))
+
+        # Build intervals: (-inf, t_0), (t_0, t_1), ..., (t_{n-1}, +inf)
+        # For each interval, pick a representative point, determine D ordering,
+        # identify top-m indices, integrate contribution.
+
+        if not thresholds:
+            # All x_vals equal or npred=1 — ordering is fixed everywhere
+            span = 1.0
+        else:
+            span = thresholds[-1] - thresholds[0] if len(thresholds) > 1 else 1.0
+
+        sentinel_lo = (thresholds[0] - 10 * span - 1) if thresholds else nu_1
+        sentinel_hi = (thresholds[-1] + 10 * span + 1) if thresholds else nu_1
+
+        # Interval boundaries (including -inf and +inf sentinels)
+        boundaries: List[Optional[float]] = [None] + [float(t) for t in thresholds] + [None]
+
+        total = 0.0
+        for k in range(len(boundaries) - 1):
+            t_lo = boundaries[k]
+            t_hi = boundaries[k + 1]
+
+            # Representative point for determining D ordering
+            if t_lo is None and t_hi is None:
+                rep = nu_1
+            elif t_lo is None:
+                rep = sentinel_lo
+            elif t_hi is None:
+                rep = sentinel_hi
+            else:
+                rep = (t_lo + t_hi) / 2
+
+            # Compute D_j ranking at representative point
+            log_D_at_rep = [
+                log_K_vals[j] + x_vals[j] * rep for j in range(npred)
+            ]
+            # Sort descending by log_D -> top-m are AVaR tail
+            ranked = sorted(range(npred), key=lambda j: log_D_at_rep[j], reverse=True)
+            tail_indices = ranked[:m]
+
+            # Integrate each tail component's contribution over this interval
+            # E[K_j * exp(tau_j) * 1(mu_1^* in [t_lo, t_hi])]
+            # = K_j * E[exp(nu_0^* + x_j*mu_1^*) * 1(mu_1^* in [t_lo, t_hi])]
+            #
+            # (tau_j, mu_1^*) is jointly Gaussian. Marginals:
+            #   tau_j ~ N(nu_j, sigma_tau_j^2)
+            #   mu_1^* ~ N(nu_1, c_11)
+            #   Cov(tau_j, mu_1^*) = psi_j^T C e_1 = c_01 + x_j*c_11
+            #     where e_1 selects column 1 of C
+            #
+            # E[exp(tau_j) * 1(mu_1^* in [a,b])]
+            #   = exp(nu_j + sigma_tau_j^2/2) * [Phi(d_j(b)) - Phi(d_j(a))]
+            # where d_j(t) = (t - nu_1 - cov_j/c_11 * ... )
+            # Actually, conditioning on mu_1^* and integrating:
+            # E[exp(tau_j) * 1(a < mu_1^* < b)]
+            #   = exp(nu_j + sigma_tau_j^2/2)
+            #     * [Phi((b - nu_1)/std_mu1 - rho_j*sigma_tau_j/std_mu1)  -- NO
+            #
+            # Let me use the MGF approach directly.
+            # Let Z = (tau_j, mu_1^*) ~ N(mu_Z, Sigma_Z) where
+            #   mu_Z = (nu_j, nu_1)
+            #   Sigma_Z = [[sigma_tau_j^2, cov_j1], [cov_j1, c_11]]
+            # E[exp(tau_j) * 1(a < mu_1^* < b)]
+            #   = integral over mu1 of exp(E[tau_j|mu1] + Var[tau_j|mu1]/2) * phi_mu1(mu1) dmu1
+            #     from a to b
+            # where E[tau_j|mu1] = nu_j + (cov_j1/c_11)*(mu1 - nu_1)
+            #       Var[tau_j|mu1] = sigma_tau_j^2 - cov_j1^2/c_11
+            # = exp(nu_j + (sigma_tau_j^2 - cov_j1^2/c_11)/2)
+            #   * integral_a^b exp((cov_j1/c_11)*(mu1-nu_1)) * phi(mu1; nu_1, c_11) dmu1
+            # = exp(nu_j + (sigma_tau_j^2 - cov_j1^2/c_11)/2)
+            #   * exp(cov_j1^2/(2*c_11))
+            #   * [Phi((b - nu_1 - cov_j1)/std_mu1) - Phi((a - nu_1 - cov_j1)/std_mu1)]
+            #   (completing the square in the exponent)
+            # = exp(nu_j + sigma_tau_j^2/2)
+            #   * [Phi((b - nu_1 - cov_j1)/std_mu1) - Phi((a - nu_1 - cov_j1)/std_mu1)]
+
+            c_01 = float(bkd.to_numpy(Cmat[0, 1]))
+
+            for j in tail_indices:
+                cov_j1 = c_01 + x_vals[j] * c_11
+                base = K_vals[j] * math.exp(
+                    nu_j_vals[j] + sigma_tau_j_sq_vals[j] / 2
+                )
+                shift = cov_j1 / std_mu1
+
+                if t_lo is None:
+                    phi_lo = 0.0
+                else:
+                    phi_lo = float(stats.norm.cdf((t_lo - nu_1) / std_mu1 - shift))
+                if t_hi is None:
+                    phi_hi = 1.0
+                else:
+                    phi_hi = float(stats.norm.cdf((t_hi - nu_1) / std_mu1 - shift))
+
+                total += base * (phi_hi - phi_lo)
+
+        return total / m

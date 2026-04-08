@@ -26,6 +26,7 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
 from pyapprox.expdesign.deviation import (
@@ -197,6 +198,30 @@ def _create_nonlinear_avar_mean_stdev(**kwargs: Any) -> UtilityConfig:
         ),
         exact_cls=ConjugateGaussianOEDForLogNormalAVaRStdDev,
         exact_args=(beta,),
+    )
+
+
+# Naming convention: {model}_{L3_data_risk}_{L2_qoi_risk}_{L1_deviation}
+# L3 = noise_stat (over data realizations), L2 = risk (over QoI components)
+
+
+@register_utility("nonlinear_mean_avar_stdev")
+def _create_nonlinear_mean_avar_stdev(**kwargs: Any) -> UtilityConfig:
+    """Lognormal QoI, mean noise stat, AVaR risk over QoI, stdev deviation.
+
+    E_y[AVaR_alpha({Std(W_1|y), ..., Std(W_Q|y)})] for vector lognormal QoI.
+    Requires degree-1 basis with equal posterior variance (equal-K condition).
+    """
+    alpha = kwargs.get("alpha", 0.5)
+    delta = kwargs.get("delta", 100000)
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageSmoothedAVaR(
+            alpha, bkd, delta=delta
+        ),
+        noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
+        exact_cls=ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+        exact_args=(alpha,),
     )
 
 

@@ -19,11 +19,16 @@ from .prediction_factory import (
 )
 from .prediction_objective import PredictionOEDObjective
 
+from pyapprox.expdesign.analytical.lognormal_avar_objective import (
+    LogNormalQoIAVaRDataMeanStdDevObjective,
+)
+
 __all__ = [
     "KLOEDObjective",
     "ParallelKLOEDObjective",
     "PredictionOEDObjective",
     "DOptimalLinearModelObjective",
+    "LogNormalQoIAVaRDataMeanStdDevObjective",
     "create_kl_oed_objective",
     "create_kl_oed_objective_from_data",
     "create_deviation_measure",

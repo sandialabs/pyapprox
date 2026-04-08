@@ -16,6 +16,7 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
 )
 
 #TODO: rename this file to better differentiate it from test_conjugate_mc.py
@@ -218,3 +219,121 @@ class TestConjugateGaussianOEDStandalone:
         wrong_obs_mat = bkd.asarray(np.random.randn(self._nobs, self._nvars + 1))
         with pytest.raises(ValueError):
             utility.set_observation_matrix(wrong_obs_mat)
+
+
+class TestConjugateGaussianOEDLogNormalQoIAVaR:
+    """Tests for E_y[AVaR_alpha over vector lognormal Std(W_j|y)]."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(42)
+
+    def _build_setup(self, bkd, npred=4):
+        """Build a degree-1 basis with general QoI locations."""
+        nvars = 2  # degree-1 basis: [1, x_j]
+        nobs = 3
+
+        prior_mean = bkd.zeros((nvars, 1))
+        prior_cov = bkd.asarray(np.eye(nvars) * 0.5)
+        obs_mat = bkd.asarray(np.random.randn(nobs, nvars))
+        noise_cov = bkd.asarray(
+            np.diag(np.random.uniform(0.1, 0.5, nobs))
+        )
+
+        x_vals = np.linspace(-1.5, 1.5, npred)
+        qoi_mat = bkd.asarray(
+            np.column_stack([np.ones(npred), x_vals])
+        )
+
+        return prior_mean, prior_cov, obs_mat, noise_cov, qoi_mat
+
+    def _create_utility(self, bkd, alpha, setup=None, npred=4):
+        if setup is None:
+            setup = self._build_setup(bkd, npred)
+        prior_mean, prior_cov, obs_mat, noise_cov, qoi_mat = setup
+        utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+            prior_mean, prior_cov, qoi_mat, alpha, bkd
+        )
+        utility.set_observation_matrix(obs_mat)
+        utility.set_noise_covariance(noise_cov)
+        return utility
+
+    def test_lognormal_mean_avar_stdev_positive(self, bkd):
+        """Test E_y[AVaR_alpha[Std(W_j|y)]] is positive."""
+        utility = self._create_utility(bkd, alpha=0.5)
+        assert utility.value() > 0.0
+
+    def test_lognormal_mean_avar_stdev_increases_with_alpha(self, bkd):
+        """Test utility increases with alpha (more risk-averse)."""
+        prior_mean, prior_cov, obs_mat, noise_cov, qoi_mat = (
+            self._build_setup(bkd)
+        )
+        values = []
+        for alpha in [0.0, 0.5, 0.75]:
+            utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+                prior_mean, prior_cov, qoi_mat, alpha, bkd
+            )
+            utility.set_observation_matrix(obs_mat)
+            utility.set_noise_covariance(noise_cov)
+            values.append(utility.value())
+
+        assert values[1] >= values[0], (
+            f"alpha=0.5 ({values[1]}) should be >= alpha=0.0 ({values[0]})"
+        )
+        assert values[2] >= values[1], (
+            f"alpha=0.75 ({values[2]}) should be >= alpha=0.5 ({values[1]})"
+        )
+
+    def test_lognormal_mean_avar_stdev_alpha_zero_equals_mean(self, bkd):
+        """Test alpha=0 reduces to (1/Q)*sum K_j*exp(nu_j + sigma_tau_j^2/2).
+
+        At alpha=0 (m=Q), AVaR is the plain mean over all QoI components.
+        This is a machine-precision identity by the telescoping argument:
+        each per-j integral over the full real line yields
+        K_j * exp(nu_j + sigma_tau_j^2/2), which equals the per-QoI
+        E_y[Std(W_j|y)] from LogNormalExpectedStdDev.
+        """
+        npred = 4
+        prior_mean, prior_cov, obs_mat, noise_cov, qoi_mat = (
+            self._build_setup(bkd, npred)
+        )
+
+        # Compute via the vector class at alpha=0
+        utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+            prior_mean, prior_cov, qoi_mat, 0.0, bkd
+        )
+        utility.set_observation_matrix(obs_mat)
+        utility.set_noise_covariance(noise_cov)
+        avar_val = utility.value()
+
+        # Compute per-K_j mean using individual LogNormalExpectedStdDev
+        from pyapprox.expdesign.analytical import (
+            ConjugateGaussianOEDForLogNormalExpectedStdDev,
+        )
+
+        total = 0.0
+        for j in range(npred):
+            qoi_row = qoi_mat[j : j + 1]
+            u = ConjugateGaussianOEDForLogNormalExpectedStdDev(
+                prior_mean, prior_cov, qoi_row, bkd
+            )
+            u.set_observation_matrix(obs_mat)
+            u.set_noise_covariance(noise_cov)
+            total += u.value()
+        mean_val = total / npred
+
+        bkd.assert_allclose(
+            bkd.asarray([avar_val]),
+            bkd.asarray([mean_val]),
+            rtol=1e-10,
+        )
+
+    def test_lognormal_mean_avar_stdev_finite(self, bkd):
+        """Test utility returns finite values for several alpha."""
+        setup = self._build_setup(bkd)
+        for alpha in [0.0, 0.25, 0.5, 0.75]:
+            utility = self._create_utility(bkd, alpha=alpha, setup=setup)
+            value = utility.value()
+            assert np.isfinite(value), (
+                f"Non-finite value at alpha={alpha}: {value}"
+            )

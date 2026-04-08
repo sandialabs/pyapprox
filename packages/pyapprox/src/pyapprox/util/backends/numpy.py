@@ -322,6 +322,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], scipy.special.erfinv(array))
 
     @staticmethod
+    def ndtr(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], scipy.special.ndtr(array))
+
+    @staticmethod
     def isfinite(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.isfinite(array))
 

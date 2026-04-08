@@ -468,6 +468,11 @@ class Backend(Protocol, Generic[Array]):
     def erfinv(array: Array) -> Array: ...
 
     @staticmethod
+    def ndtr(array: Array) -> Array:
+        """Standard normal CDF (Phi). Equivalent to scipy.special.ndtr."""
+        ...
+
+    @staticmethod
     def isfinite(array: Array) -> Array: ...
 
     @staticmethod

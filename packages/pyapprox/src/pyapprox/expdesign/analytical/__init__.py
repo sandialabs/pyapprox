@@ -13,7 +13,11 @@ from .conjugate_gaussian import (
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
+)
+from .lognormal_avar_objective import (
+    LogNormalQoIAVaRDataMeanStdDevObjective,
 )
 
 __all__ = [
@@ -25,4 +29,6 @@ __all__ = [
     "ConjugateGaussianOEDExpectedKLDivergence",
     "ConjugateGaussianOEDForLogNormalExpectedStdDev",
     "ConjugateGaussianOEDForLogNormalAVaRStdDev",
+    "ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev",
+    "LogNormalQoIAVaRDataMeanStdDevObjective",
 ]

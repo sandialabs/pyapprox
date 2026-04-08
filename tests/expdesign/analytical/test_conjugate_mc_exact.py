@@ -20,6 +20,7 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedKLDivergence,
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
 )
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
@@ -481,3 +482,84 @@ class TestConjugateMCExactStandalone:
             assert np.isfinite(value), (
                 f"{type(utility).__name__}.value() returned non-finite: {value}"
             )
+
+    @slow_test
+    def test_lognormal_mean_avar_stdev_mc_vs_exact(self, bkd) -> None:
+        """Test MC matches analytical for vector lognormal AVaR over QoI.
+
+        For each data realization y, compute Std(W_j|y) for all j,
+        apply exact AVaR to the Q-element vector, then average over data.
+        """
+        np.random.seed(42)
+        nvars = 2  # degree-1 basis
+        nobs = 4
+        npred = 4
+        nsamples = 4000
+        rtol = 5e-2
+
+        prior_mean = bkd.zeros((nvars, 1))
+        prior_std = 1.0
+        prior_cov = bkd.asarray(np.eye(nvars) * prior_std**2)
+        obs_mat = bkd.asarray(np.random.randn(nobs, nvars))
+        noise_std = 0.3
+        noise_cov = bkd.asarray(np.eye(nobs) * noise_std**2)
+
+        # Symmetric QoI locations for equal-K
+        x_vals = np.linspace(-1.5, 1.5, npred)
+        qoi_mat = bkd.asarray(np.column_stack([np.ones(npred), x_vals]))
+
+        alpha = 0.5
+        m = int(np.ceil(npred * (1 - alpha)))
+
+        # MC estimate
+        avar_samples = []
+        for ii in range(nsamples):
+            rng = np.random.default_rng(400 + ii)
+
+            # Sample theta from prior, generate observation
+            theta = bkd.asarray(rng.standard_normal((nvars, 1)) * prior_std)
+            noise = bkd.asarray(rng.standard_normal((nobs, 1)) * noise_std)
+            y = bkd.dot(obs_mat, theta) + noise
+
+            # Posterior
+            posterior = DenseGaussianConjugatePosterior(
+                obs_mat, prior_mean, prior_cov, noise_cov, bkd
+            )
+            posterior.compute(y)
+
+            # Compute Std(W_j|y) for each QoI location
+            stdevs_j = []
+            for j in range(npred):
+                psi_j = qoi_mat[j : j + 1]
+                post_push = GaussianPushforward(
+                    psi_j,
+                    posterior.posterior_mean(),
+                    posterior.posterior_covariance(),
+                    bkd,
+                )
+                mu_j = float(bkd.to_numpy(post_push.mean())[0, 0])
+                sigma2_j = float(bkd.to_numpy(post_push.covariance())[0, 0])
+                # Std of lognormal
+                ln_var = np.exp(2 * mu_j + sigma2_j) * (np.exp(sigma2_j) - 1)
+                stdevs_j.append(np.sqrt(ln_var))
+
+            # Exact AVaR of the Q-element discrete distribution
+            sorted_stdevs = sorted(stdevs_j)
+            avar_val = np.mean(sorted_stdevs[-m:])
+            avar_samples.append(avar_val)
+
+        mc_expected = np.mean(avar_samples)
+
+        # Exact analytical
+        utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+            prior_mean, prior_cov, qoi_mat, alpha, bkd
+        )
+        utility.set_observation_matrix(obs_mat)
+        utility.set_noise_covariance(noise_cov)
+        exact = utility.value()
+
+        rel_error = abs(mc_expected - exact) / exact
+        assert rel_error < rtol, (
+            f"MC lognormal AVaR over QoI ({mc_expected:.6f}) does not match "
+            f"exact ({exact:.6f}), relative error: {rel_error:.4f}"
+        )
