@@ -34,7 +34,7 @@ def _compute_crossing_thresholds(
     return sorted(set(thresholds))
 
 
-class LogNormalQoIAVaRDataMeanStdDevObjective(Generic[Array]):
+class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
     """
     Differentiable exact objective: E_y[AVaR_alpha over vector lognormal Std].
 

@@ -6,29 +6,31 @@ in prediction OED when using linear Gaussian models with conjugate priors.
 """
 
 from .conjugate_gaussian import (
-    ConjugateGaussianOEDAVaROfExpectedStdDev,
-    ConjugateGaussianOEDExpectedAVaRDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
+    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalAVaRStdDev,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+    ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
 from .lognormal_avar_objective import (
-    LogNormalQoIAVaRDataMeanStdDevObjective,
+    LogNormalDataMeanQoIAVaRStdDevObjective,
 )
 
 __all__ = [
     "ConjugateGaussianOEDPredictionUtilityBase",
-    "ConjugateGaussianOEDExpectedStdDev",
-    "ConjugateGaussianOEDExpectedEntropicDev",
-    "ConjugateGaussianOEDExpectedAVaRDev",
-    "ConjugateGaussianOEDAVaROfExpectedStdDev",
+    "ConjugateGaussianOEDDataMeanQoIMeanStdDev",
+    "ConjugateGaussianOEDDataMeanQoIMeanEntropicDev",
+    "ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev",
+    "ConjugateGaussianOEDDataMeanQoIAVaRStdDev",
     "ConjugateGaussianOEDExpectedKLDivergence",
-    "ConjugateGaussianOEDForLogNormalExpectedStdDev",
-    "ConjugateGaussianOEDForLogNormalAVaRStdDev",
-    "ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev",
-    "LogNormalQoIAVaRDataMeanStdDevObjective",
+    "ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev",
+    "LogNormalDataMeanQoIAVaRStdDevObjective",
 ]

@@ -20,13 +20,14 @@ from typing import (
 )
 
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDAVaROfExpectedStdDev,
-    ConjugateGaussianOEDExpectedAVaRDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalAVaRStdDev,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
+    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
+    ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
 from pyapprox.expdesign.deviation import (
@@ -118,7 +119,7 @@ def _create_linear_mean_mean_stdev(**kwargs: Any) -> UtilityConfig:
         deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
         risk_factory=lambda bkd: SampleAverageMean(bkd),
         noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
-        exact_cls=ConjugateGaussianOEDExpectedStdDev,
+        exact_cls=ConjugateGaussianOEDDataMeanQoIMeanStdDev,
     )
 
 
@@ -132,7 +133,7 @@ def _create_linear_mean_mean_entropic(**kwargs: Any) -> UtilityConfig:
         ),
         risk_factory=lambda bkd: SampleAverageMean(bkd),
         noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
-        exact_cls=ConjugateGaussianOEDExpectedEntropicDev,
+        exact_cls=ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
         exact_args=(lamda,),
     )
 
@@ -150,7 +151,7 @@ def _create_linear_avar_mean_avar(**kwargs: Any) -> UtilityConfig:
         noise_stat_factory=lambda bkd: SampleAverageSmoothedAVaR(
             beta, bkd, delta=delta
         ),
-        exact_cls=ConjugateGaussianOEDExpectedAVaRDev,
+        exact_cls=ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
         exact_args=(beta,),
     )
 
@@ -166,7 +167,7 @@ def _create_linear_mean_avar_stdev(**kwargs: Any) -> UtilityConfig:
             beta, bkd, delta=delta
         ),
         noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
-        exact_cls=ConjugateGaussianOEDAVaROfExpectedStdDev,
+        exact_cls=ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
         exact_args=(beta,),
     )
 
@@ -181,7 +182,7 @@ def _create_nonlinear_mean_mean_stdev(**kwargs: Any) -> UtilityConfig:
         deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
         risk_factory=lambda bkd: SampleAverageMean(bkd),
         noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
-        exact_cls=ConjugateGaussianOEDForLogNormalExpectedStdDev,
+        exact_cls=ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     )
 
 
@@ -196,7 +197,7 @@ def _create_nonlinear_avar_mean_stdev(**kwargs: Any) -> UtilityConfig:
         noise_stat_factory=lambda bkd: SampleAverageSmoothedAVaR(
             beta, bkd, delta=delta
         ),
-        exact_cls=ConjugateGaussianOEDForLogNormalAVaRStdDev,
+        exact_cls=ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
         exact_args=(beta,),
     )
 
@@ -220,8 +221,28 @@ def _create_nonlinear_mean_avar_stdev(**kwargs: Any) -> UtilityConfig:
             alpha, bkd, delta=delta
         ),
         noise_stat_factory=lambda bkd: SampleAverageMean(bkd),
-        exact_cls=ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+        exact_cls=ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
         exact_args=(alpha,),
+    )
+
+
+@register_utility("nonlinear_mean_stdev_mean_stdev")
+def _create_nonlinear_mean_stdev_mean_stdev(**kwargs: Any) -> UtilityConfig:
+    """Lognormal QoI, mean+c*stdev noise stat, mean risk, stdev deviation.
+
+    E_y[Std(W|y)] + c * Std_y[Std(W|y)] — safety margin utility.
+    """
+    from pyapprox.risk import SampleAverageMeanPlusStdev
+
+    safety_factor = kwargs.get("safety_factor", 1.0)
+    return UtilityConfig(
+        deviation_factory=lambda npred, bkd: StandardDeviationMeasure(npred, bkd),
+        risk_factory=lambda bkd: SampleAverageMean(bkd),
+        noise_stat_factory=lambda bkd: SampleAverageMeanPlusStdev(
+            safety_factor, bkd
+        ),
+        exact_cls=ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+        exact_args=(safety_factor,),
     )
 
 
@@ -406,22 +427,22 @@ def get_utility_factory(
         Registered utility type name. Available types:
 
         - ``"linear_mean_mean_stdev"``: StdDev deviation, mean risk, mean
-          noise stat. Exact class: ``ConjugateGaussianOEDExpectedStdDev``.
+          noise stat. Exact class: ``ConjugateGaussianOEDDataMeanQoIMeanStdDev``.
         - ``"linear_mean_mean_entropic"``: Entropic deviation, mean risk,
           mean noise stat. Kwarg: ``lamda``. Exact class:
-          ``ConjugateGaussianOEDExpectedEntropicDev``.
+          ``ConjugateGaussianOEDDataMeanQoIMeanEntropicDev``.
         - ``"linear_avar_mean_avar"``: AVaR deviation, mean risk, AVaR
           noise stat. Kwargs: ``beta``, ``delta``. Exact class:
-          ``ConjugateGaussianOEDExpectedAVaRDev``.
+          ``ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev``.
         - ``"linear_mean_avar_stdev"``: StdDev deviation, AVaR risk, mean
           noise stat. Kwargs: ``beta``, ``delta``. Exact class:
-          ``ConjugateGaussianOEDAVaROfExpectedStdDev``.
+          ``ConjugateGaussianOEDDataMeanQoIAVaRStdDev``.
         - ``"nonlinear_mean_mean_stdev"``: StdDev deviation, mean risk,
           mean noise stat (lognormal QoI). Exact class:
-          ``ConjugateGaussianOEDForLogNormalExpectedStdDev``.
+          ``ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev``.
         - ``"nonlinear_avar_mean_stdev"``: StdDev deviation, mean risk,
           AVaR noise stat (lognormal QoI). Kwargs: ``beta``, ``delta``.
-          Exact class: ``ConjugateGaussianOEDForLogNormalAVaRStdDev``.
+          Exact class: ``ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev``.
 
     **kwargs
         Additional arguments for the utility type (e.g., ``beta`` for AVaR,

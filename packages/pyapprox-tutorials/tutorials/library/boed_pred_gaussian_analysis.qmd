@@ -214,8 +214,8 @@ import numpy as np
 from scipy.stats import norm
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
 )
 
 np.random.seed(42)
@@ -244,7 +244,7 @@ w_flat = bkd.reshape(weights, (nobs,))
 eff_noise_cov = bkd.diag(noise_std**2 / w_flat)
 
 # Analytical std deviation
-util_std = ConjugateGaussianOEDExpectedStdDev(prior_mean, prior_cov, psi, bkd)
+util_std = ConjugateGaussianOEDDataMeanQoIMeanStdDev(prior_mean, prior_cov, psi, bkd)
 util_std.set_observation_matrix(A)
 util_std.set_noise_covariance(eff_noise_cov)
 sigma_Q = util_std.value()
@@ -252,7 +252,7 @@ print(f"Analytical std deviation: {sigma_Q:.6f}")
 
 # AVaR deviation at p=0.9
 p = 0.9
-util_avar = ConjugateGaussianOEDExpectedAVaRDev(
+util_avar = ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev(
     prior_mean, prior_cov, psi, p, bkd,
 )
 util_avar.set_observation_matrix(A)

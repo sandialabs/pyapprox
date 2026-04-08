@@ -95,15 +95,16 @@ local
 
 # Analytical utilities (conjugate priors)
 from .analytical import (
-    ConjugateGaussianOEDAVaROfExpectedStdDev,
-    ConjugateGaussianOEDExpectedAVaRDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
+    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalAVaRStdDev,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
-    LogNormalQoIAVaRDataMeanStdDevObjective,
+    ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
+    LogNormalDataMeanQoIAVaRStdDevObjective,
 )
 
 # Data generation and management
@@ -187,15 +188,16 @@ __all__ = [
     "PredictionOEDObjective",
     "DOptimalLinearModelObjective",
     # Analytical utilities (conjugate priors)
-    "ConjugateGaussianOEDExpectedStdDev",
-    "ConjugateGaussianOEDExpectedEntropicDev",
-    "ConjugateGaussianOEDExpectedAVaRDev",
-    "ConjugateGaussianOEDAVaROfExpectedStdDev",
+    "ConjugateGaussianOEDDataMeanQoIMeanStdDev",
+    "ConjugateGaussianOEDDataMeanQoIMeanEntropicDev",
+    "ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev",
+    "ConjugateGaussianOEDDataMeanQoIAVaRStdDev",
     "ConjugateGaussianOEDExpectedKLDivergence",
-    "ConjugateGaussianOEDForLogNormalExpectedStdDev",
-    "ConjugateGaussianOEDForLogNormalAVaRStdDev",
-    "ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev",
-    "LogNormalQoIAVaRDataMeanStdDevObjective",
+    "ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev",
+    "ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev",
+    "LogNormalDataMeanQoIAVaRStdDevObjective",
     # Deviation measures
     "DeviationMeasure",
     "StandardDeviationMeasure",

@@ -196,7 +196,7 @@ class ConjugateGaussianOEDPredictionUtilityBase(ABC, Generic[Array]):
         return self._utility
 
 
-class ConjugateGaussianOEDExpectedStdDev(
+class ConjugateGaussianOEDDataMeanQoIMeanStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -209,7 +209,7 @@ class ConjugateGaussianOEDExpectedStdDev(
         return float(self._bkd.sqrt(self._post_pushforward.covariance()[0, 0]))
 
 
-class ConjugateGaussianOEDExpectedEntropicDev(
+class ConjugateGaussianOEDDataMeanQoIMeanEntropicDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -245,7 +245,7 @@ class ConjugateGaussianOEDExpectedEntropicDev(
         return self._lamda * float(self._post_pushforward.covariance()[0, 0]) / 2.0
 
 
-class ConjugateGaussianOEDExpectedAVaRDev(
+class ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -304,7 +304,7 @@ class ConjugateGaussianOEDExpectedKLDivergence(
         )
 
 
-class ConjugateGaussianOEDAVaROfExpectedStdDev(
+class ConjugateGaussianOEDDataMeanQoIAVaRStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -366,7 +366,7 @@ class ConjugateGaussianOEDAVaROfExpectedStdDev(
         return float(self._bkd.to_numpy(result)[0, 0])
 
 
-class ConjugateGaussianOEDForLogNormalExpectedStdDev(
+class ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -393,7 +393,7 @@ class ConjugateGaussianOEDForLogNormalExpectedStdDev(
         )
 
 
-class ConjugateGaussianOEDForLogNormalAVaRStdDev(
+class ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -439,7 +439,7 @@ class ConjugateGaussianOEDForLogNormalAVaRStdDev(
         return math.sqrt(factor) * risk_measures.AVaR(self._beta)
 
 
-class ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
@@ -447,7 +447,7 @@ class ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
 
     Non-differentiable version (returns float via value()) for use in
     the diagnostics registry. For gradient-based optimization, use
-    ``LogNormalQoIAVaRDataMeanStdDevObjective`` instead.
+    ``LogNormalDataMeanQoIAVaRStdDevObjective`` instead.
 
     Uses the general formula that handles arbitrary (non-equal) posterior
     variances across QoI locations. The ordering of D_j = K_j * exp(tau_j)
@@ -652,3 +652,66 @@ class ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
                 total += base * (phi_hi - phi_lo)
 
         return total / m
+
+
+class ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev(
+    ConjugateGaussianOEDPredictionUtilityBase[Array]
+):
+    """
+    E_y[Std(W|y)] + c * Std_y[Std(W|y)] — safety margin utility.
+
+    For scalar lognormal QoI W = exp(psi^T theta), computes:
+
+        U4(w) = K * exp(nu + s^2/2) * (1 + c * sqrt(exp(s^2) - 1))
+
+    where K = sqrt((exp(sigma_post^2) - 1) * exp(sigma_post^2)),
+    nu = psi^T E[mu_*], s^2 = psi^T Cov[mu_*] psi, and sigma_post^2
+    is the posterior pushforward variance.
+
+    Parameters
+    ----------
+    prior_mean : Array
+        Prior mean. Shape: (nvars, 1)
+    prior_cov : Array
+        Prior covariance. Shape: (nvars, nvars)
+    qoi_mat : Array
+        QoI prediction matrix. Shape: (1, nvars) — scalar QoI only.
+    safety_factor : float
+        The coefficient c >= 0.
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        prior_mean: Array,
+        prior_cov: Array,
+        qoi_mat: Array,
+        safety_factor: float,
+        bkd: Backend[Array],
+    ) -> None:
+        self._safety_factor = safety_factor
+        super().__init__(prior_mean, prior_cov, qoi_mat, bkd)
+
+    def _compute_utility(self) -> float:
+        bkd = self._bkd
+
+        # Posterior pushforward variance
+        sigma_post_sq = float(bkd.to_numpy(
+            self._post_pushforward.covariance()[0, 0]
+        ))
+        exp_s_post = math.exp(sigma_post_sq)
+        K = math.sqrt((exp_s_post - 1.0) * exp_s_post)
+
+        # E[tau] and Var[tau] = psi^T C psi
+        tau_hat = float(bkd.to_numpy(
+            (self._qoi_mat @ self._nu_vec)[0, 0]
+        ))
+        s_sq = float(bkd.to_numpy(
+            (self._qoi_mat @ self._Cmat @ self._qoi_mat.T)[0, 0]
+        ))
+
+        exp_mean = math.exp(tau_hat + s_sq / 2.0)
+        return K * exp_mean * (
+            1.0 + self._safety_factor * math.sqrt(math.exp(s_sq) - 1.0)
+        )

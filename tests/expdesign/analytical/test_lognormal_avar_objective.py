@@ -1,5 +1,5 @@
 """
-Tests for LogNormalQoIAVaRDataMeanStdDevObjective (differentiable objective).
+Tests for LogNormalDataMeanQoIAVaRStdDevObjective (differentiable objective).
 
 Verifies protocol satisfaction, shape correctness, finite differences vs
 jacobian, autograd compatibility, and consistency with the diagnostics class.
@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
-    LogNormalQoIAVaRDataMeanStdDevObjective,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
+    LogNormalDataMeanQoIAVaRStdDevObjective,
 )
 from tests._helpers.markers import slow_test
 
@@ -31,14 +31,14 @@ def _build_problem(bkd, nobs=3, npred=4):
     return obs_mat, prior_mean, prior_cov, qoi_mat, noise_variances
 
 
-class TestLogNormalQoIAVaRDataMeanStdDevObjective:
+class TestLogNormalDataMeanQoIAVaRStdDevObjective:
 
     def test_call_returns_correct_shape(self, bkd):
         """Test __call__ returns (1, 1) array."""
         obs_mat, prior_mean, prior_cov, qoi_mat, noise_var = (
             _build_problem(bkd)
         )
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         nobs = obs_mat.shape[0]
@@ -51,7 +51,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
         obs_mat, prior_mean, prior_cov, qoi_mat, noise_var = (
             _build_problem(bkd)
         )
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         nobs = obs_mat.shape[0]
@@ -65,7 +65,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
             _build_problem(bkd)
         )
         nobs = obs_mat.shape[0]
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         weights = bkd.full((nobs, 1), 1.0 / nobs)
@@ -78,7 +78,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
             _build_problem(bkd)
         )
         nobs = obs_mat.shape[0]
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         weights = bkd.full((nobs, 1), 1.0 / nobs)
@@ -91,7 +91,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
         obs_mat, prior_mean, prior_cov, qoi_mat, noise_var = (
             _build_problem(bkd)
         )
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         assert obj.nvars() == obs_mat.shape[0]
@@ -107,14 +107,14 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
         weights = bkd.full((nobs, 1), 1.0 / nobs)
 
         # Differentiable objective
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, alpha, bkd
         )
         obj_val = float(bkd.to_numpy(obj(weights)).flat[0])
 
         # Non-differentiable diagnostics class
         noise_cov = bkd.diag(noise_var / weights[:, 0])
-        diag_utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+        diag_utility = ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
             prior_mean, prior_cov, qoi_mat, alpha, bkd
         )
         diag_utility.set_observation_matrix(obs_mat)
@@ -134,7 +134,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
             _build_problem(bkd)
         )
         nobs = obs_mat.shape[0]
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, alpha, bkd
         )
         weights = bkd.full((nobs, 1), 1.0 / nobs)
@@ -151,7 +151,7 @@ class TestLogNormalQoIAVaRDataMeanStdDevObjective:
             _build_problem(bkd)
         )
         nobs = obs_mat.shape[0]
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat, noise_var, 0.5, bkd
         )
         weights = bkd.full((nobs, 1), 1.0 / nobs)

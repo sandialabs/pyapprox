@@ -15,12 +15,13 @@ These tests are marked as slow since they require many MC samples.
 import numpy as np
 
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDExpectedAVaRDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
+    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev,
+    ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
 )
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
@@ -142,7 +143,7 @@ class TestConjugateMCExactStandalone:
 
         # Compute exact
         utility = self._create_analytical_utility(
-            ConjugateGaussianOEDExpectedStdDev, bkd
+            ConjugateGaussianOEDDataMeanQoIMeanStdDev, bkd
         )
         exact_expected_stdev = utility.value()
 
@@ -171,7 +172,7 @@ class TestConjugateMCExactStandalone:
 
         # Compute exact
         utility = self._create_analytical_utility(
-            ConjugateGaussianOEDExpectedEntropicDev, bkd, lamda
+            ConjugateGaussianOEDDataMeanQoIMeanEntropicDev, bkd, lamda
         )
         exact = utility.value()
 
@@ -242,7 +243,7 @@ class TestConjugateMCExactStandalone:
 
         # Compute exact
         utility = self._create_analytical_utility(
-            ConjugateGaussianOEDExpectedAVaRDev, bkd, beta
+            ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev, bkd, beta
         )
         exact = utility.value()
 
@@ -390,7 +391,7 @@ class TestConjugateMCExactStandalone:
 
         # Compute exact
         utility = self._create_analytical_utility(
-            ConjugateGaussianOEDForLogNormalExpectedStdDev, bkd
+            ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev, bkd
         )
         exact = utility.value()
 
@@ -461,19 +462,24 @@ class TestConjugateMCExactStandalone:
         self._setup_data(bkd)
         utilities = [
             self._create_analytical_utility(
-                ConjugateGaussianOEDExpectedStdDev, bkd
+                ConjugateGaussianOEDDataMeanQoIMeanStdDev, bkd
             ),
             self._create_analytical_utility(
-                ConjugateGaussianOEDExpectedEntropicDev, bkd, 2.0
+                ConjugateGaussianOEDDataMeanQoIMeanEntropicDev, bkd, 2.0
             ),
             self._create_analytical_utility(
-                ConjugateGaussianOEDExpectedAVaRDev, bkd, 0.75
+                ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev, bkd, 0.75
             ),
             self._create_analytical_utility(
                 ConjugateGaussianOEDExpectedKLDivergence, bkd
             ),
             self._create_analytical_utility(
-                ConjugateGaussianOEDForLogNormalExpectedStdDev, bkd
+                ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev, bkd
+            ),
+            self._create_analytical_utility(
+                ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+                bkd,
+                1.5,
             ),
         ]
 
@@ -551,7 +557,7 @@ class TestConjugateMCExactStandalone:
         mc_expected = np.mean(avar_samples)
 
         # Exact analytical
-        utility = ConjugateGaussianOEDForLogNormalQoIAVaRDataMeanStdDev(
+        utility = ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
             prior_mean, prior_cov, qoi_mat, alpha, bkd
         )
         utility.set_observation_matrix(obs_mat)
@@ -561,5 +567,68 @@ class TestConjugateMCExactStandalone:
         rel_error = abs(mc_expected - exact) / exact
         assert rel_error < rtol, (
             f"MC lognormal AVaR over QoI ({mc_expected:.6f}) does not match "
+            f"exact ({exact:.6f}), relative error: {rel_error:.4f}"
+        )
+
+    @slow_test
+    def test_lognormal_mean_stdev_stdev_mc_vs_exact(self, bkd) -> None:
+        """Test MC matches analytical for E[Std] + c*Std_y[Std] (U4).
+
+        For each data realization y, compute Std(W|y). Then verify
+        E[Std] + c*Std[Std] matches the analytical formula.
+        """
+        self._setup_data(bkd)
+        nsamples = 4000
+        rtol = 5e-2
+        c = 1.5
+
+        # MC sampling
+        lognormal_stdevs = []
+        for ii in range(nsamples):
+            rng = np.random.default_rng(600 + ii)
+            theta = bkd.asarray(
+                rng.standard_normal((self._nvars, 1)) * self._prior_std
+            )
+            noise = bkd.asarray(
+                rng.standard_normal((self._nobs, 1)) * self._noise_std
+            )
+            y = bkd.dot(self._obs_mat, theta) + noise
+
+            posterior = DenseGaussianConjugatePosterior(
+                self._obs_mat,
+                self._prior_mean,
+                self._prior_cov,
+                self._noise_cov,
+                bkd,
+            )
+            posterior.compute(y)
+
+            post_push = GaussianPushforward(
+                self._qoi_mat,
+                posterior.posterior_mean(),
+                posterior.posterior_covariance(),
+                bkd,
+            )
+
+            mu = float(bkd.to_numpy(post_push.mean())[0, 0])
+            sigma2 = float(bkd.to_numpy(post_push.covariance())[0, 0])
+            lognormal_var = np.exp(2 * mu + sigma2) * (np.exp(sigma2) - 1)
+            lognormal_stdevs.append(np.sqrt(lognormal_var))
+
+        mc_mean = np.mean(lognormal_stdevs)
+        mc_std = np.std(lognormal_stdevs)
+        mc_u4 = mc_mean + c * mc_std
+
+        # Exact analytical
+        utility = self._create_analytical_utility(
+            ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
+            bkd,
+            c,
+        )
+        exact = utility.value()
+
+        rel_error = abs(mc_u4 - exact) / exact
+        assert rel_error < rtol, (
+            f"MC lognormal E[Std]+c*Std[Std] ({mc_u4:.6f}) does not match "
             f"exact ({exact:.6f}), relative error: {rel_error:.4f}"
         )

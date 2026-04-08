@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign.analytical import (
-    LogNormalQoIAVaRDataMeanStdDevObjective,
+    LogNormalDataMeanQoIAVaRStdDevObjective,
 )
 from pyapprox.expdesign.data import generate_oed_data
 from pyapprox.expdesign.quadrature.oed import (
@@ -70,7 +70,7 @@ class TestAnalyticalVsMCDesign:
         qoi_mat = benchmark.qoi_matrix()
         noise_variances = problem.noise_variances()
 
-        obj = LogNormalQoIAVaRDataMeanStdDevObjective(
+        obj = LogNormalDataMeanQoIAVaRStdDevObjective(
             obs_mat, prior_mean, prior_cov, qoi_mat,
             noise_variances, alpha, bkd,
         )
