@@ -7,6 +7,12 @@ explicit VaR estimation using a smoothing approach.
 
 from typing import Generic
 
+from pyapprox.risk.avar_dispatch import (
+    JacobianImpl,
+    ValuesImpl,
+    get_avar_jacobian_impl,
+    get_avar_values_impl,
+)
 from pyapprox.risk.base import SampleStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -42,6 +48,8 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         self._alpha = bkd.atleast_1d(bkd.asarray(alpha))
         self._delta = delta
         self._lambda = 0.0  # Regularization parameter
+        self._values_impl: ValuesImpl[Array] = get_avar_values_impl(bkd)
+        self._jacobian_impl: JacobianImpl[Array] = get_avar_jacobian_impl(bkd)
 
     # TODO: Pyapprox does not use _implemented functions
     # rather it uses dynamic binding and protocols if jacobian is defined then
@@ -189,14 +197,9 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Array
             AVaR values. Shape: (nqoi, 1)
         """
-        nqoi = values.shape[0]
-        result = self._bkd.stack(
-            [
-                self._evaluate_single(values[ii : ii + 1, :], weights)
-                for ii in range(nqoi)
-            ]
+        return self._values_impl(
+            values, weights, self._alpha, self._delta, self._lambda, self._bkd
         )
-        return result[:, None]
 
     def _jacobian_single(
         self, values: Array, jac_values: Array, weights: Array
@@ -240,16 +243,9 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        nqoi = values.shape[0]
-        return self._bkd.stack(
-            [
-                self._jacobian_single(
-                    values[ii : ii + 1, :],
-                    jac_values[ii, :, :],
-                    weights,
-                )
-                for ii in range(nqoi)
-            ]
+        return self._jacobian_impl(
+            values, jac_values, weights, self._alpha, self._delta,
+            self._lambda, self._bkd,
         )
 
     def __repr__(self) -> str:
