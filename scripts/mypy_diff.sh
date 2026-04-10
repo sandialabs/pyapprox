@@ -4,7 +4,7 @@
 # Exit code 1 if errors increased above baseline.
 set -euo pipefail
 
-BASELINE="${1:-1711}"
+BASELINE="${1:-1662}"
 DIR="${2:-packages/pyapprox/src/pyapprox/}"
 
 OUTPUT=$(mypy "$DIR" --strict 2>&1 || true)
