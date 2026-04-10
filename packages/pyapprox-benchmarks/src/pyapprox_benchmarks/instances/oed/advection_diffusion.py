@@ -16,6 +16,8 @@ from typing import (
     Dict,
     Generic,
     List,
+    Literal,
+    Optional,
     Tuple,
     Union,
 )
@@ -29,9 +31,6 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 import numpy as np
-
-from pyapprox_benchmarks.registry import BenchmarkRegistry
-from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -41,16 +40,104 @@ from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
+from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
+from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+
+
+def _insert_grid_line(vals: np.ndarray, new_val: float) -> np.ndarray:
+    """Insert ``new_val`` into ``vals`` if not already present (within tol)."""
+    tol = 1e-12
+    if np.any(np.abs(vals - new_val) <= tol):
+        return vals.copy()
+    merged = np.concatenate([vals, [new_val]])
+    return np.sort(merged)
+
+
+def _recompute_obstruction_indices(
+    old_xintervals: np.ndarray,
+    old_yintervals: np.ndarray,
+    old_obstruction_indices: np.ndarray,
+    new_xintervals: np.ndarray,
+    new_yintervals: np.ndarray,
+) -> np.ndarray:
+    """Re-map obstruction cell indices after inserting new grid lines.
+
+    Obstruction indices are row-major with x varying fastest:
+        idx = row * (nx - 1) + col
+    where nx is the number of x grid lines. Each obstruction cell has
+    fixed (xlo, xhi, ylo, yhi) coordinates which we recover from the
+    old grid, then locate in the new grid.
+    """
+    old_ncols = old_xintervals.shape[0] - 1
+    new_ncols = new_xintervals.shape[0] - 1
+    tol = 1e-12
+
+    new_indices = []
+    for idx in old_obstruction_indices:
+        row = int(idx) // old_ncols
+        col = int(idx) % old_ncols
+        xlo = old_xintervals[col]
+        ylo = old_yintervals[row]
+        # Find the new (row, col) whose lower-left corner matches (xlo, ylo).
+        new_col = int(np.argmin(np.abs(new_xintervals[:-1] - xlo)))
+        new_row = int(np.argmin(np.abs(new_yintervals[:-1] - ylo)))
+        if (
+            abs(new_xintervals[new_col] - xlo) > tol
+            or abs(new_yintervals[new_row] - ylo) > tol
+        ):
+            raise RuntimeError(
+                f"Could not recover obstruction cell {idx} at "
+                f"({xlo}, {ylo}) in the refined grid."
+            )
+        new_indices.append(new_row * new_ncols + new_col)
+    return np.array(new_indices, dtype=int)
+
 
 def _build_obstructed_mesh(
-    bkd: Backend[Array], nrefine: int,
+    bkd: Backend[Array],
+    nrefine: int,
+    kle_subdomain: Optional[Tuple[float, float, float, float]] = None,
 ) -> "ObstructedMesh2D[Array]":
-    """Create the obstructed domain mesh."""
+    """Create the obstructed domain mesh.
+
+    If ``kle_subdomain`` is provided, its boundary coordinates are
+    inserted into the x/y interval grids so that subdomain edges are
+    mesh grid lines. This prevents any element from straddling the
+    subdomain boundary after uniform refinement (which only halves
+    existing cells). Obstruction cell indices are re-mapped
+    automatically to account for the inserted grid lines.
+    """
     from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
 
     xintervals = np.array([0, 2 / 7, 3 / 7, 4 / 7, 5 / 7, 1.0])
     yintervals = np.linspace(0, 1, 5)
     obstruction_indices = np.array([3, 6, 13], dtype=int)
+
+    if kle_subdomain is not None:
+        xmin, xmax, ymin, ymax = kle_subdomain
+        if not (
+            xintervals[0] <= xmin < xmax <= xintervals[-1]
+            and yintervals[0] <= ymin < ymax <= yintervals[-1]
+        ):
+            raise ValueError(
+                f"kle_subdomain {kle_subdomain} must lie inside the base "
+                f"domain [{xintervals[0]}, {xintervals[-1]}] x "
+                f"[{yintervals[0]}, {yintervals[-1]}] with xmin<xmax and "
+                f"ymin<ymax."
+            )
+        new_x = xintervals.copy()
+        new_y = yintervals.copy()
+        for v in (xmin, xmax):
+            new_x = _insert_grid_line(new_x, float(v))
+        for v in (ymin, ymax):
+            new_y = _insert_grid_line(new_y, float(v))
+        obstruction_indices = _recompute_obstruction_indices(
+            xintervals, yintervals, obstruction_indices, new_x, new_y,
+        )
+        xintervals = new_x
+        yintervals = new_y
+
     return ObstructedMesh2D(
         xintervals,
         yintervals,
@@ -180,30 +267,141 @@ def _extract_velocity_callable(
     return velocity_field
 
 
-def _create_kle_forcing(
+class _ScatteredFieldMap(Generic[Array]):
+    """Scatter a subdomain field into a full-length ADR nodal vector.
+
+    Wraps an inner ``TransformedFieldMap`` that evaluates on a subset of
+    ADR mesh nodes (the KLE subdomain) and produces a length-``ntotal``
+    output in which entries **outside** the subdomain are exactly zero.
+
+    Because the ADR benchmark is NumPy-only (skfem dependency), this
+    class uses direct NumPy indexed assignment and then ``bkd.asarray``
+    back. No sparse/dense scatter matrix is needed.
+    """
+
+    def __init__(
+        self,
+        inner: TransformedFieldMap[Array],
+        global_node_indices: np.ndarray,
+        ntotal: int,
+        bkd: Backend[Array],
+    ) -> None:
+        self._inner = inner
+        self._bkd = bkd
+        self._ntotal = ntotal
+        self._global_node_indices = np.asarray(global_node_indices, dtype=np.int64)
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def __call__(self, params_1d: Array) -> Array:
+        sub_vals = self._bkd.to_numpy(self._inner(params_1d))
+        full = np.zeros(self._ntotal, dtype=np.float64)
+        full[self._global_node_indices] = sub_vals
+        return self._bkd.asarray(full)
+
+
+def _compute_lumped_mass_weights(
+    skfem_mesh: Any,
+    elem_idx: np.ndarray,
+    global_nodes: np.ndarray,
+) -> np.ndarray:
+    """Lumped mass weights on subdomain nodes via shoelace element area.
+
+    Distributes each element's area uniformly across its ``nverts``
+    vertices. Matches the pattern used in ``cantilever_beam.py``.
+    """
+    nverts = skfem_mesh.t.shape[0]
+    n_nodes = global_nodes.shape[0]
+    node_to_local = {int(n): i for i, n in enumerate(global_nodes)}
+    sub_w = np.zeros(n_nodes)
+    for e in elem_idx:
+        verts = skfem_mesh.p[:, skfem_mesh.t[:, e]]
+        x, y = verts[0], verts[1]
+        area = 0.5 * abs(
+            sum(
+                x[i] * y[(i + 1) % nverts] - x[(i + 1) % nverts] * y[i]
+                for i in range(nverts)
+            )
+        )
+        for n in skfem_mesh.t[:, e]:
+            sub_w[node_to_local[int(n)]] += area / nverts
+    return sub_w
+
+
+def _create_subdomain_kle_forcing(
     adr_basis: "LagrangeBasis[Array]",
     nkle_terms: int,
+    correlation_length: float,
+    sigma: float,
+    subdomain: Optional[Tuple[float, float, float, float]],
     bkd: Backend[Array],
-) -> TransformedFieldMap[Array]:
-    """Create KLE forcing on quadrature points."""
+) -> "_ScatteredFieldMap[Array]":
+    """Create lognormal KLE forcing localized to a rectangular subdomain.
+
+    Builds a lognormal KLE on the ADR mesh nodes that fall inside the
+    given rectangle (via element-centroid predicate), using lumped-mass
+    quadrature weights on the subdomain nodes. Outside the subdomain,
+    the forcing is exactly zero at every ADR node.
+
+    If ``subdomain`` is ``None``, the KLE is constructed on the full
+    ADR mesh (backward-compatible behavior).
+    """
     from pyapprox.pde.field_maps.kle_factory import (
         create_lognormal_kle_field_map,
     )
 
-    # Use mesh nodes for KLE construction
-    mesh_coords_np = bkd.to_numpy(adr_basis.dof_coordinates())
-    mesh_coords = bkd.asarray(mesh_coords_np)
-    mean_log = bkd.zeros((mesh_coords.shape[1],))
+    skfem_mesh = adr_basis.mesh().skfem_mesh()
+    ntotal = int(skfem_mesh.p.shape[1])
 
-    kle_map = create_lognormal_kle_field_map(
-        mesh_coords=mesh_coords,
+    if subdomain is None:
+        elem_idx = np.arange(skfem_mesh.t.shape[1])
+        global_nodes = np.arange(ntotal)
+    else:
+        xmin, xmax, ymin, ymax = subdomain
+        # Select elements whose centroid lies inside the rectangle.
+        # NOTE: The caller is responsible for ensuring subdomain bounds
+        # coincide with mesh grid lines (see _build_obstructed_mesh's
+        # kle_subdomain-aware xintervals/yintervals), so no elements
+        # straddle the subdomain boundary.
+        centroids = skfem_mesh.p[:, skfem_mesh.t].mean(axis=1)
+        mask = (
+            (centroids[0] >= xmin)
+            & (centroids[0] <= xmax)
+            & (centroids[1] >= ymin)
+            & (centroids[1] <= ymax)
+        )
+        elem_idx = np.where(mask)[0]
+        if elem_idx.size == 0:
+            raise ValueError(
+                f"KLE subdomain {subdomain} contains no mesh elements. "
+                f"Check bounds against the domain extents."
+            )
+        global_nodes = np.unique(skfem_mesh.t[:, elem_idx].ravel())
+
+    nsub = int(global_nodes.shape[0])
+    if nsub < nkle_terms:
+        raise ValueError(
+            f"KLE subdomain has only {nsub} mesh nodes, but nkle_terms="
+            f"{nkle_terms} was requested. Reduce nkle_terms or enlarge "
+            f"the subdomain / increase mesh refinement."
+        )
+
+    coords_sub = skfem_mesh.p[:, global_nodes]
+    sub_w = _compute_lumped_mass_weights(skfem_mesh, elem_idx, global_nodes)
+
+    mean_log = bkd.zeros((nsub,))
+    inner = create_lognormal_kle_field_map(
+        mesh_coords=bkd.asarray(coords_sub),
         mean_log_field=mean_log,
         bkd=bkd,
-        correlation_length=0.3,
+        correlation_length=correlation_length,
         num_kle_terms=nkle_terms,
-        sigma=0.3,
+        sigma=sigma,
+        quad_weights=bkd.asarray(sub_w),
     )
-    return kle_map
+
+    return _ScatteredFieldMap(inner, global_nodes, ntotal, bkd)
 
 
 class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
@@ -211,6 +409,15 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
 
     Couples Stokes flow with transient advection-diffusion on an
     obstructed domain [0,1]^2 with three rectangular obstacles.
+
+    .. note::
+
+       **Backend restriction.** This benchmark uses skfem for the
+       Stokes and ADR solves, and skfem is NumPy-only. The constructor
+       therefore rejects any backend other than :class:`NumpyBkd`. If
+       you need torch tensors at the call site, convert at the
+       boundary; gradients will not propagate through the forward
+       solve because skfem does not participate in ``torch.autograd``.
 
     Parameters (13 total):
         - KLE coefficients (10) for log-normal forcing field
@@ -235,6 +442,39 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         Number of KLE terms for forcing field.
     nsensors : int
         Number of sensor locations.
+    diffusivity : float
+        Diffusion coefficient for the ADR equation. Default 0.1.
+    final_time : float
+        Final time for the transient solve. Default 1.5.
+    deltat : float
+        Time step for the transient solve. Default 0.25.
+    kle_subdomain : tuple of floats, optional
+        Rectangular subdomain ``(xmin, xmax, ymin, ymax)`` in which the
+        log-normal KLE forcing lives. Forcing is exactly zero at every
+        ADR mesh node outside the rectangle. Elements that straddle the
+        rectangle boundary interpolate linearly from the subdomain edge
+        value down to zero (standard P1 FE interpretation). Default
+        ``(0.0, 0.25, 0.0, 1.0)``, placing the source in the leftmost
+        L/4 strip so the inference problem is genuinely informative at
+        downstream sensors. Pass ``None`` to recover a full-domain KLE.
+    kle_correlation_length : float
+        Isotropic correlation length of the squared-exponential KLE
+        kernel. Default 0.1.
+    kle_sigma : float
+        Standard deviation of the log-field. Default 0.3.
+    source_mode : {"forcing", "initial_condition"}
+        How the KLE nodal field drives the ADR transient:
+
+        - ``"forcing"`` (default): the KLE field acts as a time-constant
+          right-hand-side forcing, with zero initial concentration. This
+          is the standard dye-release-style release.
+        - ``"initial_condition"``: the KLE field is used as the initial
+          concentration ``u(x, 0)``, and the right-hand-side forcing is
+          zero. The plume then relaxes under advection-diffusion alone.
+
+        Everything else (parameters, prior, sensors, QoI) is identical
+        across the two modes, so they can be A/B compared under matched
+        KLE draws and physics.
     """
 
     def __init__(
@@ -245,12 +485,56 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         nadvec_diff_refine: int = 3,
         nkle_terms: int = 10,
         nsensors: int = 20,
+        diffusivity: float = 0.1,
+        final_time: float = 1.5,
+        deltat: float = 0.25,
+        kle_subdomain: Optional[Tuple[float, float, float, float]] = (
+            0.0,
+            0.25,
+            0.0,
+            1.0,
+        ),
+        kle_correlation_length: float = 0.1,
+        kle_sigma: float = 0.3,
+        source_mode: Literal["forcing", "initial_condition"] = "forcing",
     ) -> None:
+        if source_mode not in ("forcing", "initial_condition"):
+            raise ValueError(
+                f"source_mode must be 'forcing' or 'initial_condition', "
+                f"got {source_mode!r}"
+            )
+        # skfem is NumPy-only, so every forward solve in this benchmark
+        # runs on NumPy regardless of the caller's backend. Rather than
+        # silently converting at the call boundary (which would make the
+        # torch autograd graph through ``obs_map()`` / ``qoi_map()``
+        # silently return zeros), require NumpyBkd explicitly. Users who
+        # need to call this benchmark from torch code should convert at
+        # their own boundary and accept that gradients do not propagate
+        # through the forward solve. See the class docstring for the
+        # recommended pattern.
+        from pyapprox.util.backends.numpy import NumpyBkd
+
+        if not isinstance(bkd, NumpyBkd):
+            raise TypeError(
+                "ObstructedAdvectionDiffusionOEDBenchmark requires "
+                "NumpyBkd because its forward solve uses skfem, which "
+                "is NumPy-only. Got "
+                f"{type(bkd).__name__}. If you need torch tensors at "
+                "the call site, construct the benchmark with NumpyBkd() "
+                "and convert at the boundary (see the class docstring "
+                "for the recommended pattern). Gradients will not "
+                "propagate through the forward solve."
+            )
         self._bkd = bkd
         self._nkle_terms = nkle_terms
         self._nsensors = nsensors
         self._nstokes_refine = nstokes_refine
         self._nadvec_diff_refine = nadvec_diff_refine
+        self._diffusivity = diffusivity
+        self._kle_subdomain = kle_subdomain
+        self._kle_correlation_length = kle_correlation_length
+        self._kle_sigma = kle_sigma
+        self._source_mode = source_mode
 
         # Build prior: [kle_params (10), vel_shape (2), reynolds (1)]
         marginals: List[Union[GaussianMarginal[Array], UniformMarginal[Array]]] = []
@@ -262,18 +546,25 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         self._prior = IndependentJoint(marginals, bkd)
         self._nparams = nkle_terms + 3
 
-        # Build mesh and ADR basis (shared across evaluations)
+        # Build mesh and ADR basis (shared across evaluations). The ADR
+        # mesh is built with the KLE subdomain boundaries inserted as
+        # grid lines so no element straddles the subdomain edge.
         self._stokes_mesh = _build_obstructed_mesh(bkd, nstokes_refine)
-        self._adr_mesh = _build_obstructed_mesh(bkd, nadvec_diff_refine)
+        self._adr_mesh = _build_obstructed_mesh(
+            bkd, nadvec_diff_refine, kle_subdomain=kle_subdomain,
+        )
 
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 
         self._adr_basis = LagrangeBasis(self._adr_mesh, degree=1)
 
-        # Create KLE forcing map
-        self._kle_map = _create_kle_forcing(
+        # Create subdomain-localized KLE forcing map
+        self._kle_map = _create_subdomain_kle_forcing(
             self._adr_basis,
             nkle_terms,
+            kle_correlation_length,
+            kle_sigma,
+            kle_subdomain,
             bkd,
         )
 
@@ -288,8 +579,8 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         self._target_threshold = 5.0 / 7.0
 
         # Time integration config
-        self._deltat = 0.25
-        self._final_time = 1.5
+        self._deltat = deltat
+        self._final_time = final_time
 
         # Create FunctionProtocol wrappers
         nqoi_obs = nsensors
@@ -323,22 +614,79 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             bkd=bkd,
         )
 
-    def problem(self) -> BayesianInferenceProblem[Array]:
-        """Get the inference problem (obs_map + prior + noise)."""
-        return self._inference_problem
+        # Compose into PredictionOEDProblem
+        self._problem = PredictionOEDProblem(
+            inference_problem=self._inference_problem,
+            qoi_map=self._pred_model,
+            design_conditions=self._sensor_locations,
+            bkd=bkd,
+        )
 
-    def _solve_forward_full(
-        self, params_np: np.ndarray,
-    ) -> Dict[str, Any]:
-        """Full forward solve returning all intermediates.
+    def problem(self) -> PredictionOEDProblem[Array]:
+        """Get the prediction OED problem."""
+        return self._problem
 
-        Returns a dict with keys:
-            - "adr_solutions": Array, shape (ndofs, ntimes)
-            - "adr_times": Array, shape (ntimes,)
-            - "stokes_sol": Array, Stokes solution vector
-            - "stokes_physics": StokesPhysics object
-            - "vel_basis": VectorLagrangeBasis for velocity
+    def _compute_stokes_result(
+        self,
+        vel_shape_a: float,
+        vel_shape_b: float,
+        reynolds_num: float,
+    ) -> Tuple[
+        Array,
+        "StokesPhysics[Array]",
+        "VectorLagrangeBasis[Array]",
+        "LagrangeBasis[Array]",
+    ]:
+        """Solve Stokes on the benchmark's Stokes mesh.
+
+        Factored out of :meth:`_solve_forward_full` so callers that need
+        to evaluate the benchmark at many samples with the same velocity
+        parameters (Reynolds number and inlet shape) can cache the
+        returned tuple and pass it to :meth:`_solve_adr_transient`
+        instead of re-solving Stokes for every sample.
         """
+        return _solve_stokes(
+            self._stokes_mesh,
+            self._bkd,
+            reynolds_num,
+            [vel_shape_a, vel_shape_b],
+        )
+
+    def _solve_adr_transient(
+        self,
+        kle_params: np.ndarray,
+        stokes_result: Tuple[
+            Array,
+            "StokesPhysics[Array]",
+            "VectorLagrangeBasis[Array]",
+            "LagrangeBasis[Array]",
+        ],
+    ) -> Tuple[Array, Array]:
+        """Run the ADR transient using a precomputed Stokes result.
+
+        Given a ``stokes_result`` tuple produced by
+        :meth:`_compute_stokes_result` (or ``_solve_stokes`` directly),
+        extracts the velocity callable on the benchmark's ADR basis,
+        assembles the KLE forcing / initial condition according to
+        ``self._source_mode``, and integrates
+        :class:`AdvectionDiffusionReaction` to ``self._final_time`` with
+        backward Euler at step size ``self._deltat``.
+
+        Parameters
+        ----------
+        kle_params
+            1D array of the first ``nkle_terms`` parameters (the KLE
+            coefficients). Shape ``(nkle_terms,)``.
+        stokes_result
+            ``(sol, stokes, vel_basis, pres_basis)``.
+
+        Returns
+        -------
+        (solutions, times)
+            ``solutions`` has shape ``(nstates, ntimes)`` and ``times``
+            has shape ``(ntimes,)``.
+        """
+        from pyapprox.ode.config import TimeIntegrationConfig
         from pyapprox.pde.galerkin.boundary.implementations import (
             RobinBC,
         )
@@ -348,45 +696,33 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         from pyapprox.pde.galerkin.time_integration.galerkin_model import (
             GalerkinModel,
         )
-        from pyapprox.ode.config import TimeIntegrationConfig
 
         bkd = self._bkd
+        sol, stokes, vel_basis, pres_basis = stokes_result
 
-        # Extract parameters
-        kle_params = params_np[: self._nkle_terms]
-        vel_shape_a = float(params_np[self._nkle_terms])
-        vel_shape_b = float(params_np[self._nkle_terms + 1])
-        reynolds_num = float(params_np[self._nkle_terms + 2])
-
-        # Solve Stokes for velocity
-        sol, stokes, vel_basis, pres_basis = _solve_stokes(
-            self._stokes_mesh,
-            bkd,
-            reynolds_num,
-            [vel_shape_a, vel_shape_b],
-        )
-
-        # Extract velocity callable
         vel_callable = _extract_velocity_callable(
-            sol,
-            stokes,
-            vel_basis,
-            pres_basis,
-            self._adr_basis,
-            bkd,
+            sol, stokes, vel_basis, pres_basis, self._adr_basis, bkd,
         )
 
-        # Evaluate KLE forcing at KLE params (1D input for field map)
-        kle_coeffs = bkd.asarray(kle_params.ravel())
-        forcing_vals = self._kle_map(kle_coeffs)
-        forcing_nodal = bkd.to_numpy(forcing_vals)
+        # Evaluate KLE nodal field (same call for both source modes).
+        kle_coeffs = bkd.asarray(np.asarray(kle_params).ravel())
+        kle_vals = self._kle_map(kle_coeffs)
+        kle_nodal = bkd.to_numpy(kle_vals)
 
-        # Create forcing callable from nodal values
+        # In forcing mode the KLE field interpolates onto ADR quadrature
+        # points as a right-hand-side source; in initial-condition mode
+        # the ADR equation has no forcing and the KLE field seeds u(x,0).
         adr_skfem = self._adr_basis.skfem_basis()
-        forcing_interp = adr_skfem.interpolator(forcing_nodal)
+        forcing_func: Optional[Callable[..., np.ndarray]]
+        if self._source_mode == "forcing":
+            forcing_interp = adr_skfem.interpolator(kle_nodal)
 
-        def forcing_func(x: np.ndarray, time: float = 0.0) -> np.ndarray:
-            return forcing_interp(x)
+            def forcing_func(
+                x: np.ndarray, time: float = 0.0,
+            ) -> np.ndarray:
+                return forcing_interp(x)
+        else:
+            forcing_func = None
 
         # Robin BCs on left/right (alpha=0.1, g=0)
         alpha = 0.1
@@ -395,19 +731,22 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             RobinBC(self._adr_basis, "right", alpha, 0.0, bkd),
         ]
 
-        # Create ADR physics
         adr = AdvectionDiffusionReaction(
             basis=self._adr_basis,
-            diffusivity=0.1,
+            diffusivity=self._diffusivity,
             bkd=bkd,
             velocity=vel_callable,
             forcing=forcing_func,
             boundary_conditions=robin_bcs,
         )
 
-        # Solve transient
+        # Solve transient. In initial-condition mode the KLE field seeds
+        # u(x, 0); in forcing mode the initial concentration is zero.
         model = GalerkinModel(adr, bkd)
-        ic = bkd.to_numpy(bkd.zeros((adr.nstates(),)))
+        if self._source_mode == "initial_condition":
+            ic = kle_nodal.astype(np.float64)
+        else:
+            ic = bkd.to_numpy(bkd.zeros((adr.nstates(),)))
         config = TimeIntegrationConfig(
             method="backward_euler",
             final_time=self._final_time,
@@ -415,11 +754,38 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             newton_tol=1e-8,
             newton_maxiter=5,
         )
-        solutions, times = model.solve_transient(
-            bkd.asarray(ic),
-            config,
-        )
+        return model.solve_transient(bkd.asarray(ic), config)
 
+    def _solve_forward_full(
+        self, params_np: np.ndarray,
+    ) -> Dict[str, Any]:
+        """Full forward solve returning all intermediates.
+
+        Thin wrapper that solves Stokes with
+        :meth:`_compute_stokes_result` and then runs the ADR transient
+        with :meth:`_solve_adr_transient`. External callers that want
+        to amortize the Stokes solve across many samples (e.g. a
+        fixed-velocity sweep) should call those two methods directly.
+
+        Returns a dict with keys:
+            - "adr_solutions": Array, shape (ndofs, ntimes)
+            - "adr_times": Array, shape (ntimes,)
+            - "stokes_sol": Array, Stokes solution vector
+            - "stokes_physics": StokesPhysics object
+            - "vel_basis": VectorLagrangeBasis for velocity
+        """
+        kle_params = params_np[: self._nkle_terms]
+        vel_shape_a = float(params_np[self._nkle_terms])
+        vel_shape_b = float(params_np[self._nkle_terms + 1])
+        reynolds_num = float(params_np[self._nkle_terms + 2])
+
+        stokes_result = self._compute_stokes_result(
+            vel_shape_a, vel_shape_b, reynolds_num,
+        )
+        sol, stokes, vel_basis, _ = stokes_result
+        solutions, times = self._solve_adr_transient(
+            kle_params, stokes_result,
+        )
         return {
             "adr_solutions": solutions,
             "adr_times": times,
@@ -574,6 +940,42 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
     def design_conditions(self) -> Array:
         """Return sensor locations. Shape: (2, nsensors)."""
         return self._sensor_locations
+
+    def evaluate_nodal(self, samples: Array) -> Array:
+        """Evaluate full nodal concentration at final time.
+
+        Solves the forward PDE for each sample and returns the
+        complete final-time concentration vector at all mesh nodes.
+
+        Parameters
+        ----------
+        samples : Array
+            Parameter samples. Shape: (nparams, nsamples).
+
+        Returns
+        -------
+        Array
+            Nodal concentration values. Shape: (nnodes, nsamples).
+        """
+        bkd = self._bkd
+        samples_np = bkd.to_numpy(samples)
+        nsamples = samples_np.shape[1]
+        results = []
+
+        for ii in range(nsamples):
+            solutions, times = self._solve_forward(samples_np[:, ii])
+            final_sol = bkd.to_numpy(solutions[:, -1])
+            results.append(final_sol)
+
+        return bkd.asarray(np.column_stack(results))
+
+    def mesh_nodes(self) -> Array:
+        """Return all ADR mesh node coordinates. Shape: (2, nnodes)."""
+        return self._adr_mesh.nodes()
+
+    def nnodes(self) -> int:
+        """Return number of ADR mesh nodes."""
+        return self._adr_mesh.nnodes()
 
     def nobservations(self) -> int:
         """Return number of observation sensors."""

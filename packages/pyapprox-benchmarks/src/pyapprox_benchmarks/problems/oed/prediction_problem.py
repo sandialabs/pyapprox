@@ -1,33 +1,45 @@
 """Prediction OED problem: inference problem + qoi_map + design space.
 
-Satisfies GaussianInferenceProblemProtocol via delegation.
+Composition helper for building a PredictionOEDProblemProtocol from an
+existing BayesianInferenceProblemProtocol.  Users with flat classes
+(e.g. single PDE solve producing both obs and QoI) can implement the
+protocol directly without using this class.
+
+If the wrapped inference problem also satisfies
+GaussianInferenceProblemProtocol, the composed result will too
+(prior_mean / prior_covariance are forwarded).
 """
 
 from typing import Generic, Optional
 
 from pyapprox.expdesign.protocols.oed import (
+    BayesianInferenceProblemProtocol,
     GaussianInferenceProblemProtocol,
 )
 from pyapprox.interface.functions.protocols import FunctionProtocol
-from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PredictionOEDProblem(Generic[Array]):
     """Prediction OED problem: inference problem + qoi_map + design space.
 
-    Composes a GaussianInferenceProblemProtocol with a QoI map and
-    design-space metadata. Satisfies GaussianInferenceProblemProtocol
+    Composes a BayesianInferenceProblemProtocol with a QoI map and
+    design-space metadata. Satisfies PredictionOEDProblemProtocol
     by delegating all inference methods.
+
+    If the wrapped inference problem is Gaussian (has prior_mean /
+    prior_covariance), those methods are forwarded so the composed
+    object also satisfies GaussianInferenceProblemProtocol.
 
     Parameters
     ----------
-    inference_problem : GaussianInferenceProblemProtocol[Array]
-        The underlying Gaussian inference problem.
+    inference_problem : BayesianInferenceProblemProtocol[Array]
+        The underlying inference problem.
     qoi_map : FunctionProtocol[Array]
         QoI model mapping parameters to predictions.
     design_conditions : Array
-        Design conditions. Shape: (nobs, nconditions).
+        Design conditions. Shape: (ndim, nobs) or (nobs,).
     bkd : Backend[Array]
         Computational backend.
     weight_bounds : Array or None
@@ -36,7 +48,7 @@ class PredictionOEDProblem(Generic[Array]):
 
     def __init__(
         self,
-        inference_problem: GaussianInferenceProblemProtocol[Array],
+        inference_problem: BayesianInferenceProblemProtocol[Array],
         qoi_map: FunctionProtocol[Array],
         design_conditions: Array,
         bkd: Backend[Array],
@@ -53,15 +65,14 @@ class PredictionOEDProblem(Generic[Array]):
             weight_bounds = bkd.hstack([zeros, ones])
         self._weight_bounds = weight_bounds
 
+        # Forward Gaussian methods if available
+        if isinstance(inference_problem, GaussianInferenceProblemProtocol):
+            self.prior_mean = inference_problem.prior_mean
+            self.prior_covariance = inference_problem.prior_covariance
+
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
         return self._bkd
-
-    def inference_problem(
-        self,
-    ) -> GaussianInferenceProblemProtocol[Array]:
-        """Get the underlying inference problem."""
-        return self._inference_problem
 
     def qoi_map(self) -> FunctionProtocol[Array]:
         """Get the QoI map."""
@@ -72,30 +83,22 @@ class PredictionOEDProblem(Generic[Array]):
         return self._qoi_map.nqoi()
 
     def design_conditions(self) -> Array:
-        """Get design conditions. Shape: (nobs, nconditions)."""
+        """Get design conditions."""
         return self._design_conditions
 
     def weight_bounds(self) -> Array:
         """Get weight bounds. Shape: (nobs, 2)."""
         return self._weight_bounds
 
-    # --- Delegations to satisfy GaussianInferenceProblemProtocol ---
+    # --- Delegations to satisfy BayesianInferenceProblemProtocol ---
 
     def obs_map(self) -> FunctionProtocol[Array]:
         """Get the observation map (delegated)."""
         return self._inference_problem.obs_map()
 
-    def prior(self) -> DenseCholeskyMultivariateGaussian[Array]:
+    def prior(self) -> DistributionProtocol[Array]:
         """Get the prior distribution (delegated)."""
         return self._inference_problem.prior()
-
-    def prior_mean(self) -> Array:
-        """Get prior mean (delegated)."""
-        return self._inference_problem.prior_mean()
-
-    def prior_covariance(self) -> Array:
-        """Get prior covariance (delegated)."""
-        return self._inference_problem.prior_covariance()
 
     def noise_variances(self) -> Array:
         """Get noise variances (delegated)."""

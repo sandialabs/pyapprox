@@ -3,6 +3,19 @@
 Defines the structural interfaces for inference problems, OED problems,
 and OED benchmarks. Users can implement custom classes satisfying these
 protocols without inheriting from any base class.
+
+Protocol hierarchy::
+
+    BayesianInferenceProblemProtocol
+      ├── GaussianInferenceProblemProtocol  (+prior_mean, +prior_covariance)
+      ├── KLOEDProblemProtocol              (+design_conditions, +weight_bounds)
+      └── PredictionOEDProblemProtocol      (+qoi_map, +npred, +design_conditions, +weight_bounds)
+
+KL and Prediction OED protocols extend the *base* protocol, not the
+Gaussian one.  A Gaussian prediction problem satisfies both
+``PredictionOEDProblemProtocol`` AND ``GaussianInferenceProblemProtocol``
+simultaneously (structural typing).  Consumers that need Gaussian
+analytics should do an explicit ``isinstance`` check.
 """
 
 from typing import Protocol, runtime_checkable
@@ -47,35 +60,27 @@ class GaussianInferenceProblemProtocol(
 
 @runtime_checkable
 class KLOEDProblemProtocol(
-    GaussianInferenceProblemProtocol[Array], Protocol[Array]
+    BayesianInferenceProblemProtocol[Array], Protocol[Array]
 ):
     """Protocol for a KL-OED problem.
 
-    Inherits GaussianInferenceProblemProtocol and adds design space metadata.
+    Extends BayesianInferenceProblemProtocol with design space metadata.
     """
 
-    def inference_problem(
-        self,
-    ) -> GaussianInferenceProblemProtocol[Array]: ...
     def design_conditions(self) -> Array: ...
     def weight_bounds(self) -> Array: ...
 
 
 @runtime_checkable
 class PredictionOEDProblemProtocol(
-    GaussianInferenceProblemProtocol[Array], Protocol[Array]
+    BayesianInferenceProblemProtocol[Array], Protocol[Array]
 ):
     """Protocol for a prediction OED problem.
 
-    Inherits GaussianInferenceProblemProtocol and adds qoi_map + design space.
+    Extends BayesianInferenceProblemProtocol with qoi_map and design space.
     """
 
-    def inference_problem(
-        self,
-    ) -> GaussianInferenceProblemProtocol[Array]: ...
     def qoi_map(self) -> FunctionProtocol[Array]: ...
     def npred(self) -> int: ...
     def design_conditions(self) -> Array: ...
     def weight_bounds(self) -> Array: ...
-
-

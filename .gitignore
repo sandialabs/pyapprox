@@ -51,3 +51,9 @@ _site/
 _book/
 _build_logs/
 .quarto/
+
+# Quarto render tooling output
+tutorials/library/render_errors.txt
+tutorials/library/render_times.txt
+tutorials/library/render_timings.csv
+tutorials/library/time_renders.sh

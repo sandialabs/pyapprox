@@ -9,17 +9,19 @@ methods (Sobol, Halton). Drawing prior and noise independently from separate
 samplers destroys these properties.
 """
 
-from typing import Callable, Generic, Tuple, Union
+from typing import Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
 from pyapprox.expdesign.protocols.oed import (
+    BayesianInferenceProblemProtocol,
     GaussianInferenceProblemProtocol,
 )
 from pyapprox.util.protocols.sampling import QuadratureSamplerProtocol
 from pyapprox.util.sampling.halton import DistributionWithInvCDF
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.protocols import DistributionProtocol
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.probability.univariate import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -37,7 +39,7 @@ def _is_diagonal(matrix: np.ndarray, atol: float = 1e-12) -> bool:
 
 
 def build_oed_joint_distribution(
-    problem: GaussianInferenceProblemProtocol[Array],
+    problem: BayesianInferenceProblemProtocol[Array],
     bkd: Backend[Array],
 ) -> IndependentJoint[Array]:
     """Build the joint prior + noise distribution for OED sampling.
@@ -47,18 +49,20 @@ def build_oed_joint_distribution(
     that require component-wise inverse CDF transforms.
 
     The joint distribution has nparams + nobs dimensions:
-    - First nparams dimensions: prior marginals (extracted from prior
-      covariance diagonal)
+    - First nparams dimensions: prior marginals
     - Last nobs dimensions: zero-mean Gaussian noise with variances
       from ``problem.noise_variances()``
 
+    Supports two prior types via ``problem.prior()``:
+
+    - ``IndependentJoint``: marginals are used directly.
+    - ``DenseCholeskyMultivariateGaussian``: marginals are extracted
+      from the diagonal of the covariance (must be diagonal).
+
     Parameters
     ----------
-    problem : GaussianInferenceProblemProtocol
-        Problem defining prior and noise model. The prior covariance
-        must be diagonal (independent components). For correlated
-        priors, use ``MonteCarloSampler`` with the prior's ``rvs()``
-        method, or build a custom sampling pipeline.
+    problem : BayesianInferenceProblemProtocol
+        Problem defining prior and noise model.
     bkd : Backend[Array]
         Computational backend.
 
@@ -70,30 +74,43 @@ def build_oed_joint_distribution(
     Raises
     ------
     ValueError
-        If the prior covariance is not diagonal.
+        If the prior is a multivariate Gaussian with non-diagonal
+        covariance.
+    TypeError
+        If the prior type is not supported.
     """
-    # Validate that prior covariance is diagonal
-    cov_np = bkd.to_numpy(problem.prior_covariance())
-    if not _is_diagonal(cov_np):
-        raise ValueError(
-            "build_oed_joint_distribution requires a diagonal prior "
-            "covariance (independent components). For correlated priors, "
-            "construct the sampler manually using MonteCarloSampler with "
-            "the prior's rvs() method, or build a custom distribution."
-        )
-
-    # Extract prior marginals from diagonal of covariance
-    mean_np = bkd.to_numpy(problem.prior_mean()).ravel()
-    prior_marginals = [
-        GaussianMarginal(
-            float(mean_np[i]), float(np.sqrt(cov_np[i, i])), bkd,
-        )
-        for i in range(problem.nparams())
-    ]
+    prior_marginals: List[MarginalProtocol[Array]]
+    if isinstance(problem, GaussianInferenceProblemProtocol):
+        cov_np = bkd.to_numpy(problem.prior_covariance())
+        if not _is_diagonal(cov_np):
+            raise ValueError(
+                "build_oed_joint_distribution requires a diagonal prior "
+                "covariance (independent components). For correlated "
+                "priors, construct the sampler manually using "
+                "MonteCarloSampler with the prior's rvs() method, or "
+                "build a custom distribution."
+            )
+        mean_np = bkd.to_numpy(problem.prior_mean()).ravel()
+        prior_marginals = [
+            GaussianMarginal(
+                float(mean_np[i]), float(np.sqrt(cov_np[i, i])), bkd,
+            )
+            for i in range(problem.nparams())
+        ]
+    else:
+        prior = problem.prior()
+        if isinstance(prior, IndependentJoint):
+            prior_marginals = list(prior.marginals())
+        else:
+            raise TypeError(
+                f"Unsupported prior type: {type(prior).__name__}. "
+                f"For non-Gaussian problems, prior() must return an "
+                f"IndependentJoint."
+            )
 
     # Build noise marginals (zero mean, variance from problem)
     noise_var_np = bkd.to_numpy(problem.noise_variances()).ravel()
-    noise_marginals = [
+    noise_marginals: List[MarginalProtocol[Array]] = [
         GaussianMarginal(0.0, float(np.sqrt(v)), bkd)
         for v in noise_var_np
     ]
@@ -152,7 +169,7 @@ class OEDQuadratureSampler(Generic[Array]):
     @classmethod
     def from_problem(
         cls,
-        problem: GaussianInferenceProblemProtocol[Array],
+        problem: BayesianInferenceProblemProtocol[Array],
         sampler_factory: Callable[
             [IndependentJoint[Array], Backend[Array]],
             QuadratureSamplerProtocol[Array],
@@ -163,16 +180,15 @@ class OEDQuadratureSampler(Generic[Array]):
 
         Builds the joint prior + noise distribution via
         ``build_oed_joint_distribution`` and passes it to the sampler
-        factory. The prior covariance must be diagonal.
+        factory.
 
         For correlated priors, construct the ``OEDQuadratureSampler``
         directly by passing a pre-built joint sampler to ``__init__``.
 
         Parameters
         ----------
-        problem : GaussianInferenceProblemProtocol
-            Problem defining nparams, nobs, prior, and noise. The prior
-            covariance must be diagonal.
+        problem : BayesianInferenceProblemProtocol
+            Problem defining nparams, nobs, prior, and noise.
         sampler_factory : callable
             Factory: (distribution, bkd) -> QuadratureSamplerProtocol.
             The distribution is an ``IndependentJoint`` with
