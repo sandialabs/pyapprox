@@ -17,13 +17,13 @@ from pyapprox.expdesign.protocols.oed import (
     BayesianInferenceProblemProtocol,
     GaussianInferenceProblemProtocol,
 )
-from pyapprox.util.protocols.sampling import QuadratureSamplerProtocol
-from pyapprox.util.sampling.halton import DistributionWithInvCDF
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.protocols import DistributionProtocol
 from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.probability.univariate import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.protocols.sampling import QuadratureSamplerProtocol
+from pyapprox.util.sampling.halton import DistributionWithInvCDF
 
 # Type for distributions accepted by from_problem sampler_factory
 OEDDistribution = Union[

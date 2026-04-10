@@ -8,10 +8,6 @@ and ``InexactDifferentiable``.
 
 from typing import Generic, List, Optional, cast
 
-from pyapprox.util.protocols.statistics import (
-    DifferentiableSampleStatisticProtocol,
-    SampleStatisticProtocol,
-)
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.functions.protocols.jacobian import (
     FunctionWithJacobianProtocol,
@@ -21,6 +17,10 @@ from pyapprox.optimization.minimize.inexact.protocols import (
 )
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.protocols.statistics import (
+    DifferentiableSampleStatisticProtocol,
+    SampleStatisticProtocol,
+)
 
 
 class InexactWrapper(Generic[Array]):

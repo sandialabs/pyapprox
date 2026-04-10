@@ -14,11 +14,6 @@ Two coefficient fitting strategies are supported:
 
 from typing import Generic, Optional, Protocol, Union, runtime_checkable
 
-from pyapprox.probability import UniformMarginal
-from pyapprox.surrogates.affine.protocols import (
-    LinearSystemSolverProtocol,
-)
-from pyapprox.surrogates.affine.univariate import create_basis_1d
 from pyapprox.generative.flowmatching.basis_factory import (
     StieltjesBasisFactory,
 )
@@ -36,6 +31,11 @@ from pyapprox.generative.flowmatching.protocols import (
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.protocols import (
+    LinearSystemSolverProtocol,
+)
+from pyapprox.surrogates.affine.univariate import create_basis_1d
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,

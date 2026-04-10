@@ -2,6 +2,7 @@
 
 from typing import Any, Callable, List, Optional, Tuple
 
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.forward_models.steady import (
@@ -26,7 +27,6 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.util.backends.protocols import Array, Backend
 
 

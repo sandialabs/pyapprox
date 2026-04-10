@@ -4,7 +4,6 @@ Provides density evaluation via backward ODE integration with divergence
 tracking, and KL divergence computation using quadrature.
 """
 
-from typing import Generic, Optional
 
 import numpy as np
 

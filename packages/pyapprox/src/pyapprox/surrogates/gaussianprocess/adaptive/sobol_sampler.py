@@ -2,9 +2,9 @@
 
 from typing import Generic
 
-from pyapprox.util.sampling.sobol import SobolSampler
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.sampling.sobol import SobolSampler
 
 
 class SobolAdaptiveSampler(Generic[Array]):

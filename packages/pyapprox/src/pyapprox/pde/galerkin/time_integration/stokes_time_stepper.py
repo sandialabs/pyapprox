@@ -23,8 +23,8 @@ import numpy as np
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class StokesTimeStepResidual(Generic[Array]):

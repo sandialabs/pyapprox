@@ -20,7 +20,6 @@ wrapper based on the inner stepper's protocol level.
 
 from typing import Generic, Tuple, cast, overload
 
-from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -31,6 +30,7 @@ from pyapprox.ode.protocols.time_stepping import (
     PrevStepHVPEnabledTimeSteppingResidualProtocol,
     SensitivityStepperProtocol,
 )
+from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.util.backends.protocols import Array, Backend
 
 # =========================================================================

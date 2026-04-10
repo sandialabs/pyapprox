@@ -11,16 +11,16 @@ stat classes in a future consolidation.
 
 from typing import Generic, List, cast
 
-from pyapprox.util.protocols.statistics import (
-    DifferentiableSampleStatisticProtocol,
-    SampleStatisticProtocol,
-)
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.functions.protocols.jacobian import (
     FunctionWithJacobianProtocol,
 )
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.protocols.statistics import (
+    DifferentiableSampleStatisticProtocol,
+    SampleStatisticProtocol,
+)
 
 
 class SampleAverageConstraint(Generic[Array]):

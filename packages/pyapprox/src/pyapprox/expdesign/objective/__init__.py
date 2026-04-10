@@ -5,6 +5,10 @@ This module provides objective functions for optimal experimental design,
 including KL-OED (expected information gain) and prediction OED objectives.
 """
 
+from pyapprox.expdesign.analytical.lognormal_avar_objective import (
+    LogNormalDataMeanQoIAVaRStdDevObjective,
+)
+
 from .d_optimal_linear import DOptimalLinearModelObjective
 from .factory import (
     create_kl_oed_objective,
@@ -18,10 +22,6 @@ from .prediction_factory import (
     create_risk_measure,
 )
 from .prediction_objective import PredictionOEDObjective
-
-from pyapprox.expdesign.analytical.lognormal_avar_objective import (
-    LogNormalDataMeanQoIAVaRStdDevObjective,
-)
 
 __all__ = [
     "KLOEDObjective",

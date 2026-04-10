@@ -10,7 +10,6 @@ from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox.util.protocols.quadrature import UnivariateQuadratureRuleProtocol
 
 

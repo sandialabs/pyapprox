@@ -18,10 +18,6 @@ from pyapprox.util.linalg.protocols import (
     IncrementalFactorizerProtocol,
     PivotedFactorizerProtocol,
 )
-from pyapprox.util.linalg.sparse_dispatch import (
-    solve_maybe_sparse,
-    sparse_or_dense_solve,
-)
 from pyapprox.util.linalg.randomized import (
     DenseMatVecOperator,
     DenseSymmetricMatVecOperator,
@@ -35,6 +31,10 @@ from pyapprox.util.linalg.randomized import (
     adjust_sign_svd,
     get_low_rank_matrix,
     randomized_symmetric_eigendecomposition,
+)
+from pyapprox.util.linalg.sparse_dispatch import (
+    solve_maybe_sparse,
+    sparse_or_dense_solve,
 )
 
 __all__ = [

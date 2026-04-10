@@ -15,15 +15,15 @@ https://doi.org/10.1016/j.cpc.2009.09.018
 from abc import abstractmethod
 from typing import Generic, List, Optional, Tuple
 
+from pyapprox.sensitivity.variance_based.base import (
+    VarianceBasedSensitivityAnalysis,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.sampling.halton import (
     DistributionWithInvCDF,
     HaltonSampler,
 )
 from pyapprox.util.sampling.sobol import SobolSampler
-from pyapprox.sensitivity.variance_based.base import (
-    VarianceBasedSensitivityAnalysis,
-)
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleBasedSensitivityAnalysis(

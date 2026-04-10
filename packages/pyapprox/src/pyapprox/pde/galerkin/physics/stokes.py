@@ -31,8 +31,8 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     CallableDirichletBC,
 )
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 try:
     from skfem import Basis, BilinearForm, LinearForm, asm, bmat

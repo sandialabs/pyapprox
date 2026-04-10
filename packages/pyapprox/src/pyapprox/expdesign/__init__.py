@@ -94,16 +94,25 @@ local
 """
 
 # Analytical utilities (conjugate priors)
+from pyapprox.risk import (
+    SampleAverageEntropicRisk,
+    SampleAverageMean,
+    SampleAverageSmoothedAVaR,
+    SampleAverageStdev,
+    SampleAverageVariance,
+    SampleStatistic,
+)
+
 from .analytical import (
-    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDExpectedKLDivergence,
     ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     LogNormalDataMeanQoIAVaRStdDevObjective,
 )
 
@@ -166,14 +175,6 @@ from .solver import (
     RelaxedOEDSolver,
     solve_kl_oed,
     solve_prediction_oed,
-)
-from pyapprox.risk import (
-    SampleAverageEntropicRisk,
-    SampleAverageMean,
-    SampleAverageSmoothedAVaR,
-    SampleAverageStdev,
-    SampleAverageVariance,
-    SampleStatistic,
 )
 
 __all__ = [

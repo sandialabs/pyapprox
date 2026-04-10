@@ -17,7 +17,6 @@ from typing import Generic, Optional, Protocol, runtime_checkable
 from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
 from pyapprox.util.backends.protocols import Array, Backend
 
-
 # ------------------------------------------------------------------ #
 #  1-D scalar interpolation protocol and implementations              #
 # ------------------------------------------------------------------ #
@@ -275,7 +274,6 @@ class RecurrenceInterpolator(Generic[Array]):
         self._states = states
 
         bkd = self._bkd
-        n_t = len(states)
         nterms = states[0].n_basis()
 
         # Stack recurrence coefficients: (n_t, nterms, 2)

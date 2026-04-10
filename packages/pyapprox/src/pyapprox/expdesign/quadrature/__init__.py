@@ -6,11 +6,12 @@ used in computing expectations over prior and data distributions.
 Supports Monte Carlo, quasi-Monte Carlo (Halton/Sobol), and Gaussian quadrature.
 """
 
+from pyapprox.util.sampling.halton import HaltonSampler
+from pyapprox.util.sampling.sobol import SobolSampler
+
 from .gaussian import GaussianQuadratureSampler
 from .monte_carlo import MonteCarloSampler
 from .oed import OEDQuadratureSampler
-from pyapprox.util.sampling.halton import HaltonSampler
-from pyapprox.util.sampling.sobol import SobolSampler
 from .strategies import (
     GaussStrategy,
     HaltonStrategy,

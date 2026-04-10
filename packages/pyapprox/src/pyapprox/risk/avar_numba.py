@@ -13,7 +13,6 @@ this module will raise ImportError, which avar_dispatch.py handles
 gracefully.
 """
 
-import math
 
 import numpy as np
 from numba import njit, prange

@@ -10,6 +10,15 @@ from typing import Generic, Tuple
 
 import numpy as np
 
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.explicit_steppers import (
+    ForwardEulerHVP,
+    HeunHVP,
+)
+from pyapprox.ode.implicit_steppers import (
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
+)
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
@@ -22,15 +31,6 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsODEAdapter,
-)
-from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.ode.explicit_steppers import (
-    ForwardEulerHVP,
-    HeunHVP,
-)
-from pyapprox.ode.implicit_steppers import (
-    BackwardEulerHVP,
-    CrankNicolsonHVP,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver

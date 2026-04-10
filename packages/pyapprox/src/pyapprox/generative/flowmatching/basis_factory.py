@@ -7,10 +7,10 @@ coefficients.
 
 from typing import Generic
 
+from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
 from pyapprox.surrogates.affine.univariate.globalpoly.numeric import (
     lanczos_recursion,
 )
-from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
 from pyapprox.util.backends.protocols import Array, Backend
 
 

@@ -13,8 +13,8 @@ except ImportError:
     )
 
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class ScalarMassAssembler(Generic[Array]):

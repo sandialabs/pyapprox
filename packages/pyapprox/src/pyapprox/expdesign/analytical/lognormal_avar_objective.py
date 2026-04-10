@@ -8,9 +8,7 @@ gradients through the entire formula.
 
 import itertools
 import math
-from typing import Generic, List, Optional, Tuple
-
-import numpy as np
+from typing import Generic, List, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 

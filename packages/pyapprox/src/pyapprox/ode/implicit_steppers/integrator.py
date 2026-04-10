@@ -7,7 +7,6 @@ the discrete adjoint method.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
 )
@@ -17,6 +16,7 @@ from pyapprox.ode.protocols.time_stepping import (
 )
 from pyapprox.ode.protocols.type_guards import is_hvp_enabled
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 

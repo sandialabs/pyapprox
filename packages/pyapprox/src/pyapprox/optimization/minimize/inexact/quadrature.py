@@ -9,10 +9,10 @@ import math
 from collections import OrderedDict
 from typing import Generic, Tuple
 
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.protocols.quadrature import (
     ParameterizedQuadratureRuleProtocol,
 )
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuadratureStrategy(Generic[Array]):

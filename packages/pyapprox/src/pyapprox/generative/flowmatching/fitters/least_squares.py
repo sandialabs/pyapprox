@@ -7,7 +7,6 @@ the linearity of the BasisExpansion vector field.
 import copy
 from typing import Generic
 
-from pyapprox.optimization.linear import LeastSquaresSolver
 from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.results import (
     FlowMatchingFitResult,
@@ -18,6 +17,7 @@ from pyapprox.generative.flowmatching.protocols import (
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.optimization.linear import LeastSquaresSolver
 from pyapprox.util.backends.protocols import Array, Backend
 
 

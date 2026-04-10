@@ -7,9 +7,6 @@ via a general-purpose optimizer.
 import copy
 from typing import Generic, Optional
 
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.generative.flowmatching.cfm_loss import (
     CFMLoss,
     FlowMatchingObjective,
@@ -22,6 +19,9 @@ from pyapprox.generative.flowmatching.protocols import (
 )
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
+)
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

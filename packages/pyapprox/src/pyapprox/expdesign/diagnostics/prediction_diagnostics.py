@@ -20,14 +20,14 @@ from typing import (
 )
 
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
 from pyapprox.expdesign.deviation import (

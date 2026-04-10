@@ -16,7 +16,6 @@ Split into three classes via mixin composition:
 
 from typing import Generic
 
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin, PrevStepHVPMixin
@@ -29,6 +28,7 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit

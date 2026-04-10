@@ -4,8 +4,8 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.sampling.sobol import SobolSampler
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.sampling.sobol import SobolSampler
 
 
 class HybridSobolRandomCandidateGenerator(Generic[Array]):

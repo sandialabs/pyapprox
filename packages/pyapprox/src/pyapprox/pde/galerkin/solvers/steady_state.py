@@ -13,8 +13,8 @@ from typing import Generic
 import numpy as np
 
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 @dataclass

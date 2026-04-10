@@ -10,8 +10,8 @@ from typing import Generic, Optional, Tuple
 import numpy as np
 from scipy.stats import qmc
 
-from pyapprox.util.sampling.halton import DistributionWithInvCDF
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.sampling.halton import DistributionWithInvCDF
 
 
 class SobolSampler(Generic[Array]):

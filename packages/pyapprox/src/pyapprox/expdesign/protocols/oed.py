@@ -9,7 +9,9 @@ Protocol hierarchy::
     BayesianInferenceProblemProtocol
       ├── GaussianInferenceProblemProtocol  (+prior_mean, +prior_covariance)
       ├── KLOEDProblemProtocol              (+design_conditions, +weight_bounds)
-      └── PredictionOEDProblemProtocol      (+qoi_map, +npred, +design_conditions, +weight_bounds)
+      └── PredictionOEDProblemProtocol      (+qoi_map, +npred,
+                                             +design_conditions,
+                                             +weight_bounds)
 
 KL and Prediction OED protocols extend the *base* protocol, not the
 Gaussian one.  A Gaussian prediction problem satisfies both

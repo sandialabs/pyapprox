@@ -6,15 +6,15 @@ in prediction OED when using linear Gaussian models with conjugate priors.
 """
 
 from .conjugate_gaussian import (
-    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
+    ConjugateGaussianOEDDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDExpectedKLDivergence,
     ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDPredictionUtilityBase,
 )
 from .lognormal_avar_objective import (

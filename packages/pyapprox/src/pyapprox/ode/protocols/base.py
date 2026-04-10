@@ -8,8 +8,8 @@ Backward Euler, Crank-Nicolson, Heun, etc.).
 from abc import ABC, abstractmethod
 from typing import Generic, Tuple, cast
 
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 from .ode_residual import (
     ODEResidualProtocol,

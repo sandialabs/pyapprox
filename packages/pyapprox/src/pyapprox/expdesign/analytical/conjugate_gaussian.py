@@ -12,7 +12,7 @@ prediction OED with linear Gaussian models and conjugate priors.
 import itertools
 import math
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, Tuple
+from typing import Generic, List, Optional
 
 from scipy import stats
 
@@ -539,9 +539,11 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
         # Compute all crossing thresholds:
         # D_i > D_j iff K_i*exp(tau_i) > K_j*exp(tau_j)
         # iff log(K_i) + tau_i > log(K_j) + tau_j
-        # iff (x_i - x_j)*mu_1^* > log(K_j/K_i) + (nu_j - nu_i) [at prior mean level, not needed]
+        # iff (x_i - x_j)*mu_1^* > log(K_j/K_i) + (nu_j - nu_i)
+        #   [at prior mean level, not needed]
         # Actually: log(D_j) = log(K_j) + tau_j and tau_j = mu_0^* + x_j*mu_1^*
-        # So D_i > D_j iff (x_i - x_j)*mu_1^* > log(K_j) - log(K_i) [conditioned on mu_0^* cancelling]
+        # So D_i > D_j iff (x_i - x_j)*mu_1^* > log(K_j) - log(K_i)
+        #   [conditioned on mu_0^* cancelling]
         # Wait: tau_i - tau_j = (x_i - x_j)*mu_1^*, and log(D_i) - log(D_j)
         #   = log(K_i/K_j) + (x_i - x_j)*mu_1^*
         # So D_i > D_j iff (x_i - x_j)*mu_1^* > log(K_j/K_i)
@@ -570,7 +572,9 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
         sentinel_hi = (thresholds[-1] + 10 * span + 1) if thresholds else nu_1
 
         # Interval boundaries (including -inf and +inf sentinels)
-        boundaries: List[Optional[float]] = [None] + [float(t) for t in thresholds] + [None]
+        boundaries: List[Optional[float]] = (
+            [None] + [float(t) for t in thresholds] + [None]
+        )
 
         total = 0.0
         for k in range(len(boundaries) - 1):
@@ -618,7 +622,8 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
             #   mu_Z = (nu_j, nu_1)
             #   Sigma_Z = [[sigma_tau_j^2, cov_j1], [cov_j1, c_11]]
             # E[exp(tau_j) * 1(a < mu_1^* < b)]
-            #   = integral over mu1 of exp(E[tau_j|mu1] + Var[tau_j|mu1]/2) * phi_mu1(mu1) dmu1
+            #   = integral over mu1 of
+            #       exp(E[tau_j|mu1] + Var[tau_j|mu1]/2) * phi_mu1(mu1) dmu1
             #     from a to b
             # where E[tau_j|mu1] = nu_j + (cov_j1/c_11)*(mu1 - nu_1)
             #       Var[tau_j|mu1] = sigma_tau_j^2 - cov_j1^2/c_11

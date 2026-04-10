@@ -6,16 +6,6 @@ spectral collocation with various time integration methods.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.pde.collocation.protocols import PhysicsProtocol
-from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
-    create_bc_enforcing_residual,
-)
-from pyapprox.pde.collocation.time_integration.physics_adapter import (
-    PhysicsToODEResidualAdapter,
-)
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
-)
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
@@ -29,6 +19,16 @@ from pyapprox.ode.implicit_steppers.crank_nicolson import (
 )
 from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
+)
+from pyapprox.pde.collocation.protocols import PhysicsProtocol
+from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
+    create_bc_enforcing_residual,
+)
+from pyapprox.pde.collocation.time_integration.physics_adapter import (
+    PhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver

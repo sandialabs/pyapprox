@@ -7,15 +7,6 @@ with different deviation measures (StdDev, Entropic, AVaR).
 
 from typing import Any, Dict, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-
-from ..deviation import (
-    AVaRDeviationMeasure,
-    DeviationMeasure,
-    EntropicDeviationMeasure,
-    StandardDeviationMeasure,
-)
-from ..likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.risk import (
     SampleAverageEntropicRisk,
     SampleAverageMean,
@@ -25,6 +16,15 @@ from pyapprox.risk import (
     SampleAverageVariance,
     SampleStatistic,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+
+from ..deviation import (
+    AVaRDeviationMeasure,
+    DeviationMeasure,
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
+)
+from ..likelihood import GaussianOEDInnerLoopLikelihood
 from .prediction_objective import PredictionOEDObjective
 
 

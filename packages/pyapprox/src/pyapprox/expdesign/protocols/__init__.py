@@ -7,12 +7,6 @@ deviation measures, and prediction objectives.
 """
 
 from .deviation import DeviationMeasureProtocol
-from .oed import (
-    BayesianInferenceProblemProtocol,
-    GaussianInferenceProblemProtocol,
-    KLOEDProblemProtocol,
-    PredictionOEDProblemProtocol,
-)
 from .evidence import (
     EvidenceProtocol,
     LogEvidenceProtocol,
@@ -24,6 +18,12 @@ from .likelihood import (
 from .objective import (
     KLOEDObjectiveProtocol,
     OEDObjectiveProtocol,
+)
+from .oed import (
+    BayesianInferenceProblemProtocol,
+    GaussianInferenceProblemProtocol,
+    KLOEDProblemProtocol,
+    PredictionOEDProblemProtocol,
 )
 from .prediction import PredictionOEDObjectiveProtocol
 from .quadrature import (

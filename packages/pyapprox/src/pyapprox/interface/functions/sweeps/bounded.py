@@ -8,8 +8,8 @@ from typing import Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.transforms.affine import AffineTransform
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.transforms.affine import AffineTransform
 
 
 class BoundedParameterSweeper(Generic[Array]):
