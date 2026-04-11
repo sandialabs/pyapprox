@@ -46,6 +46,63 @@ except ImportError:
     )
 
 
+class _VelComponentBCValueFunc:
+    """Picklable adapter that extracts a single velocity component.
+
+    Wraps a user-supplied BC callable ``func(crds, time) -> vals`` so
+    that the returned array is a 1D slice corresponding to component
+    ``comp_idx``. Replaces the local ``value_func`` closure previously
+    built inside
+    :meth:`StokesPhysics._build_boundary_conditions`; keeps
+    ``StokesPhysics`` picklable when the underlying BC callable is
+    itself picklable.
+    """
+
+    def __init__(
+        self,
+        func: Callable[..., np.ndarray],
+        crds: np.ndarray,
+        comp_idx: int,
+    ) -> None:
+        self._func = func
+        self._crds = crds
+        self._comp_idx = int(comp_idx)
+
+    def __call__(self, time: float) -> np.ndarray:
+        try:
+            vals = self._func(self._crds, time)
+        except TypeError:
+            vals = self._func(self._crds)
+        if vals.ndim == 2:
+            return vals[:, self._comp_idx]
+        return vals
+
+
+class _PresBCValueFunc:
+    """Picklable adapter for scalar pressure BC callables.
+
+    Replaces the local ``value_func`` closure previously built inside
+    :meth:`StokesPhysics._build_boundary_conditions`.
+    """
+
+    def __init__(
+        self,
+        func: Callable[..., np.ndarray],
+        crds: np.ndarray,
+    ) -> None:
+        self._func = func
+        self._crds = crds
+
+    def __call__(self, time: float) -> np.ndarray:
+        try:
+            vals = self._func(self._crds, time)
+        except TypeError:
+            vals = self._func(self._crds)
+        if vals.ndim == 2:
+            return vals.flatten()
+        return vals
+
+
 class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     """Stokes/Navier-Stokes physics for Galerkin FEM.
 
@@ -148,26 +205,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
                 dof_arr = np.asarray(bndry_dofs).flatten()
                 coords = self._vel_skfem_basis.doflocs[:, dof_arr]
 
-                def _make_vel_value_func(
-                    func: Callable[..., np.ndarray],
-                    crds: np.ndarray,
-                    comp_idx: int,
-                ) -> Callable[[float], np.ndarray]:
-                    def value_func(time: float) -> np.ndarray:
-                        try:
-                            vals = func(crds, time)
-                        except TypeError:
-                            vals = func(crds)
-                        if vals.ndim == 2:
-                            return vals[:, comp_idx]
-                        return vals
-
-                    return value_func
-
                 bcs.append(
                     CallableDirichletBC(
                         dof_arr,
-                        _make_vel_value_func(bndry_func, coords, idx),
+                        _VelComponentBCValueFunc(bndry_func, coords, idx),
                         self._bkd,
                     )
                 )
@@ -178,25 +219,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             shifted_p_dofs = p_dofs_arr + self.vel_ndofs()
             coords = self._pres_skfem_basis.doflocs[:, p_dofs_arr]
 
-            def _make_pres_value_func(
-                func: Callable[..., np.ndarray],
-                crds: np.ndarray,
-            ) -> Callable[[float], np.ndarray]:
-                def value_func(time: float) -> np.ndarray:
-                    try:
-                        vals = func(crds, time)
-                    except TypeError:
-                        vals = func(crds)
-                    if vals.ndim == 2:
-                        return vals.flatten()
-                    return vals
-
-                return value_func
-
             bcs.append(
                 CallableDirichletBC(
                     shifted_p_dofs,
-                    _make_pres_value_func(bndry_func, coords),
+                    _PresBCValueFunc(bndry_func, coords),
                     self._bkd,
                 )
             )

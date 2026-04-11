@@ -70,7 +70,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.instances.oed.advection_diffusion import (
-    ObstructedAdvectionDiffusionOEDBenchmark,
+    build_obstructed_advection_diffusion_oed_benchmark,
 )
 from pyapprox.expdesign.data import OEDDataGenerator, OEDDataManager
 from pyapprox.expdesign import (
@@ -90,7 +90,7 @@ bkd = NumpyBkd()
 ```{python}
 # Use lower mesh refinement for the tutorial (nrefine=2 instead of default 3).
 # Production runs should use nrefine=3 or higher.
-benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(
+benchmark  = build_obstructed_advection_diffusion_oed_benchmark(
     bkd, nstokes_refine=1, nadvec_diff_refine=1,
 )
 obs_model  = benchmark.obs_map()   # FEM-based PDE solver

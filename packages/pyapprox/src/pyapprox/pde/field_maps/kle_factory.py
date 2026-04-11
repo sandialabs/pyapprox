@@ -31,7 +31,7 @@ or ``create_fem_nystrom_nodes_kle`` (arbitrary kernels).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Generic, Optional, Union
 
 import numpy.typing as npt
 
@@ -56,6 +56,24 @@ from pyapprox.surrogates.kle.galerkin_kle import GalerkinKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+class _ExpTransform(Generic[Array]):
+    """Picklable exp transform for :class:`TransformedFieldMap`.
+
+    One instance serves as ``transform``, ``transform_deriv``, and
+    ``transform_deriv2`` for the exp map (since ``d/dx exp = exp``).
+    Replaces the ``lambda x: bkd.exp(x)`` triple that previously broke
+    pickling of the :class:`TransformedFieldMap` returned by
+    :func:`create_lognormal_kle_field_map` and
+    :func:`create_spde_lognormal_kle_field_map`.
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, x: Array) -> Array:
+        return self._bkd.exp(x)
 
 
 def create_lognormal_kle_field_map(
@@ -122,12 +140,13 @@ def create_lognormal_kle_field_map(
 
     inner = MeshKLEFieldMap(bkd, mean_log_field, mesh_kle.weighted_eigenvectors())
 
+    exp_transform = _ExpTransform(bkd)
     return TransformedFieldMap(
         inner,
-        transform=lambda x: bkd.exp(x),
-        transform_deriv=lambda x: bkd.exp(x),
+        transform=exp_transform,
+        transform_deriv=exp_transform,
         bkd=bkd,
-        transform_deriv2=lambda x: bkd.exp(x),
+        transform_deriv2=exp_transform,
     )
 
 
@@ -557,10 +576,11 @@ def create_spde_lognormal_kle_field_map(
         spde_kle.weighted_eigenvectors(),
     )
 
+    exp_transform = _ExpTransform(bkd)
     return TransformedFieldMap(
         inner,
-        transform=lambda x: bkd.exp(x),
-        transform_deriv=lambda x: bkd.exp(x),
+        transform=exp_transform,
+        transform_deriv=exp_transform,
         bkd=bkd,
-        transform_deriv2=lambda x: bkd.exp(x),
+        transform_deriv2=exp_transform,
     )

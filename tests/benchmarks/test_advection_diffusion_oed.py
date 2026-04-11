@@ -5,19 +5,31 @@ Forward evaluations are slow, so model evaluation tests use @slow_test.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-import numpy as np
+import pickle
 
+import numpy as np
 from pyapprox_benchmarks.instances.oed.advection_diffusion import (
-    ObstructedAdvectionDiffusionOEDBenchmark,
+    FixedVelocityObstructedAdvectionDiffusionOEDBenchmark,
+    build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark,
+    build_obstructed_advection_diffusion_oed_benchmark,
+)
+from pyapprox_benchmarks.problems.oed.advection_diffusion import (
+    AdvectionDiffusionOEDProblem,
+    FixedVelocityAdvectionDiffusionOEDProblem,
+)
+from pyapprox_benchmarks.problems.oed.advection_diffusion._mesh import (
     _build_obstructed_mesh,
+)
+from pyapprox_benchmarks.problems.oed.advection_diffusion._stokes import (
     _solve_stokes,
 )
+from pyapprox_benchmarks.registry import BenchmarkRegistry
+
 from tests._helpers.markers import slow_test
 
 
@@ -32,7 +44,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         self._nsensors = 5
 
     def _create_benchmark(self, bkd):
-        return ObstructedAdvectionDiffusionOEDBenchmark(
+        return build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -143,7 +155,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bkd = numpy_bkd
         self._setup_data(bkd)
         subdomain = (0.0, 0.25, 0.0, 1.0)
-        bench = ObstructedAdvectionDiffusionOEDBenchmark(
+        bench = build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -154,9 +166,9 @@ class TestAdvectionDiffusionOEDBenchmark:
         )
         rng = np.random.default_rng(0)
         kle_params = bkd.asarray(rng.standard_normal(self._nkle_terms))
-        forcing = bkd.to_numpy(bench._kle_map(kle_params))
+        forcing = bkd.to_numpy(bench.problem()._kle_map(kle_params))
 
-        nodes = bkd.to_numpy(bench._adr_mesh.nodes())
+        nodes = bkd.to_numpy(bench.problem()._adr_mesh.nodes())
         xmin, xmax, ymin, ymax = subdomain
         strictly_outside = (
             (nodes[0] > xmax + 1e-12)
@@ -173,7 +185,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         """Passing kle_subdomain=None recovers a full-domain lognormal KLE."""
         bkd = numpy_bkd
         self._setup_data(bkd)
-        bench = ObstructedAdvectionDiffusionOEDBenchmark(
+        bench = build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -183,7 +195,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         )
         rng = np.random.default_rng(1)
         kle_params = bkd.asarray(rng.standard_normal(self._nkle_terms))
-        forcing = bkd.to_numpy(bench._kle_map(kle_params))
+        forcing = bkd.to_numpy(bench.problem()._kle_map(kle_params))
         # Lognormal is strictly positive everywhere on the full mesh.
         assert np.all(forcing > 0.0)
 
@@ -194,7 +206,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         # A sliver rectangle that barely contains any nodes, combined
         # with many KLE terms, triggers the guard.
         with pytest.raises(ValueError, match="KLE subdomain"):
-            ObstructedAdvectionDiffusionOEDBenchmark(
+            build_obstructed_advection_diffusion_oed_benchmark(
                 bkd,
                 nstokes_refine=self._nstokes_refine,
                 nadvec_diff_refine=self._nadvec_diff_refine,
@@ -208,7 +220,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bkd = numpy_bkd
         self._setup_data(bkd)
         with pytest.raises(ValueError, match="must lie inside the base"):
-            ObstructedAdvectionDiffusionOEDBenchmark(
+            build_obstructed_advection_diffusion_oed_benchmark(
                 bkd,
                 nstokes_refine=self._nstokes_refine,
                 nadvec_diff_refine=self._nadvec_diff_refine,
@@ -221,7 +233,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         """Constructor accepts kle_correlation_length and kle_sigma."""
         bkd = numpy_bkd
         self._setup_data(bkd)
-        bench = ObstructedAdvectionDiffusionOEDBenchmark(
+        bench = build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -237,7 +249,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bkd = numpy_bkd
         self._setup_data(bkd)
         with pytest.raises(ValueError, match="source_mode"):
-            ObstructedAdvectionDiffusionOEDBenchmark(
+            build_obstructed_advection_diffusion_oed_benchmark(
                 bkd,
                 nstokes_refine=self._nstokes_refine,
                 nadvec_diff_refine=self._nadvec_diff_refine,
@@ -256,7 +268,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         """
         self._setup_data(torch_bkd)
         with pytest.raises(TypeError, match="NumpyBkd"):
-            ObstructedAdvectionDiffusionOEDBenchmark(
+            build_obstructed_advection_diffusion_oed_benchmark(
                 torch_bkd,
                 nstokes_refine=self._nstokes_refine,
                 nadvec_diff_refine=self._nadvec_diff_refine,
@@ -277,7 +289,7 @@ class TestAdvectionDiffusionOEDBenchmark:
         bkd = numpy_bkd
         self._setup_data(bkd)
 
-        bench_ic = ObstructedAdvectionDiffusionOEDBenchmark(
+        bench_ic = build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -285,7 +297,7 @@ class TestAdvectionDiffusionOEDBenchmark:
             nsensors=self._nsensors,
             source_mode="initial_condition",
         )
-        bench_fc = ObstructedAdvectionDiffusionOEDBenchmark(
+        bench_fc = build_obstructed_advection_diffusion_oed_benchmark(
             bkd,
             nstokes_refine=self._nstokes_refine,
             nadvec_diff_refine=self._nadvec_diff_refine,
@@ -304,11 +316,13 @@ class TestAdvectionDiffusionOEDBenchmark:
         sample_np[-1] = 12.5
 
         kle_field = bkd.to_numpy(
-            bench_ic._kle_map(bkd.asarray(sample_np[: self._nkle_terms]))
+            bench_ic.problem()._kle_map(
+                bkd.asarray(sample_np[: self._nkle_terms])
+            )
         )
 
-        ic_solutions, _ = bench_ic._solve_forward(sample_np)
-        fc_solutions, _ = bench_fc._solve_forward(sample_np)
+        ic_solutions, _ = bench_ic.problem()._solve_forward(sample_np)
+        fc_solutions, _ = bench_fc.problem()._solve_forward(sample_np)
 
         ic_np = bkd.to_numpy(ic_solutions)
         fc_np = bkd.to_numpy(fc_solutions)
@@ -367,3 +381,298 @@ class TestAdvectionDiffusionOEDBenchmark:
         assert pred.shape == (1, 1)
         pred_np = bkd.to_numpy(pred)
         assert np.all(np.isfinite(pred_np))
+
+
+class TestPickleRegression:
+    """Pickle regression tests for the upstream closure fixes.
+
+    These tests guard against re-introducing the four closure sites
+    that previously broke ``pickle.dumps`` on the advdiff benchmark:
+    the ``kle_factory`` exp lambdas, the ``_solve_stokes`` BC
+    closures, the ``_make_vel_value_func`` nested closures inside
+    :class:`StokesPhysics`, and the ``obs_callable`` / ``pred_callable``
+    closures formerly built inside the benchmark ``__init__``.
+    """
+
+    def _build(self, bkd):
+        return build_obstructed_advection_diffusion_oed_benchmark(
+            bkd,
+            nstokes_refine=1,
+            nadvec_diff_refine=1,
+            nkle_terms=3,
+            nsensors=4,
+        )
+
+    def test_benchmark_pickle_roundtrip(self, numpy_bkd):
+        """Benchmark shell roundtrips and ``evaluate_nodal`` matches."""
+        bench = self._build(numpy_bkd)
+        bench2 = pickle.loads(pickle.dumps(bench))
+        rng = np.random.default_rng(0)
+        samples = numpy_bkd.asarray(rng.standard_normal((6, 2)))
+        out1 = numpy_bkd.to_numpy(bench.evaluate_nodal(samples))
+        out2 = numpy_bkd.to_numpy(bench2.evaluate_nodal(samples))
+        np.testing.assert_allclose(out1, out2, rtol=1e-12)
+
+    def test_problem_pickle_roundtrip(self, numpy_bkd):
+        """Problem object pickles on its own (joblib worker contract).
+
+        The problem must pickle without carrying the benchmark shell
+        so that parallel workers only ship the compute substrate.
+        """
+        bench = self._build(numpy_bkd)
+        problem = bench.problem()
+        problem2 = pickle.loads(pickle.dumps(problem))
+        rng = np.random.default_rng(1)
+        samples = numpy_bkd.asarray(rng.standard_normal((6, 2)))
+        out1 = numpy_bkd.to_numpy(problem.evaluate_nodal(samples))
+        out2 = numpy_bkd.to_numpy(problem2.evaluate_nodal(samples))
+        np.testing.assert_allclose(out1, out2, rtol=1e-12)
+
+    def test_stokes_result_pickle_roundtrip(self, numpy_bkd):
+        """Stokes result tuple pickles and still drives ADR transient."""
+        bench = self._build(numpy_bkd)
+        problem = bench.problem()
+        stokes_result = problem._compute_stokes_result(2.5, 2.5, 12.5)
+        stokes_result2 = pickle.loads(pickle.dumps(stokes_result))
+        rng = np.random.default_rng(2)
+        kle_params = numpy_bkd.asarray(rng.standard_normal(3))
+        solutions, times = problem._solve_adr_transient(
+            kle_params, stokes_result2,
+        )
+        sol_np = numpy_bkd.to_numpy(solutions)
+        assert sol_np.ndim == 2
+        assert sol_np.shape[1] == times.shape[0]
+        assert np.all(np.isfinite(sol_np))
+
+
+class TestFixedVelocityObstructedAdvectionDiffusionOEDBenchmark:
+    """Tests for the Pattern B only fixed-velocity advdiff benchmark.
+
+    Every assertion goes through ``bench.problem()`` to double-document
+    the benchmark's surface contract: the shell has no Pattern A
+    forwarders and the pinned velocity parameters live on the
+    problem.
+    """
+
+    def _setup_data(self):
+        self._nstokes_refine = 1
+        self._nadvec_diff_refine = 1
+        self._nkle_terms = 3
+        self._nsensors = 4
+
+    def _build_fixed(self, bkd, **overrides):
+        self._setup_data()
+        kwargs = dict(
+            nstokes_refine=self._nstokes_refine,
+            nadvec_diff_refine=self._nadvec_diff_refine,
+            nkle_terms=self._nkle_terms,
+            nsensors=self._nsensors,
+        )
+        kwargs.update(overrides)
+        return build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
+            bkd, **kwargs,
+        )
+
+    def _build_random(self, bkd):
+        self._setup_data()
+        return build_obstructed_advection_diffusion_oed_benchmark(
+            bkd,
+            nstokes_refine=self._nstokes_refine,
+            nadvec_diff_refine=self._nadvec_diff_refine,
+            nkle_terms=self._nkle_terms,
+            nsensors=self._nsensors,
+        )
+
+    def test_construction_reduces_nparams(self, numpy_bkd):
+        bench = self._build_fixed(numpy_bkd)
+        problem = bench.problem()
+        assert problem.nparams() == self._nkle_terms
+        assert problem.prior().nvars() == self._nkle_terms
+        assert problem.obs_map().nvars() == self._nkle_terms
+        assert problem.qoi_map().nvars() == self._nkle_terms
+
+    def test_reduced_prior_is_gaussian_only(self, numpy_bkd):
+        from pyapprox.probability.univariate.gaussian import GaussianMarginal
+        bench = self._build_fixed(numpy_bkd)
+        marginals = bench.problem().prior().marginals()
+        assert len(marginals) == self._nkle_terms
+        for m in marginals:
+            assert isinstance(m, GaussianMarginal)
+
+    def test_problem_composition(self, numpy_bkd):
+        bench = self._build_fixed(numpy_bkd)
+        problem = bench.problem()
+        assert isinstance(problem, FixedVelocityAdvectionDiffusionOEDProblem)
+        assert isinstance(problem, AdvectionDiffusionOEDProblem)
+        # design_conditions shape must match the random-velocity
+        # sibling built with the same substrate kwargs.
+        random_bench = self._build_random(numpy_bkd)
+        assert (
+            numpy_bkd.to_numpy(problem.design_conditions()).shape
+            == numpy_bkd.to_numpy(
+                random_bench.problem().design_conditions()
+            ).shape
+        )
+
+    @slow_test
+    def test_evaluate_observation_matches_padded(self, numpy_bkd):
+        """Reduced obs_map equals random-velocity obs_map at padded sample.
+
+        Fixed-velocity ``obs_map`` on a KLE-only sample must equal the
+        random-velocity ``obs_map`` on the same KLE sample padded with
+        the pinned velocity triple — the two code paths must agree to
+        machine precision.
+        """
+        vel_a, vel_b, re = 2.5, 2.5, 12.5
+        fixed = self._build_fixed(
+            numpy_bkd, vel_shape_a=vel_a, vel_shape_b=vel_b, reynolds_num=re,
+        )
+        random_bench = self._build_random(numpy_bkd)
+        rng = np.random.default_rng(3)
+        kle = rng.standard_normal((self._nkle_terms, 1))
+        padded = np.vstack(
+            [kle, np.array([[vel_a], [vel_b], [re]])],
+        )
+        fixed_out = numpy_bkd.to_numpy(
+            fixed.problem().obs_map()(numpy_bkd.asarray(kle))
+        )
+        random_out = numpy_bkd.to_numpy(
+            random_bench.problem().obs_map()(numpy_bkd.asarray(padded))
+        )
+        np.testing.assert_allclose(fixed_out, random_out, rtol=1e-12)
+
+    @slow_test
+    def test_evaluate_prediction_matches_padded(self, numpy_bkd):
+        """Reduced qoi_map equals random qoi_map at padded sample."""
+        vel_a, vel_b, re = 2.5, 2.5, 12.5
+        fixed = self._build_fixed(
+            numpy_bkd, vel_shape_a=vel_a, vel_shape_b=vel_b, reynolds_num=re,
+        )
+        random_bench = self._build_random(numpy_bkd)
+        rng = np.random.default_rng(4)
+        kle = rng.standard_normal((self._nkle_terms, 1))
+        padded = np.vstack(
+            [kle, np.array([[vel_a], [vel_b], [re]])],
+        )
+        fixed_out = numpy_bkd.to_numpy(
+            fixed.problem().qoi_map()(numpy_bkd.asarray(kle))
+        )
+        random_out = numpy_bkd.to_numpy(
+            random_bench.problem().qoi_map()(numpy_bkd.asarray(padded))
+        )
+        np.testing.assert_allclose(fixed_out, random_out, rtol=1e-12)
+
+    @slow_test
+    def test_stokes_solved_exactly_once(self, numpy_bkd, monkeypatch):
+        """Fixed-velocity problem caches Stokes and reuses it across evals.
+
+        Monkeypatch ``_compute_stokes_result`` at the **class level**
+        with a counter. After construction (which calls it once) the
+        counter stays fixed across a 3-sample ``evaluate_nodal`` call.
+
+        NOTE: patches class, not instance — would interfere with
+        concurrently-running advdiff tests in the same process. Uses
+        pytest ``monkeypatch`` (test-scoped, auto-cleaned).
+        """
+        counter = {"n": 0}
+        orig = AdvectionDiffusionOEDProblem._compute_stokes_result
+
+        def counting(self, a, b, re):
+            counter["n"] += 1
+            return orig(self, a, b, re)
+
+        monkeypatch.setattr(
+            AdvectionDiffusionOEDProblem,
+            "_compute_stokes_result",
+            counting,
+        )
+        bench = self._build_fixed(numpy_bkd)
+        # Construction should have triggered exactly one Stokes solve.
+        n_after_ctor = counter["n"]
+        assert n_after_ctor == 1
+        rng = np.random.default_rng(5)
+        samples = numpy_bkd.asarray(
+            rng.standard_normal((self._nkle_terms, 3)),
+        )
+        bench.problem().evaluate_nodal(samples)
+        # No additional Stokes solves during forward evaluation.
+        assert counter["n"] == n_after_ctor
+
+    def test_pickle_roundtrip(self, numpy_bkd):
+        bench = self._build_fixed(numpy_bkd)
+        bench2 = pickle.loads(pickle.dumps(bench))
+        rng = np.random.default_rng(6)
+        samples = numpy_bkd.asarray(
+            rng.standard_normal((self._nkle_terms, 2)),
+        )
+        out1 = numpy_bkd.to_numpy(
+            bench.problem().evaluate_nodal(samples),
+        )
+        out2 = numpy_bkd.to_numpy(
+            bench2.problem().evaluate_nodal(samples),
+        )
+        np.testing.assert_allclose(out1, out2, rtol=1e-12)
+
+    @slow_test
+    def test_solve_for_plotting_accepts_reduced_sample(self, numpy_bkd):
+        bench = self._build_fixed(numpy_bkd)
+        problem = bench.problem()
+        np.random.seed(7)
+        sample = problem.prior().rvs(1)
+        data = problem.solve_for_plotting(sample)
+        assert data["vel_x"].ndim == 1
+        assert data["concentration"].ndim == 1
+        assert np.all(np.isfinite(data["vel_magnitude"]))
+        assert np.all(np.isfinite(data["concentration"]))
+
+    def test_registry_factory_returns_shell(self, numpy_bkd):
+        """Registry factory uses default nkle_terms=10."""
+        bench = BenchmarkRegistry.get(
+            "obstructed_advection_diffusion_oed_fixed_velocity",
+            bkd=numpy_bkd,
+        )
+        assert isinstance(
+            bench, FixedVelocityObstructedAdvectionDiffusionOEDBenchmark,
+        )
+        assert bench.problem().nparams() == 10
+
+    def test_ground_truth_present_but_empty(self, numpy_bkd):
+        """Both benchmarks carry an empty OEDGroundTruth."""
+        fixed = self._build_fixed(numpy_bkd)
+        random_bench = self._build_random(numpy_bkd)
+        for bench in (fixed, random_bench):
+            gt = bench.ground_truth()
+            assert gt.exact_eig is None
+            assert gt.exact_utility is None
+
+    def test_pattern_b_only_no_forwarders(self, numpy_bkd):
+        """Fixed-velocity benchmark exposes no Pattern A forwarders.
+
+        Guards against accidentally re-adding forwarders. Pinned
+        velocity parameters must live on the problem, not the shell.
+        """
+        bench = self._build_fixed(numpy_bkd)
+        pattern_a_names = [
+            "prior", "obs_map", "qoi_map", "design_conditions",
+            "nparams", "nobservations", "evaluate_nodal",
+            "evaluate_both", "solve_for_plotting", "mesh_nodes",
+            "nnodes", "vel_shape_a", "vel_shape_b", "reynolds_num",
+        ]
+        for name in pattern_a_names:
+            assert not hasattr(bench, name), (
+                f"Pattern B only: benchmark must not expose '{name}' — "
+                f"go through bench.problem().{name}()"
+            )
+
+    def test_pinned_velocity_on_problem(self, numpy_bkd):
+        """Pinned velocity accessors live on the problem object."""
+        bench = self._build_fixed(
+            numpy_bkd,
+            vel_shape_a=3.0,
+            vel_shape_b=2.5,
+            reynolds_num=15.0,
+        )
+        problem = bench.problem()
+        assert problem.vel_shape_a() == 3.0
+        assert problem.vel_shape_b() == 2.5
+        assert problem.reynolds_num() == 15.0

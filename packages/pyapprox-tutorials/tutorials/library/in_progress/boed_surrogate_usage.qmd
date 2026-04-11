@@ -76,7 +76,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.instances.oed.advection_diffusion import (
-    ObstructedAdvectionDiffusionOEDBenchmark,
+    build_obstructed_advection_diffusion_oed_benchmark,
 )
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
@@ -92,7 +92,7 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(bkd)
+benchmark  = build_obstructed_advection_diffusion_oed_benchmark(bkd)
 obs_model  = benchmark.obs_map()
 pred_model = benchmark.qoi_map()
 prior      = benchmark.prior()
