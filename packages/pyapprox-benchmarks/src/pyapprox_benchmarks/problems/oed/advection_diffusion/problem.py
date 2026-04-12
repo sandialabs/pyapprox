@@ -258,6 +258,14 @@ class AdvectionDiffusionOEDProblem(
         # Target subdomain: x >= 5/7 (hard-coded)
         self._target_threshold = 5.0 / 7.0
 
+        # Shared probes-matrix cache for the ADR basis. Keyed by
+        # the number of evaluation points (e.g. nelem*nquad for
+        # assembly). Both the velocity callable and the forcing
+        # interpolator draw from this cache to avoid the expensive
+        # element-finder + basis-evaluation path in skfem's
+        # CellBasis.probes() on every time step / Newton iteration.
+        self._adr_probes_cache: Dict[int, Any] = {}
+
         # Create FunctionProtocol wrappers. Using bound methods here
         # (rather than local closures) is what makes the inference
         # problem and the owning problem picklable.
@@ -366,21 +374,32 @@ class AdvectionDiffusionOEDProblem(
 
         vel_callable = _extract_velocity_callable(
             sol, stokes, vel_basis, pres_basis, self._adr_basis, bkd,
+            probes_cache=self._adr_probes_cache,
         )
 
         kle_coeffs = bkd.asarray(np.asarray(kle_params).ravel())
         kle_vals = self._kle_map(kle_coeffs)
         kle_nodal = bkd.to_numpy(kle_vals)
 
-        adr_skfem = self._adr_basis.skfem_basis()
         forcing_func: Optional[Callable[..., np.ndarray]]
         if self._source_mode == "forcing":
-            forcing_interp = adr_skfem.interpolator(kle_nodal)
+            adr_skfem = self._adr_basis.skfem_basis()
+            probes_cache = self._adr_probes_cache
 
             def forcing_func(
                 x: np.ndarray, time: float = 0.0,
             ) -> np.ndarray:
-                return np.asarray(forcing_interp(x))
+                shape = None
+                if len(x.shape) > 2:
+                    shape = x.shape
+                    x = x.reshape(x.shape[0], -1)
+                npts = x.shape[1]
+                if npts not in probes_cache:
+                    probes_cache[npts] = adr_skfem.probes(x).tocsr()
+                out = probes_cache[npts] @ kle_nodal
+                if shape is not None:
+                    return out.reshape(*shape[1:])
+                return out
         else:
             forcing_func = None
 

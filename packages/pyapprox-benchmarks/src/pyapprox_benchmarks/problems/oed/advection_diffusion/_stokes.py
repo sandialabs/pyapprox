@@ -18,7 +18,7 @@ No KLE, no OED state, no inference plumbing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, List, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
@@ -132,6 +132,7 @@ def _extract_velocity_callable(
     pres_basis: "LagrangeBasis[Array]",
     adr_basis: "LagrangeBasis[Array]",
     bkd: Backend[Array],
+    probes_cache: Optional[Dict[int, Any]] = None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Extract velocity from Stokes solution as a callable on the ADR mesh.
 
@@ -139,6 +140,15 @@ def _extract_velocity_callable(
     returns velocity of shape ``(2, ...)``, preserving any extra
     dimensions (e.g., quadrature-point structure from skfem:
     ``(2, nqpts, nelem)``).
+
+    Parameters
+    ----------
+    probes_cache
+        Shared ``{npts: probes_csr}`` dict. If provided, the returned
+        callable stores and retrieves the skfem ``probes`` sparse
+        matrix here instead of in a private dict. Pass the same cache
+        to the forcing interpolator so the expensive element-finder is
+        run at most once per distinct point count.
     """
     vel_ndofs = stokes.vel_ndofs()
     vel_state_np = bkd.to_numpy(sol[:vel_ndofs])
@@ -158,19 +168,28 @@ def _extract_velocity_callable(
         intorder=4,
     )
 
+    # Interpolate Stokes velocity onto ADR DOF locations (done once).
     adr_skfem = adr_basis.skfem_basis()
-    vel_x_interp = adr_skfem.interpolator(
-        scalar_vel_basis.interpolator(vel_x)(adr_skfem.doflocs)
-    )
-    vel_y_interp = adr_skfem.interpolator(
-        scalar_vel_basis.interpolator(vel_y)(adr_skfem.doflocs)
-    )
+    vel_x_at_dofs = scalar_vel_basis.interpolator(vel_x)(adr_skfem.doflocs)
+    vel_y_at_dofs = scalar_vel_basis.interpolator(vel_y)(adr_skfem.doflocs)
+
+    # Probes-matrix cache: keyed by number of evaluation points.
+    # The matrix depends only on the mesh and the evaluation points
+    # (quadrature coords), which are identical across all time steps
+    # and Newton iterations for a given basis.
+    cache: Dict[int, Any] = probes_cache if probes_cache is not None else {}
 
     def velocity_field(x: np.ndarray) -> np.ndarray:
         orig_shape = x.shape[1:]
         x_flat = x.reshape(2, -1)
-        vx = vel_x_interp(x_flat).reshape(orig_shape)
-        vy = vel_y_interp(x_flat).reshape(orig_shape)
+        npts = x_flat.shape[1]
+
+        if npts not in cache:
+            cache[npts] = adr_skfem.probes(x_flat).tocsr()
+
+        probes_csr = cache[npts]
+        vx = (probes_csr @ vel_x_at_dofs).reshape(orig_shape)
+        vy = (probes_csr @ vel_y_at_dofs).reshape(orig_shape)
         return np.stack([vx, vy], axis=0)
 
     return velocity_field
