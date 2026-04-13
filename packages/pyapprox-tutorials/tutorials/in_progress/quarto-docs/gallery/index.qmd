@@ -44,12 +44,11 @@ All examples can be run directly as Python scripts or integrated into your own c
 ### Prerequisites
 
 ```bash
-# Install with plotting dependencies
-pip install pyapprox[typing]
-pip install matplotlib
-
-# For PyTorch examples
-pip install torch
+# Install all three monorepo packages
+pip install \
+    "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \
+    "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \
+    "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"
 ```
 
 ### Running an Example

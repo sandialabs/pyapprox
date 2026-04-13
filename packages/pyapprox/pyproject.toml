@@ -37,17 +37,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Runtime extras (each installable standalone)
 fem = ["scikit-fem>=9.0"]
 umbridge = ["umbridge>=0.7"]
 numba = ["numba>=0.58", "numpy<2.3"]
 parallel = ["joblib>=1.3", "mpire>=2.8"]
 cvxpy = ["cvxpy>=1.4"]
+# All PyPI-clean runtime extras (no lint, no rol, no test/docs tooling)
+runtime-extras = ["pyapprox[fem,umbridge,numba,parallel,cvxpy]"]
+# Isolated — requires manual Trilinos ROL build, never in any rollup
 rol = ["rol-python"]
-test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2", "pyapprox-benchmarks"]
+# Test infrastructure (no pyapprox-benchmarks — cycle broken by test relocation)
+test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2"]
 lint = ["mypy>=1.8", "ruff>=0.3", "import-linter>=2.0"]
 docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
 docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy]"]
-all = ["pyapprox[docs-build,rol,test,lint]"]
+# Developer rollup: all runtime extras + lint + test + docs
+dev = ["pyapprox[runtime-extras,lint,test,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/sandialabs/pyapprox"

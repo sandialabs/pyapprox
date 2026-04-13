@@ -62,32 +62,46 @@ approx_values = surrogate(test_pts)
 
 ## Requirements
 
-- Python >= 3.10
-- NumPy >= 2.0, SciPy >= 1.11, PyTorch >= 2.5
+- Python >= 3.11
+- NumPy >= 2.0, SciPy >= 1.11, PyTorch >= 2.0
 - matplotlib, sympy, networkx
 
 ## Installation
+
+PyApprox lives in a monorepo with three packages (`pyapprox`,
+`pyapprox-benchmarks`, `pyapprox-tutorials`). Until the monorepo is
+published to PyPI, install from source or directly from GitHub.
 
 ### From source (recommended for development)
 
 ```bash
 git clone https://github.com/sandialabs/pyapprox.git
 cd pyapprox
-pip install -e ".[test]"
+make install-dev
 ```
 
-### Optional dependency groups
+This installs all three packages in editable mode with full dev tooling
+via the `[dev]` extra (tests, docs, linters, plus the runtime extras
+`fem`, `umbridge`, `numba`, `parallel`, `cvxpy`).
+
+### Latest from GitHub (no clone)
 
 ```bash
-pip install -e ".[fem]"       # Finite element (scikit-fem)
-pip install -e ".[umbridge]"  # UMBridge model interface
-pip install -e ".[numba]"     # Numba JIT acceleration
-pip install -e ".[parallel]"  # Parallel execution (joblib, mpire)
-pip install -e ".[cvxpy]"     # Convex optimization
-pip install -e ".[test]"      # Testing tools
-pip install -e ".[lint]"      # Linting (mypy, ruff)
-pip install -e ".[docs]"      # Documentation (quarto)
-pip install -e ".[all]"       # Everything
+pip install \
+    "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \
+    "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \
+    "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"
+```
+
+### Runtime extras
+
+```bash
+pip install -e "packages/pyapprox[fem]"             # Finite element (scikit-fem)
+pip install -e "packages/pyapprox[umbridge]"        # UMBridge model interface
+pip install -e "packages/pyapprox[numba]"           # Numba JIT acceleration
+pip install -e "packages/pyapprox[parallel]"        # Parallel execution
+pip install -e "packages/pyapprox[cvxpy]"           # Convex optimization
+pip install -e "packages/pyapprox[runtime-extras]"  # All the above
 ```
 
 ### Using conda
@@ -95,38 +109,33 @@ pip install -e ".[all]"       # Everything
 ```bash
 conda env create -f environment.yml
 conda activate pyapprox
-pip install -e .
+make install-dev
 ```
 
 ## Running Tests
 
+Tests are split across three directories:
+
+| Directory | What it tests | Requires |
+|-----------|---------------|----------|
+| `packages/pyapprox/tests/` | Core pyapprox library | `pyapprox[test]` only |
+| `packages/pyapprox-benchmarks/tests/` | Benchmark functions | `pyapprox-benchmarks` |
+| `tests/integration/` | Cross-package interactions | `pyapprox-benchmarks` |
+
 ```bash
-pytest pyapprox -v --tb=short
+make test              # all tests (core + benchmarks + integration)
+make test-core         # core tests only (no pyapprox-benchmarks needed)
+make test-all          # all tests including slowest
 ```
 
-The `-v` flag enables verbose output and `--tb=short` abbreviates tracebacks on failures for readability.
+`make install-dev` installs everything needed for all test directories.
 
-Some tests are marked as slow and are skipped by default. To include them:
-
-```bash
-PYAPPROX_RUN_SLOW=1 pytest pyapprox -v --tb=short          # include slow tests (>5s)
-PYAPPROX_RUN_SLOWER=1 pytest pyapprox -v --tb=short         # include slower tests (>30s)
-PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short        # include all tests
-```
-
-To run *only* a specific tier (skipping fast and other tiers), combine the environment variable with `-m`:
+Some tests are marked as slow and are skipped by default:
 
 ```bash
-PYAPPROX_RUN_SLOW=1 pytest pyapprox -v --tb=short -m slow       # only @slow_test
-PYAPPROX_RUN_SLOWER=1 pytest pyapprox -v --tb=short -m slower    # only @slower_test
-PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short -m slowest  # only @slowest_test
-```
-
-To run tests in parallel (requires `pytest-xdist`):
-
-```bash
-pytest pyapprox -v --tb=short -n auto    # use all CPUs
-pytest pyapprox -v --tb=short -n 4       # use 4 workers
+PYAPPROX_RUN_SLOW=1 pytest -v --tb=short           # include slow tests (>5s)
+PYAPPROX_RUN_SLOWER=1 pytest -v --tb=short          # include slower tests (>30s)
+PYAPPROX_RUN_SLOWEST=1 pytest -v --tb=short         # include all tests
 ```
 
 ## Building Documentation
@@ -134,24 +143,26 @@ pytest pyapprox -v --tb=short -n 4       # use 4 workers
 The tutorial site is built with [Quarto](https://quarto.org/). Install it, then:
 
 ```bash
-cd tutorials
-./build.sh                    # build with cached results (freeze)
-./build.sh --execute          # force re-execute all code
-./build.sh --no-execute       # skip execution, use cache only
-./build.sh -j auto            # parallel execution (auto-detect CPUs)
-./build.sh -j 4               # parallel execution with 4 workers
-./build.sh --notebooks        # also generate downloadable .ipynb files
-./build.sh --serve            # start local server after build
-./build.sh --skip=pacv_usage  # skip a specific tutorial
+make docs                     # build with parallel execution
+make docs-serve               # build and serve locally
 ```
 
-Output is written to `tutorials/library/_site/`.
+Or manually:
+
+```bash
+cd packages/pyapprox-tutorials/tutorials
+./build.sh -j auto            # parallel execution (auto-detect CPUs)
+./build.sh --notebooks        # also generate downloadable .ipynb files
+./build.sh --serve            # start local server after build
+```
+
+Output is written to `packages/pyapprox-tutorials/tutorials/library/_site/`.
 
 ## Linting
 
 ```bash
-ruff check pyapprox/          # style and import checks
-mypy pyapprox/                # static type checking
+make lint                     # ruff style and import checks
+make typecheck                # mypy static type checking
 ```
 
 ## Contributing
@@ -159,8 +170,8 @@ mypy pyapprox/                # static type checking
 Contributions are welcome. Please:
 
 1. Fork the repository and create a feature branch
-2. Ensure all tests pass (including slow): `PYAPPROX_RUN_SLOWEST=1 pytest pyapprox -v --tb=short`
-3. Ensure no lint errors: `ruff check pyapprox/`
+2. Ensure all tests pass (including slow): `PYAPPROX_RUN_SLOWEST=1 make test-all`
+3. Ensure no lint errors: `make lint`
 4. Submit a pull request
 
 ## Citation

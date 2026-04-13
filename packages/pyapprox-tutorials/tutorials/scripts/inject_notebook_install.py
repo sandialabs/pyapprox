@@ -14,12 +14,16 @@ from pathlib import Path
 
 INSTALL_SOURCE = [
     "# Run this cell if using Google Colab or if pyapprox is not installed locally\n",
+    "# Installs the latest version from GitHub main branch.\n",
     "try:\n",
     "    import pyapprox\n",
+    "    import pyapprox_benchmarks\n",
+    "    import pyapprox_tutorials\n",
     "except ImportError:\n",
-    '    !pip install "pyapprox[all]" -q\n',
-    "    # If the PyPI install fails, uncomment the line below to install from source:\n",
-    '    # !pip install "pyapprox[all] @ git+https://github.com/sandialabs/pyapprox.git" -q',
+    "    !pip install -q \\\n",
+    '        "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \\\n',
+    '        "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \\\n',
+    '        "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"\n',
 ]
 
 

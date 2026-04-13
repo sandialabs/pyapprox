@@ -2,9 +2,18 @@
 # Package build configs live in packages/*/pyproject.toml.
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [
+    "packages/pyapprox/tests",
+    "packages/pyapprox-benchmarks/tests",
+    "tests/integration",
+]
 addopts = ["--import-mode=importlib"]
-pythonpath = ["packages/pyapprox/src", "packages/pyapprox-benchmarks/src", "packages/pyapprox-tutorials/src"]
+pythonpath = [
+    ".",
+    "packages/pyapprox/src",
+    "packages/pyapprox-benchmarks/src",
+    "packages/pyapprox-tutorials/src",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:scipy.*:",
     "ignore::DeprecationWarning:torch.*:",

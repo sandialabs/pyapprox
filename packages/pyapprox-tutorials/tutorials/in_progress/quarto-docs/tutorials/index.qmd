@@ -11,7 +11,7 @@ These tutorials provide hands-on introductions to the PyApprox Typing Module, fr
 ## Prerequisites
 
 - Python 3.8+
-- PyApprox installed with typing extras: `pip install pyapprox[typing]`
+- PyApprox installed: `make install-dev` (from repo) or see installation docs
 - For PyTorch backend: `pip install torch`
 :::
 

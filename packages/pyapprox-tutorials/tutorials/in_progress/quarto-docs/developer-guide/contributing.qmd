@@ -68,14 +68,8 @@ cd pyapprox
 2. Install in development mode:
 
 ```bash
-# Install with typing extras
-pip install -e .[typing]
-
-# For PyTorch support
-pip install -e .[typing,torch]
-
-# For development tools
-pip install mypy ruff pytest
+# Install all packages in editable mode with dev extras
+make install-dev
 ```
 
 ### Verify Installation

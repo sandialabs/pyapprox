@@ -41,49 +41,34 @@ This tutorial assumes you have:
 
 ## Installation
 
-### Option 1: Conda (Recommended)
+PyApprox is distributed as three sibling packages in a monorepo
+(`pyapprox`, `pyapprox-benchmarks`, `pyapprox-tutorials`). Install all
+three together to follow along with these tutorials.
 
-Create a dedicated environment for PyApprox:
+### Install the latest version from GitHub (recommended)
 
-```bash
-conda create -n pyapprox python=3.12
-conda activate pyapprox
-pip install pyapprox
-```
-
-### Option 2: Pip Only
+These tutorials always track the latest `main` branch. Install all three
+packages with:
 
 ```bash
-pip install pyapprox
+pip install \
+    "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \
+    "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \
+    "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"
 ```
 
-### Install Latest from GitHub
+### Development installation (clone the repository)
 
-To install the latest version directly from the repository:
-
-```bash
-pip install "pyapprox[all] @ git+https://github.com/sandialabs/pyapprox.git"
-```
-
-### Development Installation
-
-To clone the repository for local development or contributing:
+For local development or contributing:
 
 ```bash
 git clone https://github.com/sandialabs/pyapprox.git
 cd pyapprox
-pip install -e ".[all]"
+make install-dev
 ```
 
-Alternatively, use the provided `environment.yml` to create a fully configured conda environment with all dependencies:
-
-```bash
-git clone https://github.com/sandialabs/pyapprox.git
-cd pyapprox
-conda env create -f environment.yml
-conda activate pyapprox
-pip install -e ".[all]"
-```
+This installs all three packages in editable mode with full developer
+tooling (tests, docs, linters, fem, umbridge, etc.).
 
 ## Verifying Installation
 

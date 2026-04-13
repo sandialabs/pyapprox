@@ -25,10 +25,8 @@ Ensure you have the PyApprox environment with all dependencies:
 conda activate linalg  # or your PyApprox environment
 
 # Install pyapprox in development mode
-pip install -e /path/to/pyapprox
-
-# Required packages for tutorials
-pip install matplotlib scipy torch  # torch is optional
+cd /path/to/pyapprox
+make install-dev
 ```
 
 ### 3. Jupyter Kernel
@@ -52,7 +50,7 @@ python -m ipykernel install --user --name=linalg --display-name="Python (linalg)
 Use the `build.sh` script for common build tasks:
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
+cd /Users/jdjakem/pyapprox/packages/pyapprox-tutorials/tutorials
 
 # Full build with notebooks
 ./build.sh --notebooks
@@ -72,7 +70,7 @@ cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
 Preview a single tutorial with live reload:
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
+cd /Users/jdjakem/pyapprox/packages/pyapprox-tutorials/tutorials
 quarto preview library/monte_carlo_basics.qmd
 ```
 
@@ -83,7 +81,7 @@ This opens a browser with live updates as you edit.
 Build the complete tutorial website (library and workshops together):
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
+cd /Users/jdjakem/pyapprox/packages/pyapprox-tutorials/tutorials
 quarto render
 ```
 
@@ -236,7 +234,7 @@ The `_quarto.yml` has `freeze: auto` which caches executed code:
 ### Option 1: Manual Deployment
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
+cd /Users/jdjakem/pyapprox/packages/pyapprox-tutorials/tutorials
 quarto render
 quarto publish gh-pages --no-browser
 ```
@@ -252,7 +250,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'pyapprox/typing/tutorials/**'
+      - 'packages/pyapprox-tutorials/tutorials/**'
   workflow_dispatch:
 
 jobs:
@@ -272,25 +270,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .
-          pip install matplotlib scipy jupyter nbformat
+          pip install -e "packages/pyapprox[docs-build]" -e packages/pyapprox-benchmarks -e packages/pyapprox-tutorials
 
       - name: Setup Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
       - name: Check tutorial time limits
         run: |
-          cd pyapprox/typing/tutorials
+          cd packages/pyapprox-tutorials/tutorials
           python scripts/estimate_tutorial_time.py library/ --check
 
       - name: Render tutorials
         run: |
-          cd pyapprox/typing/tutorials
+          cd packages/pyapprox-tutorials/tutorials
           quarto render
 
       - name: Generate downloadable notebooks
         run: |
-          cd pyapprox/typing/tutorials
+          cd packages/pyapprox-tutorials/tutorials
           mkdir -p _site/library/notebooks
           for f in library/*.qmd; do
             name=$(basename "${f%.qmd}")
@@ -301,7 +298,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: pyapprox/typing/tutorials/_site
+          publish_dir: packages/pyapprox-tutorials/tutorials/_site
           destination_dir: tutorials
 ```
 
@@ -310,7 +307,7 @@ jobs:
 ## Directory Structure
 
 ```
-pyapprox/typing/tutorials/
+packages/pyapprox-tutorials/tutorials/
 ├── _quarto.yml                 # Quarto config
 ├── index.qmd                   # Main landing page
 ├── build.sh                    # Build script
@@ -352,7 +349,7 @@ python -m ipykernel install --user --name=linalg
 
 ```bash
 conda activate linalg
-pip install -e /path/to/pyapprox
+cd /path/to/pyapprox && make install-dev
 ```
 
 ### Tutorial exceeds time limits

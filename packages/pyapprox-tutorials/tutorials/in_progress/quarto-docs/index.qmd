@@ -50,11 +50,11 @@ The PyApprox Typing Module provides modern, type-safe implementations of surroga
 ### Installation
 
 ```bash
-# Install with typing extras
-pip install pyapprox[typing]
-
-# For PyTorch support
-pip install pyapprox[typing,torch]
+# Install all three monorepo packages from GitHub
+pip install \
+    "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \
+    "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \
+    "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"
 ```
 
 ### First Example
