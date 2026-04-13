@@ -7,10 +7,7 @@ benchmark functions with known ground truth values.
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.instances.sensitivity import (
-    ishigami_3d,
-    sobol_g_4d,
-)
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 from pyapprox.sensitivity import (
     MorrisSensitivityAnalysis,
     SobolSequenceSensitivityAnalysis,
@@ -26,10 +23,9 @@ class TestSampleBasedSensitivity:
 
     def test_sobol_sequence_ishigami(self, bkd):
         """Test Sobol sequence sensitivity on Ishigami function."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Create sensitivity analysis with Sobol sequence
         sa = SobolSequenceSensitivityAnalysis(prior, bkd, seed=42)
@@ -47,22 +43,23 @@ class TestSampleBasedSensitivity:
         variance = sa.variance()
 
         # Relaxed tolerances for Monte Carlo estimation
-        bkd.assert_allclose(mean, bkd.asarray([gt.mean]), rtol=0.1)
-        bkd.assert_allclose(variance, bkd.asarray([gt.variance]), rtol=0.15)
+        bkd.assert_allclose(mean, bkd.asarray([benchmark.mean()]), rtol=0.1)
+        bkd.assert_allclose(
+            variance, bkd.asarray([benchmark.variance()]), rtol=0.15,
+        )
 
         # Check main effects
         main_effects = sa.main_effects()
-        expected_main = bkd.asarray(gt.main_effects).reshape(-1, 1)
+        expected_main = benchmark.main_effects()
         # Main effects should be reasonably close to ground truth
         # Note: sample-based estimates have significant variance
         bkd.assert_allclose(main_effects, expected_main, atol=0.1)
 
     def test_sobol_sequence_sobol_g(self, bkd):
         """Test Sobol sequence sensitivity on Sobol G function."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Create sensitivity analysis
         sa = SobolSequenceSensitivityAnalysis(prior, bkd, seed=42)
@@ -77,14 +74,14 @@ class TestSampleBasedSensitivity:
 
         # Check main effects (all equal for equal importance)
         main_effects = sa.main_effects()
-        expected_main = bkd.asarray(gt.main_effects).reshape(-1, 1)
+        expected_main = benchmark.main_effects()
         bkd.assert_allclose(main_effects, expected_main, atol=0.15)
 
     def test_sample_based_nqoi(self, bkd):
         """Test multi-output sensitivity analysis."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         sa = SobolSequenceSensitivityAnalysis(prior, bkd, seed=42)
         nsamples = 1024
@@ -111,9 +108,9 @@ class TestMorrisScreening:
 
     def test_morris_ishigami(self, bkd):
         """Test Morris screening on Ishigami function."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
         # Create Morris analysis
         morris = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=bkd)
 
@@ -142,9 +139,9 @@ class TestMorrisScreening:
 
     def test_morris_sobol_g(self, bkd):
         """Test Morris screening on Sobol G function."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         morris = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=bkd)
 
@@ -165,8 +162,8 @@ class TestMorrisScreening:
 
     def test_morris_trajectory_selection(self, bkd):
         """Test Morris with trajectory downselection."""
-        benchmark = sobol_g_4d(bkd)
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        prior = benchmark.problem().prior()
 
         morris = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=bkd)
 
@@ -183,8 +180,8 @@ class TestMorrisScreening:
 
     def test_morris_nlevels_validation(self, bkd):
         """Test that nlevels must be even."""
-        benchmark = sobol_g_4d(bkd)
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        prior = benchmark.problem().prior()
 
         with pytest.raises(ValueError):
             MorrisSensitivityAnalysis(prior, nlevels=3, bkd=bkd)

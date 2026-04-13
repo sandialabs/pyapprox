@@ -64,7 +64,7 @@ def all_nonempty_subsets(n):
 
 ```{python}
 from pyapprox.probability import UniformMarginal
-from pyapprox_benchmarks import ishigami_3d
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.surrogates.functiontrain import (
     create_pce_functiontrain,
     PCEFunctionTrain,
@@ -100,10 +100,9 @@ f(x_1, x_2, x_3) = \sin(x_1) + a\sin^2(x_2) + b\,x_3^4\sin(x_1),
 $$
 
 ```{python}
-benchmark = ishigami_3d(bkd)
-func = benchmark.function()
-prior = benchmark.prior()
-gt = benchmark.ground_truth()
+benchmark = IshigamiBenchmark(bkd)
+func = benchmark.problem().function()
+prior = benchmark.problem().prior()
 marginals = prior.marginals()
 nvars = 3
 
@@ -124,8 +123,8 @@ Variable $x_3$ has zero main effect but a non-zero total effect through the
 $x_1$--$x_3$ interaction term $V_{13} = 8b^2\pi^8/225$.
 
 ```{python}
-S_exact = bkd.to_numpy(gt.main_effects).ravel()
-T_exact = bkd.to_numpy(gt.total_effects).ravel()
+S_exact = bkd.to_numpy(benchmark.main_effects()).ravel()
+T_exact = bkd.to_numpy(benchmark.total_effects()).ravel()
 ```
 
 ### Step 3: Create and Fit FunctionTrain

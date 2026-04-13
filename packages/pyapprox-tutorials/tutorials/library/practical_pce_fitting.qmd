@@ -59,7 +59,7 @@ The $x_3^4 \sin(x_1)$ interaction term makes this function challenging for polyn
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.analytic.ishigami import ishigami_3d
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
@@ -77,9 +77,9 @@ from pyapprox.surrogates.affine.expansions.crossvalidation import (
 bkd = NumpyBkd()
 ls_fitter = LeastSquaresFitter(bkd)
 
-benchmark = ishigami_3d(bkd)
-model = benchmark.function()
-prior = benchmark.prior()
+benchmark = IshigamiBenchmark(bkd)
+model = benchmark.problem().function()
+prior = benchmark.problem().prior()
 marginals = prior.marginals()
 nvars = model.nvars()
 nqoi = model.nqoi()

@@ -129,7 +129,7 @@ $$
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import ishigami_3d
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
@@ -141,15 +141,14 @@ bkd = NumpyBkd()
 np.random.seed(42)
 
 # Load benchmark
-benchmark = ishigami_3d(bkd)
-func = benchmark.function()
-prior = benchmark.prior()
-gt = benchmark.ground_truth()
+benchmark = IshigamiBenchmark(bkd)
+func = benchmark.problem().function()
+prior = benchmark.problem().prior()
 marginals = prior.marginals()
 nvars = 3
 
-gt_main = bkd.to_numpy(gt.main_effects).flatten()
-gt_total = bkd.to_numpy(gt.total_effects).flatten()
+gt_main = bkd.to_numpy(benchmark.main_effects()).flatten()
+gt_total = bkd.to_numpy(benchmark.total_effects()).flatten()
 ```
 
 ::: {.callout-important}

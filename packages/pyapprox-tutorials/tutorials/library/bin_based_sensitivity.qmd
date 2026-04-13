@@ -99,17 +99,16 @@ This ANOVA subtraction is handled automatically by `BinBasedSensitivityAnalysis`
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import ishigami_3d
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.sensitivity.variance_based import BinBasedSensitivityAnalysis
 
 bkd = NumpyBkd()
 np.random.seed(42)
 
 # Load the Ishigami benchmark
-benchmark = ishigami_3d(bkd)
-func = benchmark.function()
-prior = benchmark.prior()
-gt = benchmark.ground_truth()
+benchmark = IshigamiBenchmark(bkd)
+func = benchmark.problem().function()
+prior = benchmark.problem().prior()
 
 print(f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)")
 print(f"Domain: x_i ~ U[-pi, pi], i = 1,2,3")
@@ -144,7 +143,7 @@ for i, s in enumerate(main_effects):
     print(f"  S_{i+1} = {s:.4f}")
 
 print("\nGround truth:")
-gt_main = bkd.to_numpy(gt.main_effects).flatten()
+gt_main = bkd.to_numpy(benchmark.main_effects()).flatten()
 for i, s in enumerate(gt_main):
     print(f"  S_{i+1} = {s:.4f}")
 ```
@@ -223,7 +222,7 @@ print(f"  S_12 = {sobol_all[3]:.4f}")
 print(f"  S_13 = {sobol_all[4]:.4f}")
 print(f"  S_23 = {sobol_all[5]:.4f}")
 
-print(f"\nGround truth S_13 = {gt.sobol_indices.get((0, 2), 'N/A'):.4f}")
+print(f"\nGround truth S_13 = {benchmark.sobol_indices().get((0, 2), 'N/A'):.4f}")
 print(f"\nSum of all indices = {np.sum(sobol_all):.4f} (should be close to 1)")
 ```
 
@@ -296,8 +295,8 @@ budget of $N$ evaluations, the sample-based method can afford $N_\text{base} = \
 ```{python}
 from pyapprox.sensitivity import MonteCarloSensitivityAnalysis
 
-gt_main = bkd.to_numpy(gt.main_effects).flatten()
-gt_total = bkd.to_numpy(gt.total_effects).flatten()
+gt_main = bkd.to_numpy(benchmark.main_effects()).flatten()
+gt_total = bkd.to_numpy(benchmark.total_effects()).flatten()
 
 # Fixed budget: same total number of function evaluations
 budgets = [500, 1000, 2000, 5000, 10000]

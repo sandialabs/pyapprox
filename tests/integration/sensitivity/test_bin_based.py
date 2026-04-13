@@ -14,10 +14,7 @@ from pyapprox_benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )
-from pyapprox_benchmarks.instances.sensitivity import (
-    ishigami_3d,
-    sobol_g_4d,
-)
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 from pyapprox.probability import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.sensitivity.variance_based.bin_based import (
@@ -35,10 +32,9 @@ class TestBinBasedSensitivity:
 
     def test_main_effects_ishigami(self, bkd):
         """Test main effects on Ishigami with known ground truth."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Generate samples
         nsamples = 10000
@@ -51,16 +47,15 @@ class TestBinBasedSensitivity:
 
         # Check main effects against ground truth
         main_effects = sa.main_effects()
-        expected_main = bkd.asarray(gt.main_effects).reshape(-1, 1)
+        expected_main = benchmark.main_effects()
         # Bin-based has moderate accuracy
         bkd.assert_allclose(main_effects, expected_main, atol=0.15)
 
     def test_main_effects_sobol_g(self, bkd):
         """Test main effects on Sobol G-function."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 8000
         samples = prior.rvs(nsamples)
@@ -70,16 +65,15 @@ class TestBinBasedSensitivity:
         sa.compute(samples, values)
 
         main_effects = sa.main_effects()
-        expected_main = bkd.asarray(gt.main_effects).reshape(-1, 1)
+        expected_main = benchmark.main_effects()
         bkd.assert_allclose(main_effects, expected_main, atol=0.15)
 
     @pytest.mark.slow_on("TorchBkd")
     def test_second_order_indices_ishigami(self, bkd):
         """Test second-order Sobol indices on Ishigami."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Need more samples and tuned bins for accurate 2nd order estimation
         nsamples = 50000
@@ -93,7 +87,7 @@ class TestBinBasedSensitivity:
         sobol = sa.sobol_indices()
         # Ishigami has significant S_13 (x1*x3 interaction)
         # Ground truth S_13 is at key (0, 2) in sobol_dict
-        expected_s13 = gt.sobol_indices[(0, 2)]
+        expected_s13 = benchmark.sobol_indices()[(0, 2)]
 
         # Find S_13 index in the interaction terms
         interaction_terms = sa.interaction_terms()
@@ -117,9 +111,9 @@ class TestBinBasedSensitivity:
 
     def test_third_order_indices(self, bkd):
         """Test third-order Sobol indices."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 20000
         samples = prior.rvs(nsamples)
@@ -141,9 +135,9 @@ class TestBinBasedSensitivity:
 
     def test_multi_qoi(self, bkd):
         """Test with multiple quantities of interest."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 5000
         samples = prior.rvs(nsamples)
@@ -161,9 +155,9 @@ class TestBinBasedSensitivity:
 
     def test_custom_nbins(self, bkd):
         """Test with explicitly specified number of bins."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 5000
         samples = prior.rvs(nsamples)
@@ -178,8 +172,8 @@ class TestBinBasedSensitivity:
 
     def test_adaptive_nbins(self, bkd):
         """Test adaptive bin count formula."""
-        benchmark = sobol_g_4d(bkd)
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        prior = benchmark.problem().prior()
 
         sa = BinBasedSensitivityAnalysis(prior, bkd)
 
@@ -201,9 +195,9 @@ class TestBinBasedSensitivity:
     @pytest.mark.slower_on("TorchBkd")
     def test_bootstrap_uncertainty(self, bkd):
         """Test bootstrap uncertainty quantification."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 3000
         samples = prior.rvs(nsamples)
@@ -232,9 +226,9 @@ class TestBinBasedSensitivity:
 
     def test_eps_parameter(self, bkd):
         """Test eps parameter for unbounded distributions."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 5000
         samples = prior.rvs(nsamples)
@@ -250,8 +244,8 @@ class TestBinBasedSensitivity:
 
     def test_raises_before_compute(self, bkd):
         """Test that accessing results before compute() raises error."""
-        benchmark = sobol_g_4d(bkd)
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        prior = benchmark.problem().prior()
 
         sa = BinBasedSensitivityAnalysis(prior, bkd)
 
@@ -268,9 +262,9 @@ class TestBinBasedSensitivity:
 
     def test_no_total_effects(self, bkd):
         """Test that total_effects() raises NotImplementedError."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 1000
         samples = prior.rvs(nsamples)
@@ -284,9 +278,9 @@ class TestBinBasedSensitivity:
 
     def test_clip_negative(self, bkd):
         """Test negative index clipping."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Use small sample size where negative indices might occur
         nsamples = 500
@@ -306,9 +300,9 @@ class TestBinBasedSensitivity:
 
     def test_sparse_cell_warning(self, bkd):
         """Test warning when many cells are empty."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         # Use very few samples with many bins to trigger warning
         nsamples = 100
@@ -332,10 +326,9 @@ class TestBinBasedSensitivity:
     @pytest.mark.slow_on("TorchBkd")
     def test_mean_and_variance(self, bkd):
         """Test mean and variance computation."""
-        benchmark = ishigami_3d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
-        gt = benchmark.ground_truth()
+        benchmark = IshigamiBenchmark(bkd)
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         nsamples = 10000
         samples = prior.rvs(nsamples)
@@ -347,14 +340,16 @@ class TestBinBasedSensitivity:
         mean = sa.mean()
         variance = sa.variance()
 
-        bkd.assert_allclose(mean, bkd.asarray([gt.mean]), rtol=0.1)
-        bkd.assert_allclose(variance, bkd.asarray([gt.variance]), rtol=0.15)
+        bkd.assert_allclose(mean, bkd.asarray([benchmark.mean()]), rtol=0.1)
+        bkd.assert_allclose(
+            variance, bkd.asarray([benchmark.variance()]), rtol=0.15,
+        )
 
     def test_input_validation(self, bkd):
         """Test input validation."""
-        benchmark = sobol_g_4d(bkd)
-        func = benchmark.function()
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        func = benchmark.problem().function()
+        prior = benchmark.problem().prior()
 
         samples = prior.rvs(100)
         values = func(samples)
@@ -375,8 +370,8 @@ class TestBinBasedSensitivity:
 
     def test_repr(self, bkd):
         """Test string representation."""
-        benchmark = sobol_g_4d(bkd)
-        prior = benchmark.prior()
+        benchmark = SobolGBenchmark(bkd, a=[0.0, 0.0, 0.0, 0.0])
+        prior = benchmark.problem().prior()
 
         sa = BinBasedSensitivityAnalysis(prior, bkd, nbins=[10, 5], eps=0.01)
         repr_str = repr(sa)

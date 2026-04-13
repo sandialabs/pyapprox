@@ -86,15 +86,15 @@ We use the Ishigami function, which has three variables with distinct roles:
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import ishigami_3d
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.sensitivity import MorrisSensitivityAnalysis
 
 bkd = NumpyBkd()
 np.random.seed(42)
 
-benchmark = ishigami_3d(bkd)
-func = benchmark.function()
-prior = benchmark.prior()
+benchmark = IshigamiBenchmark(bkd)
+func = benchmark.problem().function()
+prior = benchmark.problem().prior()
 
 print(f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)")
 print(f"Domain: x_i ~ U[-pi, pi], i = 1,2,3")
@@ -201,8 +201,7 @@ The optimized trajectories reduce variability in the estimates by ensuring bette
 Morris screening provides rankings, not precise indices. Let's verify that the Morris rankings agree with the Sobol ground truth.
 
 ```{python}
-gt = benchmark.ground_truth()
-gt_total = bkd.to_numpy(gt.total_effects).flatten()
+gt_total = bkd.to_numpy(benchmark.total_effects()).flatten()
 
 # Rank by mu* (Morris) and total effect (Sobol)
 morris_rank = np.argsort(mu_star)[::-1]
