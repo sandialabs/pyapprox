@@ -9,7 +9,7 @@ Tests verify:
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
 from pyapprox.expdesign.data import generate_oed_data

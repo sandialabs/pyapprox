@@ -13,22 +13,18 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign import create_prediction_oed_objective
-from pyapprox_benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
-from pyapprox_benchmarks.instances.oed.linear_gaussian_pred import (
+from pyapprox_benchmarks.expdesign.linear_gaussian_pred import (
     LinearGaussianPredOEDBenchmark,
     build_linear_gaussian_pred_benchmark,
 )
-from pyapprox_benchmarks.instances.oed.nonlinear_gaussian import (
+from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
     NonLinearGaussianPredOEDBenchmark,
     build_nonlinear_gaussian_pred_benchmark,
 )
 from pyapprox.expdesign.data import generate_oed_data
-from pyapprox.expdesign.diagnostics import (
-    compute_exact_prediction_utility,
-    get_utility_factory,
-)
 from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
     create_prediction_oed_diagnostics,
 )
@@ -367,18 +363,10 @@ class TestNonLinearPredictionOEDConvergence:
     ) -> None:
         """Exact lognormal expected std dev utility is positive."""
         benchmark = self._create_benchmark(bkd)
-        config = get_utility_factory("nonlinear_mean_mean_stdev")
-        exact_cls, exact_args = config.exact_cls, config.exact_args
-
         weights = bkd.ones((2, 1)) / 2
-        exact = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            exact_cls, exact_args, bkd,
+
+        exact = benchmark.exact_risk_utility(
+            weights, "nonlinear_mean_mean_stdev",
         )
 
         assert exact > 0.0
@@ -389,20 +377,10 @@ class TestNonLinearPredictionOEDConvergence:
     ) -> None:
         """Exact lognormal AVaR std dev utility is positive."""
         benchmark = self._create_benchmark(bkd)
-        config = get_utility_factory(
-            "nonlinear_avar_mean_stdev", beta=0.5,
-        )
-        exact_cls, exact_args = config.exact_cls, config.exact_args
-
         weights = bkd.ones((2, 1)) / 2
-        exact = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            exact_cls, exact_args, bkd,
+
+        exact = benchmark.exact_risk_utility(
+            weights, "nonlinear_avar_mean_stdev", beta=0.5,
         )
 
         assert exact > 0.0
@@ -415,32 +393,11 @@ class TestNonLinearPredictionOEDConvergence:
         benchmark = self._create_benchmark(bkd)
         weights = bkd.ones((2, 1)) / 2
 
-        config_low = get_utility_factory(
-            "nonlinear_avar_mean_stdev", beta=0.3,
+        exact_low = benchmark.exact_risk_utility(
+            weights, "nonlinear_avar_mean_stdev", beta=0.3,
         )
-        cls_low, args_low = config_low.exact_cls, config_low.exact_args
-        config_high = get_utility_factory(
-            "nonlinear_avar_mean_stdev", beta=0.7,
-        )
-        cls_high, args_high = config_high.exact_cls, config_high.exact_args
-
-        exact_low = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            cls_low, args_low, bkd,
-        )
-        exact_high = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            cls_high, args_high, bkd,
+        exact_high = benchmark.exact_risk_utility(
+            weights, "nonlinear_avar_mean_stdev", beta=0.7,
         )
 
         assert exact_high > exact_low
@@ -453,18 +410,9 @@ class TestNonLinearPredictionOEDConvergence:
         nobs = 2
         noise_std = 0.5
 
-        config = get_utility_factory("nonlinear_mean_mean_stdev")
-        exact_cls, exact_args = config.exact_cls, config.exact_args
         weights = bkd.ones((2, 1)) / 2
-
-        exact = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            exact_cls, exact_args, bkd,
+        exact = benchmark.exact_risk_utility(
+            weights, "nonlinear_mean_mean_stdev",
         )
 
         noise_variances = bkd.full((nobs,), noise_std**2)
@@ -492,29 +440,15 @@ class TestNonLinearPredictionOEDConvergence:
     ) -> None:
         """Different weights give different exact utilities."""
         benchmark = self._create_benchmark(bkd)
-        config = get_utility_factory("nonlinear_mean_mean_stdev")
-        exact_cls, exact_args = config.exact_cls, config.exact_args
 
         weights_uniform = bkd.ones((2, 1)) / 2
         weights_high = bkd.ones((2, 1)) * 2.0
 
-        exact_uniform = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights_uniform,
-            exact_cls, exact_args, bkd,
+        exact_uniform = benchmark.exact_risk_utility(
+            weights_uniform, "nonlinear_mean_mean_stdev",
         )
-        exact_high = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights_high,
-            exact_cls, exact_args, bkd,
+        exact_high = benchmark.exact_risk_utility(
+            weights_high, "nonlinear_mean_mean_stdev",
         )
 
         assert exact_high < exact_uniform
@@ -562,17 +496,9 @@ class TestLinearPredictionOEDNewCombinations:
         noise_std = 0.5
         beta = 0.5
 
-        config = get_utility_factory("linear_mean_avar_stdev", beta=beta)
         weights = bkd.ones((nobs, 1)) / nobs
-
-        exact = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            config.exact_cls, config.exact_args, bkd,
+        exact = benchmark.exact_risk_utility(
+            weights, "linear_mean_avar_stdev", beta=beta,
         )
 
         assert exact > 0.0
@@ -603,32 +529,15 @@ class TestLinearPredictionOEDNewCombinations:
         """For npred=1, AVaR risk of stdev approx equals mean risk of stdev."""
         benchmark = self._create_linear_benchmark(bkd, npred=1)
         nobs = 2
-        noise_std = 0.5
         beta = 0.5
 
-        config_mean = get_utility_factory("linear_mean_mean_stdev")
-        config_avar = get_utility_factory(
-            "linear_mean_avar_stdev", beta=beta,
-        )
         weights = bkd.ones((nobs, 1)) / nobs
 
-        exact_mean = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            config_mean.exact_cls, config_mean.exact_args, bkd,
+        exact_mean = benchmark.exact_risk_utility(
+            weights, "linear_mean_mean_stdev",
         )
-        exact_avar = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            config_avar.exact_cls, config_avar.exact_args, bkd,
+        exact_avar = benchmark.exact_risk_utility(
+            weights, "linear_mean_avar_stdev", beta=beta,
         )
 
         # With npred=1, AVaR of a single value should approximate that value.
@@ -648,19 +557,9 @@ class TestLinearPredictionOEDNewCombinations:
         noise_std = 0.5
         lamda = 0.5
 
-        config = get_utility_factory(
-            "linear_mean_mean_entropic", lamda=lamda,
-        )
         weights = bkd.ones((nobs, 1)) / nobs
-
-        exact = compute_exact_prediction_utility(
-            benchmark.problem().prior_mean(),
-            benchmark.problem().prior_covariance(),
-            benchmark.design_matrix(),
-            benchmark.qoi_matrix(),
-            benchmark.noise_var(),
-            weights,
-            config.exact_cls, config.exact_args, bkd,
+        exact = benchmark.exact_risk_utility(
+            weights, "linear_mean_mean_entropic", lamda=lamda,
         )
 
         assert exact > 0.0

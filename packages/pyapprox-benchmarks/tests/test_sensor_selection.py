@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.instances.oed.sensor_selection import (
+from pyapprox_benchmarks.expdesign.sensor_selection import (
     get_feasible_mask,
     select_maximin_locations,
     select_qoi_locations,

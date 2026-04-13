@@ -9,16 +9,14 @@ Polynomial regression problem where:
 
 from __future__ import annotations
 
-from typing import Generic
+from typing import Callable, Generic
 
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
 )
 from pyapprox_benchmarks.problems.inverse import (
     build_linear_gaussian_inference_problem,
 )
-from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox_benchmarks.problems.oed import KLOEDProblem
 from pyapprox.expdesign.utils import compute_exact_eig
 from pyapprox.util.backends.protocols import Array, Backend
@@ -27,15 +25,14 @@ from pyapprox.util.backends.protocols import Array, Backend
 class LinearGaussianKLOEDBenchmark(Generic[Array]):
     """Fixed KL-OED benchmark with analytical EIG.
 
-    Composes a KLOEDProblem + OEDGroundTruth. Access inference details
-    via ``benchmark.problem()``.
+    Access inference details via ``benchmark.problem()``.
 
     Parameters
     ----------
     problem : KLOEDProblem[Array]
         The OED problem.
-    ground_truth : OEDGroundTruth
-        Ground truth with exact_eig callable.
+    exact_eig_fn : callable
+        Callable computing exact EIG from weights.
     bkd : Backend[Array]
         Computational backend.
     noise_std : float
@@ -44,16 +41,14 @@ class LinearGaussianKLOEDBenchmark(Generic[Array]):
         Prior standard deviation (benchmark configuration).
     design_matrix : Array
         Design matrix A. Shape: (nobs, nparams).
-        TODO: move to problem once maps expose their matrices.
     obs_locations : Array
         Observation locations. Shape: (nobs,).
-        TODO: move to problem once design_conditions generalizes.
     """
 
     def __init__(
         self,
         problem: KLOEDProblem[Array],
-        ground_truth: OEDGroundTruth,
+        exact_eig_fn: Callable[[Array], float],
         bkd: Backend[Array],
         noise_std: float,
         prior_std: float,
@@ -61,7 +56,7 @@ class LinearGaussianKLOEDBenchmark(Generic[Array]):
         obs_locations: Array,
     ) -> None:
         self._problem = problem
-        self._ground_truth = ground_truth
+        self._exact_eig_fn = exact_eig_fn
         self._bkd = bkd
         self._noise_std = noise_std
         self._prior_std = prior_std
@@ -76,14 +71,9 @@ class LinearGaussianKLOEDBenchmark(Generic[Array]):
         """Get the OED problem."""
         return self._problem
 
-    def ground_truth(self) -> OEDGroundTruth:
-        """Get the ground truth."""
-        return self._ground_truth
-
     def exact_eig(self, weights: Array) -> float:
-        """Compute exact EIG (delegates to ground truth)."""
-        assert self._ground_truth.exact_eig is not None
-        return self._ground_truth.exact_eig(weights)
+        """Compute exact EIG for the given design weights."""
+        return self._exact_eig_fn(weights)
 
     def d_optimal_objective(self, weights: Array) -> float:
         """D-optimal objective (negative EIG)."""
@@ -155,23 +145,8 @@ def build_linear_gaussian_kl_benchmark(
     design_matrix = _build_vandermonde(obs_locations, min_degree, degree, bkd)
     conditions = bkd.reshape(obs_locations, (nobs, 1))
     problem = KLOEDProblem(inference, conditions, bkd)
-    ground_truth = OEDGroundTruth(
-        exact_eig=lambda w: compute_exact_eig(problem, w)
-    )
+    exact_eig_fn = lambda w: compute_exact_eig(problem, w)  # noqa: E731
     return LinearGaussianKLOEDBenchmark(
-        problem, ground_truth, bkd, noise_std, prior_std,
+        problem, exact_eig_fn, bkd, noise_std, prior_std,
         design_matrix, obs_locations,
-    )
-
-
-@BenchmarkRegistry.register(
-    "linear_gaussian_kl_oed",
-    category="oed",
-    description="Linear Gaussian KL-OED benchmark with analytical EIG",
-)
-def _linear_gaussian_kl_oed_factory(
-    bkd: Backend[Array],
-) -> LinearGaussianKLOEDBenchmark[Array]:
-    return build_linear_gaussian_kl_benchmark(
-        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, bkd=bkd,
     )

@@ -24,7 +24,7 @@ from pyapprox.expdesign.solver import (
     solve_prediction_oed,
 )
 from pyapprox.util.sampling.halton import HaltonSampler
-from pyapprox_benchmarks.instances.oed.nonlinear_gaussian import (
+from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
     build_nonlinear_gaussian_pred_benchmark,
 )
 

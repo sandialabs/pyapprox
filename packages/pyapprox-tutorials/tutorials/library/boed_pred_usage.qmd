@@ -68,7 +68,7 @@ from the inner loop dominates, unlike the EIG estimator.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.oed.linear_gaussian_pred import (
+from pyapprox_benchmarks.expdesign.linear_gaussian_pred import (
     build_linear_gaussian_pred_benchmark,
 )
 from pyapprox.expdesign.data import generate_oed_data
@@ -76,8 +76,6 @@ from pyapprox.expdesign.diagnostics import (
     PredictionOEDDiagnostics,
     compute_convergence_rate,
     compute_estimator_mse,
-    compute_exact_prediction_utility,
-    get_utility_factory,
 )
 from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
     create_prediction_oed_diagnostics,
@@ -133,20 +131,7 @@ def make_mc_sampler(seed):
 ## Analytical Reference Value
 
 ```{python}
-config = get_utility_factory("linear_mean_mean_stdev")
-exact_cls, exact_args = config.exact_cls, config.exact_args
-
-exact = compute_exact_prediction_utility(
-    problem.prior_mean(),
-    problem.prior_covariance(),
-    benchmark.design_matrix(),
-    benchmark.qoi_matrix(),
-    noise_std**2,
-    weights,
-    exact_cls,
-    exact_args,
-    bkd,
-)
+exact = benchmark.exact_risk_utility(weights, "linear_mean_mean_stdev")
 ```
 
 A single numerical estimate:
@@ -243,18 +228,8 @@ diagnostics_avar = create_prediction_oed_diagnostics(
     noise_variances, npred, "linear_avar_mean_avar", bkd, beta=0.9,
 )
 
-config_avar = get_utility_factory("linear_avar_mean_avar", beta=0.9)
-exact_cls_avar, exact_args_avar = config_avar.exact_cls, config_avar.exact_args
-exact_avar = compute_exact_prediction_utility(
-    benchmark.problem().prior_mean(),
-    benchmark.problem().prior_covariance(),
-    benchmark.design_matrix(),
-    benchmark.qoi_matrix(),
-    noise_std**2,
-    weights,
-    exact_cls_avar,
-    exact_args_avar,
-    bkd,
+exact_avar = benchmark.exact_risk_utility(
+    weights, "linear_avar_mean_avar", beta=0.9,
 )
 ```
 

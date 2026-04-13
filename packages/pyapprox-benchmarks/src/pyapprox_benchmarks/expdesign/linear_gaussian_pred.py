@@ -5,9 +5,8 @@ The QoI is Gaussian, enabling analytical utility computation via
 conjugate Gaussian formulas.
 """
 
-from typing import Generic
+from typing import Any, Generic
 
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
     build_linear_qoi_map,
@@ -15,23 +14,26 @@ from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
 from pyapprox_benchmarks.problems.inverse import (
     build_linear_gaussian_inference_problem,
 )
-from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
+from pyapprox.expdesign.diagnostics import (
+    compute_exact_prediction_utility,
+    get_utility_factory,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearGaussianPredOEDBenchmark(Generic[Array]):
     """Fixed prediction OED benchmark with linear QoI: qoi = B @ theta.
 
-    Composes PredictionOEDProblem + OEDGroundTruth. Access inference
-    details via ``benchmark.problem()``.
+    Ground truth: exact prediction utility via conjugate Gaussian
+    formulas. Access via ``exact_risk_utility()``.
+
+    Access inference details via ``benchmark.problem()``.
 
     Parameters
     ----------
     problem : PredictionOEDProblem[Array]
         The prediction OED problem.
-    ground_truth : OEDGroundTruth
-        Ground truth (may have exact_utility).
     bkd : Backend[Array]
         Computational backend.
     noise_std : float
@@ -40,10 +42,8 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
         Prior standard deviation (benchmark configuration).
     design_matrix : Array
         Observation design matrix A. Shape: (nobs, nparams).
-        TODO: move to problem once maps expose their matrices.
     qoi_matrix : Array
         QoI design matrix B. Shape: (npred, nparams).
-        TODO: move to problem once maps expose their matrices.
     obs_locations : Array
         Observation locations. Shape: (nobs,).
     qoi_locations : Array
@@ -55,7 +55,6 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
     def __init__(
         self,
         problem: PredictionOEDProblem[Array],
-        ground_truth: OEDGroundTruth,
         bkd: Backend[Array],
         noise_std: float,
         prior_std: float,
@@ -66,7 +65,6 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
         qoi_quad_weights: Array,
     ) -> None:
         self._problem = problem
-        self._ground_truth = ground_truth
         self._bkd = bkd
         self._noise_std = noise_std
         self._prior_std = prior_std
@@ -84,9 +82,43 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
         """Get the prediction OED problem."""
         return self._problem
 
-    def ground_truth(self) -> OEDGroundTruth:
-        """Get the ground truth."""
-        return self._ground_truth
+    # --- Ground truth ---
+
+    def exact_risk_utility(
+        self, weights: Array, utility_type: str, **kwargs: Any,
+    ) -> float:
+        """Compute exact prediction utility via conjugate Gaussian formulas.
+
+        Parameters
+        ----------
+        weights : Array
+            Design weights. Shape: (nobs, 1).
+        utility_type : str
+            Registered utility type name, e.g.
+            ``"linear_mean_mean_stdev"``,
+            ``"linear_mean_mean_entropic"``,
+            ``"linear_avar_mean_avar"``,
+            ``"linear_mean_avar_stdev"``.
+        **kwargs : Any
+            Extra arguments for the utility type (e.g. ``beta=0.5``).
+
+        Returns
+        -------
+        float
+            Exact expected utility value.
+        """
+        config = get_utility_factory(utility_type, **kwargs)
+        return compute_exact_prediction_utility(
+            self._problem.prior_mean(),
+            self._problem.prior_covariance(),
+            self._design_matrix,
+            self._qoi_matrix,
+            self.noise_var(),
+            weights,
+            config.exact_cls,
+            config.exact_args,
+            self._bkd,
+        )
 
     # --- Benchmark configuration (not on problem) ---
 
@@ -176,22 +208,8 @@ def build_linear_gaussian_pred_benchmark(
     problem = PredictionOEDProblem(
         inference, qoi_map, conditions, bkd
     )
-    ground_truth = OEDGroundTruth()
     return LinearGaussianPredOEDBenchmark(
-        problem, ground_truth, bkd, noise_std, prior_std,
+        problem, bkd, noise_std, prior_std,
         design_matrix, qoi_matrix, obs_locations, qoi_locations,
         qoi_quad_weights,
-    )
-
-
-@BenchmarkRegistry.register(
-    "linear_gaussian_pred_oed",
-    category="oed",
-    description="Linear Gaussian prediction OED benchmark with linear QoI",
-)
-def _linear_gaussian_pred_oed_factory(
-    bkd: Backend[Array],
-) -> LinearGaussianPredOEDBenchmark[Array]:
-    return build_linear_gaussian_pred_benchmark(
-        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, npred=3, bkd=bkd,
     )

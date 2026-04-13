@@ -13,7 +13,7 @@ if not package_available("skfem"):
 import pickle
 
 import numpy as np
-from pyapprox_benchmarks.instances.oed.advection_diffusion import (
+from pyapprox_benchmarks.expdesign.advection_diffusion import (
     FixedVelocityObstructedAdvectionDiffusionOEDBenchmark,
     build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark,
     build_obstructed_advection_diffusion_oed_benchmark,
@@ -28,7 +28,6 @@ from pyapprox_benchmarks.problems.oed.advection_diffusion._mesh import (
 from pyapprox_benchmarks.problems.oed.advection_diffusion._stokes import (
     _solve_stokes,
 )
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 from tests._helpers.markers import slow_test
 
@@ -625,25 +624,13 @@ class TestFixedVelocityObstructedAdvectionDiffusionOEDBenchmark:
         assert np.all(np.isfinite(data["vel_magnitude"]))
         assert np.all(np.isfinite(data["concentration"]))
 
-    def test_registry_factory_returns_shell(self, numpy_bkd):
-        """Registry factory uses default nkle_terms=10."""
-        bench = BenchmarkRegistry.get(
-            "obstructed_advection_diffusion_oed_fixed_velocity",
-            bkd=numpy_bkd,
-        )
+    def test_build_fixed_returns_shell(self, numpy_bkd):
+        """Build function returns correct type."""
+        bench = self._build_fixed(numpy_bkd)
         assert isinstance(
             bench, FixedVelocityObstructedAdvectionDiffusionOEDBenchmark,
         )
-        assert bench.problem().nparams() == 10
-
-    def test_ground_truth_present_but_empty(self, numpy_bkd):
-        """Both benchmarks carry an empty OEDGroundTruth."""
-        fixed = self._build_fixed(numpy_bkd)
-        random_bench = self._build_random(numpy_bkd)
-        for bench in (fixed, random_bench):
-            gt = bench.ground_truth()
-            assert gt.exact_eig is None
-            assert gt.exact_utility is None
+        assert bench.problem().nparams() == self._nkle_terms
 
     def test_pattern_b_only_no_forwarders(self, numpy_bkd):
         """Fixed-velocity benchmark exposes no Pattern A forwarders.

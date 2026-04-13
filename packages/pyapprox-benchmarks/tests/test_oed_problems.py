@@ -10,7 +10,7 @@ Tests replicate scenarios from the legacy test_benchmark.py:
 
 import numpy as np
 
-from pyapprox_benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
     LinearGaussianKLOEDBenchmark,
     build_linear_gaussian_kl_benchmark,
 )

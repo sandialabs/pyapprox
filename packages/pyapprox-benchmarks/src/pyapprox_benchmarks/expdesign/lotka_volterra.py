@@ -15,7 +15,6 @@ from pyapprox_benchmarks.functions.ode import (
 from pyapprox_benchmarks.instances.ode.lotka_volterra import (
     lotka_volterra_3species,
 )
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -210,12 +209,3 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         )
 
 
-@BenchmarkRegistry.register(
-    "lotka_volterra_oed",
-    category="oed",
-    description="Lotka-Volterra 3-species OED benchmark",
-)
-def _lotka_volterra_oed_factory(
-    bkd: Backend[Array],
-) -> LotkaVolterraOEDBenchmark[Array]:
-    return LotkaVolterraOEDBenchmark(bkd, noise_std=0.1)

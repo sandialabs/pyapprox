@@ -1,23 +1,12 @@
-"""Obstructed advection-diffusion OED benchmarks.
+"""Obstructed advection-diffusion OED problem wrappers.
 
-Thin benchmark shells over the problem classes in
-:mod:`pyapprox_benchmarks.problems.oed.advection_diffusion`. Two
-benchmarks are registered:
+Thin shells over the problem classes in
+:mod:`pyapprox_benchmarks.problems.oed.advection_diffusion`.
 
-- ``"obstructed_advection_diffusion_oed"`` — full 13-dim parameter
-  space (10 KLE terms + 2 inlet shape + 1 Reynolds). Preserves
-  **transitional Pattern A forwarders** (``prior()``, ``obs_map()``,
-  ``qoi_map()``, ``evaluate_nodal()``, ``solve_for_plotting()``, …)
-  so existing tutorial and paper consumers keep working while
-  they migrate to ``benchmark.problem().fun()``. These forwarders
-  will be removed in a follow-up commit.
-- ``"obstructed_advection_diffusion_oed_fixed_velocity"`` — pins
-  velocity at construction, pre-caches Stokes, reduces to the
-  ``nkle_terms``-dim KLE prior. **Pattern B only** (no
-  forwarders). Callers go through ``benchmark.problem()``.
-
-See ``instances/oed/__init__.py`` for the full Pattern A vs B
-convention story.
+These have no analytical ground truth and are therefore Problems,
+not Benchmarks. The shell classes provide convenience accessors
+(``noise_std``, ``noise_var``, transitional forwarders) while
+consumers migrate to ``problem()`` access.
 """
 
 from __future__ import annotations
@@ -38,12 +27,10 @@ if TYPE_CHECKING:
 
 from pyapprox.util.backends.protocols import Array, Backend
 
-from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
 )
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 # ---------------------------------------------------------------------------
 # ObstructedAdvectionDiffusionOEDBenchmark (Pattern A forwarders preserved)
@@ -51,40 +38,26 @@ from pyapprox_benchmarks.registry import BenchmarkRegistry
 
 
 class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
-    """Obstructed advection-diffusion prediction OED benchmark.
+    """Obstructed advection-diffusion prediction OED problem wrapper.
 
-    Composition shell over
-    :class:`AdvectionDiffusionOEDProblem` and
-    :class:`OEDGroundTruth`. Registered under
-    ``"obstructed_advection_diffusion_oed"``.
+    No analytical ground truth — this is a Problem wrapper, not a
+    Benchmark.  Kept as a class for transitional forwarders while
+    consumers migrate to ``problem()`` access.
 
-    **Preferred access**: go through :meth:`problem` for the prior,
-    maps, and PDE evaluation methods::
-
-        bench = BenchmarkRegistry.create("obstructed_advection_diffusion_oed")
-        problem = bench.problem()
-        prior = problem.prior()
-        obs_map = problem.obs_map()
-
-    The direct accessors (``prior()``, ``obs_map()``, ``qoi_map()``,
-    ``design_conditions()``, ``nparams()``, ``nobservations()``,
-    ``evaluate_nodal()``, ``evaluate_both()``, ``solve_for_plotting()``,
-    ``mesh_nodes()``, ``nnodes()``) on this class are **transitional
-    Pattern A forwarders**. They exist only so this migration can
-    ship without breaking existing tutorial / paper consumers in the
-    same commit, and they will be removed once those consumers have
-    moved to ``benchmark.problem().fun()``. See the Pattern A vs
-    Pattern B note in :mod:`pyapprox_benchmarks.instances.oed`.
+    Parameters
+    ----------
+    problem : AdvectionDiffusionOEDProblem[Array]
+        The prediction OED problem.
+    bkd : Backend[Array]
+        Computational backend.
     """
 
     def __init__(
         self,
         problem: AdvectionDiffusionOEDProblem[Array],
-        ground_truth: OEDGroundTruth,
         bkd: Backend[Array],
     ) -> None:
         self._problem = problem
-        self._ground_truth = ground_truth
         self._bkd = bkd
 
     def bkd(self) -> Backend[Array]:
@@ -94,10 +67,6 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
     def problem(self) -> AdvectionDiffusionOEDProblem[Array]:
         """Get the prediction OED problem."""
         return self._problem
-
-    def ground_truth(self) -> OEDGroundTruth:
-        """Get the ground truth."""
-        return self._ground_truth
 
     def noise_std(self) -> float:
         """Noise standard deviation (delegated to the problem)."""
@@ -178,13 +147,7 @@ def build_obstructed_advection_diffusion_oed_benchmark(
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
 ) -> ObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    """Build an :class:`ObstructedAdvectionDiffusionOEDBenchmark`.
-
-    Constructs the underlying :class:`AdvectionDiffusionOEDProblem`,
-    wraps it with an empty :class:`OEDGroundTruth` (no closed-form
-    reference), and returns the composition shell. See
-    :class:`AdvectionDiffusionOEDProblem` for parameter documentation.
-    """
+    """Build an :class:`ObstructedAdvectionDiffusionOEDBenchmark`."""
     problem = AdvectionDiffusionOEDProblem(
         bkd,
         noise_std=noise_std,
@@ -202,23 +165,7 @@ def build_obstructed_advection_diffusion_oed_benchmark(
     )
     return ObstructedAdvectionDiffusionOEDBenchmark(
         problem=problem,
-        ground_truth=OEDGroundTruth(),
         bkd=bkd,
-    )
-
-
-@BenchmarkRegistry.register(
-    "obstructed_advection_diffusion_oed",
-    category="oed",
-    description=(
-        "Obstructed advection-diffusion OED benchmark with Stokes coupling"
-    ),
-)
-def _obstructed_advection_diffusion_oed_factory(
-    bkd: Backend[Array],
-) -> ObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    return build_obstructed_advection_diffusion_oed_benchmark(
-        bkd, noise_std=0.1,
     )
 
 
@@ -228,37 +175,25 @@ def _obstructed_advection_diffusion_oed_factory(
 
 
 class FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
-    """Fixed-velocity advection-diffusion OED benchmark.
+    """Fixed-velocity advection-diffusion OED problem wrapper.
 
-    Pattern B only. Callers must go through :meth:`problem` to reach
-    the prior, observation map, QoI map, design conditions, and PDE
-    evaluation methods::
+    No analytical ground truth — this is a Problem wrapper, not a
+    Benchmark. Callers go through ``problem()`` for all access.
 
-        bench = BenchmarkRegistry.create(
-            "obstructed_advection_diffusion_oed_fixed_velocity",
-        )
-        problem = bench.problem()
-        prior = problem.prior()
-        vals = problem.evaluate_nodal(samples)
-
-    The pinned velocity parameters (``vel_shape_a``, ``vel_shape_b``,
-    ``reynolds_num``) live on the problem object, not the benchmark
-    shell — they define the problem, not the benchmark packaging.
-
-    This shell mirrors :class:`LinearGaussianPredOEDBenchmark` and is
-    the template every future OED benchmark should follow. See the
-    convention note in :mod:`pyapprox_benchmarks.instances.oed` for
-    the Pattern A vs Pattern B story.
+    Parameters
+    ----------
+    problem : FixedVelocityAdvectionDiffusionOEDProblem[Array]
+        The prediction OED problem.
+    bkd : Backend[Array]
+        Computational backend.
     """
 
     def __init__(
         self,
         problem: FixedVelocityAdvectionDiffusionOEDProblem[Array],
-        ground_truth: OEDGroundTruth,
         bkd: Backend[Array],
     ) -> None:
         self._problem = problem
-        self._ground_truth = ground_truth
         self._bkd = bkd
 
     def bkd(self) -> Backend[Array]:
@@ -270,10 +205,6 @@ class FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
     ) -> FixedVelocityAdvectionDiffusionOEDProblem[Array]:
         """Get the prediction OED problem."""
         return self._problem
-
-    def ground_truth(self) -> OEDGroundTruth:
-        """Get the ground truth."""
-        return self._ground_truth
 
     def noise_std(self) -> float:
         """Noise standard deviation (delegated to the problem)."""
@@ -305,16 +236,7 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
 ) -> FixedVelocityObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDBenchmark`.
-
-    Constructs the underlying
-    :class:`FixedVelocityAdvectionDiffusionOEDProblem` (which pins
-    velocity, pre-caches Stokes, and reduces the prior), wraps it
-    with an empty :class:`OEDGroundTruth`, and returns the composition
-    shell. See :class:`AdvectionDiffusionOEDProblem` /
-    :class:`FixedVelocityAdvectionDiffusionOEDProblem` for parameter
-    documentation.
-    """
+    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDBenchmark`."""
     problem = FixedVelocityAdvectionDiffusionOEDProblem(
         bkd,
         vel_shape_a=vel_shape_a,
@@ -335,23 +257,5 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
     )
     return FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(
         problem=problem,
-        ground_truth=OEDGroundTruth(),
         bkd=bkd,
-    )
-
-
-@BenchmarkRegistry.register(
-    "obstructed_advection_diffusion_oed_fixed_velocity",
-    category="oed",
-    description=(
-        "Fixed-velocity obstructed advection-diffusion OED benchmark. "
-        "Velocity pinned at construction; Stokes solved once; OED "
-        "problem reduced to the KLE prior."
-    ),
-)
-def _obstructed_advection_diffusion_oed_fixed_velocity_factory(
-    bkd: Backend[Array],
-) -> FixedVelocityObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    return build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
-        bkd, noise_std=0.1,
     )
