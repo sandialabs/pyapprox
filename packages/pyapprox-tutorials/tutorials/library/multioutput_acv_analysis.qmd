@@ -224,8 +224,8 @@ cross-QoI covariances, the greater the MOACV gain.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
-    multioutput_ensemble_3x3,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import GMFEstimator
@@ -233,13 +233,13 @@ from pyapprox.statest.acv.search import ACVSearch
 
 bkd = NumpyBkd()
 np.random.seed(1)
-benchmark = multioutput_ensemble_3x3(bkd)
-costs     = benchmark.costs()
-nqoi      = benchmark.models()[0].nqoi()
-nmodels   = benchmark.nmodels()
+benchmark = MultiOutputEnsembleBenchmark(bkd)
+costs     = benchmark.problem().costs()
+nqoi      = benchmark.problem().models()[0].nqoi()
+nmodels   = benchmark.problem().nmodels()
 cov_true  = benchmark.ensemble_covariance()
-variable  = benchmark.prior()
-models    = benchmark.models()
+variable  = benchmark.problem().prior()
+models    = benchmark.problem().models()
 
 # Multi-output stat (MOACV)
 stat_mo = MultiOutputMean(nqoi, bkd)

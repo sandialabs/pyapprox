@@ -7,7 +7,7 @@ Default parameters (Forrester et al., 2008): A = 0.5, B = 10, C = -5.
 Domain: x in [0, 1].
 """
 
-from typing import Generic, Optional, Sequence
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -74,54 +74,3 @@ class ForresterModelFunction(Generic[Array]):
         return self._A * fh + self._B * (x - 0.5) + self._C
 
 
-class ForresterEnsemble(Generic[Array]):
-    """Two-model Forrester ensemble.
-
-    Model 0 (high fidelity): f_h(x) = (6x - 2)^2 sin(12x - 4)
-    Model 1 (low fidelity):  f_l(x) = A * f_h(x) + B * (x - 0.5) + C
-
-    Parameters
-    ----------
-    bkd : Backend[Array]
-        Backend for array operations.
-    A : float
-        Scaling of HF function in the LF model.
-    B : float
-        Linear trend coefficient in the LF model.
-    C : float
-        Constant shift in the LF model.
-    """
-
-    def __init__(
-        self,
-        bkd: Backend[Array],
-        A: float = 0.5,
-        B: float = 10.0,
-        C: float = -5.0,
-    ) -> None:
-        self._bkd = bkd
-        self._models = [
-            ForresterModelFunction(bkd),
-            ForresterModelFunction(bkd, A=A, B=B, C=C),
-        ]
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nmodels(self) -> int:
-        return 2
-
-    def nvars(self) -> int:
-        return 1
-
-    def nqoi(self) -> int:
-        return 1
-
-    def models(self) -> Sequence[ForresterModelFunction[Array]]:
-        return self._models
-
-    def __getitem__(self, idx: int) -> ForresterModelFunction[Array]:
-        return self._models[idx]
-
-    def costs(self) -> Array:
-        return self._bkd.array([1.0, 0.1])

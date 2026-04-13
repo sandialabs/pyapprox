@@ -48,10 +48,14 @@ class KLOEDProblem(Generic[Array]):
         design_conditions: Array,
         bkd: Backend[Array],
         weight_bounds: Optional[Array] = None,
+        name: str = "",
+        description: str = "",
     ) -> None:
         self._inference_problem = inference_problem
         self._design_conditions = design_conditions
         self._bkd = bkd
+        self._name = name
+        self._description = description
         if weight_bounds is None:
             nobs = inference_problem.nobs()
             zeros = bkd.zeros((nobs, 1))
@@ -63,6 +67,14 @@ class KLOEDProblem(Generic[Array]):
         if isinstance(inference_problem, GaussianInferenceProblemProtocol):
             self.prior_mean = inference_problem.prior_mean
             self.prior_covariance = inference_problem.prior_covariance
+
+    def name(self) -> str:
+        """Return the problem name."""
+        return self._name
+
+    def description(self) -> str:
+        """Return the problem description."""
+        return self._description
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""

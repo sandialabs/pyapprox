@@ -80,8 +80,8 @@ $$
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
-    psd_multioutput_ensemble_3x3,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import (
     MultiOutputMean,
@@ -91,9 +91,9 @@ from pyapprox.statest.statistics import (
 from pyapprox.statest.mc_estimator import MCEstimator
 
 bkd = NumpyBkd()
-bm = psd_multioutput_ensemble_3x3(bkd)
-model = bm.models()[0]       # highest-fidelity model
-variable = bm.prior()
+bm = MultiOutputEnsembleBenchmark(bkd, psd=True)
+model = bm.problem().models()[0]       # highest-fidelity model
+variable = bm.problem().prior()
 
 nqoi = model.nqoi()          # 3 QoIs
 cost_per_eval = 2.1
@@ -296,12 +296,12 @@ n_pilot_reps = 100
 target_for_test = 500.0
 
 # Reference: exact moments from the benchmark
-ensemble = bm._ensemble
-cov_true = ensemble.covariance_matrix()[:nqoi, :nqoi]
-W_true = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+# Statistics methods are directly on the benchmark (inherits mixin)
+cov_true = bm.covariance_matrix()[:nqoi, :nqoi]
+W_true = bm.covariance_of_centered_values_kronecker_product_subproblem(
     [0], list(range(nqoi))
 )
-B_true = ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+B_true = bm.covariance_of_mean_and_variance_estimators_subproblem(
     [0], list(range(nqoi))
 )
 stat_ref = MultiOutputMeanAndVariance(nqoi, bkd)

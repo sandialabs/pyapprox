@@ -9,9 +9,7 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
-    PolynomialEnsemble,
-)
+from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -47,9 +45,9 @@ class TestACVLogDeterminantObjectiveGradients:
 
     def _create_estimator(self, est_type: str, nmodels: int = 3, nqoi: int = 1):
         """Create estimator for testing."""
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -141,9 +139,9 @@ class TestACVPartitionConstraintGradients:
 
     def _create_estimator(self, est_type: str, nmodels: int = 3):
         """Create estimator for testing."""
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -207,9 +205,9 @@ class TestMFMCOptimalSolutionGradients:
         nmodels = 3
         target_cost = 50.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -241,9 +239,9 @@ class TestMFMCOptimalSolutionGradients:
         nmodels = 3
         target_cost = 50.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -402,9 +400,9 @@ class TestDerivativeCheckerConvergence:
         nmodels = 3
         target_cost = 50.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)

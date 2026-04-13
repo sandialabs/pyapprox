@@ -59,18 +59,18 @@ Complete [Pilot Studies Concept](pilot_studies_concept.qmd) and
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import polynomial_ensemble_3model
+from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
 from pyapprox.statest import MultiOutputMean, MFMCEstimator, MCEstimator
 
 bkd = NumpyBkd()
 np.random.seed(1)
-benchmark = polynomial_ensemble_3model(bkd)
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=3)
 nmodels   = 3
 nqoi      = 1
 costs_v   = bkd.array([1.0, 0.1, 0.05])
 costs_np  = bkd.to_numpy(costs_v)
-prior     = benchmark.prior()
-models    = benchmark.models()
+prior     = benchmark.problem().prior()
+models    = benchmark.problem().models()
 true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
 
 cov_oracle  = benchmark.ensemble_covariance()
@@ -236,7 +236,7 @@ off-diagonal covariance entries are harder to estimate from finite samples.
 #| fig-cap: "MSE vs pilot size for three HF–MF correlation levels controlled by $\\theta_1$ in the tunable ensemble, at fixed $P=100$. Dotted lines show the oracle ACV variance for each correlation level."
 #| label: fig-corr-sensitivity
 
-from pyapprox_benchmarks import tunable_ensemble_3model
+from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
 # theta1 controls rho_01: larger theta1 → higher correlation
 theta_vals = [1.4, 1.0, 0.6]
@@ -247,13 +247,13 @@ ntrials_r = 300
 fig, ax = plt.subplots(figsize=(9, 4.5))
 
 for theta1, col in zip(theta_vals, cols_rho):
-    bm = tunable_ensemble_3model(bkd, theta1=theta1)
-    bm_models = bm.models()
-    bm_prior  = bm.prior()
-    bm_costs  = bm.costs()
+    bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
+    bm_models = bm.problem().models()
+    bm_prior  = bm.problem().prior()
+    bm_costs  = bm.problem().costs()
     bm_cov    = bm.ensemble_covariance()
     bm_mean   = float(bkd.to_numpy(bm.ensemble_means())[0, 0])
-    nmod      = bm.nmodels()
+    nmod      = bm.problem().nmodels()
     costs_np_bm = bkd.to_numpy(bm_costs)
 
     # Compute correlation for label

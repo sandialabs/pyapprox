@@ -62,8 +62,8 @@ models and prior to apply any recipe to your problem.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.mc_estimator import MCEstimator
@@ -87,10 +87,10 @@ np.random.seed(42)
 optimizer = ScipySLSQPOptimizer(maxiter=200)
 allocator_factory = lambda est: default_allocator_factory(est, optimizer=optimizer)
 
-benchmark = polynomial_ensemble_5model(bkd)
-models    = benchmark.models()        # f_0 (HF) ... f_4 (cheapest)
-variable  = benchmark.prior()
-costs     = benchmark.costs()
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+models    = benchmark.problem().models()        # f_0 (HF) ... f_4 (cheapest)
+variable  = benchmark.problem().prior()
+costs     = benchmark.problem().costs()
 nqoi      = models[0].nqoi()
 nmodels   = len(models)
 
@@ -380,15 +380,15 @@ When the HF model produces multiple QoIs, estimating them jointly can reduce var
 for each individual QoI compared to running separate scalar ACVs.
 
 ```{python}
-from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
-    multioutput_ensemble_3x3,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
 )
 
-bm_mo    = multioutput_ensemble_3x3(bkd)
-costs_mo = bm_mo.costs()
+bm_mo    = MultiOutputEnsembleBenchmark(bkd)
+costs_mo = bm_mo.problem().costs()
 nqoi_mo  = 2   # use first 2 of 3 QoIs
-nmod_mo  = bm_mo.nmodels()
-full_nqoi_mo = bm_mo.models()[0].nqoi()
+nmod_mo  = bm_mo.problem().nmodels()
+full_nqoi_mo = bm_mo.problem().models()[0].nqoi()
 
 # Extract 2-QoI covariance subset
 cov_full = bm_mo.ensemble_covariance()

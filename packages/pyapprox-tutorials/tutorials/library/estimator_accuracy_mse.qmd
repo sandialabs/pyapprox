@@ -120,27 +120,27 @@ $$
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
-    psd_multioutput_ensemble_3x3,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
 )
 
 bkd = NumpyBkd()
-bm = psd_multioutput_ensemble_3x3(bkd)
-model = bm.models()[0]       # highest-fidelity model
-variable = bm.prior()
+bm = MultiOutputEnsembleBenchmark(bkd, psd=True)
+model = bm.problem().models()[0]       # highest-fidelity model
+variable = bm.problem().prior()
 K = model.nqoi()              # 3 QoIs
 
 # --- True moments from the benchmark (high-accuracy quadrature) ---
-ensemble = bm._ensemble
-true_mean = bkd.to_numpy(ensemble.means())[0]          # (K,) model 0 means
-cov_full = bkd.to_numpy(ensemble.covariance_matrix())
+# Statistics methods are directly on the benchmark (inherits mixin)
+true_mean = bkd.to_numpy(bm.means())[0]          # (K,) model 0 means
+cov_full = bkd.to_numpy(bm.covariance_matrix())
 true_cov = cov_full[:K, :K]                             # (K, K) model 0 block
 
 # Scalar moments for QoI 0
 true_var = true_cov[0, 0]
 # W_true[0,0] = Var[(q0-mu0)^2] so kappa4 = W[0,0] + sigma^4
 W_true = bkd.to_numpy(
-    ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+    bm.covariance_of_centered_values_kronecker_product_subproblem(
         [0], list(range(K))
     )
 )
@@ -148,7 +148,7 @@ true_kappa4 = W_true[0, 0] + true_var**2
 
 # B matrix: Cov[q, (q-mu)^{otimes 2}]
 B_true = bkd.to_numpy(
-    ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+    bm.covariance_of_mean_and_variance_estimators_subproblem(
         [0], list(range(K))
     )
 )

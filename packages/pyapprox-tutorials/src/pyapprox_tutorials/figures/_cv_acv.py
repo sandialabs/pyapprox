@@ -18,9 +18,9 @@ def plot_model_surfaces(benchmark, bkd, ax_3d, ax_scatter):
     """
     from ._style import apply_style
 
-    hf_model = benchmark.models()[0]
-    lf_model = benchmark.models()[1]
-    variable = benchmark.prior()
+    hf_model = benchmark.problem().models()[0]
+    lf_model = benchmark.problem().models()[1]
+    variable = benchmark.problem().prior()
 
     # --- Surface grids ---
     n_grid = 40
@@ -106,9 +106,9 @@ def plot_cvmc_histograms(benchmark, bkd, axes):
     """
     from ._style import apply_style
 
-    hf_model = benchmark.models()[0]
-    lf_model = benchmark.models()[1]
-    variable = benchmark.prior()
+    hf_model = benchmark.problem().models()[0]
+    lf_model = benchmark.problem().models()[1]
+    variable = benchmark.problem().prior()
 
     cov = bkd.to_numpy(benchmark.ensemble_covariance()[:2, :2])
     eta_opt = -cov[0, 1] / cov[1, 1]
@@ -200,9 +200,9 @@ def plot_unknown_mean_problem(benchmark, bkd, axes):
     """
     from ._style import apply_style
 
-    hf_model = benchmark.models()[0]
-    lf_model = benchmark.models()[1]
-    variable = benchmark.prior()
+    hf_model = benchmark.problem().models()[0]
+    lf_model = benchmark.problem().models()[1]
+    variable = benchmark.problem().prior()
 
     cov_mat = bkd.to_numpy(benchmark.ensemble_covariance()[:2, :2])
     eta_opt = -cov_mat[0, 1] / cov_mat[1, 1]
@@ -397,8 +397,8 @@ def plot_acv_ceiling(benchmark, bkd, ax):
     from pyapprox.statest import GMFEstimator, MFMCEstimator, MLMCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
 
-    models = benchmark.models()
-    costs = benchmark.costs()
+    models = benchmark.problem().models()
+    costs = benchmark.problem().costs()
     nqoi = models[0].nqoi()
     cov = bkd.to_numpy(benchmark.ensemble_covariance())
     sigma2_hf = cov[0, 0]

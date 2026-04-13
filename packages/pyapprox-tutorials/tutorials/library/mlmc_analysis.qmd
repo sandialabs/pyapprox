@@ -173,18 +173,18 @@ computed exactly.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest import MLMCEstimator
 from pyapprox.statest.mc_estimator import MCEstimator
 
 bkd = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-variable  = benchmark.prior()
-models    = benchmark.models()
-costs     = bkd.to_numpy(benchmark.costs())
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+variable  = benchmark.problem().prior()
+models    = benchmark.problem().models()
+costs     = bkd.to_numpy(benchmark.problem().costs())
 nqoi      = models[0].nqoi()
 M         = len(models) - 1
 

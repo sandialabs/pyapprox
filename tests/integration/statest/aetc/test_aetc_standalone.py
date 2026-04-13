@@ -788,18 +788,15 @@ class TestExploreStep:
 
     def _create_aetcblue(self, bkd, nmodels: int = 3):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox_benchmarks.functions.multifidelity import (
-            TunableModelEnsemble,
-        )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
-        # Use TunableModelEnsemble for realistic models
         shifts = [1.0, 2.0]
-        ensemble = TunableModelEnsemble(np.pi / 4, bkd, shifts)
-        models = ensemble.models()
+        bm = TunableEnsembleBenchmark(bkd, theta1=np.pi / 4, shifts=shifts)
+        models = bm.problem().models()
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
 
     @slower_test
     def test_explore_step_returns_tuple(self, bkd) -> None:
@@ -862,17 +859,15 @@ class TestExploitProducesMean:
 
     def _create_aetcblue(self, bkd):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox_benchmarks.functions.multifidelity import (
-            TunableModelEnsemble,
-        )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
         shifts = [1.0, 2.0]
-        ensemble = TunableModelEnsemble(np.pi / 4, bkd, shifts)
-        models = ensemble.models()
+        bm = TunableEnsembleBenchmark(bkd, theta1=np.pi / 4, shifts=shifts)
+        models = bm.problem().models()
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
 
     @slower_test
     def test_exploit_returns_scalar(self, bkd) -> None:
@@ -919,17 +914,15 @@ class TestFullEstimatePipeline:
 
     def _create_aetcblue(self, bkd):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox_benchmarks.functions.multifidelity import (
-            TunableModelEnsemble,
-        )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
         shifts = [1.0, 2.0]
-        ensemble = TunableModelEnsemble(np.pi / 4, bkd, shifts)
-        models = ensemble.models()
+        bm = TunableEnsembleBenchmark(bkd, theta1=np.pi / 4, shifts=shifts)
+        models = bm.problem().models()
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
 
     @slow_test
     def test_estimate_returns_tuple(self, bkd) -> None:
@@ -1075,27 +1068,25 @@ class TestOptimalLossOracleVsMC:
     @slower_test
     def test_optimal_loss_oracle_vs_mc(self) -> None:
         """Test k1 from oracle stats matches k1 from MC with many samples."""
-        from pyapprox_benchmarks.functions.multifidelity import (
-            TunableModelEnsemble,
-        )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
         bkd = self._bkd
         alpha = 1000
         nsamples = int(1e6)
         shifts = [1.0, 2.0]
 
-        ensemble = TunableModelEnsemble(np.pi / 4, bkd, shifts)
-        models = ensemble.models()
-        cov = ensemble.covariance()
+        bm = TunableEnsembleBenchmark(bkd, theta1=np.pi / 4, shifts=shifts)
+        models = bm.problem().models()
+        cov = bm.ensemble_covariance()
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
-        true_means = ensemble.means()
+        true_means = bm.ensemble_means()
 
         target_cost = bkd.sum(costs) * (nsamples + 10)
 
         oracle_stats = [cov, true_means]
 
         # Generate samples and evaluate models
-        samples = ensemble.rvs(nsamples)
+        samples = bm.problem().prior().rvs(nsamples)
         # Typing convention: values shape (nmodels, nsamples)
         values = bkd.vstack([model(samples) for model in models])
 
@@ -1105,10 +1096,11 @@ class TestOptimalLossOracleVsMC:
         hf_values = values[:1, :]
         covariate_values = values[1:, :]
 
+        rvs = bm.problem().prior().rvs
         # Create estimators with and without oracle stats
-        est_nor = AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd)
+        est_nor = AETCBLUE(models, rvs, costs, oracle_stats=None, bkd=bkd)
         est_or = AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=oracle_stats, bkd=bkd
+            models, rvs, costs, oracle_stats=oracle_stats, bkd=bkd
         )
 
         result_oracle = est_or._optimal_loss(
@@ -1149,9 +1141,7 @@ class TestMSEMatchesLoss:
 
     def _create_aetcblue(self):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox_benchmarks.functions.multifidelity import (
-            TunableModelEnsemble,
-        )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
@@ -1163,9 +1153,9 @@ class TestMSEMatchesLoss:
         )
 
         shifts = [1.0, 2.0]
-        ensemble = TunableModelEnsemble(np.pi / 4, self._bkd, shifts)
-        models = ensemble.models()
-        true_means = ensemble.means()
+        bm = TunableEnsembleBenchmark(self._bkd, theta1=np.pi / 4, shifts=shifts)
+        models = bm.problem().models()
+        true_means = bm.ensemble_means()
 
         costs = self._bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
@@ -1185,7 +1175,7 @@ class TestMSEMatchesLoss:
 
         return AETCBLUE(
             models,
-            ensemble.rvs,
+            bm.problem().prior().rvs,
             costs,
             oracle_stats=None,
             reg_blue=0,

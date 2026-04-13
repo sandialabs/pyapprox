@@ -244,8 +244,8 @@ def plot_mlblue_ceiling(ax):
     """
     import copy
 
-    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-        polynomial_ensemble_5model,
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
     )
     from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
     from pyapprox.statest.groupacv import MLBLUEEstimator
@@ -254,11 +254,11 @@ def plot_mlblue_ceiling(ax):
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
-    benchmark = polynomial_ensemble_5model(bkd)
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
     nmodels = 5
     cov = benchmark.ensemble_covariance()
-    costs = benchmark.costs()
-    nqoi = benchmark.models()[0].nqoi()
+    costs = benchmark.problem().costs()
+    nqoi = benchmark.problem().models()[0].nqoi()
     cov_np = bkd.to_numpy(cov)
     sigma2 = cov_np[0, 0]
 
@@ -529,8 +529,8 @@ def plot_pacv_enumeration(ax):
 
     Predicted variance for all valid GMF recursion indices at budget P=100.
     """
-    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-        polynomial_ensemble_5model,
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
     )
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
     from pyapprox.statest.acv.allocation import (
@@ -545,11 +545,11 @@ def plot_pacv_enumeration(ax):
 
     bkd = NumpyBkd()
     np.random.seed(1)
-    benchmark = polynomial_ensemble_5model(bkd)
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
     nmodels = 4
-    costs = benchmark.costs()[:nmodels]
+    costs = benchmark.problem().costs()[:nmodels]
     cov = benchmark.ensemble_covariance()[:nmodels, :nmodels]
-    nqoi = benchmark.models()[0].nqoi()
+    nqoi = benchmark.problem().models()[0].nqoi()
 
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
@@ -619,8 +619,8 @@ def plot_pacv_ceiling(ax):
 
     Variance vs cost ceiling plot: MLMC, MFMC, ACVMF, best GMF.
     """
-    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-        polynomial_ensemble_5model,
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
     )
     from pyapprox.statest.acv import GMFEstimator, MFMCEstimator, MLMCEstimator
     from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
@@ -628,9 +628,9 @@ def plot_pacv_ceiling(ax):
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
-    benchmark = polynomial_ensemble_5model(bkd)
-    models = benchmark.models()
-    costs = benchmark.costs()
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+    models = benchmark.problem().models()
+    costs = benchmark.problem().costs()
     nqoi = models[0].nqoi()
     cov = bkd.to_numpy(benchmark.ensemble_covariance())
     sigma2_hf = cov[0, 0]
@@ -773,8 +773,8 @@ def plot_moacv_vs_soacv(ax):
 
     Estimator variance for QoI 0 vs target cost: MOACV vs SOACV vs MC.
     """
-    from pyapprox_benchmarks.instances.multifidelity.multioutput_ensemble import (
-        multioutput_ensemble_3x3,
+    from pyapprox_benchmarks.statest import (
+        MultiOutputEnsembleBenchmark,
     )
     from pyapprox.statest.acv.search import ACVSearch
     from pyapprox.statest.statistics import MultiOutputMean
@@ -782,11 +782,11 @@ def plot_moacv_vs_soacv(ax):
 
     bkd = NumpyBkd()
     np.random.seed(1)
-    benchmark = multioutput_ensemble_3x3(bkd)
-    costs = benchmark.costs()
+    benchmark = MultiOutputEnsembleBenchmark(bkd)
+    costs = benchmark.problem().costs()
     nqoi = 2
-    nmodels = benchmark.nmodels()
-    full_nqoi = benchmark.models()[0].nqoi()
+    nmodels = benchmark.problem().nmodels()
+    full_nqoi = benchmark.problem().models()[0].nqoi()
 
     cov_full = benchmark.ensemble_covariance()
     idx = []
@@ -891,7 +891,7 @@ def plot_bad_model(ax):
 
     Three-model vs best two-model ACVMF variance across rho_01 values.
     """
-    from pyapprox_benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -906,9 +906,9 @@ def plot_bad_model(ax):
     mc_vars = []
 
     for theta1 in theta_vals:
-        bm = tunable_ensemble_3model(bkd, theta1=theta1)
+        bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
         cov = bm.ensemble_covariance()
-        costs = bm.costs()
+        costs = bm.problem().costs()
         cov_np = bkd.to_numpy(cov)
 
         D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
@@ -974,7 +974,7 @@ def plot_correlation_heatmaps(axes, fig):
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-    from pyapprox_benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -984,7 +984,7 @@ def plot_correlation_heatmaps(axes, fig):
     for ax, theta1, title in zip(axes, [1.4, 0.6],
                                  [r"$\theta_1 = 1.4$",
                                   r"$\theta_1 = 0.6$"]):
-        bm = tunable_ensemble_3model(bkd, theta1=theta1)
+        bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
         cov_np = bkd.to_numpy(bm.ensemble_covariance())
         D_inv = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
         corr = D_inv @ cov_np @ D_inv
@@ -1013,7 +1013,7 @@ def plot_ensemble_nmodels(ax):
 
     Best 1-LF vs 2-LF ACVMF variance ratio across rho_01 values.
     """
-    from pyapprox_benchmarks import tunable_ensemble_3model
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -1026,9 +1026,9 @@ def plot_ensemble_nmodels(ax):
     rho01_vals = []
 
     for theta1 in theta_vals:
-        bm = tunable_ensemble_3model(bkd, theta1=theta1)
+        bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
         cov = bm.ensemble_covariance()
-        costs = bm.costs()
+        costs = bm.problem().costs()
         cov_np = bkd.to_numpy(cov)
 
         D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
@@ -1089,17 +1089,17 @@ def plot_pilot_tradeoff(axes):
 
     MSE vs pilot size with/without pilot cost deduction.
     """
-    from pyapprox_benchmarks import polynomial_ensemble_3model
+    from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
     from pyapprox.statest import MCEstimator, MFMCEstimator, MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(1)
-    benchmark = polynomial_ensemble_3model(bkd)
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=3)
     nqoi = 1
     costs = bkd.array([1.0, 0.1, 0.05])
-    prior = benchmark.prior()
-    models = benchmark.models()
+    prior = benchmark.problem().prior()
+    models = benchmark.problem().models()
     true_mean = bkd.to_float(benchmark.ensemble_means()[0, 0])
     P_total = 100.0
 

@@ -194,8 +194,8 @@ $\rho_{\alpha\kappa}$ is controlled by a single parameter $\theta_1$.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
 )
 
 bkd = NumpyBkd()
@@ -211,10 +211,10 @@ theoretical_reductions = []
 
 for theta1 in theta1_values:
     np.random.seed(0)
-    bm = tunable_ensemble_3model(bkd, theta1=theta1)
-    hf_model = bm.models()[0]
-    lf_model = bm.models()[1]
-    variable = bm.prior()
+    bm = TunableEnsembleBenchmark(bkd, theta1=theta1)
+    hf_model = bm.problem().models()[0]
+    lf_model = bm.problem().models()[1]
+    variable = bm.problem().prior()
 
     cov_mat = bkd.to_numpy(bm.ensemble_covariance()[:2, :2])
     rho = cov_mat[0, 1] / np.sqrt(cov_mat[0, 0] * cov_mat[1, 1])

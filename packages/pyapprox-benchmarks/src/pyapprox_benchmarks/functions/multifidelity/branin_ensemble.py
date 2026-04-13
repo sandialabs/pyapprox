@@ -19,7 +19,7 @@ Proceedings of the Royal Society A, 473(2198), 20160751.
 
 
 import math
-from typing import Generic, List, Sequence
+from typing import Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -108,77 +108,3 @@ class BraninModelFunction(Generic[Array]):
         return result
 
 
-class BraninEnsemble(Generic[Array]):
-    """Three-model multi-fidelity Branin ensemble.
-
-    Model 0 (high fidelity): Standard Branin function.
-    Model 1 (medium fidelity): Perturbed parameters (modified b, c, shift).
-    Model 2 (low fidelity): Larger perturbations and additive shift.
-
-    The perturbations are chosen so that all three models share the same
-    qualitative landscape (three basins) but differ in the precise
-    location and depth of the minima. This produces strong but imperfect
-    correlation between fidelity levels.
-
-    Parameters
-    ----------
-    bkd : Backend[Array]
-        Backend for array operations.
-    """
-
-    def __init__(self, bkd: Backend[Array]) -> None:
-        self._bkd = bkd
-        self._nmodels = 3
-        self._nqoi = 1
-
-        b_std = 5.1 / (4 * math.pi**2)
-        c_std = 5.0 / math.pi
-        t_std = 1.0 / (8 * math.pi)
-
-        # High fidelity: standard Branin
-        self._models: List[BraninModelFunction[Array]] = [
-            BraninModelFunction(bkd),
-            # Medium fidelity: slightly perturbed b, c, and a small shift
-            BraninModelFunction(
-                bkd,
-                b=b_std * 1.2,
-                c=c_std * 0.9,
-                t=t_std * 1.1,
-                shift=2.0,
-            ),
-            # Low fidelity: larger perturbations and bigger shift
-            BraninModelFunction(
-                bkd,
-                b=b_std * 0.8,
-                c=c_std * 1.2,
-                t=t_std * 0.8,
-                shift=5.0,
-            ),
-        ]
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nmodels(self) -> int:
-        return self._nmodels
-
-    def nvars(self) -> int:
-        return 2
-
-    def nqoi(self) -> int:
-        return self._nqoi
-
-    def models(self) -> Sequence[BraninModelFunction[Array]]:
-        return self._models
-
-    def costs(self) -> Array:
-        """Return per-model costs.
-
-        Costs decrease by a factor of 10 per level.
-
-        Returns
-        -------
-        Array
-            Costs of shape ``(3,)``.
-        """
-        return self._bkd.array([1.0, 0.1, 0.01])

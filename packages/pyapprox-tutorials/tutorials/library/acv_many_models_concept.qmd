@@ -135,13 +135,13 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox_tutorials.figures._cv_acv import plot_acv_ceiling
 
 bkd = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
 
 fig, ax = plt.subplots(figsize=(10, 5))
 plot_acv_ceiling(benchmark, bkd, ax)

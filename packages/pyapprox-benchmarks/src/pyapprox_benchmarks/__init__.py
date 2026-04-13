@@ -40,7 +40,6 @@ from pyapprox_benchmarks.functions.genz import (
     ProductPeakFunction,
 )
 from pyapprox_benchmarks.functions.multifidelity import (
-    PolynomialEnsemble,
     PolynomialModelFunction,
 )
 
@@ -79,15 +78,10 @@ from pyapprox_benchmarks.instances import (
     hastings_ecology_3species,
     ishigami_3d,
     lotka_volterra_3species,
-    multioutput_ensemble_3x3,
-    polynomial_ensemble_3model,
-    polynomial_ensemble_5model,
-    psd_multioutput_ensemble_3x3,
     rosenbrock_2d,
     rosenbrock_10d,
     sobol_g_4d,
     sobol_g_6d,
-    tunable_ensemble_3model,
 )
 from pyapprox_benchmarks.protocols import (
     BenchmarkProtocol,
@@ -144,7 +138,6 @@ __all__ = [
     "GaussianPeakFunction",
     # Functions - Multifidelity
     "PolynomialModelFunction",
-    "PolynomialEnsemble",
     # Functions - ODE
     "ODEBenchmark",
     "ODETimeConfig",
@@ -164,12 +157,6 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
-    # Instances - Multifidelity
-    "polynomial_ensemble_5model",
-    "polynomial_ensemble_3model",
-    "multioutput_ensemble_3x3",
-    "psd_multioutput_ensemble_3x3",
-    "tunable_ensemble_3model",
     # Instances - ODE
     "lotka_volterra_3species",
     "coupled_springs_2mass",

@@ -69,14 +69,14 @@ plot on the right confirms that model outputs are tightly correlated ($\rho \app
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
 )
 from pyapprox_tutorials.figures._cv_acv import plot_model_surfaces
 
 bkd = NumpyBkd()
 np.random.seed(0)
-benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
+benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
 
 fig = plt.figure(figsize=(12, 5))
 ax1 = fig.add_subplot(121, projection="3d")
@@ -157,14 +157,14 @@ confirming that CVMC is unbiased. But the CVMC histogram is dramatically narrowe
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
 )
 from pyapprox_tutorials.figures._cv_acv import plot_cvmc_histograms
 
 bkd = NumpyBkd()
 np.random.seed(0)
-benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
+benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
 N, rho, n_trials = plot_cvmc_histograms(benchmark, bkd, axes)

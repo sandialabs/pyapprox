@@ -12,11 +12,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
-    MultiOutputModelEnsemble,
-)
-from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
-    PolynomialEnsemble,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
@@ -60,7 +58,7 @@ def _get_pilot_quantities_for_stat_type(
 
     Parameters
     ----------
-    benchmark : MultiOutputModelEnsemble
+    benchmark : MultiOutputEnsembleBenchmark
         The benchmark providing covariance data.
     stat_type : str
         One of "mean", "variance", "mean_variance".
@@ -121,12 +119,12 @@ def _setup_multioutput_model_subproblem(
         Statistic for the subproblem with pilot quantities set.
     costs : Array
         Costs for selected models.
-    benchmark : MultiOutputModelEnsemble
+    benchmark : MultiOutputEnsembleBenchmark
         Full benchmark object.
     means : Array
         Means for the subproblem.
     """
-    benchmark = MultiOutputModelEnsemble(bkd)
+    benchmark = MultiOutputEnsembleBenchmark(bkd)
 
     # Get wrapped functions for the subproblem
     funs = benchmark.models_subproblem(model_idx, qoi_idx)
@@ -629,10 +627,10 @@ class TestDiscrepancyCovariances:
         nqoi = 1
         rtol, atol = 5e-2, 1e-3
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
-        models = ensemble.models()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
+        models = bm.problem().models()
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)

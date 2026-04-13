@@ -71,14 +71,14 @@ import torch
 torch.set_default_dtype(torch.float64)
 
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox_benchmarks.instances.multifidelity.forrester_ensemble import (
-    forrester_ensemble_2model,
+from pyapprox_benchmarks.statest import (
+    ForresterEnsembleProblem,
 )
 
 bkd = TorchBkd()
-bench = forrester_ensemble_2model(bkd)
-models = bench.models()          # [HF model, LF model]
-prior = bench.prior()
+bench = ForresterEnsembleProblem(bkd)
+models = bench.problem().models()          # [HF model, LF model]
+prior = bench.problem().prior()
 nvars = 1
 nmodels = 2
 

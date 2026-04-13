@@ -80,13 +80,13 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
 )
 from pyapprox_tutorials.figures._cv_acv import plot_unknown_mean_problem
 
 bkd = NumpyBkd()
-benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
+benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
 N, n_trials = plot_unknown_mean_problem(benchmark, bkd, axes)

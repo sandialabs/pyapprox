@@ -234,15 +234,15 @@ tutorial and verify @eq-variance against empirical variance from repeated trials
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 
 np.random.seed(1)
 bkd = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
 nmodels = 3        # f0 (HF), f1, f2
-nqoi = benchmark.models()[0].nqoi()
+nqoi = benchmark.problem().models()[0].nqoi()
 cov = bkd.to_numpy(benchmark.ensemble_covariance()[:nmodels, :nmodels])
 M = nmodels - 1
 
@@ -284,8 +284,8 @@ Now verify @eq-variance empirically.
 #| fig-cap: "Empirical distribution of MLBLUE estimates for $Q_0$ from 1000 independent trials (blue histogram), compared with the true mean (red dashed) and the theoretical +/-1 std band (shaded). The empirical std matches the theoretical prediction $\\sqrt{\\boldsymbol{\\beta}^\\top\\boldsymbol{\\Psi}^{-1}\\boldsymbol{\\beta}}$ to within Monte Carlo noise."
 #| label: fig-verify
 
-variable = benchmark.prior()
-models = [benchmark.models()[i] for i in range(nmodels)]
+variable = benchmark.problem().prior()
+models = [benchmark.problem().models()[i] for i in range(nmodels)]
 n_trials = 1000
 estimates = []
 

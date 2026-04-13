@@ -10,13 +10,14 @@ Designed to be movable to pyapprox/inverse/ later.
 
 from typing import Generic
 
-from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
-    build_linear_obs_map,
-)
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
+    build_linear_obs_map,
+)
 
 
 class BayesianInferenceProblem(Generic[Array]):
@@ -43,11 +44,23 @@ class BayesianInferenceProblem(Generic[Array]):
         prior: DistributionProtocol[Array],
         noise_variances: Array,
         bkd: Backend[Array],
+        name: str = "",
+        description: str = "",
     ) -> None:
         self._bkd = bkd
         self._obs_map = obs_map
         self._prior = prior
         self._noise_variances = noise_variances
+        self._name = name
+        self._description = description
+
+    def name(self) -> str:
+        """Return the problem name."""
+        return self._name
+
+    def description(self) -> str:
+        """Return the problem description."""
+        return self._description
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""

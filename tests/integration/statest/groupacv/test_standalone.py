@@ -8,10 +8,7 @@ from mathematical definitions.
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
-    MultiOutputModelEnsemble,
-    PSDMultiOutputModelEnsemble,
-)
+from pyapprox_benchmarks.statest import MultiOutputEnsembleBenchmark
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -896,13 +893,13 @@ class TestMFMCNestedEstimationTorchOnly:
 
     def _setup_problem(self, nmodels: int, qoi_idx: list, stat_type: str):
         """Set up the multi-output problem using PSD ensemble for conditioning."""
-        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        bm = MultiOutputEnsembleBenchmark(self._bkd, psd=True)
         model_idx = list(range(nmodels))
 
         # Get subproblem data
-        cov = ensemble.covariance_subproblem(model_idx, qoi_idx)
-        costs = ensemble.costs_subproblem(model_idx)
-        models = ensemble.models_subproblem(model_idx, qoi_idx)
+        cov = bm.covariance_subproblem(model_idx, qoi_idx)
+        costs = bm.costs_subproblem(model_idx)
+        models = bm.models_subproblem(model_idx, qoi_idx)
 
         nqoi = len(qoi_idx)
         stat = self._get_stat(stat_type, nqoi)
@@ -911,20 +908,20 @@ class TestMFMCNestedEstimationTorchOnly:
         if stat_type == "mean":
             stat.set_pilot_quantities(cov)
         elif stat_type == "variance":
-            W = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+            W = bm.covariance_of_centered_values_kronecker_product_subproblem(
                 model_idx, qoi_idx
             )
             stat.set_pilot_quantities(cov, W)
         elif stat_type == "mean_variance":
-            W = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+            W = bm.covariance_of_centered_values_kronecker_product_subproblem(
                 model_idx, qoi_idx
             )
-            B = ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+            B = bm.covariance_of_mean_and_variance_estimators_subproblem(
                 model_idx, qoi_idx
             )
             stat.set_pilot_quantities(cov, W, B)
 
-        return ensemble, cov, costs, models, stat
+        return bm, cov, costs, models, stat
 
     @pytest.mark.parametrize(
         "nmodels,qoi_idx,stat_type",
@@ -1052,12 +1049,12 @@ class TestSigmaMatrixMonteCarlo:
 
     def _setup_problem(self, bkd, nmodels: int, qoi_idx: list):
         """Set up the multi-output problem."""
-        ensemble = MultiOutputModelEnsemble(bkd)
+        bm = MultiOutputEnsembleBenchmark(bkd)
         model_idx = list(range(nmodels))
-        cov = ensemble.covariance_subproblem(model_idx, qoi_idx)
-        costs = ensemble.costs_subproblem(model_idx)
-        models = ensemble.models_subproblem(model_idx, qoi_idx)
-        return ensemble, cov, costs, models
+        cov = bm.covariance_subproblem(model_idx, qoi_idx)
+        costs = bm.costs_subproblem(model_idx)
+        models = bm.models_subproblem(model_idx, qoi_idx)
+        return bm, cov, costs, models
 
     def _check_sigma_matrix_of_estimator(self, bkd, est, ntrials: int, models: list):
         """Check sigma matrix and estimator variance via Monte Carlo.

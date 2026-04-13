@@ -16,13 +16,6 @@ from pyapprox_benchmarks.instances.analytic import (
     sobol_g_4d,
     sobol_g_6d,
 )
-from pyapprox_benchmarks.instances.multifidelity import (
-    multioutput_ensemble_3x3,
-    polynomial_ensemble_3model,
-    polynomial_ensemble_5model,
-    psd_multioutput_ensemble_3x3,
-    tunable_ensemble_3model,
-)
 from pyapprox_benchmarks.instances.ode import (
     chemical_reaction_surface,
     coupled_springs_2mass,
@@ -49,12 +42,7 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
-    "polynomial_ensemble_5model",
-    "polynomial_ensemble_3model",
-    "multioutput_ensemble_3x3",
-    "psd_multioutput_ensemble_3x3",
-    "tunable_ensemble_3model",
-    "lotka_volterra_3species",
+"lotka_volterra_3species",
     "coupled_springs_2mass",
     "hastings_ecology_3species",
     "chemical_reaction_surface",

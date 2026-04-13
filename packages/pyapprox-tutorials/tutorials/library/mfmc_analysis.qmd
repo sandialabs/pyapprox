@@ -234,18 +234,18 @@ hierarchy before solving again.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
 from pyapprox.statest.mc_estimator import MCEstimator
 
 bkd       = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-variable  = benchmark.prior()
-models    = benchmark.models()
-costs_bkd = benchmark.costs()
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+variable  = benchmark.problem().prior()
+models    = benchmark.problem().models()
+costs_bkd = benchmark.problem().costs()
 costs     = bkd.to_numpy(costs_bkd)
 nqoi      = models[0].nqoi()
 cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())

@@ -16,18 +16,18 @@ def plot_level_variances(ax1, ax2):
     Variance of level corrections vs cost per sample for the
     5-model polynomial hierarchy.
     """
-    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-        polynomial_ensemble_5model,
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
     )
     from pyapprox.util.backends.numpy import NumpyBkd
 
     from ._style import apply_style
 
     bkd = NumpyBkd()
-    benchmark = polynomial_ensemble_5model(bkd)
-    variable = benchmark.prior()
-    models = benchmark.models()
-    costs = bkd.to_numpy(benchmark.costs())
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+    variable = benchmark.problem().prior()
+    models = benchmark.problem().models()
+    costs = bkd.to_numpy(benchmark.problem().costs())
     M = len(models) - 1
 
     np.random.seed(0)
@@ -73,8 +73,8 @@ def plot_mlmc_vs_mc(axes):
 
     Distribution of MC and MLMC mean estimates at equal total cost.
     """
-    from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-        polynomial_ensemble_5model,
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
     )
     from pyapprox.statest import MLMCEstimator
     from pyapprox.statest.mc_estimator import MCEstimator
@@ -86,10 +86,10 @@ def plot_mlmc_vs_mc(axes):
     bkd = NumpyBkd()
     np.random.seed(0)
 
-    benchmark = polynomial_ensemble_5model(bkd)
-    variable = benchmark.prior()
-    models = benchmark.models()
-    costs = benchmark.costs()
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+    variable = benchmark.problem().prior()
+    models = benchmark.problem().models()
+    costs = benchmark.problem().costs()
     nqoi = models[0].nqoi()
 
     true_mean = bkd.to_float(benchmark.ensemble_means()[0, 0])

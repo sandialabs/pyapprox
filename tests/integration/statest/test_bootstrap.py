@@ -14,11 +14,9 @@ These tests use the typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.multifidelity.multioutput_ensemble import (
-    MultiOutputModelEnsemble,
-)
-from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
-    PolynomialEnsemble,
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.acv.variants import (
     GISEstimator,
@@ -110,10 +108,10 @@ def _setup_pilot_quantities(stat_type: str, nmodels: int, nqoi: int, bkd):
     return pilot_args
 
 
-def _compute_mc_estimator_variance(bkd, ensemble, est, ntrials: int):
+def _compute_mc_estimator_variance(bkd, problem, est, ntrials: int):
     """Compute MC estimate of estimator variance using polynomial ensemble."""
-    models = ensemble.models()
-    nmodels = ensemble.nmodels()
+    models = problem.models()
+    nmodels = problem.nmodels()
 
     def rvs(nsamples):
         n = int(nsamples)
@@ -218,9 +216,9 @@ class TestBootstrapEstimator:
         nmodels = 3
         nbootstraps = 500
 
-        # Use PolynomialEnsemble for proper hierarchical covariance
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
+        # Use PolynomialEnsembleBenchmark for proper hierarchical covariance
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -297,9 +295,9 @@ class TestEstimatorVariance:
         ntrials = 3000
         target_cost = 100.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = _get_stat(stat_type, nqoi, self._bkd)
 
@@ -324,7 +322,7 @@ class TestEstimatorVariance:
         allocate_with_allocator(est, target_cost)
 
         # Compute MC variance
-        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
         analytical_cov = est.optimized_covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
@@ -350,14 +348,14 @@ class TestEstimatorVariance:
         ntrials = 2000
         target_cost = 50.0
 
-        ensemble = MultiOutputModelEnsemble(self._bkd)
+        bm = MultiOutputEnsembleBenchmark(self._bkd)
         nmodels = len(model_idx)
         nqoi = len(qoi_idx)
 
         # Get subproblem covariance and costs
-        cov = ensemble.covariance_subproblem(model_idx, qoi_idx)
-        costs = ensemble.costs_subproblem(model_idx)
-        models = ensemble.models_subproblem(model_idx, qoi_idx)
+        cov = bm.covariance_subproblem(model_idx, qoi_idx)
+        costs = bm.costs_subproblem(model_idx)
+        models = bm.models_subproblem(model_idx, qoi_idx)
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -417,9 +415,9 @@ class TestEstimatorVariance:
         ntrials = 2000
         target_cost = 50.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
         stat = _get_stat(stat_type, nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
@@ -428,7 +426,7 @@ class TestEstimatorVariance:
         est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
         allocate_with_allocator(est, target_cost)
 
-        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
         analytical_cov = est.optimized_covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
@@ -524,11 +522,11 @@ class TestPolynomialEnsemble:
         ntrials = 3000
         target_cost = 30.0
 
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        cov = bm.ensemble_covariance()
+        costs = bm.problem().costs()
 
-        stat = MultiOutputMean(ensemble.nqoi(), self._bkd)
+        stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
 
         kwargs = {}
@@ -542,7 +540,7 @@ class TestPolynomialEnsemble:
             allocate_with_allocator(est, target_cost)
 
         analytical_cov = est.optimized_covariance()
-        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-2)
 

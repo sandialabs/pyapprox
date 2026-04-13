@@ -118,8 +118,8 @@ so $\mathcal{P}_1 \not\subseteq \mathcal{Z}_2^*$.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.mc_estimator import MCEstimator
@@ -134,11 +134,11 @@ from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 
 bkd = NumpyBkd()
 np.random.seed(1)
-benchmark = polynomial_ensemble_5model(bkd)
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
 nmodels   = 4
-costs     = benchmark.costs()[:nmodels]
+costs     = benchmark.problem().costs()[:nmodels]
 cov       = benchmark.ensemble_covariance()[:nmodels, :nmodels]
-nqoi      = benchmark.models()[0].nqoi()
+nqoi      = benchmark.problem().models()[0].nqoi()
 
 stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(cov)

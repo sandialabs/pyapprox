@@ -139,18 +139,18 @@ many cheap LF samples are worth buying to tighten the correction.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import MFMCEstimator
 from pyapprox.statest.acv.allocation import ACVAllocationResult
 
 bkd = NumpyBkd()
-benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
-hf_model  = benchmark.models()[0]
-lf_model  = benchmark.models()[1]
-variable  = benchmark.prior()
+benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
+hf_model  = benchmark.problem().models()[0]
+lf_model  = benchmark.problem().models()[1]
+variable  = benchmark.problem().prior()
 nqoi      = hf_model.nqoi()
 
 cov_exact     = benchmark.ensemble_covariance()[:2, :2]
@@ -399,8 +399,8 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
+from pyapprox_benchmarks.statest import (
+    PolynomialEnsembleBenchmark,
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest import (
@@ -414,9 +414,9 @@ from pyapprox.optimization.minimize.scipy.slsqp import (
 )
 
 bkd       = NumpyBkd()
-benchmark = polynomial_ensemble_5model(bkd)
-models    = benchmark.models()
-costs     = benchmark.costs()
+benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+models    = benchmark.problem().models()
+costs     = benchmark.problem().costs()
 nqoi      = models[0].nqoi()
 n_models  = len(models)
 M         = n_models - 1
@@ -461,7 +461,7 @@ against empirical variance from independent trials.
 #| fig-cap: "MC, MFMC, and ACVMF variance vs total cost: predictions (lines) compared to empirical variance from 200 independent trials (markers)."
 #| label: fig-variance-verify
 
-variable  = benchmark.prior()
+variable  = benchmark.problem().prior()
 
 opt_verify = ScipySLSQPOptimizer(maxiter=200)
 
