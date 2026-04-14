@@ -43,7 +43,7 @@ After completing this tutorial, you will be able to:
 ## Prerequisites
 
 Complete [Goal-Oriented OED: Predator-Prey](boed_pred_nonlinear_usage.qmd).
-This tutorial introduces a new benchmark — an advection-diffusion PDE — but the
+This tutorial introduces a new problem — an advection-diffusion PDE — but the
 OED workflow is the same.
 
 ## Why Decouple?
@@ -70,7 +70,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.expdesign.advection_diffusion import (
-    build_obstructed_advection_diffusion_oed_benchmark,
+    build_obstructed_advection_diffusion_oed_problem,
 )
 from pyapprox.expdesign.data import OEDDataGenerator, OEDDataManager
 from pyapprox.expdesign import (
@@ -90,15 +90,15 @@ bkd = NumpyBkd()
 ```{python}
 # Use lower mesh refinement for the tutorial (nrefine=2 instead of default 3).
 # Production runs should use nrefine=3 or higher.
-benchmark  = build_obstructed_advection_diffusion_oed_benchmark(
+problem  = build_obstructed_advection_diffusion_oed_problem(
     bkd, nstokes_refine=1, nadvec_diff_refine=1,
 )
-obs_model  = benchmark.obs_map()   # FEM-based PDE solver
-pred_model = benchmark.qoi_map()
-prior      = benchmark.prior()
+obs_model  = problem.obs_map()   # FEM-based PDE solver
+pred_model = problem.qoi_map()
+prior      = problem.prior()
 ```
 
-The benchmark models transport of a tracer through a 2-D channel with obstacles.
+The problem models transport of a tracer through a 2-D channel with obstacles.
 The uncertain parameters control the inflow profile; observations are tracer
 concentrations at sensor locations; predictions are downstream concentrations at
 unobserved locations.
@@ -109,7 +109,7 @@ unobserved locations.
 #| label: fig-domain-sensors
 
 fig, ax = plt.subplots(figsize=(9, 4))
-locs = bkd.to_numpy(benchmark.design_conditions())
+locs = bkd.to_numpy(problem.design_conditions())
 ax.scatter(locs[0], locs[1], s=15, c="#2C7FB8", alpha=0.7, label="Candidate sensors")
 ax.set_xlabel("x", fontsize=10)
 ax.set_ylabel("y", fontsize=10)
@@ -132,7 +132,7 @@ the tracer transport shown in the concentration plot.
 ```{python}
 # Draw one sample from the prior and solve both Stokes and ADR
 sample = prior.rvs(1)
-plot_data = benchmark.solve_for_plotting(sample)
+plot_data = problem.solve_for_plotting(sample)
 ```
 
 ```{python}
@@ -188,7 +188,7 @@ data_gen = OEDDataGenerator(bkd)
 
 # Outer loop needs samples from the joint (theta, epsilon) distribution
 noise_std      = 1.0
-nobs_total     = benchmark.nobservations()
+nobs_total     = problem.nobservations()
 noise_cov_diag = bkd.full((nobs_total,), noise_std**2)
 
 joint_variable = data_gen.joint_prior_noise_variable(prior, noise_cov_diag)
@@ -232,7 +232,7 @@ if not os.path.exists(filename):
     outerloop_shapes    = obs_model(outer_theta_samples)   # (nobs_total, nout)
 
     # Solve once per inner sample to get both obs and pred quantities
-    innerloop_shapes, qoi_vals_raw = benchmark.evaluate_both(innerloop_samples)
+    innerloop_shapes, qoi_vals_raw = problem.evaluate_both(innerloop_samples)
     qoi_vals = qoi_vals_raw.T                              # (nin, nqoi)
 
     data_manager.save_data(
@@ -240,7 +240,7 @@ if not os.path.exists(filename):
         outerloop_samples,
         outerloop_shapes,
         outerloop_weights,
-        benchmark.design_conditions(),
+        problem.design_conditions(),
         innerloop_samples,
         innerloop_shapes,
         innerloop_weights,

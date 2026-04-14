@@ -139,7 +139,7 @@ Benchmarks are pre-configured test problems with known solutions. Let's load the
 ```{python}
 # Create backend and load benchmark
 bkd = NumpyBkd()
-benchmark = lotka_volterra_3species(bkd)
+benchmark = build_lotka_volterra_3species(bkd)
 
 # Examine benchmark properties
 print(f"Benchmark name: {benchmark.name()}")

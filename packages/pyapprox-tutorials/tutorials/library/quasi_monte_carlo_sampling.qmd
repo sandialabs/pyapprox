@@ -122,8 +122,7 @@ PyApprox provides two standard low-discrepancy sequence generators:
 Both produce points in $[0, 1]^d$ that fill the space progressively --- each new point lands in a region that is currently undersampled.
 
 ```{python}
-from pyapprox.expdesign.quadrature.halton import HaltonSampler
-from pyapprox.expdesign.quadrature.sobol import SobolSampler
+from pyapprox.expdesign.quadrature import HaltonSampler, SobolSampler
 
 N = 256
 

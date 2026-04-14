@@ -122,7 +122,7 @@ bench_all = build_cantilever_beam_oed_benchmark(
     sensor_xs=all_sensor_xs,
 )
 A_all = bench_all.design_matrix()  # (200, 2)
-prior_dist = bench_all.prior()
+prior_dist = bench_all.problem().prior()
 
 # Helper: extract observation row for a single sensor location
 def observation_row(x_sensor):

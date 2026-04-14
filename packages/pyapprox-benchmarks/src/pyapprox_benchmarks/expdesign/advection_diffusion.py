@@ -33,11 +33,11 @@ from pyapprox_benchmarks.problems.oed.advection_diffusion import (
 )
 
 # ---------------------------------------------------------------------------
-# ObstructedAdvectionDiffusionOEDBenchmark (Pattern A forwarders preserved)
+# ObstructedAdvectionDiffusionOEDProblemWrapper (Pattern A forwarders preserved)
 # ---------------------------------------------------------------------------
 
 
-class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
+class ObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
     """Obstructed advection-diffusion prediction OED problem wrapper.
 
     No analytical ground truth — this is a Problem wrapper, not a
@@ -129,7 +129,7 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         return self._problem.nnodes()
 
 
-def build_obstructed_advection_diffusion_oed_benchmark(
+def build_obstructed_advection_diffusion_oed_problem(
     bkd: Backend[Array],
     *,
     noise_std: float = 0.1,
@@ -146,8 +146,8 @@ def build_obstructed_advection_diffusion_oed_benchmark(
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
-) -> ObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    """Build an :class:`ObstructedAdvectionDiffusionOEDBenchmark`."""
+) -> ObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
+    """Build an :class:`ObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = AdvectionDiffusionOEDProblem(
         bkd,
         noise_std=noise_std,
@@ -163,18 +163,18 @@ def build_obstructed_advection_diffusion_oed_benchmark(
         kle_sigma=kle_sigma,
         source_mode=source_mode,
     )
-    return ObstructedAdvectionDiffusionOEDBenchmark(
+    return ObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,
         bkd=bkd,
     )
 
 
 # ---------------------------------------------------------------------------
-# FixedVelocityObstructedAdvectionDiffusionOEDBenchmark (Pattern B only)
+# FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper (Pattern B only)
 # ---------------------------------------------------------------------------
 
 
-class FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
+class FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(Generic[Array]):
     """Fixed-velocity advection-diffusion OED problem wrapper.
 
     No analytical ground truth — this is a Problem wrapper, not a
@@ -215,7 +215,7 @@ class FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         return self._problem.noise_std() ** 2
 
 
-def build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
+def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
     bkd: Backend[Array],
     *,
     vel_shape_a: float = 2.5,
@@ -235,8 +235,8 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
-) -> FixedVelocityObstructedAdvectionDiffusionOEDBenchmark[Array]:
-    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDBenchmark`."""
+) -> FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
+    """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = FixedVelocityAdvectionDiffusionOEDProblem(
         bkd,
         vel_shape_a=vel_shape_a,
@@ -255,7 +255,7 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark(
         kle_sigma=kle_sigma,
         source_mode=source_mode,
     )
-    return FixedVelocityObstructedAdvectionDiffusionOEDBenchmark(
+    return FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,
         bkd=bkd,
     )

@@ -58,8 +58,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.pde.cantilever_beam_1d_analytical import (
     build_cantilever_beam_1d_analytical,
 )
-from pyapprox.expdesign.quadrature.halton import HaltonSampler
-from pyapprox.expdesign.quadrature.sobol import SobolSampler
+from pyapprox.expdesign.quadrature import HaltonSampler, SobolSampler
 
 bkd = NumpyBkd()
 

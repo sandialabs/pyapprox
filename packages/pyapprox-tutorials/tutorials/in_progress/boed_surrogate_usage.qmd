@@ -76,7 +76,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.expdesign.advection_diffusion import (
-    build_obstructed_advection_diffusion_oed_benchmark,
+    build_obstructed_advection_diffusion_oed_problem,
 )
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
@@ -92,10 +92,10 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark  = build_obstructed_advection_diffusion_oed_benchmark(bkd)
-obs_model  = benchmark.obs_map()
-pred_model = benchmark.qoi_map()
-prior      = benchmark.prior()
+problem  = build_obstructed_advection_diffusion_oed_problem(bkd)
+obs_model  = problem.obs_map()
+pred_model = problem.qoi_map()
+prior      = problem.prior()
 
 print(f"Parameter dimension:      {prior.nvars()}")
 print(f"Observation output dim:   {obs_model.nqoi()}")
@@ -266,10 +266,10 @@ print(f"Objective value: {utility:.6f}")
 #| label: fig-surrogate-oed-design
 
 fig, ax = plt.subplots(figsize=(9, 4))
-fe_model = benchmark.obs_map().fe_model()
+fe_model = problem.obs_map().fe_model()
 fe_model.stokes_model().plot_domain_boundaries(ax)
 
-obs_locs = bkd.to_numpy(benchmark.design_conditions()[:, :nobs_active])
+obs_locs = bkd.to_numpy(problem.design_conditions()[:, :nobs_active])
 w        = bkd.to_numpy(design_weights[:, 0])
 w_norm   = w / w.max()
 

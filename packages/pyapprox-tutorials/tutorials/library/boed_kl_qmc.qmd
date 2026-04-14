@@ -88,7 +88,7 @@ from pyapprox_benchmarks.expdesign.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
 from pyapprox.expdesign.objective import create_kl_oed_objective_from_data
-from pyapprox.expdesign.quadrature.halton import HaltonSampler
+from pyapprox.expdesign.quadrature import HaltonSampler
 from pyapprox.expdesign.quadrature.oed import build_oed_joint_distribution
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.univariate import GaussianMarginal
