@@ -1,6 +1,6 @@
 """Cantilever beam 2D load identification OED benchmark.
 
-Composes KLOEDProblem + OEDGroundTruth for sensor placement on a
+Composes KLOEDProblem with exact EIG for sensor placement on a
 2D cantilever beam. The forward model maps two load parameters
 (constant + slope traction) to y-displacements at sensor locations.
 
@@ -8,10 +8,10 @@ Structure:
 - obs_map built by functions.pde.cantilever_beam_obs_map
 - BayesianInferenceProblem holds obs_map + prior + noise
 - KLOEDProblem adds design conditions
-- OEDGroundTruth provides exact EIG via conjugate Gaussian
+- exact EIG via conjugate Gaussian
 """
 
-from typing import Generic, Optional
+from typing import Callable, Generic, Optional
 
 from pyapprox_benchmarks.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
@@ -20,7 +20,6 @@ from pyapprox_benchmarks.functions.pde.cantilever_beam_obs_map import (
     build_cantilever_beam_design_matrix,
     build_cantilever_beam_obs_map,
 )
-from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox_benchmarks.problems.inverse import GaussianInferenceProblem
 from pyapprox_benchmarks.problems.oed import KLOEDProblem
 from pyapprox.expdesign.utils import compute_exact_eig
@@ -31,8 +30,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
     """OED benchmark for 2D cantilever beam load identification.
 
-    Composes a KLOEDProblem + OEDGroundTruth. Access inference details
-    via ``benchmark.problem()``.
+    Access inference details via ``benchmark.problem()``.
 
     The beam has distributed surface traction:
         t_y(x) = theta_1 * (-1) + theta_2 * (-x / L)
@@ -44,8 +42,8 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
     ----------
     problem : KLOEDProblem[Array]
         The OED problem.
-    ground_truth : OEDGroundTruth
-        Ground truth with exact_eig callable.
+    exact_eig_fn : callable
+        Callable computing exact EIG from weights.
     bkd : Backend[Array]
         Computational backend.
     noise_std : float
@@ -59,14 +57,14 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
     def __init__(
         self,
         problem: KLOEDProblem[Array],
-        ground_truth: OEDGroundTruth,
+        exact_eig_fn: Callable[[Array], float],
         bkd: Backend[Array],
         noise_std: float,
         design_matrix: Array,
         sensor_xs: Array,
     ) -> None:
         self._problem = problem
-        self._ground_truth = ground_truth
+        self._exact_eig_fn = exact_eig_fn
         self._bkd = bkd
         self._noise_std = noise_std
         self._design_matrix = design_matrix
@@ -80,14 +78,9 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         """Get the OED problem."""
         return self._problem
 
-    def ground_truth(self) -> OEDGroundTruth:
-        """Get the ground truth."""
-        return self._ground_truth
-
     def exact_eig(self, weights: Array) -> float:
-        """Compute exact EIG (delegates to ground truth)."""
-        assert self._ground_truth.exact_eig is not None
-        return self._ground_truth.exact_eig(weights)
+        """Compute exact EIG for the given design weights."""
+        return self._exact_eig_fn(weights)
 
     def d_optimal_objective(self, weights: Array) -> float:
         """D-optimal objective (negative EIG)."""
@@ -196,10 +189,8 @@ def build_cantilever_beam_oed_benchmark(
     )
     conditions = bkd.reshape(sensor_xs, (nobs, 1))
     problem = KLOEDProblem(inference, conditions, bkd)
-    ground_truth = OEDGroundTruth(
-        exact_eig=lambda w: compute_exact_eig(problem, w),
-    )
+    exact_eig_fn = lambda w: compute_exact_eig(problem, w)  # noqa: E731
 
     return CantileverBeam2DLoadOEDBenchmark(
-        problem, ground_truth, bkd, noise_std, design_matrix, sensor_xs,
+        problem, exact_eig_fn, bkd, noise_std, design_matrix, sensor_xs,
     )

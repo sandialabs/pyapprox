@@ -79,10 +79,8 @@ Let's verify that PyApprox is installed correctly by importing key modules.
 from pyapprox.util.backends.numpy import NumpyBkd
 
 # Benchmark problems for testing
-from pyapprox_benchmarks import (
-    lotka_volterra_3species,
-    ishigami_3d,
-)
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
+from pyapprox_benchmarks.ode import build_lotka_volterra_3species
 
 print("pyapprox imported successfully!")
 ```
@@ -180,7 +178,7 @@ print(f"First sample (column): {samples[:, 0]}")
 
 1. **(Easy)** Create a 4x10 array of random numbers using the backend and compute its column-wise mean.
 
-2. **(Medium)** Load the `ishigami_3d` benchmark and print its name, domain bounds (`benchmark.domain().bounds()`), and number of variables (`benchmark.domain().nvars()`).
+2. **(Medium)** Create an `IshigamiBenchmark(bkd)` and print its prior (`benchmark.problem().prior()`) and number of variables (`benchmark.problem().prior().nvars()`).
 
 3. **(Challenge)** Explore the backend's linear algebra capabilities by solving a 5x5 random linear system $Ax = b$.
 

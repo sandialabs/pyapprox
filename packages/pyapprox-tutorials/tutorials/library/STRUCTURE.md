@@ -32,10 +32,8 @@ experimental_design_intro  (existing)
 
 ### Current API
 ```python
-from pyapprox_benchmarks.instances.oed.linear_gaussian import (
+from pyapprox_benchmarks.expdesign import (
     build_linear_gaussian_kl_benchmark,
-)
-from pyapprox_benchmarks.instances.oed.linear_gaussian_pred import (
     build_linear_gaussian_pred_benchmark,
 )
 from pyapprox.expdesign.diagnostics import KLOEDDiagnostics

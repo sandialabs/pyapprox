@@ -1,23 +1,18 @@
-"""Benchmark suite for the PyApprox typing module.
+"""Benchmark suite for the PyApprox module.
 
 This module provides a collection of benchmark problems for testing and
 validating algorithms in sensitivity analysis, optimization, quadrature,
 multifidelity methods, and inverse problems.
 
 Design Principles:
-- Functions implement existing protocols from typing.interface.functions.protocols
+- Functions implement existing protocols from pyapprox.interface.functions.protocols
 - No inheritance hierarchies - composition and protocol compliance
 - HVP (Hessian-vector product) preferred over full Hessian for efficiency
 - Fixed benchmark instances with known ground truth
 - Backend-agnostic using Backend[Array] protocol
 """
 
-from pyapprox_benchmarks.benchmark import (
-    Benchmark,
-    BenchmarkWithPrior,
-    BoxDomain,
-    ConstrainedBenchmark,
-)
+from pyapprox_benchmarks.benchmark import BoxDomain
 
 # Functions
 from pyapprox_benchmarks.functions.algebraic import (
@@ -48,30 +43,6 @@ from pyapprox_benchmarks.functions.ode import (
     ODEQoIFunction,
     ODETimeConfig,
 )
-from pyapprox_benchmarks.ground_truth import (
-    InverseGroundTruth,
-    MultifidelityGroundTruth,
-    ODEGroundTruth,
-    OptimizationGroundTruth,
-    QuadratureGroundTruth,
-    SensitivityGroundTruth,
-)
-
-# Instances (also registers with BenchmarkRegistry)
-from pyapprox_benchmarks.instances import (
-    branin_2d,
-    genz_corner_peak_2d,
-    genz_gaussian_peak_2d,
-    genz_gaussian_peak_5d,
-    genz_oscillatory_2d,
-    genz_oscillatory_5d,
-    genz_product_peak_2d,
-    ishigami_3d,
-    rosenbrock_2d,
-    rosenbrock_10d,
-    sobol_g_4d,
-    sobol_g_6d,
-)
 
 # ODE builders
 from pyapprox_benchmarks.ode import (
@@ -95,42 +66,41 @@ from pyapprox_benchmarks.pde import (
     build_hyperelastic_pressurized_cylinder_2d,
     build_pressurized_cylinder_2d,
 )
+
+# Protocols
 from pyapprox_benchmarks.protocols import (
-    BenchmarkProtocol,
-    BenchmarkWithPriorProtocol,
-    ConstrainedBenchmarkProtocol,
     ConstraintProtocol,
     DomainProtocol,
-    GroundTruthProtocol,
     HasExactEIG,
-    KLOEDBenchmarkProtocol,
-    PredictionOEDBenchmarkProtocol,
 )
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+
+# Sensitivity benchmarks
+from pyapprox_benchmarks.sensitivity import (
+    IshigamiBenchmark,
+    SobolGBenchmark,
+)
+
+# Optimization benchmarks
+from pyapprox_benchmarks.optimization import (
+    BraninBenchmark,
+    RosenbrockBenchmark,
+)
+
+# Quadrature benchmarks
+from pyapprox_benchmarks.quadrature import (
+    GenzCornerPeakBenchmark,
+    GenzGaussianPeakBenchmark,
+    GenzOscillatoryBenchmark,
+    GenzProductPeakBenchmark,
+)
 
 __all__ = [
     # Protocols
     "DomainProtocol",
-    "GroundTruthProtocol",
-    "BenchmarkProtocol",
-    "BenchmarkWithPriorProtocol",
     "ConstraintProtocol",
-    "ConstrainedBenchmarkProtocol",
     "HasExactEIG",
-    # Ground truth
-    "SensitivityGroundTruth",
-    "OptimizationGroundTruth",
-    "QuadratureGroundTruth",
-    "MultifidelityGroundTruth",
-    "InverseGroundTruth",
-    "ODEGroundTruth",
-    # Benchmark classes
+    # Domain
     "BoxDomain",
-    "Benchmark",
-    "BenchmarkWithPrior",
-    "ConstrainedBenchmark",
-    # Registry
-    "BenchmarkRegistry",
     # Functions - Algebraic
     "IshigamiFunction",
     "IshigamiSensitivityIndices",
@@ -170,19 +140,15 @@ __all__ = [
     "build_cantilever_beam_2d_neohookean_spde",
     "build_hyperelastic_pressurized_cylinder_2d",
     "build_pressurized_cylinder_2d",
-    # Instances - Sensitivity
-    "ishigami_3d",
-    "sobol_g_6d",
-    "sobol_g_4d",
-    # Instances - Optimization
-    "rosenbrock_2d",
-    "rosenbrock_10d",
-    "branin_2d",
-    # Instances - Quadrature
-    "genz_oscillatory_2d",
-    "genz_product_peak_2d",
-    "genz_corner_peak_2d",
-    "genz_gaussian_peak_2d",
-    "genz_oscillatory_5d",
-    "genz_gaussian_peak_5d",
+    # Sensitivity benchmarks
+    "IshigamiBenchmark",
+    "SobolGBenchmark",
+    # Optimization benchmarks
+    "BraninBenchmark",
+    "RosenbrockBenchmark",
+    # Quadrature benchmarks
+    "GenzOscillatoryBenchmark",
+    "GenzProductPeakBenchmark",
+    "GenzCornerPeakBenchmark",
+    "GenzGaussianPeakBenchmark",
 ]

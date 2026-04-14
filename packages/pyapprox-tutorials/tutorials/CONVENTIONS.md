@@ -565,7 +565,7 @@ import numpy as np
 
 # pyapprox
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import lotka_volterra_3species
+from pyapprox_benchmarks.ode import build_lotka_volterra_3species
 ```
 
 ### Backend Usage
@@ -581,11 +581,11 @@ result = bkd.sum(values)
 
 For UQ tutorials, use benchmark instances:
 ```python
-from pyapprox_benchmarks import lotka_volterra_3species
+from pyapprox_benchmarks.ode import build_lotka_volterra_3species
 from pyapprox.util.backends.numpy import NumpyBkd
 
 bkd = NumpyBkd()
-benchmark = lotka_volterra_3species(bkd)
+problem = build_lotka_volterra_3species(bkd)
 ```
 
 ---

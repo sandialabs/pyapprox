@@ -78,18 +78,17 @@ The residual must implement:
 ### Example: Lotka-Volterra Residual
 
 ```{python}
-from pyapprox_benchmarks import lotka_volterra_3species
+from pyapprox_benchmarks.ode import build_lotka_volterra_3species
 
-benchmark = lotka_volterra_3species(bkd)
-residual = benchmark.residual()
-gt = benchmark.ground_truth()
+problem = build_lotka_volterra_3species(bkd)
+residual = problem.residual()
 
 # Set parameters and time
-residual.set_param(gt.nominal_parameters)
+residual.set_param(problem.nominal_parameters())
 residual.set_time(0.0)
 
 # Evaluate at initial condition (flatten from (3,1) to (3,))
-state = bkd.flatten(gt.initial_condition)
+state = bkd.flatten(problem.initial_condition())
 f_val = residual(state)
 
 print(f"State: {state}")
@@ -180,7 +179,7 @@ The `TimeIntegrator` orchestrates the full time integration:
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
 # Get time configuration
-time_config = benchmark.time_config()
+time_config = problem.time_config()
 
 # Create integrator
 integrator = TimeIntegrator(
@@ -199,7 +198,7 @@ print(f"Number of steps: {time_config.ntimes() - 1}")
 
 ```{python}
 # Solve the ODE (initial condition must be 1D for integrator)
-init_state = bkd.flatten(gt.initial_condition)
+init_state = bkd.flatten(problem.initial_condition())
 solutions, times = integrator.solve(init_state)
 
 print(f"Solution shape: {solutions.shape}")
@@ -231,12 +230,12 @@ plt.show()
 For convenience, ODE benchmarks provide a pre-configured integrator:
 
 ```{python}
-# Much simpler: use benchmark.integrator()
-residual = benchmark.residual()
-residual.set_param(gt.nominal_parameters)
+# Much simpler: use problem.integrator()
+residual = problem.residual()
+residual.set_param(problem.nominal_parameters())
 
-integrator = benchmark.integrator()  # Uses backward_euler by default
-solutions, times = integrator.solve(bkd.flatten(gt.initial_condition))
+integrator = problem.integrator()  # Uses backward_euler by default
+solutions, times = integrator.solve(bkd.flatten(problem.initial_condition()))
 
 print(f"Final state: {solutions[:, -1]}")
 ```
@@ -245,8 +244,8 @@ print(f"Final state: {solutions[:, -1]}")
 
 ```{python}
 # Use Crank-Nicolson for higher accuracy
-integrator_cn = benchmark.integrator(stepper="crank_nicolson")
-solutions_cn, times_cn = integrator_cn.solve(bkd.flatten(gt.initial_condition))
+integrator_cn = problem.integrator(stepper="crank_nicolson")
+solutions_cn, times_cn = integrator_cn.solve(bkd.flatten(problem.initial_condition()))
 
 # Compare final states
 print(f"Backward Euler final: {solutions[:, -1]}")
@@ -265,8 +264,8 @@ def solve_with_deltat(deltat):
     from pyapprox.util.rootfinding.newton import NewtonSolver
     from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
-    residual = benchmark.residual()
-    residual.set_param(gt.nominal_parameters)
+    residual = problem.residual()
+    residual.set_param(problem.nominal_parameters())
 
     time_residual = BackwardEulerResidual(residual)
     newton_solver = NewtonSolver(time_residual)
@@ -277,7 +276,7 @@ def solve_with_deltat(deltat):
         newton_solver=newton_solver,
     )
 
-    return integrator.solve(bkd.flatten(gt.initial_condition))
+    return integrator.solve(bkd.flatten(problem.initial_condition()))
 
 # Solve with different time steps
 deltats = [1.0, 0.5, 0.1, 0.05]
@@ -303,7 +302,7 @@ for i, dt in enumerate(deltats[:-1]):
 - **Time Stepper**: Wraps residual for a specific method (Backward Euler, Crank-Nicolson)
 - **Newton Solver**: Solves nonlinear equations at each implicit step
 - **Time Integrator**: Orchestrates the full forward solve
-- **Benchmark convenience**: Use `benchmark.integrator()` for pre-configured integration
+- **Benchmark convenience**: Use `problem.integrator()` for pre-configured integration
 
 ## Available Time Steppers
 
