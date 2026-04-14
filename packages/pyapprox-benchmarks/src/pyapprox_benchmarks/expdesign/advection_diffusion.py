@@ -146,6 +146,9 @@ def build_obstructed_advection_diffusion_oed_problem(
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
+    time_integrator: Literal[
+        "backward_euler", "crank_nicolson"
+    ] = "crank_nicolson",
 ) -> ObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
     """Build an :class:`ObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = AdvectionDiffusionOEDProblem(
@@ -162,6 +165,7 @@ def build_obstructed_advection_diffusion_oed_problem(
         kle_correlation_length=kle_correlation_length,
         kle_sigma=kle_sigma,
         source_mode=source_mode,
+        time_integrator=time_integrator,
     )
     return ObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,
@@ -235,6 +239,9 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
     kle_correlation_length: float = 0.1,
     kle_sigma: float = 0.3,
     source_mode: Literal["forcing", "initial_condition"] = "forcing",
+    time_integrator: Literal[
+        "backward_euler", "crank_nicolson"
+    ] = "crank_nicolson",
 ) -> FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper[Array]:
     """Build a :class:`FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper`."""
     problem = FixedVelocityAdvectionDiffusionOEDProblem(
@@ -254,6 +261,7 @@ def build_fixed_velocity_obstructed_advection_diffusion_oed_problem(
         kle_correlation_length=kle_correlation_length,
         kle_sigma=kle_sigma,
         source_mode=source_mode,
+        time_integrator=time_integrator,
     )
     return FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper(
         problem=problem,

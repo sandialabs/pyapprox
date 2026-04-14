@@ -140,11 +140,19 @@ class AdvectionDiffusionOEDProblem(
         kle_correlation_length: float = 0.1,
         kle_sigma: float = 0.3,
         source_mode: Literal["forcing", "initial_condition"] = "forcing",
+        time_integrator: Literal[
+            "backward_euler", "crank_nicolson"
+        ] = "crank_nicolson",
     ) -> None:
         if source_mode not in ("forcing", "initial_condition"):
             raise ValueError(
                 f"source_mode must be 'forcing' or 'initial_condition', "
                 f"got {source_mode!r}"
+            )
+        if time_integrator not in ("backward_euler", "crank_nicolson"):
+            raise ValueError(
+                f"time_integrator must be 'backward_euler' or "
+                f"'crank_nicolson', got {time_integrator!r}"
             )
         from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -175,6 +183,7 @@ class AdvectionDiffusionOEDProblem(
         self._kle_correlation_length = kle_correlation_length
         self._kle_sigma = kle_sigma
         self._source_mode = source_mode
+        self._time_integrator = time_integrator
 
         # Step 1: build mesh, KLE, sensors, prior, obs/pred, inference.
         self._build_pde_substrate()
@@ -423,12 +432,21 @@ class AdvectionDiffusionOEDProblem(
             ic = kle_nodal.astype(np.float64)
         else:
             ic = bkd.to_numpy(bkd.zeros((adr.nstates(),)))
+        # ADR with frozen Stokes velocity is linear in u, so the implicit
+        # time step assembles a single linear system and Newton converges
+        # in one iteration to a residual set by linear-solve roundoff
+        # (typically 1e-7..1e-8 for this stiffness). Setting maxiter=1 is a
+        # verification barrier: if anyone introduces nonlinearity (e.g. a
+        # u-dependent reaction), Newton leaves a residual ~||r_0|| after
+        # one step, orders of magnitude above newton_tol, and raises
+        # RuntimeError. newton_tol=1e-6 gives headroom for linear-solve
+        # roundoff without masking genuine nonlinearity.
         config = TimeIntegrationConfig(
-            method="backward_euler",
+            method=self._time_integrator,
             final_time=self._final_time,
             deltat=self._deltat,
-            newton_tol=1e-8,
-            newton_maxiter=5,
+            newton_tol=1e-6,
+            newton_maxiter=1,
         )
         return model.solve_transient(bkd.asarray(ic), config)
 
