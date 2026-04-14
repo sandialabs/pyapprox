@@ -18,6 +18,7 @@ from pyapprox_benchmarks.problems.oed import (
     KLOEDProblem,
     PredictionOEDProblem,
 )
+from pyapprox_benchmarks.problems.ode import ODEForwardUQProblem
 from pyapprox_benchmarks.problems.optimization import (
     ConstrainedOptimizationProblem,
 )
@@ -30,5 +31,6 @@ __all__ = [
     "GaussianInferenceProblem",
     "KLOEDProblem",
     "MultifidelityForwardUQProblem",
+    "ODEForwardUQProblem",
     "PredictionOEDProblem",
 ]

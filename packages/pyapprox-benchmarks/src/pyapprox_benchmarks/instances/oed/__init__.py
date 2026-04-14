@@ -19,7 +19,7 @@ from pyapprox_benchmarks.expdesign.linear_gaussian_pred import (
     build_linear_gaussian_pred_benchmark,
 )
 from pyapprox_benchmarks.expdesign.lotka_volterra import (
-    LotkaVolterraOEDBenchmark,
+    LotkaVolterraPredictionOEDProblem,
 )
 from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
     NonLinearGaussianPredOEDBenchmark,
@@ -30,7 +30,7 @@ __all__ = [
     "FixedVelocityObstructedAdvectionDiffusionOEDBenchmark",
     "LinearGaussianKLOEDBenchmark",
     "LinearGaussianPredOEDBenchmark",
-    "LotkaVolterraOEDBenchmark",
+    "LotkaVolterraPredictionOEDProblem",
     "NonLinearGaussianPredOEDBenchmark",
     "ObstructedAdvectionDiffusionOEDBenchmark",
     "build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark",

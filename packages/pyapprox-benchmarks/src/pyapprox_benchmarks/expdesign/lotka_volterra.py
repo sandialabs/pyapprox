@@ -1,9 +1,9 @@
-"""Lotka-Volterra OED benchmark for prediction.
+"""Lotka-Volterra prediction OED problem.
 
-Provides a benchmark coupling a 3-species competitive Lotka-Volterra ODE
-with observation and prediction models for OED. The observation model
-records species 0 and 2 at all time points; the prediction model
-records species 1 at every other time point.
+Couples a 3-species competitive Lotka-Volterra ODE with observation and
+prediction models for OED. The observation model records species 0 and 2
+at all time points; the prediction model records species 1 at every
+other time point.
 """
 
 from typing import Generic, Tuple
@@ -12,8 +12,8 @@ from pyapprox_benchmarks.functions.ode import (
     ODEFunctionalProtocol,
     ODEQoIFunction,
 )
-from pyapprox_benchmarks.instances.ode.lotka_volterra import (
-    lotka_volterra_3species,
+from pyapprox_benchmarks.ode.lotka_volterra import (
+    build_lotka_volterra_3species,
 )
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox.util.backends.protocols import Array, Backend
@@ -60,8 +60,8 @@ class PredictionFunctional(Generic[Array]):
         return sol[1, self._pred_indices]
 
 
-class LotkaVolterraOEDBenchmark(Generic[Array]):
-    """Lotka-Volterra 3-species OED benchmark for prediction.
+class LotkaVolterraPredictionOEDProblem(Generic[Array]):
+    """Lotka-Volterra 3-species prediction OED problem.
 
     Uses the 3-species competitive Lotka-Volterra system with 12
     parameters (3 growth rates + 9 competition coefficients).
@@ -93,14 +93,13 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         stepper: str = "backward_euler",
     ) -> None:
         self._bkd = bkd
-        self._wrapper = lotka_volterra_3species(
+        self._ode_problem = build_lotka_volterra_3species(
             bkd,
             final_time=final_time,
             deltat=deltat,
         )
-        inner = self._wrapper._inner
 
-        tc = inner.time_config()
+        tc = self._ode_problem.time_config()
         ntimes = tc.ntimes()
 
         obs_functional: ODEFunctionalProtocol[Array] = ObservationFunctional(
@@ -111,13 +110,11 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
             ntimes,
         )
 
-        self._obs_model = ODEQoIFunction(
-            inner,
+        self._obs_model = self._ode_problem.function(
             functional=obs_functional,
             stepper=stepper,
         )
-        self._pred_model = ODEQoIFunction(
-            inner,
+        self._pred_model = self._ode_problem.function(
             functional=pred_functional,
             stepper=stepper,
         )
@@ -126,9 +123,9 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         noise_variances = bkd.full(
             (self._obs_model.nqoi(),), noise_std**2,
         )
-        self._problem = BayesianInferenceProblem(
+        self._inference_problem = BayesianInferenceProblem(
             obs_map=self._obs_model,
-            prior=self._wrapper.prior(),
+            prior=self._ode_problem.prior(),
             noise_variances=noise_variances,
             bkd=bkd,
         )
@@ -147,13 +144,9 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         """Get the computational backend."""
         return self._bkd
 
-    def problem(self) -> BayesianInferenceProblem[Array]:
+    def inference_problem(self) -> BayesianInferenceProblem[Array]:
         """Get the inference problem (obs_map + prior + noise)."""
-        return self._problem
-
-    def prior(self):
-        """Return the prior distribution over parameters."""
-        return self._wrapper.prior()
+        return self._inference_problem
 
     def obs_map(self) -> ODEQoIFunction[Array]:
         """Return the observation map (species 0 and 2 at all times)."""
@@ -207,5 +200,3 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
             self._bkd.stack(obs_results, axis=1),
             self._bkd.stack(pred_results, axis=1),
         )
-
-

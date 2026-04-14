@@ -6,7 +6,7 @@ Benchmarks (have analytical ground truth):
 - ``NonLinearGaussianPredOEDBenchmark`` — exact prediction utility (lognormal QoI)
 
 Problem wrappers (no ground truth):
-- ``LotkaVolterraOEDBenchmark`` — nonlinear ODE-based OED
+- ``LotkaVolterraPredictionOEDProblem`` — nonlinear ODE-based prediction OED
 - ``ObstructedAdvectionDiffusionOEDBenchmark`` — PDE-based OED
 - ``FixedVelocityObstructedAdvectionDiffusionOEDBenchmark`` — fixed-velocity variant
 """
@@ -24,7 +24,7 @@ from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
     build_nonlinear_gaussian_pred_benchmark,
 )
 from pyapprox_benchmarks.expdesign.lotka_volterra import (
-    LotkaVolterraOEDBenchmark,
+    LotkaVolterraPredictionOEDProblem,
 )
 from pyapprox_benchmarks.expdesign.advection_diffusion import (
     FixedVelocityObstructedAdvectionDiffusionOEDBenchmark,
@@ -37,7 +37,7 @@ __all__ = [
     "LinearGaussianKLOEDBenchmark",
     "LinearGaussianPredOEDBenchmark",
     "NonLinearGaussianPredOEDBenchmark",
-    "LotkaVolterraOEDBenchmark",
+    "LotkaVolterraPredictionOEDProblem",
     "ObstructedAdvectionDiffusionOEDBenchmark",
     "FixedVelocityObstructedAdvectionDiffusionOEDBenchmark",
     "build_linear_gaussian_kl_benchmark",

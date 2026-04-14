@@ -56,7 +56,7 @@ This tutorial re-uses the same setup — only the utility function changes.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraOEDBenchmark
+from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraPredictionOEDProblem
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -74,10 +74,10 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark  = LotkaVolterraOEDBenchmark(bkd)
-obs_model  = benchmark.obs_map()
-pred_model = benchmark.qoi_map()   # maps theta -> future state values
-prior      = benchmark.prior()
+oed  = LotkaVolterraPredictionOEDProblem(bkd)
+obs_model  = oed.obs_map()
+pred_model = oed.qoi_map()   # maps theta -> future state values
+prior      = oed.inference_problem().prior()
 
 noise_std      = 0.2
 nobs           = obs_model.nqoi()
@@ -105,7 +105,7 @@ predictions   = pred_model(sample)
 from pyapprox_tutorials.figures import plot_lv_pred_target
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
-plot_lv_pred_target(ax, benchmark, obs_model, sample, observations,
+plot_lv_pred_target(ax, oed, obs_model, sample, observations,
                     predictions, bkd)
 plt.tight_layout()
 plt.show()
@@ -146,7 +146,7 @@ outer_shapes = obs_model(theta_outer)           # (nobs, nouterloop)
 latent_samples = outerloop_samples[nparams:, :] # (nobs, nouterloop)
 
 # Solve once per inner sample to get both obs and pred quantities
-inner_shapes, qoi_vals_raw = benchmark.evaluate_both(innerloop_samples)
+inner_shapes, qoi_vals_raw = oed.evaluate_both(innerloop_samples)
 qoi_vals = qoi_vals_raw.T                       # (ninnerloop, nqoi)
 ```
 
@@ -204,7 +204,7 @@ The solver is otherwise identical.
 from pyapprox_tutorials.figures import plot_pred_design_weights
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 8), sharey="row")
-plot_pred_design_weights(axes, benchmark, weights_std, weights_ent, bkd)
+plot_pred_design_weights(axes, oed, weights_std, weights_ent, bkd)
 plt.suptitle("Goal-oriented OED: deviation measure comparison", fontsize=12)
 plt.tight_layout()
 plt.show()

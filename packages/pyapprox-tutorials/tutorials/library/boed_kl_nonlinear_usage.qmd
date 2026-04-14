@@ -37,7 +37,7 @@ jupyter: python3
 After completing this tutorial, you will be able to:
 
 - Explain why observation timing matters for identifying Lotka-Volterra parameters
-- Construct a nonlinear OED problem using `LotkaVolterraOEDBenchmark` and the KL-OED API
+- Construct a nonlinear OED problem using `LotkaVolterraPredictionOEDProblem` and the KL-OED API
 - Generate outer-loop and inner-loop quadrature data from a forward model
 - Interpret design weights as a probability measure over candidate observation times
 
@@ -75,7 +75,7 @@ all possible parameter realizations, is most informative.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraOEDBenchmark
+from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraPredictionOEDProblem
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -89,9 +89,9 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0)
-obs_model = benchmark.obs_map()   # maps theta -> (nobs_times * 2,)
-prior     = benchmark.prior()               # IndependentJoint over theta
+oed = LotkaVolterraPredictionOEDProblem(bkd, final_time=50.0)
+obs_model = oed.obs_map()   # maps theta -> (nobs_times * 2,)
+prior     = oed.inference_problem().prior()  # IndependentJoint over theta
 ```
 
 ## The Model and Observation Structure
@@ -112,7 +112,7 @@ observations = obs_model(sample).reshape((2, -1))    # shape (2, T)
 from pyapprox_tutorials.figures import plot_lv_trajectories
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=False)
-plot_lv_trajectories(axes, benchmark, obs_model, prior, sample, observations)
+plot_lv_trajectories(axes, oed, obs_model, prior, sample, observations)
 plt.suptitle("Lotka-Volterra: prior ensemble + nominal trajectory", fontsize=12)
 plt.tight_layout()
 plt.show()
@@ -221,7 +221,7 @@ about the parameters, on average.*
 from pyapprox_tutorials.figures import plot_lv_design
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-plot_lv_design(axes, benchmark, design_weights, bkd)
+plot_lv_design(axes, oed, design_weights, bkd)
 plt.suptitle("Optimal EIG design: Lotka-Volterra", fontsize=12)
 plt.tight_layout()
 plt.show()

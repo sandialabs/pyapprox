@@ -67,14 +67,14 @@ solution.
 
 ## Setup
 
-We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.
+We reuse the Lotka-Volterra predator-prey problem from the nonlinear tutorial.
 
 ```{python}
 import math
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraOEDBenchmark
+from pyapprox_benchmarks.expdesign.lotka_volterra import LotkaVolterraPredictionOEDProblem
 from pyapprox.expdesign.data import OEDDataGenerator
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -86,9 +86,9 @@ from pyapprox.expdesign import (
 np.random.seed(1)
 bkd = NumpyBkd()
 
-benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0, deltat=2.0, stepper="heun")
-obs_model = benchmark.obs_map()
-prior     = benchmark.prior()
+oed = LotkaVolterraPredictionOEDProblem(bkd, final_time=50.0, deltat=2.0, stepper="heun")
+obs_model = oed.obs_map()
+prior     = oed.inference_problem().prior()
 nparams   = prior.nvars()
 nobs      = obs_model.nqoi()
 
@@ -99,7 +99,7 @@ noise_cov_diag  = bkd.full((nobs,), noise_std**2)
 data_gen  = OEDDataGenerator(bkd)
 joint_var = data_gen.joint_prior_noise_variable(prior, noise_cov_diag)
 
-obs_times = bkd.to_numpy(benchmark.observation_times())
+obs_times = bkd.to_numpy(oed.observation_times())
 ```
 
 ## Helper: Solve OED for a Given Budget and Seed

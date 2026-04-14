@@ -43,9 +43,8 @@ from pyapprox_benchmarks.functions.multifidelity import (
     PolynomialModelFunction,
 )
 
-# ODE Benchmarks
+# ODE
 from pyapprox_benchmarks.functions.ode import (
-    ODEBenchmark,
     ODEQoIFunction,
     ODETimeConfig,
 )
@@ -66,8 +65,6 @@ from pyapprox_benchmarks.instances import (
     cantilever_beam_2d_analytical,
     cantilever_beam_2d_linear,
     cantilever_beam_2d_neohookean,
-    chemical_reaction_surface,
-    coupled_springs_2mass,
     elastic_bar_1d,
     genz_corner_peak_2d,
     genz_gaussian_peak_2d,
@@ -75,13 +72,19 @@ from pyapprox_benchmarks.instances import (
     genz_oscillatory_2d,
     genz_oscillatory_5d,
     genz_product_peak_2d,
-    hastings_ecology_3species,
     ishigami_3d,
-    lotka_volterra_3species,
     rosenbrock_2d,
     rosenbrock_10d,
     sobol_g_4d,
     sobol_g_6d,
+)
+
+# ODE builders
+from pyapprox_benchmarks.ode import (
+    build_chemical_reaction_surface,
+    build_coupled_springs_2mass,
+    build_hastings_ecology_3species,
+    build_lotka_volterra_3species,
 )
 from pyapprox_benchmarks.protocols import (
     BenchmarkProtocol,
@@ -139,9 +142,13 @@ __all__ = [
     # Functions - Multifidelity
     "PolynomialModelFunction",
     # Functions - ODE
-    "ODEBenchmark",
     "ODETimeConfig",
     "ODEQoIFunction",
+    # ODE builders
+    "build_lotka_volterra_3species",
+    "build_coupled_springs_2mass",
+    "build_hastings_ecology_3species",
+    "build_chemical_reaction_surface",
     # Instances - Sensitivity
     "ishigami_3d",
     "sobol_g_6d",
@@ -157,11 +164,6 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
-    # Instances - ODE
-    "lotka_volterra_3species",
-    "coupled_springs_2mass",
-    "hastings_ecology_3species",
-    "chemical_reaction_surface",
     # Instances - PDE
     "elastic_bar_1d",
     "cantilever_beam_1d",

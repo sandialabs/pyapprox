@@ -16,12 +16,6 @@ from pyapprox_benchmarks.instances.analytic import (
     sobol_g_4d,
     sobol_g_6d,
 )
-from pyapprox_benchmarks.instances.ode import (
-    chemical_reaction_surface,
-    coupled_springs_2mass,
-    hastings_ecology_3species,
-    lotka_volterra_3species,
-)
 from pyapprox_benchmarks.instances.pde import (
     cantilever_beam_1d,
     cantilever_beam_2d_linear,
@@ -42,10 +36,6 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
-"lotka_volterra_3species",
-    "coupled_springs_2mass",
-    "hastings_ecology_3species",
-    "chemical_reaction_surface",
     "elastic_bar_1d",
     "cantilever_beam_1d",
     "cantilever_beam_2d_linear",

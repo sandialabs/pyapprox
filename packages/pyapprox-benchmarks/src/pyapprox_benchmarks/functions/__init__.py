@@ -5,11 +5,9 @@ pyapprox.interface.functions.protocols directly.
 """
 
 from pyapprox_benchmarks.functions.ode import (
-    ODEBenchmark,
     ODETimeConfig,
 )
 
 __all__ = [
-    "ODEBenchmark",
     "ODETimeConfig",
 ]

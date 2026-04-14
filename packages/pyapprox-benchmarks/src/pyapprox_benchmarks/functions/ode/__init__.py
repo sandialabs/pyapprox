@@ -1,9 +1,8 @@
-"""ODE benchmark wrapper classes."""
+"""ODE QoI function and functional classes."""
 
-from pyapprox_benchmarks.functions.ode.ode_benchmark import (
+from pyapprox_benchmarks.functions.ode.ode_qoi import (
     AllStatesEndpointODEFunctional,
     MaxODEFunctional,
-    ODEBenchmark,
     ODEFunctionalProtocol,
     ODEQoIFunction,
     ODETimeConfig,
@@ -11,7 +10,6 @@ from pyapprox_benchmarks.functions.ode.ode_benchmark import (
 )
 
 __all__ = [
-    "ODEBenchmark",
     "ODETimeConfig",
     "ODEQoIFunction",
     "ODEFunctionalProtocol",

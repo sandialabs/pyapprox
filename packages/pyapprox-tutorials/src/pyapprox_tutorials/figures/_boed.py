@@ -574,7 +574,7 @@ def plot_eig_landscape(
 
 def plot_lv_trajectories(
     axes: Sequence[Axes],
-    benchmark: Any,
+    oed_problem: Any,
     obs_model: Any,
     prior: Any,
     sample: NDArrayFloat,
@@ -593,18 +593,18 @@ def plot_lv_trajectories(
         sol = obs_model.solve_trajectory(samp[:, None])[0]
         for ii in range(3):
             axes[ii].plot(
-                benchmark.solution_times(), sol[ii],
+                oed_problem.solution_times(), sol[ii],
                 color="#AAAAAA", lw=0.8, alpha=0.5)
 
     sol_nom = obs_model.solve_trajectory(sample)[0]
     for ii in range(3):
-        axes[ii].plot(benchmark.solution_times(), sol_nom[ii],
+        axes[ii].plot(oed_problem.solution_times(), sol_nom[ii],
                       color="#2C7FB8", lw=2)
         axes[ii].set_title(titles[ii], fontsize=11)
         axes[ii].set_xlabel("Time (s)", fontsize=10)
         axes[ii].grid(True, alpha=0.2)
 
-    obs_times = bkd.to_numpy(benchmark.observation_times())
+    obs_times = bkd.to_numpy(oed_problem.observation_times())
     for ii, state_idx in enumerate([0, 2]):
         axes[state_idx].plot(
             obs_times,
@@ -616,7 +616,7 @@ def plot_lv_trajectories(
 
 def plot_lv_design(
     axes: Sequence[Axes],
-    benchmark: Any,
+    oed_problem: Any,
     design_weights: Array,
     bkd: Backend[Array],
 ) -> None:
@@ -625,7 +625,7 @@ def plot_lv_design(
     Optimal design weights for the Lotka-Volterra EIG problem.
     """
     weights_by_state = bkd.to_numpy(design_weights).reshape((2, -1))
-    obs_times = bkd.to_numpy(benchmark.observation_times())
+    obs_times = bkd.to_numpy(oed_problem.observation_times())
 
     labels = ["State 1 (prey)", "State 3 (predator)"]
     colors = ["#2C7FB8", "#D95F02"]
@@ -1141,7 +1141,7 @@ def plot_pred_mse_mc(
 
 def plot_lv_pred_target(
     ax: Axes,
-    benchmark: Any,
+    oed_problem: Any,
     obs_model: Any,
     sample: Array,
     observations: Array,
@@ -1153,16 +1153,16 @@ def plot_lv_pred_target(
     Observation times and prediction targets for Lotka-Volterra.
     """
     sol = obs_model.solve_trajectory(sample)[0]
-    ax.plot(benchmark.solution_times(), bkd.to_numpy(sol).T, lw=2)
+    ax.plot(oed_problem.solution_times(), bkd.to_numpy(sol).T, lw=2)
 
-    obs_times = bkd.to_numpy(benchmark.observation_times())
+    obs_times = bkd.to_numpy(oed_problem.observation_times())
     for ii, state_idx in enumerate([0, 2]):
         ax.plot(
             obs_times,
             bkd.to_numpy(observations[ii]),
             "o", ms=8, label=f"Obs. state {state_idx + 1}", alpha=0.8)
 
-    pred_times = bkd.to_numpy(benchmark.prediction_times()).ravel()
+    pred_times = bkd.to_numpy(oed_problem.prediction_times()).ravel()
     pred_vals = bkd.to_numpy(predictions).ravel()
     ax.plot(pred_times, pred_vals, "rx", ms=12, mew=2.5,
             label="Prediction targets", zorder=5)
@@ -1176,7 +1176,7 @@ def plot_lv_pred_target(
 
 def plot_pred_design_weights(
     axes: Any,
-    benchmark: Any,
+    oed_problem: Any,
     weights_std: Array,
     weights_ent: Array,
     bkd: Backend[Array],
@@ -1187,7 +1187,7 @@ def plot_pred_design_weights(
     """
     weights_std_np = bkd.to_numpy(weights_std).reshape((2, -1))
     weights_ent_np = bkd.to_numpy(weights_ent).reshape((2, -1))
-    obs_times = bkd.to_numpy(benchmark.observation_times())
+    obs_times = bkd.to_numpy(oed_problem.observation_times())
 
     titles = ["State 1 (prey)", "State 3 (predator)"]
     row_labels = ["Std dev. objective", "Entropic deviation"]
