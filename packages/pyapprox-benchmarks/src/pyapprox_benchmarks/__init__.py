@@ -52,6 +52,12 @@ from pyapprox_benchmarks.ode import (
     build_lotka_volterra_3species,
 )
 
+# Optimization benchmarks
+from pyapprox_benchmarks.optimization import (
+    BraninBenchmark,
+    RosenbrockBenchmark,
+)
+
 # PDE builders
 from pyapprox_benchmarks.pde import (
     build_cantilever_beam_1d,
@@ -74,24 +80,18 @@ from pyapprox_benchmarks.protocols import (
     HasExactEIG,
 )
 
-# Sensitivity benchmarks
-from pyapprox_benchmarks.sensitivity import (
-    IshigamiBenchmark,
-    SobolGBenchmark,
-)
-
-# Optimization benchmarks
-from pyapprox_benchmarks.optimization import (
-    BraninBenchmark,
-    RosenbrockBenchmark,
-)
-
 # Quadrature benchmarks
 from pyapprox_benchmarks.quadrature import (
     GenzCornerPeakBenchmark,
     GenzGaussianPeakBenchmark,
     GenzOscillatoryBenchmark,
     GenzProductPeakBenchmark,
+)
+
+# Sensitivity benchmarks
+from pyapprox_benchmarks.sensitivity import (
+    IshigamiBenchmark,
+    SobolGBenchmark,
 )
 
 __all__ = [
