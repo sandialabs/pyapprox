@@ -1,7 +1,8 @@
 """Tests for error indicators used in adaptive sparse grid refinement.
 
-Tests verify mathematical correctness of L2SurrogateDifferenceIndicator,
-L2NewSamplesIndicator, VarianceChangeIndicator, and CostWeightedIndicator.
+Tests verify mathematical correctness of L2GlobalSurplusIndicator,
+L2SurplusIndicator, and VarianceChangeIndicator. All indicators now
+cost-weight priority internally (priority = error / subspace_cost).
 
 Tests run on both NumPy and PyTorch backends.
 """
@@ -24,9 +25,8 @@ from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
-    CostWeightedIndicator,
-    L2NewSamplesIndicator,
-    L2SurrogateDifferenceIndicator,
+    L2GlobalSurplusIndicator,
+    L2SurplusIndicator,
     VarianceChangeIndicator,
 )
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
@@ -148,12 +148,12 @@ def _build_candidate_info(
 
 
 # =============================================================================
-# L2SurrogateDifferenceIndicator tests
+# L2GlobalSurplusIndicator tests
 # =============================================================================
 
 
 class TestL2SurrogateDifference:
-    """Tests for L2SurrogateDifferenceIndicator."""
+    """Tests for L2GlobalSurplusIndicator."""
 
     def test_zero_for_exactly_represented_function(self, bkd) -> None:
         """If sel+candidate exactly represents the function, and selected
@@ -170,7 +170,7 @@ class TestL2SurrogateDifference:
             candidate_index_tuple=(2, 0),
             target_fn=target_fn,
         )
-        indicator = L2SurrogateDifferenceIndicator(bkd)
+        indicator = L2GlobalSurplusIndicator(bkd)
         priority, error = indicator(info)
 
         # Both surrogates exactly represent the linear function,
@@ -193,7 +193,7 @@ class TestL2SurrogateDifference:
             candidate_index_tuple=(2, 0),
             target_fn=target_fn,
         )
-        indicator = L2SurrogateDifferenceIndicator(bkd)
+        indicator = L2GlobalSurplusIndicator(bkd)
         priority, error = indicator(info)
         assert error > 0
 
@@ -211,7 +211,7 @@ class TestL2SurrogateDifference:
             candidate_index_tuple=(2, 0),
             target_fn=target_fn,
         )
-        indicator = L2SurrogateDifferenceIndicator(bkd)
+        indicator = L2GlobalSurplusIndicator(bkd)
         priority, error = indicator(info)
         bkd.assert_allclose(
             bkd.asarray([priority]),
@@ -220,12 +220,12 @@ class TestL2SurrogateDifference:
 
 
 # =============================================================================
-# L2NewSamplesIndicator tests
+# L2SurplusIndicator tests
 # =============================================================================
 
 
 class TestL2NewSamples:
-    """Tests for L2NewSamplesIndicator."""
+    """Tests for L2SurplusIndicator."""
 
     def test_zero_for_exactly_represented_function(self, bkd) -> None:
         """L2 on new samples should be zero when function is already exact."""
@@ -240,7 +240,7 @@ class TestL2NewSamples:
             candidate_index_tuple=(2, 0),
             target_fn=target_fn,
         )
-        indicator = L2NewSamplesIndicator(bkd)
+        indicator = L2SurplusIndicator(bkd)
         priority, error = indicator(info)
         assert error < 1e-10
 
@@ -258,7 +258,7 @@ class TestL2NewSamples:
             candidate_index_tuple=(2, 0),
             target_fn=target_fn,
         )
-        indicator = L2NewSamplesIndicator(bkd)
+        indicator = L2SurplusIndicator(bkd)
         priority, error = indicator(info)
         assert error > 0
 
@@ -382,21 +382,27 @@ class TestVarianceChange:
 
 
 # =============================================================================
-# CostWeightedIndicator tests
+# Built-in cost weighting (all indicators)
 # =============================================================================
 
 
-class TestCostWeighted:
-    """Tests for CostWeightedIndicator."""
+class TestCostWeighting:
+    """All indicators weight priority by 1 / subspace_cost."""
 
-    @slower_test
-    def test_cost_divides_priority(self, bkd) -> None:
-        """Cost weighting divides priority by subspace_cost."""
-
-        def target_fn(samples):
+    @pytest.fixture
+    def target_fn(self, bkd):
+        def _fn(samples):
             x, y = samples[0, :], samples[1, :]
-            return bkd.reshape(x**2 + y**2, (1, -1))
+            return bkd.reshape(x**4 + y**4, (1, -1))
 
+        return _fn
+
+    @pytest.mark.parametrize(
+        "indicator_cls",
+        [L2GlobalSurplusIndicator, L2SurplusIndicator, VarianceChangeIndicator],
+    )
+    def test_cost_divides_priority(self, bkd, target_fn, indicator_cls) -> None:
+        """priority = error / subspace_cost when cost is set."""
         cost = 10.0
         info = _build_candidate_info(
             bkd,
@@ -406,33 +412,23 @@ class TestCostWeighted:
             target_fn=target_fn,
             subspace_cost=cost,
         )
+        indicator = indicator_cls(bkd)
+        priority, error = indicator(info)
 
-        base = L2SurrogateDifferenceIndicator(bkd)
-        weighted = CostWeightedIndicator(bkd, base)
-
-        base_priority, base_error = base(info)
-        w_priority, w_error = weighted(info)
-
-        # Error should be unchanged
         bkd.assert_allclose(
-            bkd.asarray([w_error]),
-            bkd.asarray([base_error]),
-        )
-
-        # Priority should be divided by cost
-        bkd.assert_allclose(
-            bkd.asarray([w_priority]),
-            bkd.asarray([base_priority / cost]),
+            bkd.asarray([priority]),
+            bkd.asarray([error / cost]),
             rtol=1e-12,
         )
 
-    def test_no_cost_leaves_priority_unchanged(self, bkd) -> None:
-        """When subspace_cost is None, priority is unchanged."""
-
-        def target_fn(samples):
-            x, y = samples[0, :], samples[1, :]
-            return bkd.reshape(x**2 + y**2, (1, -1))
-
+    @pytest.mark.parametrize(
+        "indicator_cls",
+        [L2GlobalSurplusIndicator, L2SurplusIndicator, VarianceChangeIndicator],
+    )
+    def test_no_cost_priority_equals_error(
+        self, bkd, target_fn, indicator_cls
+    ) -> None:
+        """When subspace_cost is None, priority == error."""
         info = _build_candidate_info(
             bkd,
             nvars=2,
@@ -441,85 +437,55 @@ class TestCostWeighted:
             target_fn=target_fn,
             subspace_cost=None,
         )
-
-        base = L2SurrogateDifferenceIndicator(bkd)
-        weighted = CostWeightedIndicator(bkd, base)
-
-        base_priority, _ = base(info)
-        w_priority, _ = weighted(info)
-
+        indicator = indicator_cls(bkd)
+        priority, error = indicator(info)
         bkd.assert_allclose(
-            bkd.asarray([w_priority]),
-            bkd.asarray([base_priority]),
+            bkd.asarray([priority]),
+            bkd.asarray([error]),
         )
 
-    def test_higher_cost_lower_priority(self, bkd) -> None:
-        """Higher cost should result in lower priority."""
-
-        def target_fn(samples):
-            x, y = samples[0, :], samples[1, :]
-            return bkd.reshape(x**4 + y**4, (1, -1))
-
-        info_low_cost = _build_candidate_info(
-            bkd,
-            nvars=2,
-            selected_level=1,
-            candidate_index_tuple=(2, 0),
-            target_fn=target_fn,
-            subspace_cost=1.0,
+    @slower_test
+    @pytest.mark.parametrize(
+        "indicator_cls",
+        [L2GlobalSurplusIndicator, L2SurplusIndicator, VarianceChangeIndicator],
+    )
+    def test_higher_cost_lower_priority(
+        self, bkd, target_fn, indicator_cls
+    ) -> None:
+        """Same subspace with higher cost gets lower priority."""
+        info_low = _build_candidate_info(
+            bkd, nvars=2, selected_level=1, candidate_index_tuple=(2, 0),
+            target_fn=target_fn, subspace_cost=1.0,
         )
-        info_high_cost = _build_candidate_info(
-            bkd,
-            nvars=2,
-            selected_level=1,
-            candidate_index_tuple=(2, 0),
-            target_fn=target_fn,
-            subspace_cost=100.0,
+        info_high = _build_candidate_info(
+            bkd, nvars=2, selected_level=1, candidate_index_tuple=(2, 0),
+            target_fn=target_fn, subspace_cost=100.0,
         )
-
-        base = L2SurrogateDifferenceIndicator(bkd)
-        weighted = CostWeightedIndicator(bkd, base)
-
-        p_low, _ = weighted(info_low_cost)
-        p_high, _ = weighted(info_high_cost)
-
+        indicator = indicator_cls(bkd)
+        p_low, _ = indicator(info_low)
+        p_high, _ = indicator(info_high)
         assert p_low > p_high
 
     def test_higher_error_refined_first(self, bkd) -> None:
-        """Candidate with higher error should have higher priority.
+        """At equal cost, larger error beats smaller error (priority order
+        matches error order)."""
 
-        Tests that with equal cost, the subspace with larger surrogate
-        difference gets higher priority.
-        """
-
-        # Low-degree function: nearly exact at level 1
         def easy_fn(samples):
             return bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
 
-        # High-degree function: large error at level 1
         def hard_fn(samples):
             x, y = samples[0, :], samples[1, :]
             return bkd.reshape(x**4 + y**4, (1, -1))
 
         info_easy = _build_candidate_info(
-            bkd,
-            nvars=2,
-            selected_level=1,
-            candidate_index_tuple=(2, 0),
-            target_fn=easy_fn,
-            subspace_cost=1.0,
+            bkd, nvars=2, selected_level=1, candidate_index_tuple=(2, 0),
+            target_fn=easy_fn, subspace_cost=1.0,
         )
         info_hard = _build_candidate_info(
-            bkd,
-            nvars=2,
-            selected_level=1,
-            candidate_index_tuple=(2, 0),
-            target_fn=hard_fn,
-            subspace_cost=1.0,
+            bkd, nvars=2, selected_level=1, candidate_index_tuple=(2, 0),
+            target_fn=hard_fn, subspace_cost=1.0,
         )
-
-        indicator = L2SurrogateDifferenceIndicator(bkd)
+        indicator = L2GlobalSurplusIndicator(bkd)
         p_easy, _ = indicator(info_easy)
         p_hard, _ = indicator(info_hard)
-
         assert p_hard > p_easy

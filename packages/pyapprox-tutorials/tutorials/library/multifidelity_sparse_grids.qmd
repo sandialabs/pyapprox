@@ -416,19 +416,17 @@ plt.show()
 
 ## Cost-Aware Refinement
 
-By default, all models are treated as having equal cost (`ConstantCostModel`).  For realistic multi-fidelity problems, the high-fidelity model is far more expensive.  `ExponentialConfigCostModel` assigns cost $= \text{base}^{\sum \alpha_i}$, and `CostWeightedIndicator` divides each subspace's error indicator by its cost, making the algorithm prefer refining cheap models first.
+By default, all models are treated as having equal cost (`ConstantCostModel`).  For realistic multi-fidelity problems, the high-fidelity model is far more expensive.  `ExponentialConfigCostModel` assigns cost $= \text{base}^{\sum \alpha_i}$.  All error indicators divide their priority by `subspace_cost` internally, so swapping in a non-trivial `cost_model` is enough to make the algorithm prefer refining cheap models first --- no separate "cost-weighted wrapper" is needed.
 
 ```{python}
 from pyapprox.surrogates.sparsegrids import (
     ExponentialConfigCostModel,
-    CostWeightedIndicator,
-    L2SurrogateDifferenceIndicator,
 )
 
 cost_model = ExponentialConfigCostModel(base=4.0)
 ```
 
-With base 4.0, model $f_1$ costs 4x more than $f_0$.  The animation below compares the **refinement paths** of the unweighted (equal-cost) and cost-weighted algorithms side by side.  Both reach similar final index sets, but the cost-weighted algorithm builds up the cheap model first, deferring the expensive model until its contribution justifies its cost.  The cumulative cost shown in each title reveals the practical benefit: the same accuracy is reached at a lower total cost.
+With base 4.0, model $f_1$ costs 4x more than $f_0$.  The animation below compares the **refinement paths** of the unit-cost baseline and the fidelity-weighted cost model side by side.  Both reach similar final index sets, but the cost-weighted algorithm builds up the cheap model first, deferring the expensive model until its contribution justifies its cost.  The cumulative cost shown in each title reveals the practical benefit: the same accuracy is reached at a lower total cost.
 
 ```{python}
 #| echo: false
@@ -478,16 +476,15 @@ def _make_fitter(cost_model_obj=None, error_indicator_obj=None):
     )
 
 
-# Unweighted run (ConstantCostModel, but cumulative cost computed with
+# Unit-cost baseline (ConstantCostModel; cumulative cost computed with
 # ExponentialConfigCostModel so the comparison is on the same cost scale)
 from pyapprox.surrogates.sparsegrids import ConstantCostModel
 fitter_uw = _make_fitter()
 snaps_uw, f1_ref = _run_steps(fitter_uw, factory, cost_model)
 
-# Cost-weighted run
-indicator_cw = CostWeightedIndicator(bkd, L2SurrogateDifferenceIndicator(bkd))
-fitter_cw = _make_fitter(cost_model_obj=cost_model,
-                         error_indicator_obj=indicator_cw)
+# Fidelity-weighted run: the default indicator already divides priority
+# by subspace_cost, so passing ExponentialConfigCostModel is sufficient.
+fitter_cw = _make_fitter(cost_model_obj=cost_model)
 snaps_cw, _ = _run_steps(fitter_cw, factory, cost_model)
 
 # Pad shorter sequence so both have the same frame count
@@ -513,7 +510,7 @@ plt.close(fig)
 html_cw
 ```
 
-The cost-weighted algorithm delays promoting $\alpha=1$ candidates because their priority is divided by the cost factor (4$\times$).  This means it can build up physical resolution with the cheap model before investing in the expensive correction, reaching the same accuracy at lower total cost.
+The cost-weighted algorithm delays promoting $\alpha=1$ candidates because their priority is divided by `subspace_cost`, which for high-fidelity indices includes the 4$\times$ model-cost factor from `ExponentialConfigCostModel`.  This means it can build up physical resolution with the cheap model before investing in the expensive correction, reaching the same accuracy at lower total cost.
 
 
 ## Measured Costs with `TimedModelFactory`
@@ -550,11 +547,11 @@ admis_mc = CompositeCriteria(
 # Create a fresh timed factory for the fitter run
 timed_factory2 = TimedModelFactory(factory)
 measured_cost2 = MeasuredCostModel(timed_factory2)
-indicator_mc = CostWeightedIndicator(bkd, L2SurrogateDifferenceIndicator(bkd))
 
+# The default indicator already cost-weights; just pass the cost model.
 fitter_mc = MultiFidelityAdaptiveSparseGridFitter(
     bkd, tp_factory_mc, admis_mc, nconfig_vars=1,
-    cost_model=measured_cost2, error_indicator=indicator_mc,
+    cost_model=measured_cost2,
 )
 
 # The timed_factory is both the model source and the timing recorder
@@ -685,7 +682,7 @@ The `nconfig_vars` parameter controls this, and `Max1DLevelsCriteria` specifies 
 - **Multi-index collocation** generalizes this to multiple configuration variables using the Smolyak combination over the full (physical + config) index space.
 - `ModelFactoryProtocol` requires `get_model(config_idx)`.  Use `DictModelFactory` for simple cases or implement the protocol directly.
 - `MultiFidelityAdaptiveSparseGridFitter` supports both **auto mode** (`refine_to_tolerance(model_factory)`) and **manual mode** (`step_samples()`/`step_values()`).
-- **Cost-aware refinement** via `ExponentialConfigCostModel` + `CostWeightedIndicator` ensures that cheap models are exploited before expensive ones, optimizing accuracy per unit cost.
+- **Cost-aware refinement** via a non-trivial `cost_model` (e.g. `ExponentialConfigCostModel`, `MeasuredCostModel`) ensures that cheap models are exploited before expensive ones.  All error indicators divide priority by `subspace_cost` internally, so the cost model alone controls cost-aware behaviour.
 - **Measured costs** via `TimedModelFactory` + `MeasuredCostModel` provide data-driven cost estimates when formula-based costs are unavailable.
 
 

@@ -41,8 +41,7 @@ from pyapprox.surrogates.sparsegrids.cost_model import (
     MeasuredCostModel,
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
-    CostWeightedIndicator,
-    L2SurrogateDifferenceIndicator,
+    L2GlobalSurplusIndicator,
 )
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
@@ -220,41 +219,36 @@ class TestMFAdaptive:
             assert isinstance(samples2, dict)
 
     @pytest.mark.slow_on("TorchBkd")
-    def test_mf_adaptive_cost_weighted_indicator(self, bkd) -> None:
-        """CostWeightedIndicator gives different priorities than unweighted."""
+    def test_mf_adaptive_cost_model_changes_selection(self, bkd) -> None:
+        """Non-trivial cost model changes which candidates get selected."""
         models = _make_cosine_models(bkd)
 
-        # Unweighted fitter
-        fitter_unw = _make_mf_fitter(bkd, max_level=3)
-        samples = fitter_unw.step_samples()
+        # Default: ConstantCostModel (unit cost)
+        fitter_unit = _make_mf_fitter(bkd, max_level=3)
+        samples = fitter_unit.step_samples()
         assert isinstance(samples, dict)
         values = {cfg: models[cfg](s) for cfg, s in samples.items()}
-        fitter_unw.step_values(values)
+        fitter_unit.step_values(values)
 
-        # Cost-weighted fitter
+        # Fidelity-weighted cost (base=4 penalises high-fidelity)
         cost_model = ExponentialConfigCostModel(base=4.0)
-        indicator = CostWeightedIndicator(
-            bkd,
-            L2SurrogateDifferenceIndicator(bkd),
-        )
         fitter_cw = _make_mf_fitter(
             bkd,
             max_level=3,
             cost_model=cost_model,
-            error_indicator=indicator,
         )
         samples_cw = fitter_cw.step_samples()
         assert isinstance(samples_cw, dict)
         values_cw = {cfg: models[cfg](s) for cfg, s in samples_cw.items()}
         fitter_cw.step_values(values_cw)
 
-        # After several refinement steps, the two fitters should differ
+        # Drive both forward a few steps
         for _ in range(5):
-            s1 = fitter_unw.step_samples()
+            s1 = fitter_unit.step_samples()
             if s1 is not None:
                 assert isinstance(s1, dict)
                 v1 = {cfg: models[cfg](s) for cfg, s in s1.items()}
-                fitter_unw.step_values(v1)
+                fitter_unit.step_values(v1)
 
             s2 = fitter_cw.step_samples()
             if s2 is not None:
@@ -262,8 +256,7 @@ class TestMFAdaptive:
                 v2 = {cfg: models[cfg](s) for cfg, s in s2.items()}
                 fitter_cw.step_values(v2)
 
-        # Both should produce valid results
-        r1 = fitter_unw.result()
+        r1 = fitter_unit.result()
         r2 = fitter_cw.result()
         assert isinstance(r1.surrogate, CombinationSurrogate)
         assert isinstance(r2.surrogate, CombinationSurrogate)
@@ -445,10 +438,7 @@ class TestMFConvergence:
         models = _make_cosine_models(bkd)
         factory = DictModelFactory(models)
         cost_model = ExponentialConfigCostModel(base=10.0)
-        indicator = CostWeightedIndicator(
-            bkd,
-            L2SurrogateDifferenceIndicator(bkd),
-        )
+        indicator = L2GlobalSurplusIndicator(bkd)
 
         fitter = _make_mf_fitter(
             bkd,

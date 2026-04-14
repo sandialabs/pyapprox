@@ -47,10 +47,9 @@ from .cost_model import (
     MeasuredCostModel,
 )
 from .error_indicators import (
-    CostWeightedIndicator,
     ErrorIndicatorProtocol,
-    L2NewSamplesIndicator,
-    L2SurrogateDifferenceIndicator,
+    L2GlobalSurplusIndicator,
+    L2SurplusIndicator,
     VarianceChangeIndicator,
 )
 from .fit_result import (
@@ -95,10 +94,9 @@ __all__ = [
     "AdaptiveSparseGridFitResult",
     # Error indicators
     "ErrorIndicatorProtocol",
-    "L2SurrogateDifferenceIndicator",
-    "L2NewSamplesIndicator",
+    "L2GlobalSurplusIndicator",
+    "L2SurplusIndicator",
     "VarianceChangeIndicator",
-    "CostWeightedIndicator",
     # Data classes and utilities
     "CandidateInfo",
     "ConfigIdx",

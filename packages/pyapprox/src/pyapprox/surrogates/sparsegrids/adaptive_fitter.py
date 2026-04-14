@@ -27,7 +27,7 @@ from pyapprox.surrogates.sparsegrids.cost_model import (
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
-    L2SurrogateDifferenceIndicator,
+    L2SurplusIndicator,
 )
 from pyapprox.surrogates.sparsegrids.fit_result import (
     AdaptiveSparseGridFitResult,
@@ -76,7 +76,10 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         Number of config/fidelity dimensions.
     error_indicator : ErrorIndicatorProtocol[Array], optional
         Error indicator for computing refinement priorities.
-        Default: L2SurrogateDifferenceIndicator.
+        Default: L2SurplusPerCostIndicator --- RMS surplus on the
+        candidate's new samples divided by its per-point cost, giving a
+        surplus-per-unit-work priority that avoids the dilution
+        separable refinements suffer under L2GlobalSurplusIndicator.
     cost_model : CostModelProtocol, optional
         Per-sample cost model. Default: ConstantCostModel() (unit cost).
     verbosity : int, optional
@@ -97,7 +100,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._factory = factory
         self._admissibility = admissibility
         if error_indicator is None:
-            error_indicator = L2SurrogateDifferenceIndicator(bkd)
+            error_indicator = L2SurplusIndicator(bkd)
         self._error_indicator = error_indicator
         if cost_model is None:
             cost_model = ConstantCostModel()
@@ -692,7 +695,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         Criteria for admissible subspace indices.
     error_indicator : ErrorIndicatorProtocol[Array], optional
         Error indicator for computing refinement priorities.
-        Default: L2SurrogateDifferenceIndicator.
+        Default: L2SurplusIndicator.
     verbosity : int, optional
         Verbosity level. Default: 0.
     """

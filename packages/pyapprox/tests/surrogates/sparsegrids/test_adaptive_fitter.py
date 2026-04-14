@@ -14,6 +14,7 @@ import pytest
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
+    ClenshawCurtisGrowthRule,
     LinearGrowthRule,
     MaxLevelCriteria,
 )
@@ -21,13 +22,15 @@ from pyapprox.surrogates.sparsegrids import create_basis_factories
 from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
 )
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    GaussLagrangeFactory,
-)
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
 )
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    GaussLagrangeFactory,
+    PiecewiseFactory,
+)
 from pyapprox.surrogates.sparsegrids.error_indicators import (
+    L2SurplusIndicator,
     VarianceChangeIndicator,
 )
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
@@ -476,3 +479,85 @@ class TestAdaptiveRecoversIsotropic:
             iso_result.surrogate.variance(),
             rtol=1e-8,
         )
+
+
+# =============================================================================
+# Separable-function regression test
+# =============================================================================
+
+
+class TestSeparableFunctionRefinement:
+    """Regression test for surplus indicator on separable non-smooth targets.
+
+    Covers the pathology that motivated making L2SurplusIndicator the
+    default: f(z1, z2) = sign(z1 - 0.2) + 0.3*z2 has a jump in z1 and a
+    linear z2 component. Under L2GlobalSurplusIndicator the greedy
+    selector refines only z1 because the jump's O(1) surplus dilutes
+    the z2 indicator. L2SurplusIndicator normalises by new samples +
+    cost, so the cheap z2 refinement gets selected and the RMSE plateau
+    at 0.3/sqrt(3) is eliminated.
+    """
+
+    def _run_adaptive(self, bkd, indicator, max_cost=300, max_level=8):
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [
+            PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+            for _ in range(2)
+        ]
+        growth = ClenshawCurtisGrowthRule()
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(
+            bkd, tp_factory, admis, error_indicator=indicator
+        )
+
+        def target(samples):
+            z1, z2 = samples[0], samples[1]
+            return bkd.reshape(
+                bkd.sign(z1 - 0.2) + 0.3 * z2, (1, -1)
+            )
+
+        while True:
+            new = fitter.step_samples()
+            if new is None:
+                break
+            fitter.step_values(target(new))
+            if fitter.cumulative_cost() >= max_cost:
+                break
+        return fitter
+
+    @slow_test
+    def test_surplus_indicator_refines_z2(self, bkd) -> None:
+        """L2SurplusIndicator selects (0,1) early and refines z2 at least once."""
+        fitter = self._run_adaptive(bkd, L2SurplusIndicator(bkd))
+
+        selected = np.asarray(bkd.to_numpy(fitter.get_selected_indices())).astype(int)
+        # At least one selected index must have l2 > 0 (z2 was refined).
+        assert (selected[1] > 0).any(), (
+            f"L2SurplusIndicator failed to refine z2; selected = {selected.T.tolist()}"
+        )
+
+    @slow_test
+    def test_surplus_indicator_beats_plateau(self, bkd) -> None:
+        """RMSE with L2SurplusIndicator drops well below 0.3/sqrt(3) floor."""
+        fitter = self._run_adaptive(bkd, L2SurplusIndicator(bkd), max_cost=400)
+
+        # Monte Carlo RMSE against the true function.
+        np.random.seed(0)
+        test_np = np.random.uniform(-1.0, 1.0, (2, 2000))
+        test_samples = bkd.asarray(test_np)
+
+        def target(samples):
+            z1, z2 = samples[0], samples[1]
+            return bkd.reshape(bkd.sign(z1 - 0.2) + 0.3 * z2, (1, -1))
+
+        true_vals = bkd.to_numpy(target(test_samples))[0]
+        approx = bkd.to_numpy(fitter.result().surrogate(test_samples))[0]
+        rmse = float(np.sqrt(np.mean((true_vals - approx) ** 2)))
+
+        plateau = 0.3 / np.sqrt(3.0)
+        assert rmse < 0.5 * plateau, (
+            f"RMSE {rmse:.4f} did not beat half the z2-plateau floor "
+            f"({0.5 * plateau:.4f})"
+        )
+
