@@ -1,14 +1,12 @@
-"""Integration tests for the 2D pressurized cylinder benchmark instances."""
+"""Integration tests for the 2D pressurized cylinder forward UQ problems."""
 
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.instances.pde.pressurized_cylinder import (
-    hyperelastic_pressurized_cylinder_2d,
-    pressurized_cylinder_2d,
+from pyapprox_benchmarks.pde.pressurized_cylinder import (
+    build_hyperelastic_pressurized_cylinder_2d,
+    build_pressurized_cylinder_2d,
 )
-from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -23,11 +21,11 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test, slower_test, slowest_test
 
 
-def _make_benchmark(
+def _make_problem(
     bkd, qoi="outer_radial_displacement", npts_r=10, npts_theta=10, num_kle_terms=2
 ):
-    """Helper for creating benchmarks with small defaults for fast tests."""
-    return pressurized_cylinder_2d(
+    """Helper for creating problems with small defaults for fast tests."""
+    return build_pressurized_cylinder_2d(
         bkd,
         qoi=qoi,
         npts_r=npts_r,
@@ -61,26 +59,26 @@ def _check_jacobian(bkd, fwd, num_kle_terms=2):
 
 
 @slow_test
-class TestPressurizedCylinder2DBenchmark:
+class TestPressurizedCylinder2D:
     @classmethod
     def setup_class(cls):
         cls._class_bkd = NumpyBkd()
         bkd = cls._class_bkd
-        cls._cached_bms = {}
+        cls._cached_probs = {}
         for qoi in [
             "outer_radial_displacement",
             "average_hoop_stress",
             "strain_energy",
         ]:
-            cls._cached_bms[qoi] = _make_benchmark(bkd, qoi)
+            cls._cached_probs[qoi] = _make_problem(bkd, qoi)
 
     # --- Evaluation tests ---
 
     def test_outer_displacement_evaluate(self):
         """Outer radial displacement: shape (1,1), positive value."""
         bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        fwd = bm.function()
+        prob = self._cached_probs["outer_radial_displacement"]
+        fwd = prob.function()
         sample = bkd.zeros((2, 1))
         result = fwd(sample)
         assert result.shape == (1, 1)
@@ -89,8 +87,8 @@ class TestPressurizedCylinder2DBenchmark:
     def test_average_hoop_stress_evaluate(self):
         """Average hoop stress: shape (1,1), positive value."""
         bkd = self._class_bkd
-        bm = self._cached_bms["average_hoop_stress"]
-        fwd = bm.function()
+        prob = self._cached_probs["average_hoop_stress"]
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
@@ -98,8 +96,8 @@ class TestPressurizedCylinder2DBenchmark:
     def test_strain_energy_evaluate(self):
         """Strain energy: shape (1,1), positive value."""
         bkd = self._class_bkd
-        bm = self._cached_bms["strain_energy"]
-        fwd = bm.function()
+        prob = self._cached_probs["strain_energy"]
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
@@ -109,20 +107,20 @@ class TestPressurizedCylinder2DBenchmark:
     def test_outer_displacement_jacobian(self):
         """DerivativeChecker on outer radial displacement."""
         bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        _check_jacobian(bkd, bm.function())
+        prob = self._cached_probs["outer_radial_displacement"]
+        _check_jacobian(bkd, prob.function())
 
     def test_average_hoop_stress_jacobian(self):
         """DerivativeChecker on average hoop stress."""
         bkd = self._class_bkd
-        bm = self._cached_bms["average_hoop_stress"]
-        _check_jacobian(bkd, bm.function())
+        prob = self._cached_probs["average_hoop_stress"]
+        _check_jacobian(bkd, prob.function())
 
     def test_strain_energy_jacobian(self):
         """DerivativeChecker on strain energy."""
         bkd = self._class_bkd
-        bm = self._cached_bms["strain_energy"]
-        _check_jacobian(bkd, bm.function())
+        prob = self._cached_probs["strain_energy"]
+        _check_jacobian(bkd, prob.function())
 
     # --- All QoIs produce scalar ---
 
@@ -135,43 +133,27 @@ class TestPressurizedCylinder2DBenchmark:
             "average_hoop_stress",
             "strain_energy",
         ]:
-            bm = self._cached_bms[qoi]
-            fwd = bm.function()
+            prob = self._cached_probs[qoi]
+            fwd = prob.function()
             assert fwd.nqoi() == 1, f"Failed for qoi={qoi}"
             result = fwd(sample)
             assert result.shape == (1, 1), f"Failed for qoi={qoi}"
 
-    # --- Prior and domain ---
+    # --- Prior ---
 
     def test_prior_samples_shape(self):
         """Prior generates samples of correct shape."""
-        bm = self._cached_bms["outer_radial_displacement"]
+        prob = self._cached_probs["outer_radial_displacement"]
         np.random.seed(42)
-        samples = bm.prior().rvs(5)
+        samples = prob.prior().rvs(5)
         assert samples.shape == (2, 5)
-
-    def test_domain_bounds(self):
-        """Domain bounds are [-4, 4]^2 for 2 KLE terms."""
-        bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        bounds = bm.domain().bounds()
-        assert bounds.shape == (2, 2)
-        bkd.assert_allclose(
-            bounds,
-            bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
-        )
 
     # --- Protocol compliance ---
 
-    def test_benchmark_protocol_compliance(self):
-        """Benchmark satisfies BenchmarkWithPriorProtocol."""
-        bm = self._cached_bms["outer_radial_displacement"]
-        assert isinstance(bm, BenchmarkWithPriorProtocol)
-
     def test_function_protocol_compliance(self):
         """Forward model satisfies FunctionWithJacobianProtocol."""
-        bm = self._cached_bms["outer_radial_displacement"]
-        fwd = bm.function()
+        prob = self._cached_probs["outer_radial_displacement"]
+        fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
         assert isinstance(fwd, FunctionWithJacobianProtocol)
 
@@ -181,31 +163,21 @@ class TestPressurizedCylinder2DBenchmark:
         """Coarse and fine mesh outer displacement agree."""
         bkd = self._class_bkd
         sample = bkd.zeros((2, 1))
-        bm_coarse = _make_benchmark(
+        prob_coarse = _make_problem(
             bkd,
             "outer_radial_displacement",
             npts_r=8,
             npts_theta=8,
         )
-        bm_fine = _make_benchmark(
+        prob_fine = _make_problem(
             bkd,
             "outer_radial_displacement",
             npts_r=14,
             npts_theta=14,
         )
-        val_coarse = bm_coarse.function()(sample)
-        val_fine = bm_fine.function()(sample)
+        val_coarse = prob_coarse.function()(sample)
+        val_fine = prob_fine.function()(sample)
         bkd.assert_allclose(val_coarse, val_fine, rtol=1e-2)
-
-    # --- Registry access (builds fresh via registry) ---
-
-    def test_registry_access(self):
-        """BenchmarkRegistry.get works for pressurized cylinder."""
-        bkd = self._class_bkd
-        bm = BenchmarkRegistry.get("pressurized_cylinder_2d_linear", bkd)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((2, 1)))
-        assert result.shape == (1, 1)
 
     # --- Error handling ---
 
@@ -213,26 +185,26 @@ class TestPressurizedCylinder2DBenchmark:
         """Invalid QoI string raises ValueError."""
         bkd = self._class_bkd
         with pytest.raises(ValueError):
-            pressurized_cylinder_2d(bkd, qoi="max_stress")
+            build_pressurized_cylinder_2d(bkd, qoi="max_stress")
 
     # --- Multi-sample evaluation ---
 
     def test_batch_evaluation(self):
         """Forward model handles batch evaluation."""
         bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        fwd = bm.function()
+        prob = self._cached_probs["outer_radial_displacement"]
+        fwd = prob.function()
         samples = bkd.array([[0.1, -0.1, 0.2], [0.05, 0.0, -0.15]])
         result = fwd(samples)
         assert result.shape == (1, 3)
 
 
 # ======================================================================
-# Hyperelastic benchmark tests
+# Hyperelastic tests
 # ======================================================================
 
 
-def _make_hyperelastic_benchmark(
+def _make_hyperelastic_problem(
     bkd,
     qoi="outer_radial_displacement",
     npts_r=10,
@@ -240,8 +212,8 @@ def _make_hyperelastic_benchmark(
     num_kle_terms=2,
     inner_pressure=1.0,
 ):
-    """Helper for creating hyperelastic benchmarks with small defaults."""
-    return hyperelastic_pressurized_cylinder_2d(
+    """Helper for creating hyperelastic problems with small defaults."""
+    return build_hyperelastic_pressurized_cylinder_2d(
         bkd,
         qoi=qoi,
         npts_r=npts_r,
@@ -279,22 +251,22 @@ class TestHyperelasticPressurizedCylinder2D:
     def setup_class(cls):
         cls._class_bkd = NumpyBkd()
         bkd = cls._class_bkd
-        cls._cached_bms = {}
+        cls._cached_probs = {}
         for qoi in [
             "outer_radial_displacement",
             "average_hoop_stress",
             "strain_energy",
         ]:
-            cls._cached_bms[qoi] = _make_hyperelastic_benchmark(bkd, qoi)
+            cls._cached_probs[qoi] = _make_hyperelastic_problem(bkd, qoi)
 
     # --- Evaluation ---
 
     @slow_test
-    def test_benchmark_hyperelastic_evaluate(self):
-        """Hyperelastic benchmark: evaluate at theta=0, check shape (1,1)."""
+    def test_hyperelastic_evaluate(self):
+        """Hyperelastic: evaluate at theta=0, check shape (1,1)."""
         bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        fwd = bm.function()
+        prob = self._cached_probs["outer_radial_displacement"]
+        fwd = prob.function()
         sample = bkd.zeros((2, 1))
         result = fwd(sample)
         assert result.shape == (1, 1)
@@ -303,11 +275,11 @@ class TestHyperelasticPressurizedCylinder2D:
     # --- Jacobian ---
 
     @slower_test
-    def test_benchmark_hyperelastic_jacobian(self):
+    def test_hyperelastic_jacobian(self):
         """DerivativeChecker on hyperelastic outer radial displacement."""
         bkd = self._class_bkd
-        bm = self._cached_bms["outer_radial_displacement"]
-        _check_hyperelastic_jacobian(bkd, bm.function())
+        prob = self._cached_probs["outer_radial_displacement"]
+        _check_hyperelastic_jacobian(bkd, prob.function())
 
     # --- Linear vs hyperelastic at low pressure (non-default params) ---
 
@@ -316,14 +288,14 @@ class TestHyperelasticPressurizedCylinder2D:
         """At low pressure, linear and hyperelastic produce similar QoI."""
         bkd = self._class_bkd
         sample = bkd.zeros((2, 1))
-        bm_hyper = _make_hyperelastic_benchmark(
+        prob_hyper = _make_hyperelastic_problem(
             bkd,
             "outer_radial_displacement",
             npts_r=10,
             npts_theta=10,
             inner_pressure=1e-3,
         )
-        bm_linear_low = pressurized_cylinder_2d(
+        prob_linear_low = build_pressurized_cylinder_2d(
             bkd,
             qoi="outer_radial_displacement",
             npts_r=10,
@@ -336,8 +308,8 @@ class TestHyperelasticPressurizedCylinder2D:
             num_kle_terms=2,
             sigma=0.3,
         )
-        val_linear = bm_linear_low.function()(sample)
-        val_hyper = bm_hyper.function()(sample)
+        val_linear = prob_linear_low.function()(sample)
+        val_hyper = prob_hyper.function()(sample)
         bkd.assert_allclose(val_hyper, val_linear, rtol=1e-2)
 
     # --- All three QoIs ---
@@ -352,8 +324,8 @@ class TestHyperelasticPressurizedCylinder2D:
             "average_hoop_stress",
             "strain_energy",
         ]:
-            bm = self._cached_bms[qoi]
-            fwd = bm.function()
+            prob = self._cached_probs[qoi]
+            fwd = prob.function()
             assert fwd.nqoi() == 1, f"Failed for qoi={qoi}"
             result = fwd(sample)
             assert result.shape == (1, 1), f"Failed for qoi={qoi}"
@@ -366,32 +338,18 @@ class TestHyperelasticPressurizedCylinder2D:
         """Finer mesh resolution produces closer values (convergence)."""
         bkd = self._class_bkd
         sample = bkd.zeros((2, 1))
-        bm_coarse = _make_hyperelastic_benchmark(
+        prob_coarse = _make_hyperelastic_problem(
             bkd,
             "outer_radial_displacement",
             npts_r=8,
             npts_theta=8,
         )
-        bm_fine = _make_hyperelastic_benchmark(
+        prob_fine = _make_hyperelastic_problem(
             bkd,
             "outer_radial_displacement",
             npts_r=14,
             npts_theta=14,
         )
-        val_coarse = bm_coarse.function()(sample)
-        val_fine = bm_fine.function()(sample)
+        val_coarse = prob_coarse.function()(sample)
+        val_fine = prob_fine.function()(sample)
         bkd.assert_allclose(val_coarse, val_fine, rtol=1e-2)
-
-    # --- Registry access (builds fresh) ---
-
-    @slow_test
-    def test_registry_hyperelastic(self):
-        """BenchmarkRegistry.get works for hyperelastic cylinder."""
-        bkd = self._class_bkd
-        bm = BenchmarkRegistry.get(
-            "pressurized_cylinder_2d_hyperelastic",
-            bkd,
-        )
-        fwd = bm.function()
-        result = fwd(bkd.zeros((2, 1)))
-        assert result.shape == (1, 1)

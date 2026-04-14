@@ -1,11 +1,9 @@
-"""Integration tests for the 1D elastic bar benchmark instances."""
+"""Integration tests for the 1D elastic bar forward UQ problems."""
 
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.instances.pde.elastic_bar import elastic_bar_1d
-from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -18,11 +16,11 @@ from pyapprox.interface.functions.protocols import (
 )
 
 
-def _make_benchmark(
+def _make_problem(
     bkd, constitutive="linear", qoi="tip_displacement", npts=20, num_kle_terms=2
 ):
-    """Helper for creating benchmarks with small defaults for fast tests."""
-    return elastic_bar_1d(
+    """Helper for creating problems with small defaults for fast tests."""
+    return build_elastic_bar_1d(
         bkd,
         constitutive=constitutive,
         qoi=qoi,
@@ -54,13 +52,13 @@ def _check_jacobian(bkd, fwd, num_kle_terms=2):
     assert ratio <= 2e-5
 
 
-class TestElasticBar1DBenchmark:
+class TestElasticBar1D:
     # --- Evaluation tests ---
 
     def test_linear_tip_displacement_evaluate(self, bkd):
         """Linear bar, tip displacement: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "tip_displacement")
+        fwd = prob.function()
         sample = bkd.zeros((2, 1))
         result = fwd(sample)
         assert result.shape == (1, 1)
@@ -68,40 +66,40 @@ class TestElasticBar1DBenchmark:
 
     def test_linear_average_displacement_evaluate(self, bkd):
         """Linear bar, average displacement: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "linear", "average_displacement")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "average_displacement")
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
 
     def test_linear_average_stress_evaluate(self, bkd):
         """Linear bar, average stress: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "linear", "average_stress")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "average_stress")
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
 
     def test_linear_strain_energy_evaluate(self, bkd):
         """Linear bar, strain energy: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "linear", "strain_energy")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "strain_energy")
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
 
     def test_hyperelastic_tip_displacement_evaluate(self, bkd):
         """Hyperelastic bar, tip displacement: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "hyperelastic", "tip_displacement")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "hyperelastic", "tip_displacement")
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
 
     def test_hyperelastic_strain_energy_evaluate(self, bkd):
         """Hyperelastic bar, strain energy: shape (1,1), positive value."""
-        bm = _make_benchmark(bkd, "hyperelastic", "strain_energy")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "hyperelastic", "strain_energy")
+        fwd = prob.function()
         result = fwd(bkd.zeros((2, 1)))
         assert result.shape == (1, 1)
         assert float(result[0, 0]) > 0.0
@@ -110,33 +108,33 @@ class TestElasticBar1DBenchmark:
 
     def test_linear_tip_jacobian(self, bkd):
         """DerivativeChecker on linear bar, tip displacement."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "linear", "tip_displacement")
+        _check_jacobian(bkd, prob.function())
 
     def test_hyperelastic_tip_jacobian(self, bkd):
         """DerivativeChecker on hyperelastic bar, tip displacement."""
-        bm = _make_benchmark(bkd, "hyperelastic", "tip_displacement")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "hyperelastic", "tip_displacement")
+        _check_jacobian(bkd, prob.function())
 
     def test_linear_strain_energy_jacobian(self, bkd):
         """DerivativeChecker on linear bar, strain energy."""
-        bm = _make_benchmark(bkd, "linear", "strain_energy")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "linear", "strain_energy")
+        _check_jacobian(bkd, prob.function())
 
     def test_hyperelastic_strain_energy_jacobian(self, bkd):
         """DerivativeChecker on hyperelastic bar, strain energy."""
-        bm = _make_benchmark(bkd, "hyperelastic", "strain_energy")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "hyperelastic", "strain_energy")
+        _check_jacobian(bkd, prob.function())
 
     def test_linear_average_stress_jacobian(self, bkd):
         """DerivativeChecker on linear bar, average stress."""
-        bm = _make_benchmark(bkd, "linear", "average_stress")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "linear", "average_stress")
+        _check_jacobian(bkd, prob.function())
 
     def test_hyperelastic_average_stress_jacobian(self, bkd):
         """DerivativeChecker on hyperelastic bar, average stress."""
-        bm = _make_benchmark(bkd, "hyperelastic", "average_stress")
-        _check_jacobian(bkd, bm.function())
+        prob = _make_problem(bkd, "hyperelastic", "average_stress")
+        _check_jacobian(bkd, prob.function())
 
     # --- All QoIs produce scalar ---
 
@@ -149,42 +147,27 @@ class TestElasticBar1DBenchmark:
             "average_stress",
             "strain_energy",
         ]:
-            bm = _make_benchmark(bkd, "linear", qoi)
-            fwd = bm.function()
+            prob = _make_problem(bkd, "linear", qoi)
+            fwd = prob.function()
             assert fwd.nqoi() == 1, f"Failed for qoi={qoi}"
             result = fwd(sample)
             assert result.shape == (1, 1), f"Failed for qoi={qoi}"
 
-    # --- Prior and domain ---
+    # --- Prior ---
 
     def test_prior_samples_shape(self, bkd):
         """Prior generates samples of correct shape."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
+        prob = _make_problem(bkd, "linear", "tip_displacement")
         np.random.seed(42)
-        samples = bm.prior().rvs(5)
+        samples = prob.prior().rvs(5)
         assert samples.shape == (2, 5)
-
-    def test_domain_bounds(self, bkd):
-        """Domain bounds are [-4, 4]^2 for 2 KLE terms."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        bounds = bm.domain().bounds()
-        assert bounds.shape == (2, 2)
-        bkd.assert_allclose(
-            bounds,
-            bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
-        )
 
     # --- Protocol compliance ---
 
-    def test_benchmark_protocol_compliance(self, bkd):
-        """Benchmark satisfies BenchmarkWithPriorProtocol."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        assert isinstance(bm, BenchmarkWithPriorProtocol)
-
     def test_function_protocol_compliance(self, bkd):
         """Forward model satisfies FunctionWithJacobianProtocol."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "tip_displacement")
+        fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
         assert isinstance(fwd, FunctionWithJacobianProtocol)
 
@@ -193,65 +176,49 @@ class TestElasticBar1DBenchmark:
     def test_convergence_linear(self, bkd):
         """Linear bar: coarse and fine mesh tip displacement agree."""
         sample = bkd.zeros((2, 1))
-        bm_coarse = _make_benchmark(bkd, "linear", "tip_displacement", npts=15)
-        bm_fine = _make_benchmark(bkd, "linear", "tip_displacement", npts=40)
-        val_coarse = bm_coarse.function()(sample)
-        val_fine = bm_fine.function()(sample)
+        prob_coarse = _make_problem(bkd, "linear", "tip_displacement", npts=15)
+        prob_fine = _make_problem(bkd, "linear", "tip_displacement", npts=40)
+        val_coarse = prob_coarse.function()(sample)
+        val_fine = prob_fine.function()(sample)
         bkd.assert_allclose(val_coarse, val_fine, rtol=1e-3)
 
     def test_convergence_hyperelastic(self, bkd):
         """Hyperelastic bar: coarse and fine mesh tip displacement agree."""
         sample = bkd.zeros((2, 1))
-        bm_coarse = _make_benchmark(
+        prob_coarse = _make_problem(
             bkd,
             "hyperelastic",
             "tip_displacement",
             npts=15,
         )
-        bm_fine = _make_benchmark(
+        prob_fine = _make_problem(
             bkd,
             "hyperelastic",
             "tip_displacement",
             npts=40,
         )
-        val_coarse = bm_coarse.function()(sample)
-        val_fine = bm_fine.function()(sample)
+        val_coarse = prob_coarse.function()(sample)
+        val_fine = prob_fine.function()(sample)
         bkd.assert_allclose(val_coarse, val_fine, rtol=1e-3)
-
-    # --- Registry access ---
-
-    def test_registry_access_linear(self, bkd):
-        """BenchmarkRegistry.get works for linear bar."""
-        bm = BenchmarkRegistry.get("elastic_bar_1d_linear", bkd)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((2, 1)))
-        assert result.shape == (1, 1)
-
-    def test_registry_access_hyperelastic(self, bkd):
-        """BenchmarkRegistry.get works for hyperelastic bar."""
-        bm = BenchmarkRegistry.get("elastic_bar_1d_hyperelastic", bkd)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((2, 1)))
-        assert result.shape == (1, 1)
 
     # --- Error handling ---
 
     def test_invalid_constitutive_raises(self, bkd):
         """Invalid constitutive model raises ValueError."""
         with pytest.raises(ValueError):
-            elastic_bar_1d(bkd, constitutive="rubber")
+            build_elastic_bar_1d(bkd, constitutive="rubber")
 
     def test_invalid_qoi_raises(self, bkd):
         """Invalid QoI string raises ValueError."""
         with pytest.raises(ValueError):
-            elastic_bar_1d(bkd, qoi="max_stress")
+            build_elastic_bar_1d(bkd, qoi="max_stress")
 
     # --- Multi-sample evaluation ---
 
     def test_batch_evaluation(self, bkd):
         """Forward model handles batch evaluation."""
-        bm = _make_benchmark(bkd, "linear", "tip_displacement")
-        fwd = bm.function()
+        prob = _make_problem(bkd, "linear", "tip_displacement")
+        fwd = prob.function()
         np.random.seed(42)
         samples = bkd.array([[0.1, -0.1, 0.2], [0.05, 0.0, -0.15]])
         result = fwd(samples)

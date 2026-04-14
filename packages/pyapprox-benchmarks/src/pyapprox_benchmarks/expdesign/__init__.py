@@ -32,6 +32,10 @@ from pyapprox_benchmarks.expdesign.advection_diffusion import (
     build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark,
     build_obstructed_advection_diffusion_oed_benchmark,
 )
+from pyapprox_benchmarks.expdesign.cantilever_beam import (
+    CantileverBeam2DLoadOEDBenchmark,
+    build_cantilever_beam_oed_benchmark,
+)
 
 __all__ = [
     "LinearGaussianKLOEDBenchmark",
@@ -45,4 +49,6 @@ __all__ = [
     "build_nonlinear_gaussian_pred_benchmark",
     "build_obstructed_advection_diffusion_oed_benchmark",
     "build_fixed_velocity_obstructed_advection_diffusion_oed_benchmark",
+    "CantileverBeam2DLoadOEDBenchmark",
+    "build_cantilever_beam_oed_benchmark",
 ]

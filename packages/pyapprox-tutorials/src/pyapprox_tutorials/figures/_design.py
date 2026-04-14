@@ -112,7 +112,7 @@ def _plot_deformed(ax, coordx, coordy, conn, ext_edges, sol, material_map,
 
 def _setup_beam_mesh(mesh_path):
     """Set up beam mesh, basis, connectivity, and exterior edges."""
-    from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+    from pyapprox_benchmarks.pde.cantilever_beam import (
         _find_tip_dof,
     )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -667,7 +667,7 @@ def plot_reference_solution(fig, ax):
     from matplotlib.colors import Normalize
     from skfem.models.elasticity import lame_parameters
 
-    from pyapprox_benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+    from pyapprox_benchmarks.pde.cantilever_beam import MESH_PATHS
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
@@ -772,7 +772,7 @@ def plot_uncertainty_sources(kind, fig, axes):
     fig : matplotlib Figure
     axes : pair of Axes
     """
-    from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+    from pyapprox_benchmarks.pde.cantilever_beam import (
         MESH_PATHS,
         _find_tip_dof,
     )

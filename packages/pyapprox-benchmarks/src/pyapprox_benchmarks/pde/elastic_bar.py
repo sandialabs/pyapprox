@@ -1,16 +1,15 @@
-"""1D elastic bar benchmark instances for UQ workflows.
+"""1D elastic bar forward UQ problems.
 
-Wraps the zoo factories (linear and hyperelastic 1D bar) into benchmark
-instances with standard normal KLE priors and configurable QoI functionals.
+Wraps the zoo factories (linear and hyperelastic 1D bar) into
+ForwardUQProblem instances with standard normal KLE priors and
+configurable QoI functionals.
 """
 
 from __future__ import annotations
 
-from typing import Any, Tuple, Union
+from typing import Tuple, Union
 
-from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
@@ -44,41 +43,6 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
-
-class PDEBenchmarkWrapper:
-    """PDE benchmark wrapper.
-
-    Satisfies: HasForwardModel, HasPrior, HasEstimatedEvaluationCost.
-    Conditionally satisfies HasJacobian if the forward model exposes
-    a jacobian method.
-    """
-
-    def __init__(self, inner: Any, estimated_cost: float) -> None:
-        self._inner = inner
-        self._estimated_cost = estimated_cost
-        if hasattr(inner.function(), "jacobian"):
-            self.jacobian = self._jacobian
-
-    def name(self) -> str:
-        return self._inner.name()
-
-    def function(self) -> Any:
-        return self._inner.function()
-
-    def domain(self) -> Any:
-        return self._inner.domain()
-
-    def prior(self) -> Any:
-        return self._inner.prior()
-
-    def ground_truth(self) -> Any:
-        return self._inner.ground_truth()
-
-    def estimated_evaluation_cost(self) -> float:
-        return self._estimated_cost
-
-    def _jacobian(self, sample: Any) -> Any:
-        return self._inner.function().jacobian(sample)
 
 
 def _make_kle_field_map(
@@ -251,7 +215,7 @@ def _make_strain_energy_functional(
     )
 
 
-def elastic_bar_1d(
+def build_elastic_bar_1d(
     bkd: Backend[Array],
     constitutive: str = "linear",
     qoi: str = "tip_displacement",
@@ -263,8 +227,8 @@ def elastic_bar_1d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
-    """Create a 1D elastic bar benchmark for UQ workflows.
+) -> ForwardUQProblem:
+    """Create a 1D elastic bar forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
     collocation PDE solve. Supports linear and hyperelastic (Neo-Hookean)
@@ -303,9 +267,9 @@ def elastic_bar_1d(
 
     Returns
     -------
-    BenchmarkWithPrior
-        Benchmark with ``function()`` (the forward model), ``prior()``
-        (iid standard normal), and ``domain()`` ([-4, 4]^n).
+    ForwardUQProblem
+        Problem with ``function()`` (the forward model) and ``prior()``
+        (iid standard normal).
     """
     if constitutive not in ("linear", "hyperelastic"):
         raise ValueError(
@@ -370,47 +334,15 @@ def elastic_bar_1d(
         bkd,
     )
 
-    # Domain: [-4, 4]^n (4-sigma truncation)
-    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
-
     name = f"elastic_bar_1d_{constitutive}_{qoi}"
     description = (
         f"1D {constitutive} elastic bar, QoI={qoi}, "
         f"npts={npts}, {num_kle_terms} KLE terms"
     )
 
-    inner = BenchmarkWithPrior(
-        _name=name,
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=description,
+    return ForwardUQProblem(
+        name=name,
+        function=fwd,
+        prior=prior,
+        description=description,
     )
-    estimated_cost = 2.4e-04 if constitutive == "linear" else 1.1e-03
-    return PDEBenchmarkWrapper(inner, estimated_cost=estimated_cost)
-
-
-@BenchmarkRegistry.register(
-    "elastic_bar_1d_linear",
-    category="pde",
-    description="1D linear elastic bar with KLE-parameterized Young's modulus",
-)
-def _elastic_bar_1d_linear_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return elastic_bar_1d(bkd, constitutive="linear")
-
-
-@BenchmarkRegistry.register(
-    "elastic_bar_1d_hyperelastic",
-    category="pde",
-    description=(
-        "1D hyperelastic (Neo-Hookean) bar with KLE-parameterized Young's modulus"
-    ),
-)
-def _elastic_bar_1d_hyperelastic_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return elastic_bar_1d(bkd, constitutive="hyperelastic")

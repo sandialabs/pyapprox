@@ -57,15 +57,15 @@ returns the tip deflection as the QoI.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_1d,
 )
 
 bkd = NumpyBkd()
 
-benchmark = cantilever_beam_1d(bkd, num_kle_terms=3)
-model     = benchmark.function()
-prior     = benchmark.prior()
+problem = build_cantilever_beam_1d(bkd, num_kle_terms=3)
+model     = problem.function()
+prior     = problem.prior()
 marginals = prior.marginals()
 
 nvars = model.nvars()
@@ -524,7 +524,7 @@ fix — they greedily fill the yellow regions first.
    `CrossSectionReducer`. How do the uncertainty bands change near the edge of the
    training data support?
 
-4. Increase the number of KLE terms to 5 (`cantilever_beam_1d(bkd, num_kle_terms=5)`).
+4. Increase the number of KLE terms to 5 (`build_cantilever_beam_1d(bkd, num_kle_terms=5)`).
    How many additional training points do you need to maintain the same accuracy?
 
 

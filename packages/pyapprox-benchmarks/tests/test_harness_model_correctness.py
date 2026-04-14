@@ -32,16 +32,13 @@ _ANALYTIC_JACOBIAN_NAMES = [
     "genz_gaussian_peak_5d",
 ]
 
-# PDE benchmarks --- progressively more expensive
-_PDE_FAST_JACOBIAN_NAMES = [
-    "elastic_bar_1d_linear",
-    "elastic_bar_1d_hyperelastic",
-]
+# PDE forward-UQ problems are no longer registered benchmarks (they are
+# ForwardUQProblem instances without domain/ground_truth).  Their Jacobians
+# are tested in dedicated files: tests/pde/test_elastic_bar.py,
+# tests/pde/test_pressurized_cylinder.py.
+_PDE_FAST_JACOBIAN_NAMES: list[str] = []
 
-_PDE_SLOW_JACOBIAN_NAMES = [
-    "pressurized_cylinder_2d_linear",
-    "pressurized_cylinder_2d_hyperelastic",
-]
+_PDE_SLOW_JACOBIAN_NAMES: list[str] = []
 
 
 class TestAnalyticJacobians:
@@ -135,8 +132,6 @@ for _name in _PDE_SLOW_JACOBIAN_NAMES:
 # which was removed because it instantiated every registered benchmark.
 _EXPECTED_JACOBIAN_NAMES = {
     "branin_2d",
-    "elastic_bar_1d_hyperelastic",
-    "elastic_bar_1d_linear",
     "genz_corner_peak_2d",
     "genz_gaussian_peak_2d",
     "genz_gaussian_peak_5d",
@@ -144,8 +139,6 @@ _EXPECTED_JACOBIAN_NAMES = {
     "genz_oscillatory_5d",
     "genz_product_peak_2d",
     "ishigami_3d",
-    "pressurized_cylinder_2d_hyperelastic",
-    "pressurized_cylinder_2d_linear",
     "rosenbrock_10d",
     "rosenbrock_2d",
     "sobol_g_4d",

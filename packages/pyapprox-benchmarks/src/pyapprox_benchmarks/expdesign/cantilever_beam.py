@@ -4,29 +4,22 @@ Composes KLOEDProblem + OEDGroundTruth for sensor placement on a
 2D cantilever beam. The forward model maps two load parameters
 (constant + slope traction) to y-displacements at sensor locations.
 
-Structure mirrors expdesign/benchmarks/instances/linear_gaussian.py:
-- obs_map built by cantilever_beam_obs_map.build_cantilever_beam_obs_map
+Structure:
+- obs_map built by functions.pde.cantilever_beam_obs_map
 - BayesianInferenceProblem holds obs_map + prior + noise
 - KLOEDProblem adds design conditions
 - OEDGroundTruth provides exact EIG via conjugate Gaussian
-
-Migration note: This file stays in instances/pde/ during the full
-benchmarks/ refactor. The obs_map builder (cantilever_beam_obs_map.py)
-moves to benchmarks/functions/pde/. Problem classes (BayesianInferenceProblem,
-KLOEDProblem) are imported from expdesign/benchmarks/problems/ and will
-eventually move to a shared location (e.g. pyapprox/inverse/).
 """
 
 from typing import Generic, Optional
 
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
 )
-from pyapprox_benchmarks.instances.pde.cantilever_beam_obs_map import (
+from pyapprox_benchmarks.functions.pde.cantilever_beam_obs_map import (
     build_cantilever_beam_design_matrix,
     build_cantilever_beam_obs_map,
 )
-from pyapprox_benchmarks.registry import BenchmarkRegistry
 from pyapprox_benchmarks.ground_truth import OEDGroundTruth
 from pyapprox_benchmarks.problems.inverse import GaussianInferenceProblem
 from pyapprox_benchmarks.problems.oed import KLOEDProblem
@@ -210,16 +203,3 @@ def build_cantilever_beam_oed_benchmark(
     return CantileverBeam2DLoadOEDBenchmark(
         problem, ground_truth, bkd, noise_std, design_matrix, sensor_xs,
     )
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_2d_load_oed",
-    category="oed",
-    description=(
-        "2D cantilever beam load identification OED with analytical EIG"
-    ),
-)
-def _cantilever_beam_2d_load_oed_factory(
-    bkd: Backend[Array],
-) -> CantileverBeam2DLoadOEDBenchmark[Array]:
-    return build_cantilever_beam_oed_benchmark(bkd)

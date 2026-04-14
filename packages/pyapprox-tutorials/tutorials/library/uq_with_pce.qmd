@@ -54,8 +54,8 @@ We use a 1D Euler--Bernoulli cantilever beam with spatially varying bending stif
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_1d,
 )
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
@@ -66,9 +66,9 @@ from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
 
 bkd = NumpyBkd()
 
-benchmark = cantilever_beam_1d(bkd, num_kle_terms=3)
-model = benchmark.function()
-prior = benchmark.prior()
+problem = build_cantilever_beam_1d(bkd, num_kle_terms=3)
+model = problem.function()
+prior = problem.prior()
 marginals = prior.marginals()
 nvars = model.nvars()
 nqoi = model.nqoi()

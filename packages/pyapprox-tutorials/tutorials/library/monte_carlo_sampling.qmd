@@ -56,16 +56,16 @@ The bending stiffness $EI(x)$ is modeled by a two-term Karhunen--Lo\`eve expansi
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_1d,
 )
 
 bkd = NumpyBkd()
 
-# Create benchmark: KLE beam with 2 uncertain parameters
-benchmark = cantilever_beam_1d(bkd, nx=40, num_kle_terms=2)
-model = benchmark.function()
-variable = benchmark.prior()
+# Create problem: KLE beam with 2 uncertain parameters
+problem = build_cantilever_beam_1d(bkd, nx=40, num_kle_terms=2)
+model = problem.function()
+variable = problem.prior()
 
 print(f"Number of uncertain parameters: {model.nvars()}")
 print(f"Number of QoIs: {model.nqoi()}")
@@ -81,7 +81,7 @@ from pyapprox_tutorials.figures._forward_uq import plot_beam_deflections
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.5),
                           gridspec_kw={"wspace": 0.3, "right": 0.88})
-plot_beam_deflections(benchmark, bkd, axes[0], axes[1], cbar_fig=fig)
+plot_beam_deflections(problem, bkd, axes[0], axes[1], cbar_fig=fig)
 plt.tight_layout()
 plt.show()
 ```

@@ -60,12 +60,6 @@ from pyapprox_benchmarks.ground_truth import (
 # Instances (also registers with BenchmarkRegistry)
 from pyapprox_benchmarks.instances import (
     branin_2d,
-    cantilever_beam_1d,
-    cantilever_beam_1d_analytical,
-    cantilever_beam_2d_analytical,
-    cantilever_beam_2d_linear,
-    cantilever_beam_2d_neohookean,
-    elastic_bar_1d,
     genz_corner_peak_2d,
     genz_gaussian_peak_2d,
     genz_gaussian_peak_5d,
@@ -85,6 +79,21 @@ from pyapprox_benchmarks.ode import (
     build_coupled_springs_2mass,
     build_hastings_ecology_3species,
     build_lotka_volterra_3species,
+)
+
+# PDE builders
+from pyapprox_benchmarks.pde import (
+    build_cantilever_beam_1d,
+    build_cantilever_beam_1d_analytical,
+    build_cantilever_beam_1d_spde,
+    build_cantilever_beam_2d_analytical,
+    build_cantilever_beam_2d_linear,
+    build_cantilever_beam_2d_linear_spde,
+    build_cantilever_beam_2d_neohookean,
+    build_cantilever_beam_2d_neohookean_spde,
+    build_elastic_bar_1d,
+    build_hyperelastic_pressurized_cylinder_2d,
+    build_pressurized_cylinder_2d,
 )
 from pyapprox_benchmarks.protocols import (
     BenchmarkProtocol,
@@ -149,6 +158,18 @@ __all__ = [
     "build_coupled_springs_2mass",
     "build_hastings_ecology_3species",
     "build_chemical_reaction_surface",
+    # PDE builders
+    "build_elastic_bar_1d",
+    "build_cantilever_beam_1d",
+    "build_cantilever_beam_1d_analytical",
+    "build_cantilever_beam_1d_spde",
+    "build_cantilever_beam_2d_analytical",
+    "build_cantilever_beam_2d_linear",
+    "build_cantilever_beam_2d_linear_spde",
+    "build_cantilever_beam_2d_neohookean",
+    "build_cantilever_beam_2d_neohookean_spde",
+    "build_hyperelastic_pressurized_cylinder_2d",
+    "build_pressurized_cylinder_2d",
     # Instances - Sensitivity
     "ishigami_3d",
     "sobol_g_6d",
@@ -164,11 +185,4 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
-    # Instances - PDE
-    "elastic_bar_1d",
-    "cantilever_beam_1d",
-    "cantilever_beam_2d_linear",
-    "cantilever_beam_2d_neohookean",
-    "cantilever_beam_1d_analytical",
-    "cantilever_beam_2d_analytical",
 ]

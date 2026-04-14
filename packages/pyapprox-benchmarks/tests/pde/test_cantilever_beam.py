@@ -1,4 +1,4 @@
-"""Integration tests for the cantilever beam benchmark instances."""
+"""Integration tests for the cantilever beam forward UQ problems."""
 
 import pytest
 
@@ -9,18 +9,25 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
+    CantileverBeam1DAnalytical,
+)
+from pyapprox_benchmarks.pde.cantilever_beam import (
     MESH_PATHS,
     CompositeBeam1DForwardModel,
-    cantilever_beam_1d,
-    cantilever_beam_1d_spde,
-    cantilever_beam_2d_linear,
-    cantilever_beam_2d_linear_spde,
-    cantilever_beam_2d_neohookean,
-    cantilever_beam_2d_neohookean_spde,
+    build_cantilever_beam_1d,
+    build_cantilever_beam_1d_spde,
+    build_cantilever_beam_2d_linear,
+    build_cantilever_beam_2d_linear_spde,
+    build_cantilever_beam_2d_neohookean,
+    build_cantilever_beam_2d_neohookean_spde,
 )
-from pyapprox_benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.pde.cantilever_beam_1d_analytical import (
+    build_cantilever_beam_1d_analytical,
+)
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slower_test  # noqa: F401
@@ -37,9 +44,9 @@ class TestCantileverBeam1D:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm = cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=2)
-        cls._bm3 = cantilever_beam_1d(cls._bkd, num_kle_terms=3)
-        cls._bm1 = cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=1)
+        cls._bm = build_cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=2)
+        cls._bm3 = build_cantilever_beam_1d(cls._bkd, num_kle_terms=3)
+        cls._bm1 = build_cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=1)
 
     def test_evaluate_at_zero(self):
         bkd = self._bkd
@@ -71,24 +78,14 @@ class TestCantileverBeam1D:
         result = fwd(samples)
         assert result.shape == (3, 3)
 
-    def test_prior_and_domain(self):
+    def test_prior_shape(self):
         bm = self._bm3
         np.random.seed(42)
         samples = bm.prior().rvs(5)
         assert samples.shape == (3, 5)
-        bounds = bm.domain().bounds()
-        assert bounds.shape == (3, 2)
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = BenchmarkRegistry.get("cantilever_beam_1d", bkd)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (3, 1)
 
     def test_one_kle_term_recovers_constant(self):
         """With 1 KLE term at params=0, result is deterministic baseline."""
@@ -108,12 +105,12 @@ class TestCantileverBeam2DLinear:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm1 = cantilever_beam_2d_linear(
+        cls._bm1 = build_cantilever_beam_2d_linear(
             cls._bkd,
             num_kle_terms=1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm3 = cantilever_beam_2d_linear(
+        cls._bm3 = build_cantilever_beam_2d_linear(
             cls._bkd,
             num_kle_terms=3,
             mesh_path=_TEST_MESH,
@@ -139,15 +136,7 @@ class TestCantileverBeam2DLinear:
         assert not np.allclose(bkd.to_numpy(r1), bkd.to_numpy(r2))
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_linear(bkd, mesh_path=_TEST_MESH)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (2, 1)
 
     def test_nvars_matches_subdomains_times_kle(self):
         fwd = self._bm3.function()
@@ -164,18 +153,18 @@ class TestCantileverBeam2DNeoHookean:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm1 = cantilever_beam_2d_neohookean(
+        cls._bm1 = build_cantilever_beam_2d_neohookean(
             cls._bkd,
             num_kle_terms=1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm_lin_small = cantilever_beam_2d_linear(
+        cls._bm_lin_small = build_cantilever_beam_2d_linear(
             cls._bkd,
             num_kle_terms=1,
             q0=0.1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm_neo_small = cantilever_beam_2d_neohookean(
+        cls._bm_neo_small = build_cantilever_beam_2d_neohookean(
             cls._bkd,
             num_kle_terms=1,
             q0=0.1,
@@ -201,15 +190,7 @@ class TestCantileverBeam2DNeoHookean:
         assert rel_diff < 0.05
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_neohookean(bkd, mesh_path=_TEST_MESH)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (2, 1)
 
 
 # =========================================================================
@@ -221,9 +202,9 @@ class TestCantileverBeam1DSPDE:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm = cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=2)
-        cls._bm3 = cantilever_beam_1d_spde(cls._bkd, num_kle_terms=3)
-        cls._bm1 = cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=1)
+        cls._bm = build_cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=2)
+        cls._bm3 = build_cantilever_beam_1d_spde(cls._bkd, num_kle_terms=3)
+        cls._bm1 = build_cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=1)
 
     def test_evaluate_at_zero(self):
         bkd = self._bkd
@@ -252,24 +233,14 @@ class TestCantileverBeam1DSPDE:
         result = fwd(samples)
         assert result.shape == (3, 3)
 
-    def test_prior_and_domain(self):
+    def test_prior_shape(self):
         bm = self._bm3
         np.random.seed(42)
         samples = bm.prior().rvs(5)
         assert samples.shape == (3, 5)
-        bounds = bm.domain().bounds()
-        assert bounds.shape == (3, 2)
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = BenchmarkRegistry.get("cantilever_beam_1d_spde", bkd)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (3, 1)
 
     def test_one_kle_term_recovers_constant(self):
         """With 1 KLE term at params=0, result is deterministic baseline."""
@@ -289,12 +260,12 @@ class TestCantileverBeam2DLinearSPDE:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm1 = cantilever_beam_2d_linear_spde(
+        cls._bm1 = build_cantilever_beam_2d_linear_spde(
             cls._bkd,
             num_kle_terms=1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm3 = cantilever_beam_2d_linear_spde(
+        cls._bm3 = build_cantilever_beam_2d_linear_spde(
             cls._bkd,
             num_kle_terms=3,
             mesh_path=_TEST_MESH,
@@ -320,15 +291,7 @@ class TestCantileverBeam2DLinearSPDE:
         assert not np.allclose(bkd.to_numpy(r1), bkd.to_numpy(r2))
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_linear_spde(bkd, mesh_path=_TEST_MESH)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (2, 1)
 
     def test_nvars_matches_subdomains_times_kle(self):
         fwd = self._bm3.function()
@@ -345,18 +308,18 @@ class TestCantileverBeam2DNeoHookeanSPDE:
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
-        cls._bm1 = cantilever_beam_2d_neohookean_spde(
+        cls._bm1 = build_cantilever_beam_2d_neohookean_spde(
             cls._bkd,
             num_kle_terms=1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm_lin_small = cantilever_beam_2d_linear_spde(
+        cls._bm_lin_small = build_cantilever_beam_2d_linear_spde(
             cls._bkd,
             num_kle_terms=1,
             q0=0.1,
             mesh_path=_TEST_MESH,
         )
-        cls._bm_neo_small = cantilever_beam_2d_neohookean_spde(
+        cls._bm_neo_small = build_cantilever_beam_2d_neohookean_spde(
             cls._bkd,
             num_kle_terms=1,
             q0=0.1,
@@ -382,15 +345,7 @@ class TestCantileverBeam2DNeoHookeanSPDE:
         assert rel_diff < 0.05
 
     def test_protocol_compliance(self):
-        assert isinstance(self._bm1, BenchmarkWithPriorProtocol)
         assert isinstance(self._bm1.function(), FunctionProtocol)
-
-    def test_registry_access(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_neohookean_spde(bkd, mesh_path=_TEST_MESH)
-        fwd = bm.function()
-        result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        assert result.shape == (2, 1)
 
 
 # =========================================================================
@@ -403,10 +358,6 @@ class TestFEMvsAnalytical:
 
     def test_uniform_EI_matches_analytical(self):
         """CompositeBeam1DForwardModel vs CantileverBeam1DAnalytical."""
-        from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
-            CantileverBeam1DAnalytical,
-        )
-
         bkd = NumpyBkd()
         L, H, q0, skin_t = 100.0, 30.0, 10.0, 5.0
 
@@ -443,13 +394,6 @@ class TestFEMvsAnalytical:
 
     def test_analytical_jacobian(self):
         """Verify analytical Jacobian via DerivativeChecker."""
-        from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
-            CantileverBeam1DAnalytical,
-        )
-        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker,
-        )
-
         bkd = NumpyBkd()
         model = CantileverBeam1DAnalytical(
             length=100.0,
@@ -468,11 +412,11 @@ class TestFEMvsAnalytical:
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6
 
-    def test_analytical_registry(self):
-        """Verify analytical benchmark is accessible via registry."""
+    def test_analytical_builder(self):
+        """Verify analytical builder returns working ForwardUQProblem."""
         bkd = NumpyBkd()
-        bm = BenchmarkRegistry.get("cantilever_beam_1d_analytical", bkd)
-        fwd = bm.function()
+        prob = build_cantilever_beam_1d_analytical(bkd)
+        fwd = prob.function()
         assert fwd.nvars() == 2
         assert fwd.nqoi() == 3
         result = fwd(bkd.asarray([[20000.0], [5000.0]]))

@@ -99,8 +99,8 @@ The walker's decision rule is the heart of MCMC. @fig-mh-single-step walks throu
 #| label: fig-mh-single-step
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_1d,
 )
 from pyapprox.probability.likelihood import (
     DiagonalGaussianLogLikelihood,
@@ -115,9 +115,9 @@ from pyapprox_tutorials.figures._bayesian import plot_mh_single_step
 bkd = NumpyBkd()
 
 # 1D FEM beam with 1 KLE term for spatially varying EI(x)
-benchmark_1d = cantilever_beam_1d(bkd, num_kle_terms=1)
-beam_1d = benchmark_1d.function()
-prior = benchmark_1d.prior()
+problem_1d = build_cantilever_beam_1d(bkd, num_kle_terms=1)
+beam_1d = problem_1d.function()
+prior = problem_1d.prior()
 
 tip_model = FunctionFromCallable(
     nqoi=1, nvars=1,
@@ -233,9 +233,9 @@ where $\overline{EI}$ is the mean stiffness, $(\lambda_i, \phi_i)$ are the KLE e
 
 ```{python}
 # 1D FEM beam with 2 KLE terms for spatially varying EI(x)
-benchmark_2d = cantilever_beam_1d(bkd, num_kle_terms=2)
-beam_2d = benchmark_2d.function()   # nvars=2, nqoi=3
-prior_2d = benchmark_2d.prior()     # IndependentJoint of 2 x N(0,1)
+problem_2d = build_cantilever_beam_1d(bkd, num_kle_terms=2)
+beam_2d = problem_2d.function()   # nvars=2, nqoi=3
+prior_2d = problem_2d.prior()     # IndependentJoint of 2 x N(0,1)
 
 # Tip-only wrapper (first QoI is tip deflection)
 tip_model_2d = FunctionFromCallable(

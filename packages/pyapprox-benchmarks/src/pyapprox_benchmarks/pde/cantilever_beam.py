@@ -1,10 +1,11 @@
-"""Cantilever beam benchmark instances for UQ workflows.
+"""Cantilever beam forward UQ problems.
 
 Wraps Galerkin FEM models (1D Euler-Bernoulli beam, 2D composite linear
-elasticity, 2D composite Neo-Hookean hyperelasticity) into benchmark
-instances with per-subdomain KLE priors for Young's modulus.
+elasticity, 2D composite Neo-Hookean hyperelasticity) into
+ForwardUQProblem instances with per-subdomain KLE priors for Young's
+modulus.
 
-Each subdomain gets its own lognormal KLE field map. The benchmark input
+Each subdomain gets its own lognormal KLE field map. The problem input
 parameters are the concatenated KLE coefficients (standard normal) from
 all subdomains. A 1-term KLE recovers the constant-parameter case.
 
@@ -45,7 +46,6 @@ import numpy as np
 _DATA_DIR = os.path.join(
     os.path.dirname(__file__),
     os.pardir,
-    os.pardir,
     "data",
 )
 _DEFAULT_MESH_PATH = os.path.normpath(
@@ -66,12 +66,7 @@ MESH_PATHS = {
     ),
 }
 
-from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox_benchmarks.instances.pde.elastic_bar import (
-    PDEBenchmarkWrapper,
-)
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
     create_spde_lognormal_kle_field_map,
@@ -766,7 +761,7 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
 # =========================================================================
 
 
-def cantilever_beam_1d(
+def build_cantilever_beam_1d(
     bkd: Backend[Array],
     nx: int = 40,
     length: float = 100.0,
@@ -776,8 +771,8 @@ def cantilever_beam_1d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 1D Euler-Bernoulli cantilever beam benchmark.
+) -> ForwardUQProblem:
+    """Create a 1D Euler-Bernoulli cantilever beam forward UQ problem.
 
     Parameters
     ----------
@@ -838,21 +833,16 @@ def cantilever_beam_1d(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(num_kle_terms)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_1d_tip_displacement",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_1d",
+        function=fwd,
+        prior=prior,
+        description=(
             f"1D Euler-Bernoulli cantilever beam, nx={nx}, "
             f"{num_kle_terms} KLE terms for EI(x)"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=1e-03)
 
 
 def _find_dof(
@@ -914,7 +904,7 @@ def _find_tip_dof(
     return _find_dof(basis, length, height / 2.0, 1, bkd)
 
 
-def cantilever_beam_2d_linear(
+def build_cantilever_beam_2d_linear(
     bkd: Backend[Array],
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
@@ -925,8 +915,8 @@ def cantilever_beam_2d_linear(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 2D linear elastic cantilever beam benchmark.
+) -> ForwardUQProblem:
+    """Create a 2D linear elastic cantilever beam forward UQ problem.
 
     Parameters
     ----------
@@ -1040,25 +1030,20 @@ def cantilever_beam_2d_linear(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * nvars)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_linear",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_2d_linear",
+        function=fwd,
+        prior=prior,
+        description=(
             f"2D linear elastic cantilever beam, "
             f"{num_kle_terms} KLE terms per subdomain, "
             f"{len(subdomain_names)} subdomains"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=1.0)
 
 
-def cantilever_beam_2d_neohookean(
+def build_cantilever_beam_2d_neohookean(
     bkd: Backend[Array],
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
@@ -1069,10 +1054,10 @@ def cantilever_beam_2d_neohookean(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 2D Neo-Hookean cantilever beam benchmark.
+) -> ForwardUQProblem:
+    """Create a 2D Neo-Hookean cantilever beam forward UQ problem.
 
-    Same setup as the linear benchmark but with nonlinear hyperelastic
+    Same setup as the linear problem but with nonlinear hyperelastic
     constitutive model (Neo-Hookean).
 
     Parameters
@@ -1190,22 +1175,17 @@ def cantilever_beam_2d_neohookean(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * nvars)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_neohookean",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_2d_neohookean",
+        function=fwd,
+        prior=prior,
+        description=(
             f"2D Neo-Hookean cantilever beam, "
             f"{num_kle_terms} KLE terms per subdomain, "
             f"{len(subdomain_names)} subdomains"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=5.0)
 
 
 # =========================================================================
@@ -1213,7 +1193,7 @@ def cantilever_beam_2d_neohookean(
 # =========================================================================
 
 
-def cantilever_beam_1d_spde(
+def build_cantilever_beam_1d_spde(
     bkd: Backend[Array],
     nx: int = 40,
     length: float = 100.0,
@@ -1223,10 +1203,10 @@ def cantilever_beam_1d_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 1D Euler-Bernoulli cantilever beam benchmark (SPDE KLE).
+) -> ForwardUQProblem:
+    """Create a 1D Euler-Bernoulli cantilever beam forward UQ problem (SPDE KLE).
 
-    Same as :func:`cantilever_beam_1d` but uses the sparse SPDE-based
+    Same as :func:`build_cantilever_beam_1d` but uses the sparse SPDE-based
     Matern KLE instead of the dense Nystrom squared-exponential KLE.
 
     Parameters
@@ -1286,24 +1266,19 @@ def cantilever_beam_1d_spde(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(num_kle_terms)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_1d_spde_tip_displacement",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_1d_spde",
+        function=fwd,
+        prior=prior,
+        description=(
             f"1D Euler-Bernoulli cantilever beam (SPDE Matern KLE), "
             f"nx={nx}, {num_kle_terms} KLE terms for EI(x)"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=1e-03)
 
 
-def cantilever_beam_2d_linear_spde(
+def build_cantilever_beam_2d_linear_spde(
     bkd: Backend[Array],
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
@@ -1314,10 +1289,10 @@ def cantilever_beam_2d_linear_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 2D linear elastic cantilever beam benchmark (SPDE KLE).
+) -> ForwardUQProblem:
+    """Create a 2D linear elastic cantilever beam forward UQ problem (SPDE KLE).
 
-    Same as :func:`cantilever_beam_2d_linear` but uses the sparse
+    Same as :func:`build_cantilever_beam_2d_linear` but uses the sparse
     SPDE-based Matern KLE instead of the dense Nystrom
     squared-exponential KLE.  Per-subdomain KLEs are built on submeshes
     extracted via ``skfem_mesh.restrict()``.
@@ -1429,25 +1404,20 @@ def cantilever_beam_2d_linear_spde(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * nvars)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_linear_spde",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_2d_linear_spde",
+        function=fwd,
+        prior=prior,
+        description=(
             f"2D linear elastic cantilever beam (SPDE Matern KLE), "
             f"{num_kle_terms} KLE terms per subdomain, "
             f"{len(subdomain_names)} subdomains"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=1.0)
 
 
-def cantilever_beam_2d_neohookean_spde(
+def build_cantilever_beam_2d_neohookean_spde(
     bkd: Backend[Array],
     mesh_path: str = _DEFAULT_MESH_PATH,
     length: float = 100.0,
@@ -1458,10 +1428,10 @@ def cantilever_beam_2d_neohookean_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> PDEBenchmarkWrapper:
-    """Create a 2D Neo-Hookean cantilever beam benchmark (SPDE KLE).
+) -> ForwardUQProblem:
+    """Create a 2D Neo-Hookean cantilever beam forward UQ problem (SPDE KLE).
 
-    Same as :func:`cantilever_beam_2d_neohookean` but uses the sparse
+    Same as :func:`build_cantilever_beam_2d_neohookean` but uses the sparse
     SPDE-based Matern KLE instead of the dense Nystrom
     squared-exponential KLE.
 
@@ -1579,106 +1549,14 @@ def cantilever_beam_2d_neohookean_spde(
         [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
         bkd,
     )
-    bounds = bkd.array([[-4.0, 4.0]] * nvars)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
-    inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_neohookean_spde",
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=(
+    return ForwardUQProblem(
+        name="cantilever_beam_2d_neohookean_spde",
+        function=fwd,
+        prior=prior,
+        description=(
             f"2D Neo-Hookean cantilever beam (SPDE Matern KLE), "
             f"{num_kle_terms} KLE terms per subdomain, "
             f"{len(subdomain_names)} subdomains"
         ),
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=5.0)
-
-
-
-
-# =========================================================================
-# Registry
-# =========================================================================
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_1d",
-    category="pde",
-    description="1D Euler-Bernoulli cantilever beam with KLE bending stiffness",
-)
-def _cantilever_beam_1d_factory(bkd: Backend[Array]) -> PDEBenchmarkWrapper:
-    return cantilever_beam_1d(bkd)
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_2d_linear",
-    category="pde",
-    description=(
-        "2D linear elastic cantilever beam with per-subdomain KLE Young's modulus"
-    ),
-)
-def _cantilever_beam_2d_linear_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return cantilever_beam_2d_linear(bkd)
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_2d_neohookean",
-    category="pde",
-    description=(
-        "2D Neo-Hookean cantilever beam with per-subdomain KLE Young's modulus"
-    ),
-)
-def _cantilever_beam_2d_neohookean_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return cantilever_beam_2d_neohookean(bkd)
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_1d_spde",
-    category="pde",
-    description=(
-        "1D Euler-Bernoulli cantilever beam with SPDE Matern KLE bending stiffness"
-    ),
-)
-def _cantilever_beam_1d_spde_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return cantilever_beam_1d_spde(bkd)
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_2d_linear_spde",
-    category="pde",
-    description=(
-        "2D linear elastic cantilever beam with per-subdomain SPDE "
-        "Matern KLE Young's modulus"
-    ),
-)
-def _cantilever_beam_2d_linear_spde_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return cantilever_beam_2d_linear_spde(bkd)
-
-
-@BenchmarkRegistry.register(
-    "cantilever_beam_2d_neohookean_spde",
-    category="pde",
-    description=(
-        "2D Neo-Hookean cantilever beam with per-subdomain SPDE "
-        "Matern KLE Young's modulus"
-    ),
-)
-def _cantilever_beam_2d_neohookean_spde_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return cantilever_beam_2d_neohookean_spde(bkd)
-
-
-# TODO: This file is too long, we need to split into meaningful
-# smaller files, e.g. utils, 1d, 2d

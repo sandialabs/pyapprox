@@ -49,14 +49,16 @@ We use a 2D cantilever beam with $d = 3$ uncertain parameters (one KLE mode coef
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances import cantilever_beam_2d_linear
-from pyapprox_benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_2d_linear,
+    MESH_PATHS,
+)
 
 bkd = NumpyBkd()
 
-benchmark = cantilever_beam_2d_linear(bkd, num_kle_terms=1, mesh_path=MESH_PATHS[4])
-model = benchmark.function()
-prior = benchmark.prior()
+problem = build_cantilever_beam_2d_linear(bkd, num_kle_terms=1, mesh_path=MESH_PATHS[4])
+model = problem.function()
+prior = problem.prior()
 marginals = prior.marginals()
 
 nvars = model.nvars()

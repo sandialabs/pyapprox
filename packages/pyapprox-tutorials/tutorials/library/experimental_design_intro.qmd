@@ -95,10 +95,10 @@ To see this, we set up the problem and compute the exact posterior for each sens
 # =========================================================
 # Build the OED benchmark
 # =========================================================
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.pde.cantilever_beam import (
     MESH_PATHS, _find_dof,
 )
-from pyapprox_benchmarks.instances.pde.cantilever_beam_oed import (
+from pyapprox_benchmarks.expdesign.cantilever_beam import (
     build_cantilever_beam_oed_benchmark,
 )
 from pyapprox.inverse.conjugate.gaussian import (

@@ -268,19 +268,15 @@ class TestCantileverBeam2DObjective:
         assert ratio <= 1e-5
 
 
-# TODO: Should registry of benchark be tested here or somewhere else?
-class TestCantileverBeam2DRegistry:
-    def test_registry_access(self):
-        """Verify benchmark is accessible from registry."""
-        # Trigger registration
-        import pyapprox_benchmarks.instances.analytic.cantilever_beam_2d  # noqa: F401
-        from pyapprox_benchmarks.registry import BenchmarkRegistry
+class TestCantileverBeam2DBuilder:
+    def test_builder_access(self):
+        """Verify builder returns working ForwardUQProblem."""
+        from pyapprox_benchmarks.pde.cantilever_beam_2d_analytical import (
+            build_cantilever_beam_2d_analytical,
+        )
 
         bkd = NumpyBkd()
-        bm = BenchmarkRegistry.get(
-            "cantilever_beam_2d_analytical",
-            bkd=bkd,
-        )
-        func = bm.function()
+        prob = build_cantilever_beam_2d_analytical(bkd)
+        func = prob.function()
         assert func.nvars() == 6
         assert func.nqoi() == 2

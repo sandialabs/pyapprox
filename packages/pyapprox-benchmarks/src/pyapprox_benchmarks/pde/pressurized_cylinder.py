@@ -1,27 +1,17 @@
-"""2D pressurized cylinder benchmark instances for UQ workflows.
+"""2D pressurized cylinder forward UQ problems.
 
 Wraps the zoo factory (linear elastic 2D pressurized cylinder) into
-benchmark instances with standard normal KLE priors and configurable
-QoI functionals: outer radial displacement, average hoop stress, and
-strain energy.
+ForwardUQProblem instances with standard normal KLE priors and
+configurable QoI functionals: outer radial displacement, average hoop
+stress, and strain energy.
 """
-
-# TODO: This anot the other elasticity benchmarks in this submodule
-# seem to use a lot of custom code
-# can we make general testable utilities that we can then resuse to
-# reduce code bloat and prouce more reliable code
 
 from __future__ import annotations
 
 import math
 from typing import Union
 
-from pyapprox_benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox_benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox_benchmarks.instances.pde.elastic_bar import (
-    PDEBenchmarkWrapper,
-)
-from pyapprox_benchmarks.registry import BenchmarkRegistry
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
     HyperelasticAverageHoopStressFunctional,
@@ -230,7 +220,7 @@ def _make_hyperelastic_functional(
     )
 
 
-def pressurized_cylinder_2d(
+def build_pressurized_cylinder_2d(
     bkd: Backend[Array],
     qoi: str = "outer_radial_displacement",
     npts_r: int = 12,
@@ -243,8 +233,8 @@ def pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
-    """Create a 2D pressurized cylinder benchmark for UQ workflows.
+) -> ForwardUQProblem:
+    """Create a 2D linear elastic pressurized cylinder forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
     2D linear elastic collocation PDE solve on a quarter-annulus.
@@ -281,9 +271,9 @@ def pressurized_cylinder_2d(
 
     Returns
     -------
-    BenchmarkWithPrior
-        Benchmark with ``function()`` (forward model), ``prior()``
-        (iid standard normal), and ``domain()`` ([-4, 4]^n).
+    ForwardUQProblem
+        Problem with ``function()`` (forward model) and ``prior()``
+        (iid standard normal).
     """
     # Mesh and basis
     transform = PolarTransform(
@@ -345,10 +335,6 @@ def pressurized_cylinder_2d(
         bkd,
     )
 
-    # Domain: [-4, 4]^n (4-sigma truncation)
-    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
-
     name = f"pressurized_cylinder_2d_linear_{qoi}"
     description = (
         f"2D linear elastic pressurized cylinder, QoI={qoi}, "
@@ -356,31 +342,15 @@ def pressurized_cylinder_2d(
         f"{num_kle_terms} KLE terms"
     )
 
-    inner = BenchmarkWithPrior(
-        _name=name,
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=description,
+    return ForwardUQProblem(
+        name=name,
+        function=fwd,
+        prior=prior,
+        description=description,
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=3.6e-02)
 
 
-@BenchmarkRegistry.register(
-    "pressurized_cylinder_2d_linear",
-    category="pde",
-    description=(
-        "2D linear elastic pressurized cylinder with KLE-parameterized Young's modulus"
-    ),
-)
-def _pressurized_cylinder_2d_linear_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return pressurized_cylinder_2d(bkd)
-
-
-def hyperelastic_pressurized_cylinder_2d(
+def build_hyperelastic_pressurized_cylinder_2d(
     bkd: Backend[Array],
     qoi: str = "outer_radial_displacement",
     npts_r: int = 12,
@@ -393,8 +363,8 @@ def hyperelastic_pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth[Array]]:
-    """Create a 2D hyperelastic pressurized cylinder benchmark for UQ.
+) -> ForwardUQProblem:
+    """Create a 2D hyperelastic pressurized cylinder forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
     2D Neo-Hookean hyperelastic collocation PDE solve on a quarter-annulus.
@@ -431,9 +401,9 @@ def hyperelastic_pressurized_cylinder_2d(
 
     Returns
     -------
-    BenchmarkWithPrior
-        Benchmark with ``function()`` (forward model), ``prior()``
-        (iid standard normal), and ``domain()`` ([-4, 4]^n).
+    ForwardUQProblem
+        Problem with ``function()`` (forward model) and ``prior()``
+        (iid standard normal).
     """
     # Mesh and basis
     transform = PolarTransform(
@@ -486,10 +456,6 @@ def hyperelastic_pressurized_cylinder_2d(
         bkd,
     )
 
-    # Domain: [-4, 4]^n (4-sigma truncation)
-    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
-    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
-
     name = f"pressurized_cylinder_2d_hyperelastic_{qoi}"
     description = (
         f"2D hyperelastic pressurized cylinder, QoI={qoi}, "
@@ -497,25 +463,9 @@ def hyperelastic_pressurized_cylinder_2d(
         f"{num_kle_terms} KLE terms"
     )
 
-    inner = BenchmarkWithPrior(
-        _name=name,
-        _function=fwd,
-        _domain=domain,
-        _ground_truth=SensitivityGroundTruth(),
-        _prior=prior,
-        _description=description,
+    return ForwardUQProblem(
+        name=name,
+        function=fwd,
+        prior=prior,
+        description=description,
     )
-    return PDEBenchmarkWrapper(inner, estimated_cost=4.0e-01)
-
-
-@BenchmarkRegistry.register(
-    "pressurized_cylinder_2d_hyperelastic",
-    category="pde",
-    description=(
-        "2D hyperelastic pressurized cylinder with KLE-parameterized Young's modulus"
-    ),
-)
-def _pressurized_cylinder_2d_hyperelastic_factory(
-    bkd: Backend[Array],
-) -> PDEBenchmarkWrapper:
-    return hyperelastic_pressurized_cylinder_2d(bkd)

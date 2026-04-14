@@ -61,7 +61,7 @@ If we can identify the dominant inputs, we can:
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks import cantilever_beam_1d
+from pyapprox_benchmarks import build_cantilever_beam_1d
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
@@ -72,10 +72,10 @@ from pyapprox.sensitivity import PolynomialChaosSensitivityAnalysis
 
 bkd = NumpyBkd()
 
-# Set up beam benchmark with 3 KLE terms
-benchmark = cantilever_beam_1d(bkd, num_kle_terms=3)
-model = benchmark.function()
-prior = benchmark.prior()
+# Set up beam problem with 3 KLE terms
+problem = build_cantilever_beam_1d(bkd, num_kle_terms=3)
+model = problem.function()
+prior = problem.prior()
 marginals = prior.marginals()
 nvars = model.nvars()
 nqoi = model.nqoi()

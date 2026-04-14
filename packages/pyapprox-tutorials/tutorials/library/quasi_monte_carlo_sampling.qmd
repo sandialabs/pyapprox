@@ -66,15 +66,15 @@ We use the analytical composite cantilever beam model. The two uncertain paramet
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.analytic.cantilever_beam import (
-    cantilever_beam_1d_analytical,
+from pyapprox_benchmarks.pde.cantilever_beam_1d_analytical import (
+    build_cantilever_beam_1d_analytical,
 )
 
 bkd = NumpyBkd()
 
-benchmark = cantilever_beam_1d_analytical(bkd)
-model = benchmark.function()
-variable = benchmark.prior()
+problem = build_cantilever_beam_1d_analytical(bkd)
+model = problem.function()
+variable = problem.prior()
 
 print(f"Number of uncertain parameters: {model.nvars()}")
 print(f"Number of QoIs: {model.nqoi()}")

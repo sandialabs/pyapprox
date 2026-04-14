@@ -3,21 +3,13 @@
 Builds the design matrix A by solving two unit-load FEM problems
 (constant traction, slope traction) and extracting y-displacements
 at sensor locations. Wraps A as a FunctionFromCallable.
-
-This is the analog of expdesign/benchmarks/functions/linear_gaussian.py
-for a PDE-derived forward model.
-
-Migration note: When pyapprox/benchmarks/ adopts the full
-functions/problems/instances/ directory structure, this file moves to
-pyapprox/benchmarks/functions/pde/cantilever_beam.py.
 """
 
 from typing import Optional, Tuple
 
 import numpy as np
 
-# Reuse _find_dof from the main cantilever beam module
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
+from pyapprox_benchmarks.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
     _find_dof,
 )

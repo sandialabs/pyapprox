@@ -57,8 +57,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox_benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
+from pyapprox_benchmarks.pde.cantilever_beam import (
+    build_cantilever_beam_1d,
 )
 from pyapprox.probability.likelihood import (
     DiagonalGaussianLogLikelihood,
@@ -81,9 +81,9 @@ from pyapprox.inverse.sampling.dram import (
 bkd = NumpyBkd()
 
 # 1D FEM beam with 2 KLE terms for spatially varying EI(x)
-benchmark_2d = cantilever_beam_1d(bkd, num_kle_terms=2)
-beam_2d = benchmark_2d.function()   # nvars=2, nqoi=3
-prior_2d = benchmark_2d.prior()     # IndependentJoint of 2 x N(0,1)
+problem_2d = build_cantilever_beam_1d(bkd, num_kle_terms=2)
+beam_2d = problem_2d.function()   # nvars=2, nqoi=3
+prior_2d = problem_2d.prior()     # IndependentJoint of 2 x N(0,1)
 
 # Tip-only wrapper (first QoI is tip deflection)
 tip_model_2d = FunctionFromCallable(
@@ -113,9 +113,9 @@ posterior_2d = LogUnNormalizedPosterior(
 )
 
 # 1D FEM beam with 1 KLE term (for the DR illustration)
-benchmark_1d = cantilever_beam_1d(bkd, num_kle_terms=1)
-beam_1d = benchmark_1d.function()   # nvars=1, nqoi=3
-prior_1d = benchmark_1d.prior()
+problem_1d = build_cantilever_beam_1d(bkd, num_kle_terms=1)
+beam_1d = problem_1d.function()   # nvars=1, nqoi=3
+prior_1d = problem_1d.prior()
 
 tip_model_1d = FunctionFromCallable(
     nqoi=1, nvars=1,
