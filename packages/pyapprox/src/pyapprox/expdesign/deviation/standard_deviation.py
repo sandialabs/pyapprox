@@ -12,11 +12,12 @@ from pyapprox.util.backends.protocols import Array
 
 
 # Module-level switch between the legacy broadcast+einsum jacobian and the
-# fused (numba-parallel, no 3D intermediate) jacobian. Defaults to "legacy"
-# while the fused path is being validated; set to "fused" or override via
-# the PYAPPROX_STDDEV_JACOBIAN env var to enable it. Per-instance override
-# is exposed via `set_jacobian_impl()`.
-STDDEV_JACOBIAN_IMPL = os.environ.get("PYAPPROX_STDDEV_JACOBIAN", "legacy")
+# fused (numba-parallel, no 3D intermediate) jacobian. Fused is the default
+# (validated on the C2 risk-OED sweep to ~5.8e-13 vs legacy, ~8x speedup);
+# set PYAPPROX_STDDEV_JACOBIAN=legacy to revert, or override per-instance
+# via `set_jacobian_impl()`. The fused path transparently falls back to
+# legacy on backends without a fused moment-jacobian kernel.
+STDDEV_JACOBIAN_IMPL = os.environ.get("PYAPPROX_STDDEV_JACOBIAN", "fused")
 if STDDEV_JACOBIAN_IMPL not in ("legacy", "fused"):
     raise ValueError(
         f"PYAPPROX_STDDEV_JACOBIAN must be 'legacy' or 'fused', "
