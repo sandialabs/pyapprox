@@ -81,12 +81,34 @@ class Evidence(Generic[Array]):
         return self._nouter
 
     def _compute_likelihood_matrix(self, design_weights: Array) -> None:
-        """Compute and cache the likelihood matrix."""
-        # Always recompute - caching disabled to ensure correctness
-        # The overhead is minimal compared to the likelihood computation
+        """Compute and cache the likelihood matrix.
+
+        Skips recomputation when ``design_weights`` is elementwise identical
+        to the value used for the last compute (common during a single
+        objective/jacobian call, which touches the evidence 3–5 times with
+        the same weights).
+        """
+        if self._cached_like_matrix is not None and self._weights_unchanged(
+            design_weights
+        ):
+            return
         self._cached_weights = self._bkd.copy(design_weights)
         self._cached_loglike_matrix = self._loglike.logpdf_matrix(design_weights)
         self._cached_like_matrix = self._bkd.exp(self._cached_loglike_matrix)
+
+    def _weights_unchanged(self, design_weights: Array) -> bool:
+        """True if ``design_weights`` matches the last cached value bitwise.
+
+        Returns False whenever ``design_weights`` carries an autograd graph
+        (``requires_grad=True``) — caching across autograd calls would
+        re-use a tensor whose ``grad_fn`` belongs to a stale graph.
+        """
+        if getattr(design_weights, "requires_grad", False):
+            return False
+        cached = self._cached_weights
+        if cached is None or cached.shape != design_weights.shape:
+            return False
+        return bool(self._bkd.all_bool(cached == design_weights))
 
     def __call__(self, design_weights: Array) -> Array:
         """
@@ -395,11 +417,34 @@ class LogEvidence(Generic[Array]):
         return self._nouter
 
     def _compute_log_evidence(self, design_weights: Array) -> None:
-        """Compute and cache log-evidence using log-sum-exp."""
-        # Always recompute - caching disabled to ensure correctness
+        """Compute and cache log-evidence using log-sum-exp.
+
+        Skips recomputation when ``design_weights`` is elementwise identical
+        to the value used for the last compute.
+        """
+        if self._cached_log_evidence is not None and self._weights_unchanged(
+            design_weights
+        ):
+            return
         self._cached_weights = self._bkd.copy(design_weights)
         self._cached_loglike_matrix = self._loglike.logpdf_matrix(design_weights)
+        self._compute_log_evidence_from_cached()
 
+    def _weights_unchanged(self, design_weights: Array) -> bool:
+        """True if ``design_weights`` matches the last cached value bitwise.
+
+        Returns False whenever ``design_weights`` carries an autograd graph
+        (``requires_grad=True``) — caching across autograd calls would
+        re-use a tensor whose ``grad_fn`` belongs to a stale graph.
+        """
+        if getattr(design_weights, "requires_grad", False):
+            return False
+        cached = self._cached_weights
+        if cached is None or cached.shape != design_weights.shape:
+            return False
+        return bool(self._bkd.all_bool(cached == design_weights))
+
+    def _compute_log_evidence_from_cached(self) -> None:
         # log_evidence[j] = log_sum_exp(log_weights + loglike[:, j])
         # Use log-sum-exp trick for stability:
         # log(sum exp(x)) = max(x) + log(sum exp(x - max(x)))
