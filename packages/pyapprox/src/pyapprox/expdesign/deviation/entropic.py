@@ -4,10 +4,24 @@ Entropic deviation measure for prediction OED.
 Computes entropic_risk[qoi | obs] - E[qoi | obs].
 """
 
+import os
 from typing import Generic
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+# Module-level switch between the legacy broadcast+einsum jacobian and the
+# fused (numba-parallel, no 3D intermediate) jacobian. Fused is the default;
+# set PYAPPROX_ENTROPIC_JACOBIAN=legacy to revert, or override per-instance
+# via `set_jacobian_impl()`. The fused path transparently falls back to
+# legacy on backends without a fused weighted-jacobian kernel.
+ENTROPIC_JACOBIAN_IMPL = os.environ.get("PYAPPROX_ENTROPIC_JACOBIAN", "fused")
+if ENTROPIC_JACOBIAN_IMPL not in ("legacy", "fused"):
+    raise ValueError(
+        f"PYAPPROX_ENTROPIC_JACOBIAN must be 'legacy' or 'fused', "
+        f"got {ENTROPIC_JACOBIAN_IMPL!r}"
+    )
 
 
 class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
@@ -125,19 +139,36 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         return self._bkd.flatten(deviation)[None, :]
 
     def _jacobian(self, design_weights: Array) -> Array:
-        """
-        Compute Jacobian of entropic deviation.
+        """Compute Jacobian of entropic deviation.
 
-        Parameters
-        ----------
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (npred * nouter, nvars)
+        Dispatches between the legacy broadcast+einsum path and the fused
+        numba path (see module-level ``ENTROPIC_JACOBIAN_IMPL``).
+        Per-instance override is available via ``set_jacobian_impl()``.
         """
+        impl = getattr(self, "_jacobian_impl", ENTROPIC_JACOBIAN_IMPL)
+        if impl == "fused" and self._evidence.has_fused_weighted_jacobian():
+            return self._jacobian_fused(design_weights)
+        return self._jacobian_legacy(design_weights)
+
+    def set_jacobian_impl(self, impl: str) -> None:
+        """Override the jacobian implementation for this instance.
+
+        Accepts ``"legacy"``, ``"fused"``, or ``"default"`` (use module-level
+        setting). The fused path silently falls back to legacy on backends
+        that don't expose a fused weighted-jacobian kernel.
+        """
+        if impl not in ("legacy", "fused", "default"):
+            raise ValueError(
+                f"impl must be 'legacy', 'fused', or 'default', got {impl!r}"
+            )
+        if impl == "default":
+            if hasattr(self, "_jacobian_impl"):
+                del self._jacobian_impl
+        else:
+            self._jacobian_impl = impl
+
+    def _jacobian_legacy(self, design_weights: Array) -> Array:
+        """Broadcast + einsum path (materializes the (ninner, nouter, nobs) jac)."""
         # Compute evidence and its jacobian
         evidences = self._evidence(design_weights).T  # (nouter, 1)
         evidences_jac = self._evidence.jacobian(design_weights)  # (nouter, nvars)
@@ -172,6 +203,48 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         # Reshape to (npred * nouter, nvars)
         return self._bkd.reshape(
             deviation_jac, (self._npred * self.nouter(), self.nvars())
+        )
+
+    def _jacobian_fused(self, design_weights: Array) -> Array:
+        """Fused path via ``Evidence.fused_weighted_jacobian``.
+
+        Replaces the (ninner, nouter, nobs) normalized_like_jac allocation
+        and the two "iq,iod->qod" einsums with a single numba-kernel call
+        that contracts ``(exp(alpha*qoi), qoi)`` against
+        ``qwl_ratio * d/dw loglike`` in one pass.
+
+        Uses the identity
+
+            d/dw E[f | obs_j] = full_f(weights=f) / E[f | obs_j]
+
+        for f = exp(alpha * qoi) (the entropic expectation) and a direct
+        contraction for the mean term, assembled into:
+
+            d/dw entropic = d_expectation / (alpha * expectation)
+            d/dw deviation = d/dw entropic  -  d/dw mean
+        """
+        bkd = self._bkd
+
+        # Normalized likelihood and its entropic expectation.
+        evidences = self._evidence(design_weights).T  # (nouter, 1)
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+
+        exp_alpha_qoi = bkd.exp(self._alpha * self._qoi_vals)  # (ninner, npred)
+        expectation = bkd.einsum(
+            "iq,io->qo", exp_alpha_qoi, normalized_like,
+        )                                                       # (npred, nouter)
+
+        # d_expectation[q, j, k] = d/dw_k sum_i exp(alpha*qoi_i,q) * norm_like[i, j]
+        # mean_jac[q, j, k]      = d/dw_k sum_i qoi[i, q] * norm_like[i, j]
+        d_expectation, mean_jac = self._evidence.fused_weighted_jacobian(
+            design_weights, exp_alpha_qoi, self._qoi_vals,
+        )
+
+        entropic_jac = d_expectation / (self._alpha * expectation[:, :, None])
+        deviation_jac = entropic_jac - mean_jac
+
+        return bkd.reshape(
+            deviation_jac, (self._npred * self.nouter(), self.nvars()),
         )
 
     def label(self) -> str:

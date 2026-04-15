@@ -207,46 +207,54 @@ def fused_evidence_jacobian_numba(
 
 
 @njit(cache=True, parallel=True, fastmath=True)
-def fused_moment_jacobian_numba(
+def fused_weighted_jacobian_numba(
     shapes_ik: np.ndarray,
     obs_jk: np.ndarray,
     latent_jk: np.ndarray,
     base_variances: np.ndarray,
     design_weights: np.ndarray,
     qwl_ratio: np.ndarray,
-    qoi_qi: np.ndarray,
-    qoi2_qi: np.ndarray,
+    weights_a_qi: np.ndarray,
+    weights_b_qi: np.ndarray,
     has_latent: bool,
 ):
-    """Fused per-qoi moment jacobians — avoids the (ninner, nouter, nobs)
-    intermediate.
+    """Fused jacobian contractions with two arbitrary per-inner weight
+    matrices — avoids the (ninner, nouter, nobs) intermediate.
 
-    Computes both ``first_mom_part`` and ``second_mom_part`` — the first
-    term of the normalized-like jacobian contracted with ``qoi`` and
-    ``qoi²`` respectively:
+    Computes the first term of the normalized-like jacobian contracted
+    with two independent weight matrices ``W_a[i, q]`` and ``W_b[i, q]``:
 
-        first_mom_part[q, j, k]  = sum_i qoi [i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
-        second_mom_part[q, j, k] = sum_i qoi²[i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
+        part_a[q, j, k] = sum_i W_a[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
+        part_b[q, j, k] = sum_i W_b[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
 
-    where ``Jlog[i,j,k] = d/dw_k loglike(obs_j | shape_i)`` is reconstructed
-    element-wise inside the inner loop.
+    where ``Jlog[i, j, k] = d/dw_k loglike(obs_j | shape_i)`` is
+    reconstructed element-wise inside the inner loop.
 
-    The outputs are 3D ``(npred, nouter, nobs)`` — small (e.g. 20×1000×50 ≈
-    8 MB). What this kernel avoids is the ``(ninner, nouter, nobs)``
-    intermediate ``normalized_like_jac`` tensor in the caller — at typical
-    sizes that is ~400 MB and dominates both allocation and bandwidth.
+    The outputs are 3D ``(npred, nouter, nobs)`` — small (e.g.
+    20×1000×50 ≈ 8 MB). What this kernel avoids is the
+    ``(ninner, nouter, nobs)`` intermediate ``normalized_like_jac``
+    tensor — at typical sizes that is ~400 MB and dominates allocation
+    and bandwidth.
 
-    The full moment jacobians are obtained by the caller via:
+    The full contractions (with the second term restored) are obtained
+    by the caller via:
 
-        first_mom_jac = first_mom_part - M1[:, :, None] * evid_jac[None, :, :]
-        second_mom_jac = second_mom_part - M2[:, :, None] * evid_jac[None, :, :]
+        full_a = part_a - M_a[:, :, None] * evid_jac[None, :, :]
+        full_b = part_b - M_b[:, :, None] * evid_jac[None, :, :]
 
-    with ``M[q, j] = sum_i qoi[i, q] * qwl[i, j] / evid[j]²``.
+    with ``M[q, j] = sum_i W[i, q] * qwl[i, j] / evid[j]**2``.
+
+    Callers:
+
+    * ``StandardDeviationMeasure._jacobian_fused`` passes
+      ``(qoi, qoi**2)`` to get ``(first_mom_part, second_mom_part)``.
+    * ``EntropicDeviationMeasure._jacobian_fused`` passes
+      ``(exp(alpha*qoi), qoi)`` to get ``(d_expectation, mean_jac_part)``.
 
     Shapes are transposed to (i, k) / (j, k) / (q, i) for contiguous
-    memory access inside the hot loop. Each prange-j thread allocates a
-    local (ninner, nobs) buffer ``W[i, k] = qwl_ratio[i, j] * Jlog[i, j, k]``
-    and then does two per-thread dgemms to contract with qoi/qoi².
+    memory access. Each prange-j thread forms a local (ninner, nobs)
+    buffer ``W[i, k] = qwl_ratio[i, j] * Jlog[i, j, k]`` and performs two
+    per-thread dgemms to contract with ``weights_a`` and ``weights_b``.
 
     Parameters
     ----------
@@ -264,31 +272,31 @@ def fused_moment_jacobian_numba(
     qwl_ratio : np.ndarray
         Quadrature-weighted likelihood divided by evidence:
         ``qwl[i, j] / evid[j]``. Shape: (ninner, nouter).
-    qoi_qi : np.ndarray
-        QoI values transposed. Shape: (npred, ninner).
-    qoi2_qi : np.ndarray
-        Squared QoI values transposed. Shape: (npred, ninner).
+    weights_a_qi : np.ndarray
+        First per-inner weight matrix, transposed. Shape: (npred, ninner).
+    weights_b_qi : np.ndarray
+        Second per-inner weight matrix, transposed. Shape: (npred, ninner).
     has_latent : bool
         Whether to include the reparameterization term.
 
     Returns
     -------
-    first_mom_part : np.ndarray
+    part_a : np.ndarray
         Shape: (npred, nouter, nobs).
-    second_mom_part : np.ndarray
+    part_b : np.ndarray
         Shape: (npred, nouter, nobs).
     """
     nobs = base_variances.shape[0]
     ninner = shapes_ik.shape[0]
     nouter = obs_jk.shape[0]
-    npred = qoi_qi.shape[0]
+    npred = weights_a_qi.shape[0]
 
     inv_var = 1.0 / base_variances
     det_term_arr = 0.5 / design_weights[:, 0]
     sqrt_var_w_arr = np.sqrt(base_variances * design_weights[:, 0])
 
-    first_part = np.zeros((npred, nouter, nobs))
-    second_part = np.zeros((npred, nouter, nobs))
+    part_a = np.zeros((npred, nouter, nobs))
+    part_b = np.zeros((npred, nouter, nobs))
 
     for j in prange(nouter):
         W = np.empty((ninner, nobs))
@@ -300,6 +308,6 @@ def fused_moment_jacobian_numba(
                 if has_latent:
                     jlog += 0.5 * r * latent_jk[j, k] / sqrt_var_w_arr[k]
                 W[i, k] = wij * jlog
-        first_part[:, j, :] = qoi_qi @ W
-        second_part[:, j, :] = qoi2_qi @ W
-    return first_part, second_part
+        part_a[:, j, :] = weights_a_qi @ W
+        part_b[:, j, :] = weights_b_qi @ W
+    return part_a, part_b

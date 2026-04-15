@@ -12,7 +12,7 @@ from pyapprox.expdesign.likelihood.dispatch import (
     get_evidence_jacobian_impl,
     get_jacobian_matrix_impl,
     get_logpdf_matrix_impl,
-    get_moment_jacobian_impl,
+    get_weighted_jacobian_impl,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -275,7 +275,7 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
         self._jacobian_impl = get_jacobian_matrix_impl(bkd)
         self._evidence_jacobian_impl = get_evidence_jacobian_impl(bkd)
         # None when no fused impl is available for this backend.
-        self._moment_jacobian_impl = get_moment_jacobian_impl(bkd)
+        self._weighted_jacobian_impl = get_weighted_jacobian_impl(bkd)
 
         # State
         self._shapes: Optional[Array] = None  # (nobs, ninner)
@@ -463,23 +463,28 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             self._bkd,
         )
 
-    def has_moment_jacobian(self) -> bool:
-        """Whether a fused per-qoi moment-jacobian kernel is available."""
-        return self._moment_jacobian_impl is not None
+    def has_weighted_jacobian(self) -> bool:
+        """Whether a fused weighted-jacobian kernel is available."""
+        return self._weighted_jacobian_impl is not None
 
-    def moment_jacobian(
+    def weighted_jacobian(
         self,
         design_weights: Array,
         qwl_ratio: Array,
-        qoi_vals: Array,
+        weights_a: Array,
+        weights_b: Array,
     ) -> tuple:
-        """Fused per-qoi moment-jacobian parts (first term only).
+        """Fused weighted-jacobian parts (first term only).
 
-        Returns the contractions of qoi / qoi**2 with
-        ``qwl_ratio[i, j] * d/dw_k loglike[i, j]`` — i.e. the first term
-        of the normalized-like jacobian. The caller must subtract the
-        evidence-jacobian outer product to obtain the full moment jacobians
-        (see ``StandardDeviationMeasure._jacobian_fused``).
+        Returns, for two independent per-inner weight matrices
+        ``weights_a[i, q]`` and ``weights_b[i, q]``, the contractions:
+
+            part_a[q, j, k] = sum_i weights_a[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
+            part_b[q, j, k] = sum_i weights_b[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
+
+        The caller must subtract the evidence-jacobian rank-1 outer
+        product to recover the full contractions (see
+        ``Evidence.fused_weighted_jacobian``).
 
         Parameters
         ----------
@@ -487,37 +492,40 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             Design weights. Shape: (nobs, 1).
         qwl_ratio : Array
             ``quad_weighted_like / evidence``. Shape: (ninner, nouter).
-        qoi_vals : Array
-            QoI values at inner samples. Shape: (ninner, npred).
+        weights_a : Array
+            First per-inner weight matrix. Shape: (ninner, npred).
+        weights_b : Array
+            Second per-inner weight matrix. Shape: (ninner, npred).
 
         Returns
         -------
-        first_mom_part, second_mom_part : Array, Array
+        part_a, part_b : Array, Array
             Each of shape (npred, nouter, nobs).
 
         Raises
         ------
         RuntimeError
-            If no fused moment-jacobian impl is available for this backend.
-            Check ``has_moment_jacobian()`` first.
+            If no fused weighted-jacobian impl is available for this
+            backend. Check ``has_weighted_jacobian()`` first.
         """
-        if self._moment_jacobian_impl is None:
+        if self._weighted_jacobian_impl is None:
             raise RuntimeError(
-                "No fused moment_jacobian implementation for this backend; "
-                "call has_moment_jacobian() first and fall back to the legacy "
+                "No fused weighted_jacobian implementation for this backend; "
+                "call has_weighted_jacobian() first and fall back to the legacy "
                 "jacobian_matrix + einsum path when False."
             )
         self.set_design_weights(design_weights)
         if self._shapes is None or self._observations is None:
             raise ValueError("Must call set_shapes and set_observations first")
-        return self._moment_jacobian_impl(
+        return self._weighted_jacobian_impl(
             self._shapes,
             self._observations,
             self._latent_samples,
             self._base_variances,
             design_weights,
             qwl_ratio,
-            qoi_vals,
+            weights_a,
+            weights_b,
             self._bkd,
         )
 

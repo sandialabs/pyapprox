@@ -166,70 +166,82 @@ class Evidence(Generic[Array]):
             )
         return self._quad_weights[:, None] * self._cached_like_matrix
 
-    def has_fused_moment_jacobian(self) -> bool:
-        """Whether a fused moment-jacobian kernel is available.
+    def has_fused_weighted_jacobian(self) -> bool:
+        """Whether a fused weighted-jacobian kernel is available.
 
-        Requires the inner likelihood to expose both ``moment_jacobian`` and
-        ``has_moment_jacobian`` (currently only the Gaussian likelihood with
-        the numpy+numba backend satisfies this).
+        Requires the inner likelihood to expose ``weighted_jacobian`` and
+        ``has_weighted_jacobian`` (currently only the Gaussian likelihood
+        with the numpy+numba backend satisfies this).
         """
         return (
-            hasattr(self._loglike, "moment_jacobian")
-            and hasattr(self._loglike, "has_moment_jacobian")
-            and self._loglike.has_moment_jacobian()
+            hasattr(self._loglike, "weighted_jacobian")
+            and hasattr(self._loglike, "has_weighted_jacobian")
+            and self._loglike.has_weighted_jacobian()
         )
 
-    def fused_moment_jacobian(
+    def fused_weighted_jacobian(
         self,
         design_weights: Array,
-        qoi_vals: Array,
+        weights_a: Array,
+        weights_b: Array,
     ):
-        """Fused Jacobians of first and second posterior moments.
+        """Fused jacobian contractions with two independent inner-weight
+        matrices.
 
-        Computes, in a single numba-parallel pass over the outer samples:
+        Computes, in a single numba-parallel pass over the outer samples::
 
-            first_mom_jac [q, j, k] = d/dw_k  E[qoi  | obs_j]
-            second_mom_jac[q, j, k] = d/dw_k  E[qoi^2 | obs_j]
+            full_a[q, j, k] = d/dw_k sum_i weights_a[i, q] * norm_like[i, j]
+            full_b[q, j, k] = d/dw_k sum_i weights_b[i, q] * norm_like[i, j]
 
-        using the decomposition::
+        where ``norm_like[i, j] = qwl[i, j] / evid[j]`` is the normalized
+        quadrature-weighted likelihood, using the decomposition::
 
             normalized_like_jac = qwl_ratio * Jlog
-                                  - (qwl / evid^2) * evid_jac[None]
+                                  - (qwl / evid**2) * evid_jac[None]
 
-        where the first term is contracted with qoi / qoi^2 inside the fused
-        kernel (``first_part`` / ``second_part``), and the second term — a
-        rank-1 outer product over (j, k) — is applied here:
+        The first term is contracted inside the fused kernel
+        (``part_a`` / ``part_b``); the second term — a rank-1 outer
+        product over (j, k) — is applied here:
 
-            first_mom_jac  = first_part  - M1[:, :, None] * evid_jac[None]
-            second_mom_jac = second_part - M2[:, :, None] * evid_jac[None]
+            full_a = part_a - M_a[:, :, None] * evid_jac[None]
+            full_b = part_b - M_b[:, :, None] * evid_jac[None]
 
-        with ``M[q, j] = sum_i qoi[i, q] * qwl[i, j] / evid[j]**2``.
+        with ``M[q, j] = sum_i weights[i, q] * qwl[i, j] / evid[j]**2``.
 
         The ``(ninner, nouter, nobs)`` intermediate in the legacy path is
         never materialized.
+
+        Callers:
+
+        * ``StandardDeviationMeasure`` passes ``(qoi, qoi**2)`` to get
+          ``(first_mom_jac, second_mom_jac)``.
+        * ``EntropicDeviationMeasure`` passes ``(exp(alpha*qoi), qoi)``
+          to get ``(d_expectation, mean_jac)``.
 
         Parameters
         ----------
         design_weights : Array
             Design weights. Shape: (nobs, 1).
-        qoi_vals : Array
-            QoI values at inner samples. Shape: (ninner, npred).
+        weights_a : Array
+            First inner-weight matrix. Shape: (ninner, npred).
+        weights_b : Array
+            Second inner-weight matrix. Shape: (ninner, npred).
 
         Returns
         -------
-        first_mom_jac, second_mom_jac : Array, Array
+        full_a, full_b : Array, Array
             Each of shape (npred, nouter, nobs).
 
         Raises
         ------
         RuntimeError
             If no fused kernel is available. Check
-            ``has_fused_moment_jacobian()`` first.
+            ``has_fused_weighted_jacobian()`` first.
         """
-        if not self.has_fused_moment_jacobian():
+        if not self.has_fused_weighted_jacobian():
             raise RuntimeError(
-                "No fused moment_jacobian kernel for this backend / "
-                "likelihood; check has_fused_moment_jacobian() and fall "
+                "No fused weighted_jacobian kernel for this backend / "
+                "likelihood; check has_fused_weighted_jacobian() and fall "
                 "back to the legacy path."
             )
 
@@ -243,23 +255,23 @@ class Evidence(Generic[Array]):
         qwl_ratio = qwl / evid                                 # (ninner, nouter)
 
         # First term via fused kernel.
-        first_part, second_part = self._loglike.moment_jacobian(
-            design_weights, qwl_ratio, qoi_vals,
+        part_a, part_b = self._loglike.weighted_jacobian(
+            design_weights, qwl_ratio, weights_a, weights_b,
         )
 
         # Second term: rank-1 outer product over (j, k).
-        #   M[q, j] = sum_i qoi[i, q] * qwl[i, j] / evid[j]^2
+        #   M[q, j] = sum_i weights[i, q] * qwl[i, j] / evid[j]**2
         qwl_by_evid2 = qwl / (evid ** 2)                       # (ninner, nouter)
-        M1 = bkd.einsum("iq,io->qo", qoi_vals, qwl_by_evid2)   # (npred, nouter)
-        M2 = bkd.einsum("iq,io->qo", qoi_vals ** 2, qwl_by_evid2)
+        M_a = bkd.einsum("iq,io->qo", weights_a, qwl_by_evid2)  # (npred, nouter)
+        M_b = bkd.einsum("iq,io->qo", weights_b, qwl_by_evid2)
 
         evid_jac = self._loglike.evidence_jacobian(
             design_weights, qwl,
         )                                                       # (nouter, nobs)
 
-        first_mom_jac = first_part - M1[:, :, None] * evid_jac[None, :, :]
-        second_mom_jac = second_part - M2[:, :, None] * evid_jac[None, :, :]
-        return first_mom_jac, second_mom_jac
+        full_a = part_a - M_a[:, :, None] * evid_jac[None, :, :]
+        full_b = part_b - M_b[:, :, None] * evid_jac[None, :, :]
+        return full_a, full_b
 
     def quad_weighted_likelihood_jacobian(self, design_weights: Array) -> Array:
         """

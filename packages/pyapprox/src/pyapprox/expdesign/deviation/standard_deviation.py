@@ -111,7 +111,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         override is available via ``set_jacobian_impl()``.
         """
         impl = getattr(self, "_jacobian_impl", STDDEV_JACOBIAN_IMPL)
-        if impl == "fused" and self._evidence.has_fused_moment_jacobian():
+        if impl == "fused" and self._evidence.has_fused_weighted_jacobian():
             return self._jacobian_fused(design_weights)
         return self._jacobian_legacy(design_weights)
 
@@ -184,7 +184,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         return sqrt_jac
 
     def _jacobian_fused(self, design_weights: Array) -> Array:
-        """Fused path via ``Evidence.fused_moment_jacobian``.
+        """Fused path via ``Evidence.fused_weighted_jacobian``.
 
         Avoids the ``(ninner, nouter, nobs)`` ``normalized_like_jac``
         intermediate by delegating the two einsums + their subtracted
@@ -197,8 +197,8 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
         first_mom = self._first_moment(normalized_like)  # (npred, nouter)
 
-        first_mom_jac, second_mom_jac = self._evidence.fused_moment_jacobian(
-            design_weights, self._qoi_vals,
+        first_mom_jac, second_mom_jac = self._evidence.fused_weighted_jacobian(
+            design_weights, self._qoi_vals, self._qoi_vals ** 2,
         )  # each (npred, nouter, nvars)
 
         variance_jac = second_mom_jac - 2.0 * first_mom[:, :, None] * first_mom_jac

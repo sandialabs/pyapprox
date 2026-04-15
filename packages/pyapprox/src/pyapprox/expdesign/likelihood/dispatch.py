@@ -28,7 +28,7 @@ HAS_NUMBA = package_available("numba")
 if HAS_NUMBA:
     from pyapprox.expdesign.likelihood.compute_numba import (
         fused_evidence_jacobian_numba,
-        fused_moment_jacobian_numba,
+        fused_weighted_jacobian_numba,
         jacobian_matrix_numba,
         logpdf_matrix_numba,
     )
@@ -53,7 +53,7 @@ EvidenceJacobianImpl = Callable[
     Array,
 ]
 
-MomentJacobianImpl = Callable[
+WeightedJacobianImpl = Callable[
     [
         Array,            # shapes         (nobs, ninner)
         Array,            # obs            (nobs, nouter)
@@ -61,10 +61,11 @@ MomentJacobianImpl = Callable[
         Array,            # base_variances (nobs,)
         Array,            # design_weights (nobs, 1)
         Array,            # qwl_ratio      (ninner, nouter) = qwl/evid
-        Array,            # qoi_vals       (ninner, npred)
+        Array,            # weights_a      (ninner, npred)
+        Array,            # weights_b      (ninner, npred)
         Backend[Array],
     ],
-    Tuple[Array, Array],  # (first_mom_part, second_mom_part), each (npred, nouter, nobs)
+    Tuple[Array, Array],  # (part_a, part_b), each (npred, nouter, nobs)
 ]
 
 
@@ -387,22 +388,28 @@ def get_evidence_jacobian_impl(
     return vectorized_impl
 
 
-def get_moment_jacobian_impl(
+def get_weighted_jacobian_impl(
     bkd: Backend[Array],
-) -> Optional[MomentJacobianImpl[Array]]:
-    """Get the fused per-qoi moment-jacobian implementation, or None.
+) -> Optional[WeightedJacobianImpl[Array]]:
+    """Get the fused weighted-jacobian implementation, or None.
 
-    Returns an impl that computes, for qoi and qoi**2:
+    Returns an impl that computes, for two independent per-inner weight
+    matrices ``weights_a[i, q]`` and ``weights_b[i, q]``:
 
-        first_mom_part[q, j, k]  = sum_i qoi [i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
-        second_mom_part[q, j, k] = sum_i qoi^2[i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
+        part_a[q, j, k] = sum_i weights_a[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
+        part_b[q, j, k] = sum_i weights_b[i, q] * qwl_ratio[i, j] * Jlog[i, j, k]
 
-    This avoids materializing the ``(ninner, nouter, nobs)`` loglike-jacobian
-    intermediate and replaces the two ``"iq,iod->qod"`` einsums in
-    ``StandardDeviationMeasure._jacobian`` with a per-thread dgemm.
+    This avoids materializing the ``(ninner, nouter, nobs)``
+    loglike-jacobian intermediate and replaces two ``"iq,iod->qod"``
+    einsums in the deviation-measure jacobian with a per-thread dgemm.
 
-    Returns ``None`` when no fused path is available for this backend — the
-    caller must then fall back to the legacy jacobian_matrix + einsum path.
+    Used by ``StandardDeviationMeasure`` (with ``weights_a = qoi``,
+    ``weights_b = qoi**2``) and ``EntropicDeviationMeasure`` (with
+    ``weights_a = exp(alpha*qoi)``, ``weights_b = qoi``).
+
+    Returns ``None`` when no fused path is available for this backend —
+    the caller must then fall back to the legacy jacobian_matrix + einsum
+    path.
 
     Parameters
     ----------
@@ -414,7 +421,7 @@ def get_moment_jacobian_impl(
     callable or None
         Implementation with signature
         (shapes, obs, latent_samples, base_variances, design_weights,
-         qwl_ratio, qoi_vals, bkd) -> (first_mom_part, second_mom_part)
+         qwl_ratio, weights_a, weights_b, bkd) -> (part_a, part_b)
         or ``None`` if no fused impl exists for this backend.
     """
     if _is_numpy(bkd) and HAS_NUMBA:
@@ -426,7 +433,8 @@ def get_moment_jacobian_impl(
             base_variances: Array,
             design_weights: Array,
             qwl_ratio: Array,
-            qoi_vals: Array,
+            weights_a: Array,
+            weights_b: Array,
             bkd: Backend[Array],
         ) -> Tuple[Array, Array]:
             has_latent = latent_samples is not None
@@ -436,21 +444,21 @@ def get_moment_jacobian_impl(
                 latent_samples_np = latent_samples
 
             # Transpose to the contiguous layout the kernel expects.
-            shapes_ik = np.ascontiguousarray(shapes.T)          # (ninner, nobs)
-            obs_jk = np.ascontiguousarray(obs.T)                # (nouter, nobs)
+            shapes_ik = np.ascontiguousarray(shapes.T)                # (ninner, nobs)
+            obs_jk = np.ascontiguousarray(obs.T)                      # (nouter, nobs)
             latent_jk = np.ascontiguousarray(latent_samples_np.T)
-            qoi_qi = np.ascontiguousarray(qoi_vals.T)           # (npred, ninner)
-            qoi2_qi = np.ascontiguousarray((qoi_vals**2).T)
+            weights_a_qi = np.ascontiguousarray(weights_a.T)          # (npred, ninner)
+            weights_b_qi = np.ascontiguousarray(weights_b.T)
 
-            return fused_moment_jacobian_numba(
+            return fused_weighted_jacobian_numba(
                 shapes_ik,
                 obs_jk,
                 latent_jk,
                 base_variances,
                 design_weights,
                 qwl_ratio,
-                qoi_qi,
-                qoi2_qi,
+                weights_a_qi,
+                weights_b_qi,
                 has_latent,
             )
 
