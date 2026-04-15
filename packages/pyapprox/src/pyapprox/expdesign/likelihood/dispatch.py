@@ -11,7 +11,7 @@ the calling class (GaussianOEDInnerLoopLikelihood) is unaware of which
 strategy is active. Dispatch is fully automatic — no flags needed.
 """
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 
@@ -28,6 +28,7 @@ HAS_NUMBA = package_available("numba")
 if HAS_NUMBA:
     from pyapprox.expdesign.likelihood.compute_numba import (
         fused_evidence_jacobian_numba,
+        fused_moment_jacobian_numba,
         jacobian_matrix_numba,
         logpdf_matrix_numba,
     )
@@ -50,6 +51,20 @@ EvidenceJacobianImpl = Callable[
         Backend[Array],
     ],
     Array,
+]
+
+MomentJacobianImpl = Callable[
+    [
+        Array,            # shapes         (nobs, ninner)
+        Array,            # obs            (nobs, nouter)
+        Optional[Array],  # latent_samples (nobs, nouter)
+        Array,            # base_variances (nobs,)
+        Array,            # design_weights (nobs, 1)
+        Array,            # qwl_ratio      (ninner, nouter) = qwl/evid
+        Array,            # qoi_vals       (ninner, npred)
+        Backend[Array],
+    ],
+    Tuple[Array, Array],  # (first_mom_part, second_mom_part), each (npred, nouter, nobs)
 ]
 
 
@@ -370,3 +385,75 @@ def get_evidence_jacobian_impl(
         return evidence_jacobian_vectorized(loglike_jac, quad_weighted_like, bkd)
 
     return vectorized_impl
+
+
+def get_moment_jacobian_impl(
+    bkd: Backend[Array],
+) -> Optional[MomentJacobianImpl[Array]]:
+    """Get the fused per-qoi moment-jacobian implementation, or None.
+
+    Returns an impl that computes, for qoi and qoi**2:
+
+        first_mom_part[q, j, k]  = sum_i qoi [i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
+        second_mom_part[q, j, k] = sum_i qoi^2[i,q] * qwl_ratio[i,j] * Jlog[i,j,k]
+
+    This avoids materializing the ``(ninner, nouter, nobs)`` loglike-jacobian
+    intermediate and replaces the two ``"iq,iod->qod"`` einsums in
+    ``StandardDeviationMeasure._jacobian`` with a per-thread dgemm.
+
+    Returns ``None`` when no fused path is available for this backend — the
+    caller must then fall back to the legacy jacobian_matrix + einsum path.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    callable or None
+        Implementation with signature
+        (shapes, obs, latent_samples, base_variances, design_weights,
+         qwl_ratio, qoi_vals, bkd) -> (first_mom_part, second_mom_part)
+        or ``None`` if no fused impl exists for this backend.
+    """
+    if _is_numpy(bkd) and HAS_NUMBA:
+
+        def impl(
+            shapes: Array,
+            obs: Array,
+            latent_samples: Optional[Array],
+            base_variances: Array,
+            design_weights: Array,
+            qwl_ratio: Array,
+            qoi_vals: Array,
+            bkd: Backend[Array],
+        ) -> Tuple[Array, Array]:
+            has_latent = latent_samples is not None
+            if not has_latent:
+                latent_samples_np = np.zeros_like(obs)
+            else:
+                latent_samples_np = latent_samples
+
+            # Transpose to the contiguous layout the kernel expects.
+            shapes_ik = np.ascontiguousarray(shapes.T)          # (ninner, nobs)
+            obs_jk = np.ascontiguousarray(obs.T)                # (nouter, nobs)
+            latent_jk = np.ascontiguousarray(latent_samples_np.T)
+            qoi_qi = np.ascontiguousarray(qoi_vals.T)           # (npred, ninner)
+            qoi2_qi = np.ascontiguousarray((qoi_vals**2).T)
+
+            return fused_moment_jacobian_numba(
+                shapes_ik,
+                obs_jk,
+                latent_jk,
+                base_variances,
+                design_weights,
+                qwl_ratio,
+                qoi_qi,
+                qoi2_qi,
+                has_latent,
+            )
+
+        return impl
+
+    return None

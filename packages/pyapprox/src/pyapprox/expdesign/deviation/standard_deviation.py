@@ -4,10 +4,24 @@ Standard deviation measure for prediction OED.
 Computes sqrt(Var[qoi | obs]) = sqrt(E[qoi^2 | obs] - E[qoi | obs]^2).
 """
 
+import os
 from typing import Generic
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.util.backends.protocols import Array
+
+
+# Module-level switch between the legacy broadcast+einsum jacobian and the
+# fused (numba-parallel, no 3D intermediate) jacobian. Defaults to "legacy"
+# while the fused path is being validated; set to "fused" or override via
+# the PYAPPROX_STDDEV_JACOBIAN env var to enable it. Per-instance override
+# is exposed via `set_jacobian_impl()`.
+STDDEV_JACOBIAN_IMPL = os.environ.get("PYAPPROX_STDDEV_JACOBIAN", "legacy")
+if STDDEV_JACOBIAN_IMPL not in ("legacy", "fused"):
+    raise ValueError(
+        f"PYAPPROX_STDDEV_JACOBIAN must be 'legacy' or 'fused', "
+        f"got {STDDEV_JACOBIAN_IMPL!r}"
+    )
 
 
 class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
@@ -91,16 +105,34 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         """
         Compute Jacobian of standard deviation.
 
-        Parameters
-        ----------
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (npred * nouter, nvars)
+        Dispatches between the legacy broadcast+einsum path and the fused
+        numba path (see module-level ``STDDEV_JACOBIAN_IMPL``). Per-instance
+        override is available via ``set_jacobian_impl()``.
         """
+        impl = getattr(self, "_jacobian_impl", STDDEV_JACOBIAN_IMPL)
+        if impl == "fused" and self._evidence.has_fused_moment_jacobian():
+            return self._jacobian_fused(design_weights)
+        return self._jacobian_legacy(design_weights)
+
+    def set_jacobian_impl(self, impl: str) -> None:
+        """Override the jacobian implementation for this instance.
+
+        Accepts ``"legacy"``, ``"fused"``, or ``"default"`` (use module-level
+        setting). The fused path silently falls back to legacy on backends
+        that don't expose a fused moment-jacobian kernel.
+        """
+        if impl not in ("legacy", "fused", "default"):
+            raise ValueError(
+                f"impl must be 'legacy', 'fused', or 'default', got {impl!r}"
+            )
+        if impl == "default":
+            if hasattr(self, "_jacobian_impl"):
+                del self._jacobian_impl
+        else:
+            self._jacobian_impl = impl
+
+    def _jacobian_legacy(self, design_weights: Array) -> Array:
+        """Broadcast + einsum path (materializes the (ninner, nouter, nobs) jac)."""
         # Get current values
         values = self._evaluate(design_weights)  # (1, npred * nouter)
 
@@ -118,7 +150,6 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
 
         # Compute moments
         first_mom = self._first_moment(normalized_like)  # (npred, nouter)
-        self._second_moment(normalized_like)  # (npred, nouter)
 
         # Jacobian of normalized quad-weighted likelihood
         # d/dw (like / evidence) = (d like / dw) / evidence - like * (d evidence / dw) /
@@ -150,6 +181,30 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         sqrt_jac = variance_jac / (2.0 * values.T)
 
         return sqrt_jac
+
+    def _jacobian_fused(self, design_weights: Array) -> Array:
+        """Fused path via ``Evidence.fused_moment_jacobian``.
+
+        Avoids the ``(ninner, nouter, nobs)`` ``normalized_like_jac``
+        intermediate by delegating the two einsums + their subtracted
+        evid-jac outer product to a single numba kernel call.
+        """
+        # Must call _evaluate before accessing cached evidence internals.
+        values = self._evaluate(design_weights)  # (1, npred * nouter)
+
+        evidences = self._evidence(design_weights).T  # (nouter, 1)
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        first_mom = self._first_moment(normalized_like)  # (npred, nouter)
+
+        first_mom_jac, second_mom_jac = self._evidence.fused_moment_jacobian(
+            design_weights, self._qoi_vals,
+        )  # each (npred, nouter, nvars)
+
+        variance_jac = second_mom_jac - 2.0 * first_mom[:, :, None] * first_mom_jac
+        variance_jac = self._bkd.reshape(
+            variance_jac, (self._npred * self.nouter(), self.nvars())
+        )
+        return variance_jac / (2.0 * values.T)
 
     def label(self) -> str:
         """Return a short label for plotting."""
