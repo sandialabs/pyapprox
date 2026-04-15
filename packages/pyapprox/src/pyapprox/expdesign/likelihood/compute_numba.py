@@ -19,7 +19,7 @@ from numba import njit, prange
 from numba.core.types import optional  # noqa: F401
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True, parallel=True, fastmath=True)
 def logpdf_matrix_numba(
     shapes: np.ndarray,
     obs: np.ndarray,
@@ -73,7 +73,7 @@ def logpdf_matrix_numba(
     return result
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True, parallel=True, fastmath=True)
 def jacobian_matrix_numba(
     shapes: np.ndarray,
     obs: np.ndarray,
@@ -132,7 +132,7 @@ def jacobian_matrix_numba(
     return result
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True, parallel=True, fastmath=True)
 def fused_evidence_jacobian_numba(
     shapes: np.ndarray,
     obs: np.ndarray,
