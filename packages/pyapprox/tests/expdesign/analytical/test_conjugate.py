@@ -12,7 +12,7 @@ import pytest
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedKLDivergence,
+    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
@@ -137,25 +137,24 @@ class TestConjugateGaussianOEDStandalone:
 
         assert value2 > value1
 
-    def test_expected_kl_divergence_nonnegative(self, bkd):
-        """Test expected KL divergence is non-negative."""
+    def test_expected_pushforward_kl_nonnegative(self, bkd):
+        """Test expected pushforward KL divergence is non-negative."""
         utility = self._create_utility(
-            ConjugateGaussianOEDExpectedKLDivergence, bkd
+            ConjugateGaussianOEDExpectedPushforwardKLDivergence, bkd
         )
         value = utility.value()
         assert value >= 0.0
 
-    def test_expected_kl_divergence_zero_limit(self, bkd):
-        """Test KL divergence approaches zero with infinite noise."""
-        # With very large noise, posterior ~ prior, so KL ~ 0
-        utility = ConjugateGaussianOEDExpectedKLDivergence(
+    def test_expected_pushforward_kl_zero_limit(self, bkd):
+        """Test pushforward KL approaches zero with infinite noise."""
+        utility = ConjugateGaussianOEDExpectedPushforwardKLDivergence(
             self._prior_mean, self._prior_cov, self._qoi_mat, bkd
         )
         utility.set_observation_matrix(self._obs_mat)
-        utility.set_noise_covariance(self._noise_cov * 1e6)  # Huge noise
+        utility.set_noise_covariance(self._noise_cov * 1e6)
         value = utility.value()
 
-        assert value < 0.1  # Should be close to zero
+        assert value < 0.1
 
     def test_lognormal_expected_stdev_positive(self, bkd):
         """Test lognormal expected std dev is positive."""

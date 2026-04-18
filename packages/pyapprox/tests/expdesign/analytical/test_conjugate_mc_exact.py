@@ -17,7 +17,7 @@ import numpy as np
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedKLDivergence,
+    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
@@ -255,13 +255,11 @@ class TestConjugateMCExactStandalone:
         )
 
     @slow_test
-    def test_expected_kl_mc_vs_exact(self, bkd) -> None:
-        """Test MC average of KL divergence matches exact formula.
+    def test_expected_pushforward_kl_mc_vs_exact(self, bkd) -> None:
+        """Test MC average of pushforward KL matches exact formula.
 
-        NOTE: The exact formula computes E[KL(posterior_pushforward ||
-        prior_pushforward)]
-        in the pushforward space (QoI space), NOT in the parameter space.
-        So MC must compute KL between pushforwards, not between parameter distributions.
+        Computes E[KL(posterior_pushforward || prior_pushforward)]
+        in the QoI space, not in the parameter space.
         """
         self._setup_data(bkd)
         nsamples = 2000
@@ -329,7 +327,7 @@ class TestConjugateMCExactStandalone:
 
         # Compute exact
         utility = self._create_analytical_utility(
-            ConjugateGaussianOEDExpectedKLDivergence, bkd
+            ConjugateGaussianOEDExpectedPushforwardKLDivergence, bkd
         )
         exact = utility.value()
 
@@ -471,7 +469,7 @@ class TestConjugateMCExactStandalone:
                 ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev, bkd, 0.75
             ),
             self._create_analytical_utility(
-                ConjugateGaussianOEDExpectedKLDivergence, bkd
+                ConjugateGaussianOEDExpectedPushforwardKLDivergence, bkd
             ),
             self._create_analytical_utility(
                 ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev, bkd

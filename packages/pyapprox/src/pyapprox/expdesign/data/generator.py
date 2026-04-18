@@ -213,9 +213,11 @@ class OEDDataGenerator(Generic[Array]):
         # Flatten noise_cov_diag if needed
         noise_var = self._bkd.to_numpy(noise_cov_diag).ravel()
 
-        # Create noise marginals
+        # Latent noise marginals: standard normal N(0,1) for reparameterization.
+        # _generate_observations scales by sqrt(noise_var / weights).
+        nobs = len(noise_var)
         noise_marginals = [
-            GaussianMarginal(0.0, float(np.sqrt(v)), self._bkd) for v in noise_var
+            GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(nobs)
         ]
 
         # Extract prior marginals (works for both prior types)

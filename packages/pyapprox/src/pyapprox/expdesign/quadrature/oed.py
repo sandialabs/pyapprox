@@ -108,11 +108,11 @@ def build_oed_joint_distribution(
                 f"IndependentJoint."
             )
 
-    # Build noise marginals (zero mean, variance from problem)
-    noise_var_np = bkd.to_numpy(problem.noise_variances()).ravel()
+    # Latent noise marginals: standard normal N(0,1) for reparameterization.
+    # _generate_observations scales by sqrt(noise_var / weights).
+    nobs = len(bkd.to_numpy(problem.noise_variances()).ravel())
     noise_marginals: List[MarginalProtocol[Array]] = [
-        GaussianMarginal(0.0, float(np.sqrt(v)), bkd)
-        for v in noise_var_np
+        GaussianMarginal(0.0, 1.0, bkd) for _ in range(nobs)
     ]
 
     return IndependentJoint(prior_marginals + noise_marginals, bkd)

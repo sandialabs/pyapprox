@@ -286,11 +286,16 @@ class ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev(
         )
 
 
-class ConjugateGaussianOEDExpectedKLDivergence(
+class ConjugateGaussianOEDExpectedPushforwardKLDivergence(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
     """
-    Expected KL divergence between posterior and prior pushforwards.
+    E_y[KL(posterior_pushforward || prior_pushforward)].
+
+    Computes expected KL divergence between the pushforward of the
+    posterior and prior through the QoI prediction matrix Q.  This
+    differs from the parameter-space expected information gain (EIG)
+    whenever Q is rank-deficient (npred < nparams).
     """
 
     def _compute_utility(self) -> float:
@@ -302,6 +307,68 @@ class ConjugateGaussianOEDExpectedKLDivergence(
             self._qoi_mat @ self._Cmat @ self._qoi_mat.T,
             self._bkd,
         )
+
+
+class ConjugateGaussianOEDExpectedInformationGain(Generic[Array]):
+    """
+    E_y[KL(posterior || prior)] in parameter space.
+
+    For conjugate Gaussian the posterior covariance is data-independent:
+
+        Σ_post = (Σ_prior⁻¹ + Hᵀ Σ_noise⁻¹ H)⁻¹
+
+    so the expected information gain simplifies to
+
+        EIG = ½ (log|Σ_prior| − log|Σ_post|)
+
+    This matches what the NMC KL-OED objective estimates.
+
+    Parameters
+    ----------
+    prior_cov : Array
+        Prior covariance. Shape: (nvars, nvars)
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        prior_cov: Array,
+        bkd: Backend[Array],
+    ) -> None:
+        self._bkd = bkd
+        self._prior_cov = prior_cov
+        self._obs_mat: Optional[Array] = None
+        self._noise_cov: Optional[Array] = None
+        self._value: Optional[float] = None
+
+    def set_observation_matrix(self, obs_mat: Array) -> None:
+        self._obs_mat = obs_mat
+
+    def set_noise_covariance(self, noise_cov: Array) -> None:
+        self._noise_cov = noise_cov
+        self._compute()
+
+    def _compute(self) -> None:
+        if self._obs_mat is None:
+            raise ValueError("must call set_observation_matrix()")
+        if self._noise_cov is None:
+            raise ValueError("must call set_noise_covariance()")
+        bkd = self._bkd
+        noise_cov_inv = bkd.inv(self._noise_cov)
+        prior_cov_inv = bkd.inv(self._prior_cov)
+        post_cov_inv = prior_cov_inv + bkd.dot(
+            self._obs_mat.T, bkd.dot(noise_cov_inv, self._obs_mat)
+        )
+        post_cov = bkd.inv(post_cov_inv)
+        _, log_det_prior = bkd.slogdet(self._prior_cov)
+        _, log_det_post = bkd.slogdet(post_cov)
+        self._value = 0.5 * float(log_det_prior - log_det_post)
+
+    def value(self) -> float:
+        if self._value is None:
+            raise ValueError("must call set_noise_covariance()")
+        return self._value
 
 
 class ConjugateGaussianOEDDataMeanQoIAVaRStdDev(
