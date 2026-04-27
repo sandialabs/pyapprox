@@ -759,7 +759,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         errors = self.check_hvp(state, param, fd_eps, verbosity=verbosity)
         self._assert_derivatives_close(errors, tols[13])
 
-    def _assert_derivatives_close(self, errors: Array, tol: float) -> None:
+    def _assert_derivatives_close(self, errors: Array, tol: Array) -> None:
         """
         Assert that the derivatives are within the specified tolerance.
 
@@ -767,7 +767,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         ----------
         errors : Array
             Errors from derivative checks.
-        tol : float
+        tol : Array
             Tolerance for derivative checks.
 
         Raises
@@ -775,12 +775,15 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         AssertionError
             If the derivatives are not within the specified tolerance.
         """
-        if self._bkd.min(errors) == self._bkd.max(errors):
-            assert self._bkd.min(errors) == 0.0
+        min_err = self._bkd.to_float(self._bkd.min(errors))
+        max_err = self._bkd.to_float(self._bkd.max(errors))
+        if min_err == max_err:
+            assert min_err == 0.0
         else:
-            ratio = self._bkd.min(errors) / self._bkd.max(errors)
-            assert ratio <= tol, (
-                f"Derivative error ratio {ratio} exceeds tolerance {tol}"
+            ratio = min_err / max_err
+            tol_f = self._bkd.to_float(tol)
+            assert ratio <= tol_f, (
+                f"Derivative error ratio {ratio} exceeds tolerance {tol_f}"
             )
 
     def get_derivative_tolerances(self, tol: float) -> Array:

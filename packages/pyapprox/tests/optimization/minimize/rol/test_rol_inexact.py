@@ -57,6 +57,17 @@ class _QuadraticObjectiveModel:
         zero = 0.0 * z
         return self._bkd.asarray([[2.0 * z + zero, 2.0 * (x - 1.0) + zero]])
 
+    def jacobian_batch(self, samples):
+        # samples: (nvars, K) -> return (K, nqoi, nvars) = (K, 1, 2)
+        bkd = self._bkd
+        z = samples[0, :]  # (K,)
+        x = samples[1, :]  # (K,)
+        col0 = 2.0 * z  # (K,)
+        col1 = 2.0 * (x - 1.0)  # (K,)
+        # Stack to (K, 2) then reshape to (K, 1, 2)
+        jac_2d = bkd.stack([col0, col1], axis=1)  # (K, 2)
+        return bkd.reshape(jac_2d, (samples.shape[1], 1, 2))
+
 
 class TestROLInexactObjective:
     """Test ROL optimization with InexactWrapper as objective."""
@@ -201,6 +212,18 @@ class _ConstrainedModel:
             [2.0 * z + zero, 1.0 + zero, zero],
             [1.0 + zero, zero, 1.0 + zero],
         ])
+
+    def jacobian_batch(self, samples):
+        # samples: (3, K) -> return (K, 2, 3)
+        bkd = self._bkd
+        K = samples.shape[1]
+        z = samples[0, :]  # (K,)
+        zeros = 0.0 * z
+        ones = zeros + 1.0
+        # Row 0: [2z, 1, 0], Row 1: [1, 0, 1]
+        row0 = bkd.stack([2.0 * z, ones, zeros], axis=1)  # (K, 3)
+        row1 = bkd.stack([ones, zeros, ones], axis=1)  # (K, 3)
+        return bkd.stack([row0, row1], axis=1)  # (K, 2, 3)
 
 
 class TestROLInexactConstraint:
@@ -353,6 +376,13 @@ class TestROLInexactConstraint:
                 z = sample[0, 0]
                 zero = 0.0 * z
                 return self._bkd.asarray([[1.0 + zero, 1.0 + zero]])
+
+            def jacobian_batch(self, samples):
+                # (K, 1, 2) — constant jacobian [1, 1] for all samples
+                bkd = self._bkd
+                K = samples.shape[1]
+                ones = bkd.ones((K, 2))
+                return bkd.reshape(ones, (K, 1, 2))
 
         con_model = _ShiftConstraintModel(bkd)
         np.random.seed(123)

@@ -139,16 +139,21 @@ class MSEFitter(Generic[Array]):
             init_params = self._bkd.zeros((0, 1))
             final_loss = self._bkd.to_float(loss_fn(init_params)[0, 0])
             # Create a dummy result
+            from scipy.optimize import OptimizeResult
+
             from pyapprox.optimization.minimize.scipy.scipy_result import (
                 ScipyOptimizerResultWrapper,
             )
 
-            dummy_result = ScipyOptimizerResultWrapper(
+            dummy_scipy = OptimizeResult(
                 x=init_params,
-                fun=self._bkd.asarray([[final_loss]]),
+                fun=final_loss,
                 success=True,
                 nit=0,
                 message="No parameters to optimize",
+            )
+            dummy_result = ScipyOptimizerResultWrapper(
+                dummy_scipy, self._bkd
             )
             return MSEFitterResult(
                 surrogate=surrogate,

@@ -208,11 +208,20 @@ class InexactWrapper(Generic[Array]):
         nqoi = self._nqoi
 
         # Collect model jacobians at each quad point
-        jac_values = bkd.zeros((nqoi, n_quad, n_design))
-        for qq in range(n_quad):
-            single_sample = full_samples[:, qq : qq + 1]
-            jac_full = diff_model.jacobian(single_sample)
-            jac_values[:, qq, :] = jac_full[:, self._design_indices]
+        if hasattr(diff_model, "jacobian_batch"):
+            # jacobian_batch returns (n_quad, nqoi, nvars_full)
+            jac_batch = diff_model.jacobian_batch(full_samples)
+            # Select design columns -> (n_quad, nqoi, n_design)
+            # Transpose to (nqoi, n_quad, n_design)
+            jac_values = bkd.transpose(
+                jac_batch[:, :, self._design_indices], [1, 0, 2]
+            )
+        else:
+            jac_values = bkd.zeros((nqoi, n_quad, n_design))
+            for qq in range(n_quad):
+                single_sample = full_samples[:, qq : qq + 1]
+                jac_full = diff_model.jacobian(single_sample)
+                jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         weights_2d = bkd.reshape(quad_weights, (1, -1))
         return diff_stat.jacobian(model_values, jac_values, weights_2d)
