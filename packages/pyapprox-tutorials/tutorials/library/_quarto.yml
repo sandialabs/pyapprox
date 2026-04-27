@@ -148,6 +148,9 @@ website:
                 - uq_with_gp.qmd
                 - adaptive_gp_sampling.qmd
                 - multioutput_gp.qmd
+            - section: "Universal Polynomial Networks"
+              contents:
+                - supn_surrogates.qmd
         - section: "Sensitivity Analysis"
           contents:
             - sensitivity_analysis_concept.qmd

@@ -15,6 +15,7 @@ import numpy as np
 
 from pyapprox.surrogates.affine.basis.multiindex import MultiIndexBasis
 from pyapprox.surrogates.affine.indices.utils import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.protocols.basis1d import Basis1DProtocol
 from pyapprox.surrogates.supn.chebyshev import StandardChebyshev1D
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -92,7 +93,7 @@ class SUPN(Generic[Array]):
         else:
             self._inner_coefs = self._kaiming_init((width, nterms), nterms)
 
-    def _kaiming_init(self, shape: tuple, fan_in: int) -> Array:
+    def _kaiming_init(self, shape: tuple[int, ...], fan_in: int) -> Array:
         """Kaiming uniform initialization for tanh activation."""
         bound = np.sqrt(6.0 / fan_in)
         return self._bkd.asarray(
@@ -389,7 +390,7 @@ def create_supn(
     SUPN[Array]
         Initialized SUPN surrogate.
     """
-    bases_1d: List[StandardChebyshev1D[Array]] = [
+    bases_1d: List[Basis1DProtocol[Array]] = [
         StandardChebyshev1D(bkd) for _ in range(nvars)
     ]
     if indices is None:

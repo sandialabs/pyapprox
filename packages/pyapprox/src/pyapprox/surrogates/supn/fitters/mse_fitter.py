@@ -1,12 +1,20 @@
 """MSE-based gradient fitter for SUPN.
 
-Uses trust-region Newton-CG optimization with analytical gradient and
-Hessian-vector product, matching the training procedure recommended
-in Morrow et al. (2025, Section 4).
+Default optimizer chains Adam warm-starting with trust-region Newton-CG,
+matching the two-phase training procedure recommended in Morrow et al.
+(2025, Section 4).  When ROL (Rapid Optimization Library) is available,
+the trust-region phase uses ROL for faster convergence; otherwise it
+falls back to scipy's trust-constr.
 """
 
 from typing import Generic, Optional
 
+from pyapprox.optimization.minimize.adam.adam_optimizer import (
+    AdamOptimizer,
+)
+from pyapprox.optimization.minimize.chained.chained_optimizer import (
+    ChainedOptimizer,
+)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -17,6 +25,7 @@ from pyapprox.surrogates.supn.fitters.results import SUPNFitterResult
 from pyapprox.surrogates.supn.losses import SUPNMSELoss
 from pyapprox.surrogates.supn.supn import SUPN
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
 
 
 class SUPNMSEFitter(Generic[Array]):
@@ -25,8 +34,11 @@ class SUPNMSEFitter(Generic[Array]):
     Minimizes L(theta) = (1/2K) ||f_theta(X) - Y||^2 using gradient-based
     optimization with analytical gradient and Hessian-vector product.
 
-    Default optimizer is ScipyTrustConstrOptimizer (trust-region Newton-CG),
-    matching the paper's recommendation (Section 4).
+    Default optimizer chains Adam warm-starting (500 iterations) with
+    trust-region Newton-CG, matching the two-phase training procedure
+    in Morrow et al. (2025, Section 4).  When ROL is available the
+    trust-region phase uses ROL; otherwise it falls back to scipy's
+    trust-constr.
 
     Parameters
     ----------
@@ -128,7 +140,20 @@ class SUPNMSEFitter(Generic[Array]):
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
-            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+            adam = AdamOptimizer[Array](lr=1e-3, maxiter=500)
+            if package_available("pyrol"):
+                from pyapprox.optimization.minimize.rol.rol_optimizer import (
+                    ROLOptimizer,
+                )
+
+                trust: BindableOptimizerProtocol[Array] = (
+                    ROLOptimizer[Array](verbosity=0)
+                )
+            else:
+                trust = ScipyTrustConstrOptimizer[Array](
+                    verbosity=0, maxiter=1000
+                )
+            optimizer = ChainedOptimizer(adam, trust)
 
         # Get bounds (default to unbounded)
         if bounds is None:
@@ -171,6 +196,6 @@ class SUPNMSEFitter(Generic[Array]):
         opt_str = (
             type(self._optimizer).__name__
             if self._optimizer is not None
-            else "ScipyTrustConstrOptimizer(default)"
+            else "ChainedOptimizer(Adam+TrustRegion)"
         )
         return f"SUPNMSEFitter(optimizer={opt_str})"

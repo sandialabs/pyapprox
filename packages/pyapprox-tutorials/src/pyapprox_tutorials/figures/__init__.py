@@ -246,6 +246,12 @@ from ._sensitivity import (  # noqa: F401
     plot_sobol_indices,
     plot_variance_decomposition,
 )
+from ._supn import (  # noqa: F401
+    plot_supn_2d_comparison,
+    plot_supn_convergence,
+    plot_supn_fit_1d,
+    plot_supn_heatmap,
+)
 from ._sparse_grids import (  # noqa: F401
     plot_2d_tp,
     plot_config_vars,

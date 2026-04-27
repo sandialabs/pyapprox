@@ -1,0 +1,380 @@
+---
+title: "Building a Shallow Universal Polynomial Network"
+subtitle: "PyApprox Tutorial Library"
+description: "Approximate an expensive model with a shallow universal polynomial network (SUPN)."
+tutorial_type: hands-on
+topic: surrogate_modeling
+difficulty: intermediate
+estimated_time: 15
+render_time: 300
+prerequisites:
+  - surrogate_workflow
+  - polynomial_chaos_surrogates
+tags:
+  - surrogate
+  - supn
+  - neural-network
+  - chebyshev
+  - polynomial
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/supn_surrogates.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Write down the SUPN ansatz and identify its trainable parameters
+- Construct a SUPN with `create_supn` and inspect its parameter count
+- Fit a SUPN to training data with `SUPNMSEFitter`
+- Examine convergence as a function of network width $N$ and polynomial degree on a smooth 1D target
+- Apply SUPNs to a 2D target and choose the hyperparameters by sweeping a small grid
+
+
+Surrogate models replace expensive simulators with cheap approximations --- see [The Surrogate Modeling Workflow](surrogate_workflow.qmd) for an introduction. The **shallow universal polynomial network (SUPN)** [@morrow2025supn] is an expressive nonlinear surrogate that borrows from both polynomial chaos expansions (PCEs) and Gaussian processes (GPs). It uses the same Chebyshev basis as a PCE, but feeds linear combinations of that basis through a $\tanh$ nonlinearity, then takes a final linear combination. The result is an expressive nonlinear surrogate with far fewer trainable parameters than a deep neural network.
+
+## The SUPN Ansatz
+
+A SUPN approximates a target function $f : [-1, 1]^D \to \mathbb{R}^Q$ as
+
+$$
+f_{N, \Lambda}(\mathbf{x}) = \sum_{n=1}^{N} c_n \, \tanh\!\left( \sum_{m \in \Lambda} a_{n, m} \, T_m(\mathbf{x}) \right)
+$$
+
+where $T_m(\mathbf{x}) = \prod_{d=1}^{D} T_{m_d}(x_d)$ is a product of univariate Chebyshev polynomials of the first kind, $\Lambda \subset \mathbb{N}_0^D$ is a multi-index set (analogous to the basis index set of a PCE), and $a_{n, m} \in \mathbb{R}$ and $c_n \in \mathbb{R}^Q$ are the trainable parameters.
+
+In matrix form, with the $M = |\Lambda|$ basis functions stacked into a vector $B(\mathbf{x}) \in \mathbb{R}^M$:
+
+$$
+f(\mathbf{x}) = C \, \tanh\!\big( A \, B(\mathbf{x}) \big),
+$$
+
+where $A \in \mathbb{R}^{N \times M}$ and $C \in \mathbb{R}^{Q \times N}$. The total parameter count is
+
+$$
+P = N M + Q N.
+$$
+
+The architecture has three stages:
+
+1. **Chebyshev lift.** $\mathbf{x} \mapsto B(\mathbf{x})$ replaces the raw input with a polynomial feature vector. This is the role played by the early hidden layers of an MLP, but pre-specified rather than learned.
+2. **Hidden layer.** A linear map followed by a $\tanh$ nonlinearity, exactly as in a single-layer MLP.
+3. **Linear readout.** A linear combination of the $N$ hidden units produces the output.
+
+::: {.callout-note}
+## Connection to PCE
+
+A polynomial chaos expansion uses the same Chebyshev basis $\{T_m\}_{m \in \Lambda}$ but combines it linearly: $f_{\text{PCE}}(\mathbf{x}) = \sum_m \alpha_m T_m(\mathbf{x})$. A SUPN feeds linear combinations of the same basis through a $\tanh$ nonlinearity, then takes a final linear combination. When the inner sum is small, $\tanh(y) \approx y$ and the SUPN behaves like a linear combination of PCEs; when the sum is large the nonlinearity dominates and the network gains expressivity beyond what any single PCE in the same basis can achieve.
+:::
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.surrogates.supn import create_supn
+from pyapprox.surrogates.supn.fitters import SUPNMSEFitter
+
+bkd = NumpyBkd()
+```
+
+## Inspecting the Architecture
+
+Before fitting anything, let's build a small SUPN and look at its structure.
+
+```{python}
+supn = create_supn(nvars=1, width=5, max_level=4, bkd=bkd)
+
+N = supn.width()
+M = supn.nterms()
+P = supn.nparams()
+
+print(f"Width N             : {N}")
+print(f"Number of basis fns : {M}")
+print(f"Total parameters P  : {P}")
+```
+
+The number of basis functions $M$ includes the constant term $T_0 \equiv 1$. For a 1D SUPN with `max_level=4`, the index set is $\Lambda = \{0, 1, 2, 3, 4\}$ so $M = 5$. The parameter count is $P = NM + QN$: five hidden units, each carrying five Chebyshev coefficients ($25$ entries of $A$), plus one output weight per hidden unit ($5$ entries of $C$), giving $P = 30$.
+
+::: {.callout-note}
+## Sampling rule of thumb
+
+We use Monte Carlo training samples throughout this tutorial. For smooth 1D targets, $K \approx 2P$ is enough to land in a clean training regime. For harder or higher-dimensional targets, we use $K = 5P$. If the loss landscape feels noisy or optimization stalls, increasing the sample ratio or switching to Gauss--Legendre quadrature usually helps.
+:::
+
+## A Smooth 1D Target: Runge's Function
+
+The Runge function
+
+$$
+f(x) = \frac{1}{1 + (cx)^2}
+$$
+
+with $c = 5$ is a textbook example of a function that is hard to approximate with naive interpolation. It is, however, infinitely smooth, and we expect SUPNs to converge rapidly on it.
+
+```{python}
+def runge(samples, c=5.0):
+    return 1.0 / (1.0 + (c * samples)**2)
+
+x_test = np.linspace(-1, 1, 1000).reshape(1, -1)
+y_test = runge(x_test)
+```
+
+### A Single Fit
+
+We start with a single moderately-sized SUPN to demonstrate the full workflow before sweeping over hyperparameters.
+
+```{python}
+supn = create_supn(nvars=1, width=5, max_level=4, bkd=bkd)
+P = supn.nparams()
+K = 2 * P
+
+x_train = np.random.uniform(-1, 1, K).reshape(1, -1)
+y_train = runge(x_train)
+
+fitter = SUPNMSEFitter(bkd)
+result = fitter.fit(supn, bkd.asarray(x_train), bkd.asarray(y_train))
+fitted = result.surrogate()
+
+y_pred = bkd.to_numpy(fitted(bkd.asarray(x_test)))
+rel_l2 = np.linalg.norm(y_pred - y_test) / np.linalg.norm(y_test)
+
+print(f"Parameters P        : {P}")
+print(f"Training samples K  : {K}")
+print(f"Converged           : {result.converged()}")
+print(f"Relative L2 error   : {rel_l2:.4e}")
+```
+
+The default fitter chains Adam warm-starting (500 iterations) with trust-region Newton--CG, matching the two-phase training procedure in @morrow2025supn. Adam navigates the non-convex loss landscape to a good basin; the second-order optimizer then converges rapidly to a high-accuracy local minimum using analytical gradient and Hessian-vector product.
+
+```{python}
+#| fig-cap: "SUPN fit (N=5, M=5, P=30) to the Runge function with c=5. The dashed line is the target; the solid line is the SUPN prediction. Even with only 30 parameters, the fit captures the central peak and the falloff in the tails."
+#| label: fig-runge-single
+
+from pyapprox_tutorials.figures._supn import plot_supn_fit_1d
+
+fig, ax = plt.subplots(figsize=(6, 4))
+plot_supn_fit_1d(
+    x_test.flatten(), y_test.flatten(), y_pred.flatten(), ax,
+    title="SUPN fit to Runge function",
+)
+plt.tight_layout()
+plt.show()
+```
+
+### Convergence Sweep
+
+How does the error change as we increase $N$ and the maximum polynomial degree?
+
+```{python}
+configs = [(2, 2), (2, 4), (2, 6), (2, 8),
+           (4, 2), (4, 4), (4, 6),
+           (8, 2), (8, 4)]
+
+sweep_P, sweep_err = [], []
+
+for N_val, L_val in configs:
+    np.random.seed(0)
+    supn_i = create_supn(nvars=1, width=N_val, max_level=L_val, bkd=bkd)
+    P_i = supn_i.nparams()
+    K_i = 2 * P_i
+
+    x_tr = np.random.uniform(-1, 1, K_i).reshape(1, -1)
+    y_tr = runge(x_tr)
+
+    fitter_i = SUPNMSEFitter(bkd)
+    result_i = fitter_i.fit(supn_i, bkd.asarray(x_tr), bkd.asarray(y_tr))
+    fitted_i = result_i.surrogate()
+
+    y_p = bkd.to_numpy(fitted_i(bkd.asarray(x_test)))
+    err = np.linalg.norm(y_p - y_test) / np.linalg.norm(y_test)
+
+    sweep_P.append(P_i)
+    sweep_err.append(err)
+    print(f"  (N={N_val}, L={L_val})  P={P_i:3d}  rel L2 = {err:.3e}")
+```
+
+```{python}
+#| fig-cap: "Convergence of SUPN approximations to the Runge function as a function of total parameter count P. The error decays rapidly over the range studied here, characteristic of smooth-function approximation."
+#| label: fig-runge-convergence
+
+from pyapprox_tutorials.figures._supn import plot_supn_convergence
+
+fig, ax = plt.subplots(figsize=(6, 4))
+plot_supn_convergence(
+    sweep_P, sweep_err, ax,
+    title="Runge function convergence",
+)
+plt.tight_layout()
+plt.show()
+```
+
+Two observations from the sweep. First, for fixed width $N$, increasing the polynomial degree (larger $M$) is what drives the error down --- this is the SUPN inheriting the approximation power of polynomials. Second, increasing $N$ at fixed $M$ helps less, because $N$ is bounded above in usefulness by the expressivity of the inner polynomial. We will see this trade-off more directly in the 2D heat-map below.
+
+## A 2D Target: Sum of Rastrigin Functions
+
+Let's move to two dimensions. The 2D Rastrigin sum
+
+$$
+f(x, y) = \big(x^2 - \cos(5\pi x)\big) + \big(y^2 - \cos(5\pi y)\big)
+$$
+
+is oscillatory in each variable and additively separable. SUPNs handle this kind of tensor-structured target well.
+
+```{python}
+def rastrigin_sum(samples):
+    x, y = samples[0], samples[1]
+    vals = ((x**2 - np.cos(5 * np.pi * x))
+            + (y**2 - np.cos(5 * np.pi * y)))
+    return vals.reshape(1, -1)
+```
+
+We build a 2D test grid:
+
+```{python}
+from pyapprox.interface.functions.plot.plot2d_rectangular import (
+    meshgrid_samples,
+)
+
+X, Y, samples_grid = meshgrid_samples(80, [-1, 1, -1, 1], bkd)
+z_true = bkd.to_numpy(rastrigin_sum(bkd.to_numpy(samples_grid))).reshape(
+    bkd.to_numpy(X).shape
+)
+X_np, Y_np = bkd.to_numpy(X), bkd.to_numpy(Y)
+```
+
+and fit a 2D SUPN.
+
+```{python}
+np.random.seed(3)
+supn2d = create_supn(nvars=2, width=8, max_level=14, bkd=bkd)
+P = supn2d.nparams()
+K = 5 * P
+
+x_train = np.random.uniform(-1, 1, (2, K))
+y_train = rastrigin_sum(x_train)
+
+fitter_2d = SUPNMSEFitter(bkd)
+result_2d = fitter_2d.fit(supn2d, bkd.asarray(x_train), bkd.asarray(y_train))
+fitted_2d = result_2d.surrogate()
+
+z_pred = bkd.to_numpy(
+    fitted_2d(bkd.asarray(samples_grid))
+).reshape(X_np.shape)
+rel_l2 = np.linalg.norm(z_pred - z_true) / np.linalg.norm(z_true)
+
+print(f"Parameters P        : {P}")
+print(f"Training samples K  : {K}")
+print(f"Converged           : {result_2d.converged()}")
+print(f"Relative L2 error   : {rel_l2:.4e}")
+```
+
+```{python}
+#| fig-cap: "Three-panel comparison on the 2D Rastrigin sum (N=8, L=14, P=968, K=4840). Left: target function; middle: SUPN prediction; right: pointwise absolute error."
+#| label: fig-rastrigin-2d
+
+from pyapprox_tutorials.figures._supn import plot_supn_2d_comparison
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig)
+plt.tight_layout()
+plt.show()
+```
+
+### Choosing $(N, \texttt{max\_level})$
+
+The two main hyperparameters of a SUPN are the network width $N$ and the polynomial degree controlling $|\Lambda|$. To get a feel for their interplay, we sweep both and record the test error.
+
+```{python}
+N_values = [2, 4, 6, 8, 10]
+L_values = [6, 8, 10, 14]
+
+err_grid = np.zeros((len(N_values), len(L_values)))
+
+for i, N_val in enumerate(N_values):
+    for j, L_val in enumerate(L_values):
+        np.random.seed(i * 100 + j)
+        supn_ij = create_supn(
+            nvars=2, width=N_val, max_level=L_val, bkd=bkd,
+        )
+        P_ij = supn_ij.nparams()
+        K_ij = 5 * P_ij
+
+        x_tr = np.random.uniform(-1, 1, (2, K_ij))
+        y_tr = rastrigin_sum(x_tr)
+
+        fitter_ij = SUPNMSEFitter(bkd)
+        result_ij = fitter_ij.fit(
+            supn_ij, bkd.asarray(x_tr), bkd.asarray(y_tr),
+        )
+        fitted_ij = result_ij.surrogate()
+
+        z_p = bkd.to_numpy(
+            fitted_ij(bkd.asarray(samples_grid))
+        ).reshape(X_np.shape)
+        err_grid[i, j] = (
+            np.linalg.norm(z_p - z_true) / np.linalg.norm(z_true)
+        )
+```
+
+```{python}
+#| fig-cap: "Test error heat-map over (N, max_level) on the 2D Rastrigin sum. Each cell shows the relative L2 error of one trained SUPN. Increasing the polynomial degree (moving right) drives the error down sharply on this oscillatory target; increasing N (moving up) refines the result but is less effective on its own."
+#| label: fig-supn-heatmap
+
+from pyapprox_tutorials.figures._supn import plot_supn_heatmap
+
+fig, ax = plt.subplots(figsize=(6, 5))
+plot_supn_heatmap(err_grid, N_values, L_values, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The heat-map gives a practical recipe: pick `max_level` large enough to resolve the variation of the target, then use $N$ to refine. For oscillatory targets like this one, the polynomial degree is by far the more important knob.
+
+## Practical Tips
+
+::: {.callout-tip}
+## Practical guidance for SUPN training
+
+- Start with $K \approx 5P$ Monte Carlo samples for oscillatory or higher-dimensional targets. For smooth 1D targets, $K \approx 2P$ often suffices.
+- If the loss plateaus, increase `max_level` before increasing `width`. The polynomial degree governs the expressivity of the inner sum, which is usually the limiting factor.
+- The default fitter chains Adam warm-starting with trust-region Newton--CG. Adam navigates the non-convex landscape to a good basin; the second-order optimizer then converges rapidly. You can customize the optimizer via `fitter.set_optimizer(...)`.
+- Multiple random initializations are cheap insurance for difficult targets --- refit two or three times and keep the best.
+:::
+
+## Key Takeaways
+
+- A SUPN is a single-hidden-layer network whose first stage is a fixed Chebyshev polynomial lift; the trainable parameters are the inner coefficients $a_{n,m}$ and the output weights $c_n$.
+- `create_supn(nvars, width, max_level, bkd)` builds a SUPN; the parameter count is $P = NM + QN$ where $M = |\Lambda|$ is the size of the multi-index set.
+- `SUPNMSEFitter` trains the network with Adam warm-starting followed by trust-region Newton--CG using analytical gradient and Hessian-vector product; check `result.converged()` after fitting.
+- On smooth targets, SUPN test error decays rapidly with $P$.
+- For a fixed parameter budget, increasing `max_level` usually buys more accuracy than increasing `width`, especially on oscillatory targets.
+
+## Exercises
+
+1. **Width vs degree trade-off.** Re-run the heat-map with $K = 4P$ training samples instead of $2P$. Does the optimal $(N, \texttt{max\_level})$ pair change, or just the absolute error level?
+2. **Hyperbolic cross.** Pass `pnorm=0.5` to `create_supn` to use a hyperbolic-cross index set instead of total-degree. How does the parameter count change at fixed `max_level`, and how does the error on the 2D Rastrigin sum compare?
+3. **Sample-count sensitivity.** For the Runge example at $(N, L) = (4, 6)$, sweep the training-sample multiplier $K/P \in \{1, 2, 4, 8\}$ and plot the relative $L^2$ error. Where does the error stop improving?
+4. **Custom optimizer.** The default fitter chains `AdamOptimizer` with trust-region Newton--CG. Import `AdamOptimizer` and `ScipyTrustConstrOptimizer`, build a `ChainedOptimizer` with `maxiter=2000` for Adam and `gtol=1e-10` for trust-constr, and pass it to `fitter.set_optimizer(...)`. Does the longer warm-start improve the 2D Rastrigin error?
+
+## Next Steps
+
+- [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) --- the linear cousin of a SUPN; compare fitting cost and accuracy on the same targets.
+- [Building a Gaussian Process Surrogate](gp_surrogate.qmd) --- another nonlinear surrogate, with built-in uncertainty quantification.
+- [Practical PCE Fitting](practical_pce_fitting.qmd) --- sample-efficient strategies that transfer to SUPNs.

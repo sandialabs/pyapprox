@@ -2,6 +2,9 @@
 
 from typing import Generic, Optional, Protocol, Self, runtime_checkable
 
+from pyapprox.optimization.minimize.constraints.protocols import (
+    SequenceOfConstraintProtocols,
+)
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
@@ -38,7 +41,7 @@ class BindableOptimizerProtocol(Protocol, Generic[Array]):
         self,
         objective: ObjectiveProtocol[Array],
         bounds: Array,
-        constraints: Optional[object] = None,
+        constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
     ) -> Self:
         """Bind the optimizer to an objective, bounds, and optional constraints.
 
@@ -48,7 +51,7 @@ class BindableOptimizerProtocol(Protocol, Generic[Array]):
             The objective function to minimize.
         bounds : Array
             Bounds for the optimization variables, shape (nvars, 2).
-        constraints : Optional[object], optional
+        constraints : Optional[SequenceOfConstraintProtocols[Array]], optional
             Constraints for the optimization problem. Defaults to None.
 
         Returns

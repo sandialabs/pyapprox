@@ -2,8 +2,8 @@
 
 from typing import Generic
 
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
+from pyapprox.optimization.minimize.result_protocol import (
+    OptimizerResultProtocol,
 )
 from pyapprox.surrogates.supn.supn import SUPN
 from pyapprox.util.backends.protocols import Array, Backend
@@ -16,7 +16,7 @@ class SUPNFitterResult(Generic[Array]):
     ----------
     surrogate : SUPN[Array]
         The fitted SUPN surrogate.
-    optimizer_result : ScipyOptimizerResultWrapper[Array]
+    optimizer_result : OptimizerResultProtocol[Array]
         The underlying optimizer result.
     final_loss : float
         Final MSE loss value.
@@ -25,7 +25,7 @@ class SUPNFitterResult(Generic[Array]):
     def __init__(
         self,
         surrogate: SUPN[Array],
-        optimizer_result: ScipyOptimizerResultWrapper[Array],
+        optimizer_result: OptimizerResultProtocol[Array],
         final_loss: float,
     ) -> None:
         self._surrogate = surrogate
@@ -40,7 +40,7 @@ class SUPNFitterResult(Generic[Array]):
         """Return fitted parameters."""
         return self._surrogate._flatten_params()
 
-    def optimizer_result(self) -> ScipyOptimizerResultWrapper[Array]:
+    def optimizer_result(self) -> OptimizerResultProtocol[Array]:
         """Return the underlying optimizer result."""
         return self._optimizer_result
 

@@ -5,7 +5,7 @@ for use with trust-region Newton-CG optimization, matching the training
 procedure recommended in Morrow et al. (2025, Section 4).
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
 from pyapprox.surrogates.supn.supn import SUPN
 from pyapprox.util.backends.protocols import Array, Backend
@@ -55,29 +55,40 @@ class SUPNMSELoss(Generic[Array]):
         self._B = surrogate.basis()(train_samples)  # (K, M)
 
         # Param cache: scipy calls fun(x) then jac(x) then hessp(x,v)
-        self._cached_params: Optional[Array] = None
-        self._cached_H: Optional[Array] = None  # tanh(Z), (N, K)
-        self._cached_S: Optional[Array] = None  # sech^2(Z), (N, K)
-        self._cached_residual: Optional[Array] = None  # F - Y, (Q, K)
-        self._cached_C: Optional[Array] = None  # outer coefs, (Q, N)
-        self._cached_c_flat: Optional[Array] = None  # for nqoi=1, (N,)
+        # with the same parameter values. The wrapper chain creates new
+        # array objects each call, so we cache by data pointer + first/last
+        # element for O(1) staleness check.
+        self._cached_sentinel: float = float("nan")
+        self._cached_H: Array = bkd.zeros((0,))
+        self._cached_S: Array = bkd.zeros((0,))
+        self._cached_residual: Array = bkd.zeros((0,))
+        self._cached_C: Array = bkd.zeros((0,))
+        self._cached_c_flat: Array = bkd.zeros((0,))
+
+        # Eagerly populate the cache from the surrogate's initial params.
+        self._ensure_cached(surrogate._flatten_params())
 
     def _ensure_cached(self, params_flat: Array) -> None:
-        """Recompute cached quantities if params changed."""
+        """Recompute cached quantities if params changed.
+
+        The trust-region CG inner solver calls hessp(x, v) many times
+        with the same parameter values but different directions.  The
+        wrapper chain (trust_constr → numpy wrapper → loss) creates new
+        array objects on each call, so ``id()`` is useless.  Instead we
+        compare a cheap sentinel: first_element + last_element.  A
+        sentinel match means the params almost certainly haven't changed
+        (same Newton iterate); a mismatch triggers recomputation.
+        """
         requires_grad = getattr(params_flat, "requires_grad", False)
-        if not requires_grad and (
-            self._cached_params is not None
-            and self._bkd.allclose(
-                params_flat, self._cached_params, rtol=0.0, atol=0.0
-            )
-        ):
-            return
+        if not requires_grad:
+            sentinel = float(params_flat[0]) + float(params_flat[-1])
+            if sentinel == self._cached_sentinel:
+                return
+            self._cached_sentinel = sentinel
+        else:
+            self._cached_sentinel = float("nan")
 
         bkd = self._bkd
-        if not requires_grad:
-            self._cached_params = bkd.copy(params_flat)
-        else:
-            self._cached_params = None
 
         supn = self._surrogate.with_params(params_flat)
         self._cached_C = supn.outer_coefs()  # (Q, N)
@@ -104,12 +115,12 @@ class SUPNMSELoss(Generic[Array]):
         """Loss is scalar."""
         return 1
 
-    def __call__(self, params: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """Compute MSE loss.
 
         Parameters
         ----------
-        params : Array
+        samples : Array
             SUPN parameters. Shape: (P, 1) or (P,)
 
         Returns
@@ -118,7 +129,7 @@ class SUPNMSELoss(Generic[Array]):
             Loss value. Shape: (1, 1)
         """
         bkd = self._bkd
-        params_flat = bkd.flatten(params)
+        params_flat = bkd.flatten(samples)
         self._ensure_cached(params_flat)
 
         mse = (
@@ -126,7 +137,7 @@ class SUPNMSELoss(Generic[Array]):
         )
         return bkd.reshape(mse, (1, 1))
 
-    def jacobian(self, params: Array) -> Array:
+    def jacobian(self, sample: Array) -> Array:
         """Compute gradient of MSE loss w.r.t. params.
 
         For nqoi=1:
@@ -139,7 +150,7 @@ class SUPNMSELoss(Generic[Array]):
 
         Parameters
         ----------
-        params : Array
+        sample : Array
             SUPN parameters. Shape: (P, 1) or (P,)
 
         Returns
@@ -148,7 +159,7 @@ class SUPNMSELoss(Generic[Array]):
             Gradient. Shape: (1, P)
         """
         bkd = self._bkd
-        params_flat = bkd.flatten(params)
+        params_flat = bkd.flatten(sample)
         self._ensure_cached(params_flat)
 
         H = self._cached_H  # (N, K)
@@ -186,7 +197,7 @@ class SUPNMSELoss(Generic[Array]):
 
         return bkd.reshape(grad, (1, -1))
 
-    def hvp(self, params: Array, direction: Array) -> Array:
+    def hvp(self, sample: Array, vec: Array) -> Array:
         """Exact Hessian-vector product of MSE loss.
 
         H*v = (1/K) * [J.T @ (J @ v)  +  second_order_term]
@@ -198,9 +209,9 @@ class SUPNMSELoss(Generic[Array]):
 
         Parameters
         ----------
-        params : Array
+        sample : Array
             SUPN parameters. Shape: (P, 1) or (P,)
-        direction : Array
+        vec : Array
             Direction vector. Shape: (P, 1) or (P,)
 
         Returns
@@ -209,10 +220,10 @@ class SUPNMSELoss(Generic[Array]):
             Hessian-vector product. Shape: (P, 1)
         """
         bkd = self._bkd
-        params_flat = bkd.flatten(params)
+        params_flat = bkd.flatten(sample)
         self._ensure_cached(params_flat)
 
-        v = bkd.flatten(direction)  # (P,)
+        v = bkd.flatten(vec)  # (P,)
         N = self._width
         M = self._nterms
         Q = self._nqoi
@@ -239,10 +250,13 @@ class SUPNMSELoss(Generic[Array]):
         S: Array,
         B: Array,
     ) -> Array:
-        """HVP for nqoi=1. See plan for derivation.
+        """HVP for nqoi=1.
 
         Gauss-Newton term: (1/K) J.T @ (J @ v)
         Second-order term: (1/K) sum_k r_k * d^2f/(dtheta dp) * v
+
+        Fused to 3 dot calls (down from 6) by combining the two
+        (N,K)@(K,M) matmuls and the two (N,K)@(K,) products.
         """
         bkd = self._bkd
         r = self._cached_residual[0, :]  # (K,)
@@ -252,36 +266,42 @@ class SUPNMSELoss(Generic[Array]):
         v_c = v[:N]  # (N,)
         v_A = bkd.reshape(v[P_outer:], (N, M))  # (N, M)
 
-        # W[n,k] = sum_j v_A[n,j] * B[k,j] = (v_A @ B.T)[n,k]
-        W = bkd.dot(v_A, B.T)  # (N, K)
+        # --- dot 1: W = v_A @ B.T  (N,M)@(M,K) → (N,K) ---
+        W = bkd.dot(v_A, B.T)
 
-        # === Gauss-Newton term: J.T @ (J @ v) ===
-        # J @ v = v_c @ H + c @ (S * W)
-        # v_c @ H: (N,) @ (N, K) but we need sum_n v_c[n]*H[n,k]
-        Jv = bkd.dot(v_c, H) + bkd.dot(c, S * W)  # (K,)
-
-        # J.T @ Jv:
-        #   (J.T @ Jv)_{c_n} = sum_k Jv[k] * H[n,k]
-        gn_c = bkd.dot(H, Jv)  # (N,)
-
-        #   (J.T @ Jv)_{a_{n,j}} = sum_k Jv[k] * c[n] * S[n,k] * B[k,j]
-        gn_A = bkd.dot(c[:, None] * S * Jv[None, :], B)  # (N, M)
-
-        # === Second-order term ===
-        # T2_{c_m} = sum_k r_k * S[m,k] * W[m,k]
+        # Shared intermediates (elementwise, cheap)
+        SW = S * W  # (N, K)
         rS = r[None, :] * S  # (N, K)
-        T2_c = bkd.sum(rS * W, axis=1)  # (N,)
 
-        # T2_{a_{m,l}} = sum_k r_k * S[m,k] * B[k,l] * U[m,k]
-        # where U[m,k] = v_c[m] - 2*c[m]*H[m,k]*W[m,k]
-        U = v_c[:, None] - 2.0 * c[:, None] * H * W  # (N, K)
-        T2_A = bkd.dot(rS * U, B)  # (N, M)
+        # --- Jv (uses einsum to avoid 2 separate dot calls) ---
+        # Jv[k] = sum_n v_c[n]*H[n,k] + sum_n c[n]*SW[n,k]
+        Jv = bkd.einsum("n,nk->k", v_c, H) + bkd.einsum(
+            "n,nk->k", c, SW
+        )  # (K,)
 
-        # Combine
-        hvp_c = (gn_c + T2_c) / K
-        hvp_A = (gn_A + T2_A) / K
+        # --- hvp_c: fuse gn_c + T2_c into one product ---
+        # gn_c[n] = sum_k Jv[k]*H[n,k]
+        # T2_c[n] = sum_k r[k]*S[n,k]*W[n,k]
+        # Combined: hvp_c[n] = (1/K) * H[n,:] @ Jv + (1/K) * sum(rS*W)
+        # = (1/K) * sum_k (Jv[k]*H[n,k] + r[k]*S[n,k]*W[n,k])
+        hvp_c_K = bkd.einsum("nk,k->n", H, Jv) + bkd.sum(
+            rS * W, axis=1
+        )  # (N,)
 
-        result = bkd.hstack([hvp_c, bkd.flatten(hvp_A)])
+        # --- dot 2+3 fused: hvp_A from one (N,K)@(K,M) matmul ---
+        # gn_A[n,j] = sum_k c[n]*S[n,k]*Jv[k]*B[k,j]
+        # T2_A[n,j] = sum_k r[k]*S[n,k]*U[n,k]*B[k,j]
+        #   where U[n,k] = v_c[n] - 2*c[n]*H[n,k]*W[n,k]
+        # Combined[n,k] = c[n]*S[n,k]*Jv[k] + r[k]*S[n,k]*U[n,k]
+        #               = S[n,k] * (c[n]*Jv[k] + r[k]*(v_c[n] - 2*c[n]*H[n,k]*W[n,k]))
+        combined = S * (
+            c[:, None] * Jv[None, :]
+            + r[None, :] * (v_c[:, None] - 2.0 * c[:, None] * H * W)
+        )  # (N, K)
+        hvp_A_K = bkd.dot(combined, B)  # (N, M) --- single matmul
+
+        # Scale and pack
+        result = bkd.hstack([hvp_c_K / K, bkd.flatten(hvp_A_K) / K])
         return bkd.reshape(result, (-1, 1))
 
     def _hvp_multi_qoi(
