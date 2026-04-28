@@ -248,7 +248,6 @@ from ._sensitivity import (  # noqa: F401
 )
 from ._supn import (  # noqa: F401
     plot_supn_2d_comparison,
-    plot_supn_convergence,
     plot_supn_fit_1d,
     plot_supn_heatmap,
 )

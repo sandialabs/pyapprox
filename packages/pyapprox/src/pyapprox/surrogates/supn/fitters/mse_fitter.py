@@ -28,6 +28,61 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 
+def supn_paper_rol_parameter_list() -> "pyrol.ParameterList":
+    """Return ROL parameters matching Morrow et al. (2025, Section 4).
+
+    Uses a secant (L-BFGS) preconditioner for the truncated-CG
+    trust-region subproblem and a large initial trust-region radius.
+
+    Returns
+    -------
+    pyrol.ParameterList
+        ROL parameter list ready to pass to ``ROLOptimizer(parameters=...)``.
+
+    Examples
+    --------
+    >>> from pyapprox.surrogates.supn.fitters import (
+    ...     SUPNMSEFitter, supn_paper_rol_parameter_list,
+    ... )
+    >>> from pyapprox.optimization.minimize.rol.rol_optimizer import (
+    ...     ROLOptimizer,
+    ... )
+    >>> params = supn_paper_rol_parameter_list()
+    >>> rol = ROLOptimizer(verbosity=0, parameters=params)
+    >>> fitter = SUPNMSEFitter(bkd)
+    >>> fitter.set_optimizer(
+    ...     ChainedOptimizer(AdamOptimizer(lr=1e-3, maxiter=500), rol)
+    ... )
+    """
+    import pyrol
+
+    params = pyrol.ParameterList()
+
+    params["General"] = pyrol.ParameterList()
+    params["General"]["Output Level"] = 1
+    params["General"]["secant"] = pyrol.ParameterList()
+    params["General"]["secant"]["Use as Preconditioner"] = True
+
+    params["Status Test"] = pyrol.ParameterList()
+    params["Status Test"]["Iteration Limit"] = 500
+    params["Status Test"]["Gradient Tolerance"] = 5e-5
+    params["Status Test"]["Step Tolerance"] = 5e-5
+
+    params["Step"] = pyrol.ParameterList()
+    params["Step"]["Trust Region"] = pyrol.ParameterList()
+    params["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
+    params["Step"]["Trust Region"]["Initial Radius"] = 100.0
+    params["Step"]["Trust Region"]["Radius Growing Threshold"] = 0.5
+    params["Step"]["Trust Region"][
+        "Radius Shrinking Rate (Negative rho)"
+    ] = 0.01
+    params["Step"]["Trust Region"][
+        "Radius Shrinking Rate (Positive rho)"
+    ] = 0.01
+
+    return params
+
+
 class SUPNMSEFitter(Generic[Array]):
     """MSE-based fitter for SUPN surrogates.
 

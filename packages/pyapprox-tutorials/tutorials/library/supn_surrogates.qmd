@@ -115,7 +115,7 @@ The number of basis functions $M$ includes the constant term $T_0 \equiv 1$. For
 ::: {.callout-note}
 ## Sampling rule of thumb
 
-We use Monte Carlo training samples throughout this tutorial. For smooth 1D targets, $K \approx 2P$ is enough to land in a clean training regime. For harder or higher-dimensional targets, we use $K = 5P$. If the loss landscape feels noisy or optimization stalls, increasing the sample ratio or switching to Gauss--Legendre quadrature usually helps.
+For smooth 1D targets, $K \approx 2P$ random uniform training samples is enough to land in a clean training regime. For harder or higher-dimensional targets, low-discrepancy sequences (e.g. Sobol) with $K \approx 4P$ provide better coverage than random sampling at the same budget. If the loss landscape feels noisy or optimization stalls, increasing the sample ratio or improving the sample design usually helps.
 :::
 
 ## A Smooth 1D Target: Runge's Function
@@ -178,55 +178,6 @@ plt.tight_layout()
 plt.show()
 ```
 
-### Convergence Sweep
-
-How does the error change as we increase $N$ and the maximum polynomial degree?
-
-```{python}
-configs = [(2, 2), (2, 4), (2, 6), (2, 8),
-           (4, 2), (4, 4), (4, 6),
-           (8, 2), (8, 4)]
-
-sweep_P, sweep_err = [], []
-
-for N_val, L_val in configs:
-    np.random.seed(0)
-    supn_i = create_supn(nvars=1, width=N_val, max_level=L_val, bkd=bkd)
-    P_i = supn_i.nparams()
-    K_i = 2 * P_i
-
-    x_tr = np.random.uniform(-1, 1, K_i).reshape(1, -1)
-    y_tr = runge(x_tr)
-
-    fitter_i = SUPNMSEFitter(bkd)
-    result_i = fitter_i.fit(supn_i, bkd.asarray(x_tr), bkd.asarray(y_tr))
-    fitted_i = result_i.surrogate()
-
-    y_p = bkd.to_numpy(fitted_i(bkd.asarray(x_test)))
-    err = np.linalg.norm(y_p - y_test) / np.linalg.norm(y_test)
-
-    sweep_P.append(P_i)
-    sweep_err.append(err)
-    print(f"  (N={N_val}, L={L_val})  P={P_i:3d}  rel L2 = {err:.3e}")
-```
-
-```{python}
-#| fig-cap: "Convergence of SUPN approximations to the Runge function as a function of total parameter count P. The error decays rapidly over the range studied here, characteristic of smooth-function approximation."
-#| label: fig-runge-convergence
-
-from pyapprox_tutorials.figures._supn import plot_supn_convergence
-
-fig, ax = plt.subplots(figsize=(6, 4))
-plot_supn_convergence(
-    sweep_P, sweep_err, ax,
-    title="Runge function convergence",
-)
-plt.tight_layout()
-plt.show()
-```
-
-Two observations from the sweep. First, for fixed width $N$, increasing the polynomial degree (larger $M$) is what drives the error down --- this is the SUPN inheriting the approximation power of polynomials. Second, increasing $N$ at fixed $M$ helps less, because $N$ is bounded above in usefulness by the expressivity of the inner polynomial. We will see this trade-off more directly in the 2D heat-map below.
-
 ## A 2D Target: Sum of Rastrigin Functions
 
 Let's move to two dimensions. The 2D Rastrigin sum
@@ -262,34 +213,42 @@ X_np, Y_np = bkd.to_numpy(X), bkd.to_numpy(Y)
 and fit a 2D SUPN.
 
 ```{python}
+from scipy.stats.qmc import Sobol
+
 np.random.seed(3)
 supn2d = create_supn(nvars=2, width=8, max_level=14, bkd=bkd)
 P = supn2d.nparams()
-K = 5 * P
+K = 4096
 
-x_train = np.random.uniform(-1, 1, (2, K))
+sobol_sampler = Sobol(d=2, scramble=True, seed=42)
+x_train = (2.0 * sobol_sampler.random(K) - 1.0).T  # (2, K) on [-1,1]^2
 y_train = rastrigin_sum(x_train)
 
 fitter_2d = SUPNMSEFitter(bkd)
 result_2d = fitter_2d.fit(supn2d, bkd.asarray(x_train), bkd.asarray(y_train))
 fitted_2d = result_2d.surrogate()
 
-z_pred = bkd.to_numpy(
-    fitted_2d(bkd.asarray(samples_grid))
-).reshape(X_np.shape)
-rel_l2 = np.linalg.norm(z_pred - z_true) / np.linalg.norm(z_true)
+np.random.seed(99)
+x_test_2d = np.random.uniform(-1, 1, (2, 5000))
+y_test_2d = rastrigin_sum(x_test_2d)
+y_pred_2d = bkd.to_numpy(fitted_2d(bkd.asarray(x_test_2d)))
+rel_l2 = np.linalg.norm(y_pred_2d - y_test_2d) / np.linalg.norm(y_test_2d)
 
 print(f"Parameters P        : {P}")
-print(f"Training samples K  : {K}")
+print(f"Training samples K  : {K} (Sobol sequence)")
 print(f"Converged           : {result_2d.converged()}")
 print(f"Relative L2 error   : {rel_l2:.4e}")
 ```
 
 ```{python}
-#| fig-cap: "Three-panel comparison on the 2D Rastrigin sum (N=8, L=14, P=968, K=4840). Left: target function; middle: SUPN prediction; right: pointwise absolute error."
+#| fig-cap: "Three-panel comparison on the 2D Rastrigin sum (N=8, L=14, P=968, K=4096 Sobol). Left: target function; middle: SUPN prediction; right: pointwise absolute error."
 #| label: fig-rastrigin-2d
 
 from pyapprox_tutorials.figures._supn import plot_supn_2d_comparison
+
+z_pred = bkd.to_numpy(
+    fitted_2d(bkd.asarray(samples_grid))
+).reshape(X_np.shape)
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4))
 plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig)
@@ -314,9 +273,10 @@ for i, N_val in enumerate(N_values):
             nvars=2, width=N_val, max_level=L_val, bkd=bkd,
         )
         P_ij = supn_ij.nparams()
-        K_ij = 5 * P_ij
+        K_ij = 4 * P_ij
 
-        x_tr = np.random.uniform(-1, 1, (2, K_ij))
+        sobol_ij = Sobol(d=2, scramble=True, seed=i * 100 + j)
+        x_tr = (2.0 * sobol_ij.random(K_ij) - 1.0).T
         y_tr = rastrigin_sum(x_tr)
 
         fitter_ij = SUPNMSEFitter(bkd)
@@ -325,11 +285,9 @@ for i, N_val in enumerate(N_values):
         )
         fitted_ij = result_ij.surrogate()
 
-        z_p = bkd.to_numpy(
-            fitted_ij(bkd.asarray(samples_grid))
-        ).reshape(X_np.shape)
+        y_p = bkd.to_numpy(fitted_ij(bkd.asarray(x_test_2d)))
         err_grid[i, j] = (
-            np.linalg.norm(z_p - z_true) / np.linalg.norm(z_true)
+            np.linalg.norm(y_p - y_test_2d) / np.linalg.norm(y_test_2d)
         )
 ```
 
@@ -352,7 +310,7 @@ The heat-map gives a practical recipe: pick `max_level` large enough to resolve 
 ::: {.callout-tip}
 ## Practical guidance for SUPN training
 
-- Start with $K \approx 5P$ Monte Carlo samples for oscillatory or higher-dimensional targets. For smooth 1D targets, $K \approx 2P$ often suffices.
+- For smooth 1D targets, $K \approx 2P$ random uniform samples often suffices. For harder or higher-dimensional targets, use low-discrepancy sequences (Sobol) with $K \approx 4P$ for better coverage.
 - If the loss plateaus, increase `max_level` before increasing `width`. The polynomial degree governs the expressivity of the inner sum, which is usually the limiting factor.
 - The default fitter chains Adam warm-starting with trust-region Newton--CG. Adam navigates the non-convex landscape to a good basin; the second-order optimizer then converges rapidly. You can customize the optimizer via `fitter.set_optimizer(...)`.
 - Multiple random initializations are cheap insurance for difficult targets --- refit two or three times and keep the best.
@@ -368,7 +326,7 @@ The heat-map gives a practical recipe: pick `max_level` large enough to resolve 
 
 ## Exercises
 
-1. **Width vs degree trade-off.** Re-run the heat-map with $K = 4P$ training samples instead of $2P$. Does the optimal $(N, \texttt{max\_level})$ pair change, or just the absolute error level?
+1. **Width vs degree trade-off.** Re-run the heat-map with $K = 8P$ Sobol training samples instead of $4P$. Does the optimal $(N, \texttt{max\_level})$ pair change, or just the absolute error level?
 2. **Hyperbolic cross.** Pass `pnorm=0.5` to `create_supn` to use a hyperbolic-cross index set instead of total-degree. How does the parameter count change at fixed `max_level`, and how does the error on the 2D Rastrigin sum compare?
 3. **Sample-count sensitivity.** For the Runge example at $(N, L) = (4, 6)$, sweep the training-sample multiplier $K/P \in \{1, 2, 4, 8\}$ and plot the relative $L^2$ error. Where does the error stop improving?
 4. **Custom optimizer.** The default fitter chains `AdamOptimizer` with trust-region Newton--CG. Import `AdamOptimizer` and `ScipyTrustConstrOptimizer`, build a `ChainedOptimizer` with `maxiter=2000` for Adam and `gtol=1e-10` for trust-constr, and pass it to `fitter.set_optimizer(...)`. Does the longer warm-start improve the 2D Rastrigin error?

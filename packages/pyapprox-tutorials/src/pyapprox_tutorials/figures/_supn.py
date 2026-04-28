@@ -34,24 +34,6 @@ def plot_supn_fit_1d(x_np, y_true_np, y_pred_np, ax, title=""):
     apply_style(ax)
 
 
-def plot_supn_convergence(param_counts, errors, ax, title=""):
-    """Log-log scatter of relative L2 error vs parameter count P.
-
-    Parameters
-    ----------
-    param_counts : list[int]
-    errors : list[float]
-    ax : matplotlib Axes
-    title : str
-    """
-    ax.loglog(param_counts, errors, "o-", color=COLORS["primary"],
-              markersize=5, linewidth=1.2)
-    ax.set_xlabel("Number of parameters $P$")
-    ax.set_ylabel("Relative $L^2$ error")
-    if title:
-        ax.set_title(title, fontsize=11)
-    apply_style(ax)
-
 
 def plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig):
     """Three-panel contourf: target | SUPN fit | absolute error.
@@ -64,13 +46,24 @@ def plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig):
     axes : array of 3 matplotlib Axes
     fig : matplotlib Figure (for colorbars)
     """
-    titles = [r"Target $f$", "SUPN fit", "Absolute error"]
-    data = [z_true, z_pred, np.abs(z_true - z_pred)]
-    cmaps = ["RdBu_r", "RdBu_r", "YlOrRd"]
+    import matplotlib.colors as mcolors
 
-    for ax, z, cmap, ttl in zip(axes, data, cmaps, titles):
-        levels = 30
-        cf = ax.contourf(X_np, Y_np, z, levels=levels, cmap=cmap)
+    titles = [r"Target $f$", "SUPN fit", r"$\log_{10}$ absolute error"]
+    abs_err = np.abs(z_true - z_pred)
+    abs_err_clipped = np.clip(abs_err, 1e-16, None)
+
+    for idx, (ax, ttl) in enumerate(zip(axes, titles)):
+        if idx < 2:
+            z = [z_true, z_pred][idx]
+            cf = ax.contourf(X_np, Y_np, z, levels=30, cmap="RdBu_r")
+        else:
+            cf = ax.contourf(
+                X_np, Y_np, abs_err_clipped, levels=30,
+                cmap="YlOrRd",
+                norm=mcolors.LogNorm(
+                    vmin=abs_err_clipped.min(), vmax=abs_err_clipped.max(),
+                ),
+            )
         fig.colorbar(cf, ax=ax, shrink=0.85)
         ax.set_title(ttl, fontsize=11)
         ax.set_xlabel("$x_1$")
