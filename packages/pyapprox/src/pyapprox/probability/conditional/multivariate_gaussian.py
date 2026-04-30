@@ -126,8 +126,8 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             self._log_chol_diag_func,
             self._chol_offdiag_func,
         ]:
-            if func is not None and hasattr(func, "_sync_from_hyp_list"):
-                func._sync_from_hyp_list()
+            if func is not None and hasattr(func, "sync_params"):
+                func.sync_params()
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -467,8 +467,8 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             self._log_diag_func,
             self._factor_func,
         ]:
-            if func is not None and hasattr(func, "_sync_from_hyp_list"):
-                func._sync_from_hyp_list()
+            if func is not None and hasattr(func, "sync_params"):
+                func.sync_params()
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

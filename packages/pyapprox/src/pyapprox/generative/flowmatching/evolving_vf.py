@@ -497,7 +497,7 @@ class StieltjesFlowVF(Generic[Array]):
             )
         return self._hyp_list
 
-    def _sync_from_hyp_list(self) -> None:
+    def sync_params(self) -> None:
         """Sync coefficients from hyp_list values."""
         if self._hyp_list is not None:
             values = self._hyp_list.get_values()

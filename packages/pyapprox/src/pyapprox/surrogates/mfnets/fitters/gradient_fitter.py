@@ -105,7 +105,7 @@ class MFNetGradientFitter(Generic[Array]):
         if optimal.ndim == 2:
             optimal = optimal[:, 0]
         network.hyp_list().set_active_values(optimal)
-        network._sync_from_hyp_list()
+        network.sync_params()
 
         # Compute final loss
         final_loss = float(bkd.to_numpy(loss(optimal)[0, 0]))

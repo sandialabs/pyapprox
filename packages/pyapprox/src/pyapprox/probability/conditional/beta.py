@@ -153,10 +153,10 @@ class ConditionalBeta(Generic[Array]):
 
     def _sync_param_funcs(self) -> None:
         """Sync parameter functions from hyp_list values."""
-        if hasattr(self._log_alpha_func, "_sync_from_hyp_list"):
-            self._log_alpha_func._sync_from_hyp_list()
-        if hasattr(self._log_beta_func, "_sync_from_hyp_list"):
-            self._log_beta_func._sync_from_hyp_list()
+        if hasattr(self._log_alpha_func, "sync_params"):
+            self._log_alpha_func.sync_params()
+        if hasattr(self._log_beta_func, "sync_params"):
+            self._log_beta_func.sync_params()
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

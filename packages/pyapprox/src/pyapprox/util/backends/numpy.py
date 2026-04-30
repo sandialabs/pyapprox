@@ -310,6 +310,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.exp(array))
 
     @staticmethod
+    def expm1(array: NDArray[Any]) -> NDArray[Any]:
+        return np.asarray(np.expm1(array))
+
+    @staticmethod
     def copy(array: NDArray[Any]) -> NDArray[Any]:
         return array.copy()
 
@@ -324,6 +328,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def ndtr(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], scipy.special.ndtr(array))
+
+    @staticmethod
+    def log_ndtr(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], scipy.special.log_ndtr(array))
 
     @staticmethod
     def isfinite(array: NDArray[Any]) -> NDArray[Any]:
@@ -431,6 +439,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
         return np.asarray(np.max(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def logsumexp(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return cast(
+            NDArray[Any],
+            scipy.special.logsumexp(array, axis=axis, keepdims=keepdims),
+        )
 
     @staticmethod
     def einsum(subscripts: str, *operands: NDArray[Any]) -> NDArray[Any]:

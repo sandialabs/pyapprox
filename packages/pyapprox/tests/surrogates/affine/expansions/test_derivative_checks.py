@@ -792,13 +792,13 @@ class TestJacobianWrtParams:
         def fun(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             return pce(samples).T  # (nsamples, nqoi)
 
         def jacobian_func(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             # jacobian_wrt_params returns (nsamples, nqoi, nactive_params)
             jac = pce.jacobian_wrt_params(samples)
             # Sum over samples to get (nqoi, nactive_params)
@@ -838,12 +838,12 @@ class TestJacobianWrtParams:
 
         def fun(params):
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             return pce(samples).T  # (nsamples, nqoi)
 
         def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
             return jac[0, :, :]  # (nqoi, nactive_params) for single sample
 
@@ -881,14 +881,14 @@ class TestJacobianWrtParams:
 
         def fun(params):
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             # pce(samples) returns (nqoi, nsamples)
             # For FunctionFromCallable we need (nqoi, 1) output
             return pce(samples)  # (nqoi, nsamples=1)
 
         def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             jac = pce.jacobian_wrt_params(samples)  # (1, nqoi, nactive_params)
             return jac[0, :, :]  # (nqoi, nactive_params)
 
@@ -938,12 +938,12 @@ class TestJacobianWrtParams:
         def fun(params):
             # params shape: (nactive_params, 1)
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             return pce(samples).T  # (nsamples, nqoi)
 
         def jacobian_func(params):
             pce.hyp_list().set_active_values(params[:, 0])
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
             return jac[0, :, :]  # (nqoi, nactive_params) for single sample
 
@@ -1002,7 +1002,7 @@ class TestJacobianWrtParamsAutograd:
         def output_from_params(params: torch.Tensor) -> torch.Tensor:
             # params shape: (nactive_params,)
             pce.hyp_list().set_active_values(params)
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             return pce(samples).flatten()  # (nsamples * nqoi,)
 
         params = pce.hyp_list().get_active_values()
@@ -1036,7 +1036,7 @@ class TestJacobianWrtParamsAutograd:
         def output_from_params(params: torch.Tensor) -> torch.Tensor:
             # params shape: (nactive_params,)
             pce.hyp_list().set_active_values(params)
-            pce._sync_from_hyp_list()
+            pce.sync_params()
             # PCE output is (nqoi, nsamples), need to flatten properly
             # Order should match analytical: sample-major, then qoi
             return pce(samples).T.flatten()  # (nsamples, nqoi) flattened

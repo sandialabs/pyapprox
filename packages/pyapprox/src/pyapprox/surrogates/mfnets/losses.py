@@ -73,7 +73,7 @@ class MFNetNegLogLikelihoodLoss(Generic[Array]):
 
         # Update network parameters
         self._network.hyp_list().set_active_values(p)
-        self._network._sync_from_hyp_list()
+        self._network.sync_params()
 
         total_nll = bkd.asarray([0.0])
 

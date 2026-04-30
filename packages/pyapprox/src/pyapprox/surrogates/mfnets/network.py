@@ -278,7 +278,7 @@ class MFNet(Generic[Array]):
         if not self._validated:
             raise RuntimeError("MFNet has not been validated. Call validate() first.")
 
-    def _sync_from_hyp_list(self) -> None:
+    def sync_params(self) -> None:
         """Sync all node models from the aggregated hyp_list.
 
         Called after the optimizer updates hyp_list values to propagate
@@ -294,5 +294,5 @@ class MFNet(Generic[Array]):
         for node_id in self._topo_order:
             node = self._graph.nodes[node_id]["node"]
             model = node.model()
-            if hasattr(model, "_sync_from_hyp_list"):
-                model._sync_from_hyp_list()
+            if hasattr(model, "sync_params"):
+                model.sync_params()

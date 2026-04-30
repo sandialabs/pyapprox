@@ -238,7 +238,7 @@ class FlowMatchingObjective(Generic[Array]):
             params = params[:, 0]
 
         self._vf.hyp_list().set_active_values(params)
-        self._vf._sync_from_hyp_list()
+        self._vf.sync_params()
 
         v_t = self._vf(self._vf_input)  # type: ignore[operator]
         diff = v_t - self._u_t
@@ -269,7 +269,7 @@ class FlowMatchingObjective(Generic[Array]):
             params = params[:, 0]
 
         self._vf.hyp_list().set_active_values(params)
-        self._vf._sync_from_hyp_list()
+        self._vf.sync_params()
 
         # Phi: (n_quad, nterms), coef: (nterms, d), U: (d, n_quad)
         Phi = self._vf.basis_matrix(self._vf_input)

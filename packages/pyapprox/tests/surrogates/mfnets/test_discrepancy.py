@@ -124,7 +124,7 @@ class TestMultiplicativeAdditiveDiscrepancy:
             """Weighted sum of disc output over QoI, stacked over samples."""
             p = bkd.flatten(params)
             disc.hyp_list().set_active_values(p)
-            disc._sync_from_hyp_list()
+            disc.sync_params()
             vals = disc(fixed_samples)  # (nqoi, nsamples)
             # Weighted sum over QoI: (1, nsamples)
             weighted = weights.T @ vals  # (1, nsamples)
@@ -134,7 +134,7 @@ class TestMultiplicativeAdditiveDiscrepancy:
             """Jacobian of weighted sum w.r.t. params."""
             p = bkd.flatten(params)
             disc.hyp_list().set_active_values(p)
-            disc._sync_from_hyp_list()
+            disc.sync_params()
             j = disc.jacobian_wrt_params(fixed_samples)  # (nsamples, nqoi, nactive)
             # Weighted sum over QoI: (nsamples, nactive)
             wj = bkd.einsum("snp,n->sp", j, bkd.flatten(weights))
@@ -174,7 +174,7 @@ class TestMultiplicativeAdditiveDiscrepancy:
         def eval_fn(params):
             p = bkd.flatten(params)
             disc.hyp_list().set_active_values(p)
-            disc._sync_from_hyp_list()
+            disc.sync_params()
             vals = disc(fixed_samples)  # (nqoi, nsamples)
             weighted = weights.T @ vals  # (1, nsamples)
             return weighted.T  # (nsamples, 1)
@@ -182,7 +182,7 @@ class TestMultiplicativeAdditiveDiscrepancy:
         def jac_fn(params):
             p = bkd.flatten(params)
             disc.hyp_list().set_active_values(p)
-            disc._sync_from_hyp_list()
+            disc.sync_params()
             j = disc.jacobian_wrt_params(fixed_samples)  # (nsamples, nqoi, nactive)
             wj = bkd.einsum("snp,n->sp", j, bkd.flatten(weights))
             return wj  # (nsamples, nactive)

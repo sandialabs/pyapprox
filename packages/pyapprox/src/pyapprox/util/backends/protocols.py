@@ -459,6 +459,11 @@ class Backend(Protocol, Generic[Array]):
     def exp(array: Array) -> Array: ...
 
     @staticmethod
+    def expm1(array: Array) -> Array:
+        """exp(x) - 1, accurate for small x."""
+        ...
+
+    @staticmethod
     def copy(array: Array) -> Array: ...
 
     @staticmethod
@@ -470,6 +475,11 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def ndtr(array: Array) -> Array:
         """Standard normal CDF (Phi). Equivalent to scipy.special.ndtr."""
+        ...
+
+    @staticmethod
+    def log_ndtr(array: Array) -> Array:
+        """Log of standard normal CDF. Equivalent to scipy.special.log_ndtr."""
         ...
 
     @staticmethod
@@ -566,6 +576,13 @@ class Backend(Protocol, Generic[Array]):
     def max(
         array: Array, axis: Optional[int] = None, keepdims: bool = False
     ) -> Array: ...
+
+    @staticmethod
+    def logsumexp(
+        array: Array, axis: Optional[int] = None, keepdims: bool = False
+    ) -> Array:
+        """Log of sum of exponentials. Numerically stable."""
+        ...
 
     @staticmethod
     def einsum(subscripts: str, *operands: Array) -> Array: ...

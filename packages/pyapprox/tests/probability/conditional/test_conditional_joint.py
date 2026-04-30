@@ -223,15 +223,15 @@ class TestConditionalIndependentJoint:
             joint.hyp_list().set_active_values(params[:, 0])
             # Sync all nested funcs
             for cond in joint._conditionals:
-                cond._mean_func._sync_from_hyp_list()
-                cond._log_stdev_func._sync_from_hyp_list()
+                cond._mean_func.sync_params()
+                cond._log_stdev_func.sync_params()
             return joint.logpdf(x, y).T  # (1, 1)
 
         def jacobian_func(params):
             joint.hyp_list().set_active_values(params[:, 0])
             for cond in joint._conditionals:
-                cond._mean_func._sync_from_hyp_list()
-                cond._log_stdev_func._sync_from_hyp_list()
+                cond._mean_func.sync_params()
+                cond._log_stdev_func.sync_params()
             jac = joint.logpdf_jacobian_wrt_params(x, y)  # (1, nactive)
             return jac  # (nqoi=1, nactive)
 
@@ -367,8 +367,8 @@ class TestConditionalIndependentJoint:
             def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
                 joint.hyp_list().set_active_values(params)
                 for cond in joint._conditionals:
-                    cond._mean_func._sync_from_hyp_list()
-                    cond._log_stdev_func._sync_from_hyp_list()
+                    cond._mean_func.sync_params()
+                    cond._log_stdev_func.sync_params()
                 return joint.logpdf(x, y).flatten()
 
             params = joint.hyp_list().get_active_values()

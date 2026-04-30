@@ -117,15 +117,15 @@ class ConditionalGaussian(Generic[Array]):
     def _sync_param_funcs(self) -> None:
         """Sync parameter functions from hyp_list values.
 
-        BasisExpansion.__call__ does not call _sync_from_hyp_list, so if
+        BasisExpansion.__call__ does not call sync_params, so if
         hyp_list values have been updated (e.g., by an optimizer), the
         coefficients used by __call__ may be stale.  This method ensures
         consistency before every evaluation.
         """
-        if hasattr(self._mean_func, "_sync_from_hyp_list"):
-            self._mean_func._sync_from_hyp_list()
-        if hasattr(self._log_stdev_func, "_sync_from_hyp_list"):
-            self._log_stdev_func._sync_from_hyp_list()
+        if hasattr(self._mean_func, "sync_params"):
+            self._mean_func.sync_params()
+        if hasattr(self._log_stdev_func, "sync_params"):
+            self._log_stdev_func.sync_params()
 
     def _get_hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""

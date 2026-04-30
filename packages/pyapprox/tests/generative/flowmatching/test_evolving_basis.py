@@ -200,7 +200,7 @@ class TestStieltjesFlowVF:
         hl = vf.hyp_list()
         vals = bkd.ones((nterms,)) * 2.0
         hl.set_values(vals)
-        vf._sync_from_hyp_list()
+        vf.sync_params()
         expected = bkd.reshape(vals, (nterms, 1))
         bkd.assert_allclose(vf.get_coefficients(), expected)
 

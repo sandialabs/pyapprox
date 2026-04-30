@@ -375,6 +375,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.exp(array)
 
     @staticmethod
+    def expm1(array: torch.Tensor) -> torch.Tensor:
+        return torch.expm1(array)
+
+    @staticmethod
     def copy(array: torch.Tensor) -> torch.Tensor:
         return array.clone()
 
@@ -389,6 +393,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def ndtr(array: torch.Tensor) -> torch.Tensor:
         return torch.special.ndtr(array)
+
+    @staticmethod
+    def log_ndtr(array: torch.Tensor) -> torch.Tensor:
+        return torch.special.log_ndtr(array)
 
     @staticmethod
     def gammaln(array: torch.Tensor) -> torch.Tensor:
@@ -532,6 +540,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             return torch.max(array)
         values, _ = torch.max(array, dim=axis, keepdim=keepdims)
         return values
+
+    @staticmethod
+    def logsumexp(
+        array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.logsumexp(array.reshape(-1), dim=0)
+        return torch.logsumexp(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
     def einsum(subscripts: str, *operands: torch.Tensor) -> torch.Tensor:

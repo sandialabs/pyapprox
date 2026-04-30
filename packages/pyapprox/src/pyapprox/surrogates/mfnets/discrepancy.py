@@ -144,13 +144,13 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
 
         return values
 
-    def _sync_from_hyp_list(self) -> None:
+    def sync_params(self) -> None:
         """Propagate hyp_list values to sub-models."""
         for sm in self._scalings:
-            if hasattr(sm, "_sync_from_hyp_list"):
-                sm._sync_from_hyp_list()
-        if hasattr(self._delta, "_sync_from_hyp_list"):
-            self._delta._sync_from_hyp_list()
+            if hasattr(sm, "sync_params"):
+                sm.sync_params()
+        if hasattr(self._delta, "sync_params"):
+            self._delta.sync_params()
 
     def _jacobian_wrt_params(self, samples: Array) -> Array:
         """Jacobian of output w.r.t. active parameters.

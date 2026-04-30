@@ -208,14 +208,14 @@ class TestConditionalBeta:
         def fun(params):
             cond.hyp_list().set_active_values(params[:, 0])
             # Sync both funcs from hyp_list
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
+            cond._log_alpha_func.sync_params()
+            cond._log_beta_func.sync_params()
             return cond.logpdf(x, y).T  # (1, 1)
 
         def jacobian_func(params):
             cond.hyp_list().set_active_values(params[:, 0])
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
+            cond._log_alpha_func.sync_params()
+            cond._log_beta_func.sync_params()
             jac = cond.logpdf_jacobian_wrt_params(x, y)  # (1, nactive)
             return jac  # (nqoi=1, nactive)
 
@@ -347,8 +347,8 @@ class TestConditionalBeta:
             # Get autograd jacobian
             def logpdf_from_params(params: torch.Tensor) -> torch.Tensor:
                 cond.hyp_list().set_active_values(params)
-                cond._log_alpha_func._sync_from_hyp_list()
-                cond._log_beta_func._sync_from_hyp_list()
+                cond._log_alpha_func.sync_params()
+                cond._log_beta_func.sync_params()
                 return cond.logpdf(x, y).flatten()
 
             params = cond.hyp_list().get_active_values()
@@ -372,8 +372,8 @@ class TestConditionalBeta:
 
             def reparam_from_params(params: torch.Tensor) -> torch.Tensor:
                 cond.hyp_list().set_active_values(params)
-                cond._log_alpha_func._sync_from_hyp_list()
-                cond._log_beta_func._sync_from_hyp_list()
+                cond._log_alpha_func.sync_params()
+                cond._log_beta_func.sync_params()
                 return cond.reparameterize(x, base).flatten()
 
             params = cond.hyp_list().get_active_values()
@@ -542,14 +542,14 @@ class TestConditionalBetaBounded:
 
         def fun(params):
             cond.hyp_list().set_active_values(params[:, 0])
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
+            cond._log_alpha_func.sync_params()
+            cond._log_beta_func.sync_params()
             return cond.logpdf(x, y).T
 
         def jacobian_func(params):
             cond.hyp_list().set_active_values(params[:, 0])
-            cond._log_alpha_func._sync_from_hyp_list()
-            cond._log_beta_func._sync_from_hyp_list()
+            cond._log_alpha_func.sync_params()
+            cond._log_beta_func.sync_params()
             jac = cond.logpdf_jacobian_wrt_params(x, y)
             return jac
 

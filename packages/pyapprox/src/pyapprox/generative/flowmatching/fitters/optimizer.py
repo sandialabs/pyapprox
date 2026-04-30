@@ -111,7 +111,7 @@ class OptimizerFitter(Generic[Array]):
         if len(optimal_params.shape) == 2:
             optimal_params = optimal_params[:, 0]
         fitted_vf.hyp_list().set_active_values(optimal_params)
-        fitted_vf._sync_from_hyp_list()
+        fitted_vf.sync_params()
 
         # Compute final loss
         qd = quad_data
