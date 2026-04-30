@@ -5,18 +5,19 @@ the linearity of the BasisExpansion vector field.
 """
 
 import copy
-from typing import Generic
+from typing import Generic, Optional
 
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.results import (
     FlowMatchingFitResult,
 )
 from pyapprox.generative.flowmatching.protocols import (
     ProbabilityPathProtocol,
+    TimeWeightProtocol,
 )
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.generative.flowmatching.time_weight import UniformWeight
 from pyapprox.optimization.linear import LeastSquaresSolver
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -47,8 +48,8 @@ class LeastSquaresFitter(Generic[Array]):
         self,
         vf: object,
         path: ProbabilityPathProtocol[Array],
-        loss: CFMLoss[Array],
         quad_data: FlowMatchingQuadData[Array],
+        time_weight: Optional[TimeWeightProtocol[Array]] = None,
     ) -> FlowMatchingFitResult[Array]:
         """Fit a vector field via weighted least squares.
 
@@ -58,10 +59,10 @@ class LeastSquaresFitter(Generic[Array]):
             Vector field to fit. Deep-cloned internally.
         path : ProbabilityPathProtocol[Array]
             Probability path defining interpolation.
-        loss : CFMLoss[Array]
-            CFM loss function (used for its time weight).
         quad_data : FlowMatchingQuadData[Array]
             Pre-assembled quadrature data.
+        time_weight : TimeWeightProtocol[Array], optional
+            Time-dependent weight. Defaults to uniform.
 
         Returns
         -------
@@ -71,36 +72,38 @@ class LeastSquaresFitter(Generic[Array]):
         bkd = self._bkd
         fitted_vf = copy.deepcopy(vf)
 
+        tw = time_weight if time_weight is not None else UniformWeight(bkd)
+
         qd = quad_data
         t = qd.t()
         x0 = qd.x0()
         x1 = qd.x1()
 
-        # Compute interpolated state and target field
         x_t = path.interpolate(t, x0, x1)
         u_t = path.target_field(t, x0, x1)
 
-        # Build VF input
         if qd.c() is not None:
             vf_input = bkd.vstack([t, x_t, qd.c()])
         else:
             vf_input = bkd.vstack([t, x_t])
 
-        # Combine weights: quadrature weights * time weight
-        w_t = loss.weight()(t)  # (1, n_quad)
+        w_t = tw(t)  # (1, n_quad)
         combined_w = qd.weights() * w_t[0, :]
         assert combined_w.shape == (qd.n_quad(),), (
-            f"Expected combined weights shape ({qd.n_quad()},), got {combined_w.shape}"
+            f"Expected combined weights shape ({qd.n_quad()},), "
+            f"got {combined_w.shape}"
         )
 
-        # Solve via BasisExpansion.fit() with weighted solver
         solver = LeastSquaresSolver(bkd)
         solver.set_weights(combined_w)
         fitted_vf.fit(vf_input, u_t, solver=solver)
 
-        # Compute final loss
-        final_loss_val = loss(fitted_vf, path, t, x0, x1, qd.weights(), qd.c())
-        final_loss = bkd.to_float(final_loss_val)
+        v_t = fitted_vf(vf_input)
+        diff = v_t - u_t
+        pointwise = bkd.sum(diff * diff, axis=0)
+        final_loss = bkd.to_float(
+            bkd.sum(qd.weights() * w_t[0, :] * pointwise)
+        )
 
         return FlowMatchingFitResult(
             surrogate=fitted_vf,

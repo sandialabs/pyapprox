@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pyapprox.generative.flowmatching.quad_data import (
         FlowMatchingQuadData,
     )
+    from pyapprox.util.hyperparameter import HyperParameterList
 
 
 @runtime_checkable
@@ -95,47 +96,32 @@ class TimeWeightProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class CFMLossProtocol(Protocol, Generic[Array]):
-    """Protocol for the conditional flow matching loss."""
+class ParameterizedVFProtocol(Protocol, Generic[Array]):
+    """Protocol for vector fields with optimizable parameters."""
 
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
+    def __call__(self, vf_input: Array) -> Array: ...
 
-    def integrand(
-        self,
-        vf: object,
-        path: ProbabilityPathProtocol[Array],
-        t: Array,
-        x0: Array,
-        x1: Array,
-        c: Optional[Array] = None,
-    ) -> Array:
-        """Pointwise loss integrand.
+    def hyp_list(self) -> "HyperParameterList[Array]": ...
 
-        Returns
-        -------
-        Array
-            Per-sample loss values, shape ``(ns,)``.
-        """
-        ...
+    def sync_params(self) -> None: ...
 
-    def __call__(
-        self,
-        vf: object,
-        path: ProbabilityPathProtocol[Array],
-        t: Array,
-        x0: Array,
-        x1: Array,
-        weights: Array,
-        c: Optional[Array] = None,
-    ) -> Array:
-        """Weighted loss (quadrature approximation to the integral).
+
+@runtime_checkable
+class DifferentiableVFProtocol(ParameterizedVFProtocol[Array], Protocol):
+    """Parameterized VF that also provides analytical parameter jacobians."""
+
+    def jacobian_wrt_params(self, vf_input: Array) -> Array:
+        """Jacobian of output w.r.t. active parameters.
+
+        Parameters
+        ----------
+        vf_input : Array
+            Shape ``(nvars_in, ns)``.
 
         Returns
         -------
         Array
-            Scalar loss value.
+            Shape ``(ns, nqoi, nactive)``.
         """
         ...
 
@@ -152,8 +138,8 @@ class FlowMatchingFitterProtocol(Protocol, Generic[Array]):
         self,
         vf: object,
         path: ProbabilityPathProtocol[Array],
-        loss: CFMLossProtocol[Array],
         quad_data: FlowMatchingQuadData[Array],
+        time_weight: Optional[TimeWeightProtocol[Array]] = None,
     ) -> object:
         """Fit a vector field to minimize the CFM loss.
 
@@ -163,10 +149,10 @@ class FlowMatchingFitterProtocol(Protocol, Generic[Array]):
             Vector field (e.g. BasisExpansion) to fit. Deep-cloned internally.
         path : ProbabilityPathProtocol[Array]
             Probability path defining interpolation.
-        loss : CFMLossProtocol[Array]
-            CFM loss function.
         quad_data : FlowMatchingQuadData[Array]
             Pre-assembled quadrature data.
+        time_weight : TimeWeightProtocol[Array], optional
+            Time-dependent weight. Defaults to uniform.
 
         Returns
         -------

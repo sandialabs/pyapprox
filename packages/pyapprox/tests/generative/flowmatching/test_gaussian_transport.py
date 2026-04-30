@@ -41,7 +41,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -74,12 +73,12 @@ def _gaussian_params(d):
 
 
 def _build_transport_setup(bkd, d, degree, n_per_dim=6):
-    """Build VF, path, loss, quad_data for N(0,I) -> N(mu, Sigma).
+    """Build VF, path, quad_data for N(0,I) -> N(mu, Sigma).
 
     Uses paired coupling x1 = L @ x0 + mu with Gauss quadrature
     over (t, x0).
 
-    Returns vf, path, loss, quad_data, mu, L.
+    Returns vf, path, quad_data, mu, L.
     """
     mu_np, L_np = _gaussian_params(d)
     mu = bkd.array(mu_np.tolist())
@@ -103,7 +102,6 @@ def _build_transport_setup(bkd, d, degree, n_per_dim=6):
     x1_all = L @ z0_all + mu
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all,
         x0=z0_all,
@@ -111,7 +109,7 @@ def _build_transport_setup(bkd, d, degree, n_per_dim=6):
         weights=quad_wts,
         bkd=bkd,
     )
-    return vf, path, loss, quad_data, mu, L
+    return vf, path, quad_data, mu, L
 
 
 class TestGaussianTransport:
@@ -122,8 +120,8 @@ class TestGaussianTransport:
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
-            vf, path, loss, qd, _, _ = _build_transport_setup(bkd, d, deg)
-            result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+            vf, path, qd, _, _ = _build_transport_setup(bkd, d, deg)
+            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
@@ -138,16 +136,16 @@ class TestGaussianTransport:
     def test_fitters_agree(self, bkd, d: int) -> None:
         """Both fitters achieve similar loss at each degree."""
         for deg in [2, 4]:
-            vf, path, loss, qd, _, _ = _build_transport_setup(bkd, d, deg)
-            lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).training_loss()
-            opt_loss = OptimizerFitter(bkd).fit(vf, path, loss, qd).training_loss()
+            vf, path, qd, _, _ = _build_transport_setup(bkd, d, deg)
+            lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, qd).training_loss()
+            opt_loss = OptimizerFitter(bkd).fit(vf, path, qd).training_loss()
             assert opt_loss < max(lstsq_loss * 100, 1e-4)
 
     @pytest.mark.parametrize("d", [1, 2])
     def test_target_moments(self, bkd, d: int) -> None:
         """ODE-integrated samples match target mean and cov."""
-        vf, path, loss, qd, mu, L = _build_transport_setup(bkd, d, degree=4)
-        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).surrogate()
+        vf, path, qd, mu, L = _build_transport_setup(bkd, d, degree=4)
+        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, qd).surrogate()
 
         np.random.seed(123)
         nsamples = 5000
@@ -296,8 +294,7 @@ class TestIndependentQuadrature:
         """Fit a VF using LeastSquaresFitter with given quad data."""
         vf = _make_vf_for_independent(bkd, d, degree)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, quad_data)
+        result = LeastSquaresFitter(bkd).fit(vf, path, quad_data)
         return result
 
     @pytest.mark.parametrize("d", [1])

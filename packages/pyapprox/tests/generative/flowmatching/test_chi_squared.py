@@ -20,7 +20,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -40,7 +39,7 @@ def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
     Paired coupling: x0 ~ N(0,1), x1 = x0^2.
     Quadrature over (t, x0) with Gauss rules.
 
-    Returns vf, path, loss, quad_data.
+    Returns vf, path, quad_data.
     """
     d = 1
 
@@ -64,7 +63,6 @@ def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
     x1_all = z0_all * z0_all  # chi^2(1): x1 = x0^2
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all,
         x0=z0_all,
@@ -73,7 +71,7 @@ def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
         bkd=bkd,
     )
 
-    return vf, path, loss, quad_data
+    return vf, path, quad_data
 
 
 class TestChiSquared:
@@ -82,8 +80,8 @@ class TestChiSquared:
         degrees = [2, 3, 4, 5, 6]
         losses = []
         for deg in degrees:
-            vf, path, loss, qd = _build_chi_squared_setup(bkd, deg)
-            result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+            vf, path, qd = _build_chi_squared_setup(bkd, deg)
+            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
@@ -97,8 +95,8 @@ class TestChiSquared:
     def test_chi_squared_moments(self, bkd) -> None:
         """ODE-integrated samples should match chi^2(1) moments."""
         deg = 4
-        vf, path, loss, qd = _build_chi_squared_setup(bkd, deg)
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        vf, path, qd = _build_chi_squared_setup(bkd, deg)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         np.random.seed(789)

@@ -19,7 +19,6 @@ from pyapprox.generative.flowmatching.basis_interp import (
     RecurrenceInterpolator,
 )
 from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.evolving_vf import (
     KroneckerStrategy,
     PerSliceStrategy,
@@ -151,21 +150,20 @@ def _build_evolving_gaussian_setup(bkd, mu_target, sigma_target, nterms,
     x1_all = sigma_target * x0_all + mu_target
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all, x0=x0_all, x1=x1_all, weights=quad_wts, bkd=bkd,
     )
 
     vf = build_stieltjes_flow_vf(quad_data, path, nterms, bkd,
                                  n_legendre=n_legendre)
-    return vf, path, loss, quad_data
+    return vf, path, quad_data
 
 
 class TestStieltjesFlowVF:
     def test_basis_matrix_shape(self, bkd) -> None:
         """Basis matrix has correct shape."""
         nterms = 4
-        vf, _, _, qd = _build_evolving_gaussian_setup(
+        vf, _, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8,
         )
         phi = vf.basis_matrix(bkd.vstack([qd.t(), qd.x0()]))
@@ -174,7 +172,7 @@ class TestStieltjesFlowVF:
     def test_nterms_and_nvars(self, bkd) -> None:
         """Check dimension queries."""
         nterms = 5
-        vf, _, _, _ = _build_evolving_gaussian_setup(
+        vf, _, _ = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8,
         )
         assert vf.nterms() == nterms
@@ -184,7 +182,7 @@ class TestStieltjesFlowVF:
     def test_coefficients_roundtrip(self, bkd) -> None:
         """get/set coefficients roundtrip."""
         nterms = 3
-        vf, _, _, _ = _build_evolving_gaussian_setup(
+        vf, _, _ = _build_evolving_gaussian_setup(
             bkd, 0.0, 1.0, nterms, n_t=4, n_x=8,
         )
         coef = bkd.ones((nterms, 1))
@@ -194,7 +192,7 @@ class TestStieltjesFlowVF:
     def test_hyp_list_sync(self, bkd) -> None:
         """HyperParameterList syncs with coefficients."""
         nterms = 3
-        vf, _, _, _ = _build_evolving_gaussian_setup(
+        vf, _, _ = _build_evolving_gaussian_setup(
             bkd, 0.0, 1.0, nterms, n_t=4, n_x=8,
         )
         hl = vf.hyp_list()
@@ -207,7 +205,7 @@ class TestStieltjesFlowVF:
     def test_jacobian_batch_shape(self, bkd) -> None:
         """Jacobian batch has correct shape."""
         nterms = 4
-        vf, path, _, qd = _build_evolving_gaussian_setup(
+        vf, path, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8,
         )
         # Fit so coefficients are non-trivial
@@ -225,10 +223,10 @@ class TestGaussianTransportEvolving:
     def test_training_loss_near_zero(self, bkd) -> None:
         """Gaussian VF is affine in x_t, so loss should be near zero."""
         nterms = 4
-        vf, path, loss, qd = _build_evolving_gaussian_setup(
+        vf, path, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         assert result.training_loss() < 1e-8, (
             f"Expected loss < 1e-8, got {result.training_loss():.2e}"
         )
@@ -238,10 +236,10 @@ class TestGaussianTransportEvolving:
         """ODE-integrated samples match target N(2, 0.5^2)."""
         mu_target, sigma_target = 2.0, 0.5
         nterms = 4
-        vf, path, loss, qd = _build_evolving_gaussian_setup(
+        vf, path, qd = _build_evolving_gaussian_setup(
             bkd, mu_target, sigma_target, nterms, n_t=10, n_x=20,
         )
-        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).surrogate()
+        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, qd).surrogate()
 
         np.random.seed(456)
         nsamples = 3000
@@ -294,7 +292,7 @@ class TestLegendreTimeExpansion:
     def test_n_legendre_1_matches_shared_coefs(self, bkd) -> None:
         """n_legendre=1 produces same basis matrix as original shared-coef."""
         nterms = 4
-        vf1, _, _, qd = _build_evolving_gaussian_setup(
+        vf1, _, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8, n_legendre=1,
         )
         path = LinearPath(bkd)
@@ -308,7 +306,7 @@ class TestLegendreTimeExpansion:
         # matrix should equal what we'd get from just phi_n(x).
         # Build a second VF with n_legendre=3 and check its first
         # n_basis columns match (they correspond to psi_0 = const).
-        vf3, _, _, _ = _build_evolving_gaussian_setup(
+        vf3, _, _ = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8, n_legendre=3,
         )
         phi3 = vf3.basis_matrix(vf_input)
@@ -330,10 +328,10 @@ class TestLegendreTimeExpansion:
     def test_time_dependent_coefs_gaussian(self, bkd, n_leg: int) -> None:
         """Gaussian transport: both n_legendre=1 and =4 achieve loss < 1e-8."""
         nterms = 4
-        vf, path, loss, qd = _build_evolving_gaussian_setup(
+        vf, path, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15, n_legendre=n_leg,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         assert result.training_loss() < 1e-8, (
             f"n_legendre={n_leg}: loss {result.training_loss():.2e} >= 1e-8"
         )
@@ -347,7 +345,6 @@ class TestLegendreTimeExpansion:
 
         pair = get_bimodal_gmm_pair(bkd)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
 
         nterms, n_t, n_x = 15, 12, 30
         quad_marginals = [UniformMarginal(0.0, 1.0, bkd),
@@ -369,7 +366,7 @@ class TestLegendreTimeExpansion:
             vf = build_stieltjes_flow_vf(
                 qd, path, nterms, bkd, n_legendre=n_leg,
             )
-            result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
             losses.append(result.training_loss())
 
         # Loss should decrease (or stay flat) with more Legendre terms
@@ -438,11 +435,11 @@ class TestRecurrenceInterpolator:
     def test_smooth_velocity_with_interpolated_recurrence(self, bkd) -> None:
         """Velocity is Lipschitz in t with RecurrenceInterpolator."""
         nterms = 4
-        vf, path, loss, qd = _build_evolving_gaussian_setup(
+        vf, path, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15, n_legendre=1,
         )
         # Fit with IdentityInterpolator (training only)
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
 
         # Now build a second VF with RecurrenceInterpolator, same coeffs
         vf_smooth = build_stieltjes_flow_vf(
@@ -493,7 +490,6 @@ def _build_per_slice_gaussian_setup(bkd, mu_target, sigma_target, nterms,
     x1_all = sigma_target * x0_all + mu_target
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all, x0=x0_all, x1=x1_all, weights=quad_wts, bkd=bkd,
     )
@@ -502,7 +498,7 @@ def _build_per_slice_gaussian_setup(bkd, mu_target, sigma_target, nterms,
         quad_data, path, nterms, bkd,
         per_slice=True, interpolate_rcoefs=interpolate_rcoefs,
     )
-    return vf, path, loss, quad_data
+    return vf, path, quad_data
 
 
 class TestPerSliceStrategy:
@@ -510,12 +506,12 @@ class TestPerSliceStrategy:
         """Per-slice GH+Stieltjes gives near-machine-precision velocity."""
         nterms = 4
         n_t, n_x = 8, 15
-        vf, path, loss, qd = _build_per_slice_gaussian_setup(
+        vf, path, qd = _build_per_slice_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=n_t, n_x=n_x,
         )
 
         # Fit via LeastSquaresFitter (weighted)
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         # Evaluate at training points
@@ -533,10 +529,10 @@ class TestPerSliceStrategy:
     def test_per_slice_training_loss_near_zero(self, bkd) -> None:
         """Per-slice Gaussian transport achieves near-zero training loss."""
         nterms = 4
-        vf, path, loss, qd = _build_per_slice_gaussian_setup(
+        vf, path, qd = _build_per_slice_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         assert result.training_loss() < 1e-8, (
             f"Per-slice loss {result.training_loss():.2e} >= 1e-8"
         )
@@ -544,10 +540,10 @@ class TestPerSliceStrategy:
     def test_per_slice_jacobian_shape(self, bkd) -> None:
         """Per-slice jacobian has correct shape."""
         nterms = 4
-        vf, path, loss, qd = _build_per_slice_gaussian_setup(
+        vf, path, qd = _build_per_slice_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=4, n_x=8,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         x_t = path.interpolate(qd.t(), qd.x0(), qd.x1())
@@ -559,7 +555,7 @@ class TestPerSliceStrategy:
     def test_per_slice_basis_matrix_raises(self, bkd) -> None:
         """Per-slice strategy raises on basis_matrix()."""
         nterms = 3
-        vf, _, _, _ = _build_per_slice_gaussian_setup(
+        vf, _, _ = _build_per_slice_gaussian_setup(
             bkd, 0.0, 1.0, nterms, n_t=4, n_x=8,
         )
         with pytest.raises(NotImplementedError, match="PerSliceStrategy"):
@@ -568,7 +564,7 @@ class TestPerSliceStrategy:
     def test_per_slice_hyp_list_raises(self, bkd) -> None:
         """Per-slice strategy raises on hyp_list()."""
         nterms = 3
-        vf, _, _, _ = _build_per_slice_gaussian_setup(
+        vf, _, _ = _build_per_slice_gaussian_setup(
             bkd, 0.0, 1.0, nterms, n_t=4, n_x=8,
         )
         with pytest.raises(NotImplementedError, match="PerSliceStrategy"):
@@ -577,11 +573,11 @@ class TestPerSliceStrategy:
     def test_per_slice_with_recurrence_interpolation(self, bkd) -> None:
         """Per-slice + RecurrenceInterpolator evaluates at non-training t."""
         nterms = 4
-        vf, path, loss, qd = _build_per_slice_gaussian_setup(
+        vf, path, qd = _build_per_slice_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15,
             interpolate_rcoefs=True,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         # Evaluate at a non-training t value
@@ -600,10 +596,10 @@ class TestPerSliceStrategy:
         nterms = 4
         n_t, n_x = 8, 15
         # Build Kronecker VF (default)
-        vf_kron, path, loss, qd = _build_evolving_gaussian_setup(
+        vf_kron, path, qd = _build_evolving_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=n_t, n_x=n_x, n_legendre=1,
         )
-        result_kron = LeastSquaresFitter(bkd).fit(vf_kron, path, loss, qd)
+        result_kron = LeastSquaresFitter(bkd).fit(vf_kron, path, qd)
 
         # Evaluate
         x_t = path.interpolate(qd.t(), qd.x0(), qd.x1())

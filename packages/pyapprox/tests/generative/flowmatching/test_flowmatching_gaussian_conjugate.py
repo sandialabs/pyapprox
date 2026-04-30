@@ -9,7 +9,7 @@ Setup:
   Target x1 ~ p(x|y), conditioning c = y
   VF: BasisExpansion input_dim = 1+d+m, nqoi = d
   Path: LinearPath
-  Loss: CFMLoss
+  Loss: weighted MSE (uniform time weight)
 
 Paired linear coupling: for each quadrature point (t, z, y) with
 z ~ N(0,I), y ~ N(0,I), we set x0 = z and x1 = L_post @ z + mu_post(y).
@@ -32,7 +32,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -63,7 +62,7 @@ def _build_conjugate_setup(bkd, d, m, degree, n_per_dim=6):
     Uses quadrature over (t, z, y) where z ~ N(0,I) and y ~ N(0,I).
     Paired coupling: x0 = z, x1 = L_post @ z + mu_post(y).
 
-    Returns vf, path, loss, quad_data, conjugate_solver, test_y.
+    Returns vf, path, quad_data, conjugate_solver, test_y.
     """
     H_np, Sigma_lik_np = _conjugate_params(d, m)
 
@@ -128,7 +127,6 @@ def _build_conjugate_setup(bkd, d, m, degree, n_per_dim=6):
     vf = BasisExpansion(vf_basis, bkd, nqoi=d)
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all,
         x0=x0_all,
@@ -143,7 +141,7 @@ def _build_conjugate_setup(bkd, d, m, degree, n_per_dim=6):
     test_y_np = H_np @ np.random.randn(d, 1) + np.random.randn(m, 1) * 0.1
     test_y = bkd.array(test_y_np.tolist())
 
-    return vf, path, loss, quad_data, conjugate, test_y
+    return vf, path, quad_data, conjugate, test_y
 
 
 class TestGaussianConjugate:
@@ -154,13 +152,13 @@ class TestGaussianConjugate:
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
-            vf, path, loss, qd, _, _ = _build_conjugate_setup(
+            vf, path, qd, _, _ = _build_conjugate_setup(
                 bkd,
                 d,
                 m,
                 deg,
             )
-            result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
@@ -176,27 +174,27 @@ class TestGaussianConjugate:
     def test_fitters_agree(self, bkd, d: int, m: int) -> None:
         """Both fitters achieve similar loss."""
         for deg in [2, 4]:
-            vf, path, loss, qd, _, _ = _build_conjugate_setup(
+            vf, path, qd, _, _ = _build_conjugate_setup(
                 bkd,
                 d,
                 m,
                 deg,
             )
-            lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).training_loss()
-            opt_loss = OptimizerFitter(bkd).fit(vf, path, loss, qd).training_loss()
+            lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, qd).training_loss()
+            opt_loss = OptimizerFitter(bkd).fit(vf, path, qd).training_loss()
             assert opt_loss < max(lstsq_loss * 100, 1e-4)
 
     @pytest.mark.parametrize("d,m", [(1, 1)])
     def test_posterior_mean(self, bkd, d: int, m: int) -> None:
         """ODE-integrated samples approximate posterior mean."""
         deg = 4
-        vf, path, loss, qd, conjugate, test_y = _build_conjugate_setup(
+        vf, path, qd, conjugate, test_y = _build_conjugate_setup(
             bkd,
             d,
             m,
             deg,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         conjugate.compute(test_y)
@@ -235,13 +233,13 @@ class TestGaussianConjugate:
     def test_posterior_covariance(self, bkd, d: int, m: int) -> None:
         """ODE-integrated samples approximate posterior covariance."""
         deg = 4
-        vf, path, loss, qd, conjugate, test_y = _build_conjugate_setup(
+        vf, path, qd, conjugate, test_y = _build_conjugate_setup(
             bkd,
             d,
             m,
             deg,
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         conjugate.compute(test_y)

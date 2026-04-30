@@ -31,7 +31,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -59,7 +58,7 @@ def _build_lognormal_setup(bkd, d, m, degree, n_per_dim=6):
     Identical to test_gaussian_conjugate setup. Returns additionally
     the QoI direction vector a and analytical log-normal parameters.
 
-    Returns vf, path, loss, quad_data, conjugate, test_y, a_np.
+    Returns vf, path, quad_data, conjugate, test_y, a_np.
     """
     H_np, Sigma_lik_np = _conjugate_params(d, m)
 
@@ -121,7 +120,6 @@ def _build_lognormal_setup(bkd, d, m, degree, n_per_dim=6):
     vf = BasisExpansion(vf_basis, bkd, nqoi=d)
 
     path = LinearPath(bkd)
-    loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
         t=t_all,
         x0=x0_all,
@@ -141,7 +139,7 @@ def _build_lognormal_setup(bkd, d, m, degree, n_per_dim=6):
     test_y_np = H_np @ np.random.randn(d, 1) + np.random.randn(m, 1) * 0.1
     test_y = bkd.array(test_y_np.tolist())
 
-    return vf, path, loss, quad_data, conjugate, test_y, a_np
+    return vf, path, quad_data, conjugate, test_y, a_np
 
 
 def _analytical_lognormal_moments(conjugate, test_y, a_np, bkd):
@@ -170,13 +168,13 @@ class TestLogNormalQoI:
         degrees = [1, 2, 3, 4]
         losses = []
         for deg in degrees:
-            vf, path, loss, qd, _, _, _ = _build_lognormal_setup(
+            vf, path, qd, _, _, _ = _build_lognormal_setup(
                 bkd,
                 d,
                 m,
                 deg,
             )
-            result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
             losses.append(result.training_loss())
 
         for i in range(len(losses) - 1):
@@ -192,10 +190,10 @@ class TestLogNormalQoI:
     def test_lognormal_mean(self, bkd, d: int, m: int) -> None:
         """ODE-pushed QoI samples approximate LogNormal mean."""
         deg = 4
-        vf, path, loss, qd, conjugate, test_y, a_np = _build_lognormal_setup(
+        vf, path, qd, conjugate, test_y, a_np = _build_lognormal_setup(
             bkd, d, m, deg
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         # Analytical log-normal moments
@@ -241,10 +239,10 @@ class TestLogNormalQoI:
     def test_lognormal_variance(self, bkd, d: int, m: int) -> None:
         """ODE-pushed QoI samples approximate LogNormal variance."""
         deg = 4
-        vf, path, loss, qd, conjugate, test_y, a_np = _build_lognormal_setup(
+        vf, path, qd, conjugate, test_y, a_np = _build_lognormal_setup(
             bkd, d, m, deg
         )
-        result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
         _, expected_var = _analytical_lognormal_moments(

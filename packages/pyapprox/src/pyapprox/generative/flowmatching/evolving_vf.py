@@ -534,6 +534,37 @@ class StieltjesFlowVF(Generic[Array]):
             )
         return self._strategy.basis_matrix(self._interp, vf_input, self._bkd)
 
+    def jacobian_wrt_params(self, vf_input: Array) -> Array:
+        """Jacobian of output w.r.t. active coefficients.
+
+        Parameters
+        ----------
+        vf_input : Array
+            Shape ``(2, ns)`` with row 0 = t, row 1 = x.
+
+        Returns
+        -------
+        Array
+            Shape ``(ns, nqoi, nactive)``.
+        """
+        if isinstance(self._strategy, PerSliceStrategy):
+            raise NotImplementedError(
+                "jacobian_wrt_params() is not supported for "
+                "PerSliceStrategy. Use KroneckerStrategy for "
+                "optimizer-based fitting."
+            )
+        ns = vf_input.shape[1]
+        Phi = self.basis_matrix(vf_input)  # (ns, n_total)
+        active = self.hyp_list().get_active_indices()
+        if self._nqoi == 1:
+            return self._bkd.reshape(Phi, (ns, 1, -1))[:, :, active]
+        nparams = self._n_total * self._nqoi
+        full_jac = self._bkd.zeros((ns, self._nqoi, nparams))
+        for i in range(self._n_total):
+            for q in range(self._nqoi):
+                full_jac[:, q, i * self._nqoi + q] = Phi[:, i]
+        return full_jac[:, :, active]
+
     def __call__(self, vf_input: Array) -> Array:
         """Evaluate vector field.
 

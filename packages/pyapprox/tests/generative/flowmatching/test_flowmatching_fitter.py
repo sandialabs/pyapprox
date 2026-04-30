@@ -9,7 +9,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import CFMLoss
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -58,11 +57,10 @@ class TestLeastSquaresFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
         fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
 
         assert isinstance(result, FlowMatchingFitResult)
         assert result.training_loss() < 1e-10
@@ -72,19 +70,15 @@ class TestLeastSquaresFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
-        # Save original coefficients
         orig_coef = copy.deepcopy(vf.get_coefficients())
 
         fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
 
-        # Original should be unchanged
         bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
 
-        # Fitted should be different (nonzero coefficients)
         fitted_vf = result.surrogate()
         fitted_coef = fitted_vf.get_coefficients()  # type: ignore[union-attr]
         norm = float(bkd.to_numpy(bkd.sum(fitted_coef * fitted_coef)))
@@ -95,13 +89,11 @@ class TestLeastSquaresFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
         fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
 
-        # Should be callable
         test_input = bkd.array([[0.5], [0.0]])  # (2, 1) for (t, x)
         output = result(test_input)
         assert output.shape[0] == d
@@ -112,11 +104,10 @@ class TestLeastSquaresFitter:
         d, ns = 2, 30
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
         fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
         assert result.training_loss() < 1e-10
 
     def test_with_conditioning(self, bkd) -> None:
@@ -124,14 +115,11 @@ class TestLeastSquaresFitter:
         d, ns, m = 1, 20, 1
         vf = _make_vf(bkd, d, degree=1, m=m)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns, m=m)
 
         fitter = LeastSquaresFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
         assert isinstance(result, FlowMatchingFitResult)
-        # Loss should be small (target field doesn't depend on c,
-        # but the VF has enough capacity)
         assert result.training_loss() < 1e-8
 
 
@@ -141,11 +129,10 @@ class TestOptimizerFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
         fitter = OptimizerFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        result = fitter.fit(vf, path, qd)
 
         assert isinstance(result, FlowMatchingFitResult)
         assert result.training_loss() < 1e-6
@@ -155,13 +142,12 @@ class TestOptimizerFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
         orig_coef = copy.deepcopy(vf.get_coefficients())
 
         fitter = OptimizerFitter(bkd)
-        fitter.fit(vf, path, loss, qd)
+        fitter.fit(vf, path, qd)
 
         bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
 
@@ -170,12 +156,10 @@ class TestOptimizerFitter:
         d, ns = 1, 20
         vf = _make_vf(bkd, d, degree=1)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         qd = _make_linear_quad_data(bkd, d, ns)
 
-        lstsq_result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
-        opt_result = OptimizerFitter(bkd).fit(vf, path, loss, qd)
+        lstsq_result = LeastSquaresFitter(bkd).fit(vf, path, qd)
+        opt_result = OptimizerFitter(bkd).fit(vf, path, qd)
 
-        # Both should achieve very low loss
         assert lstsq_result.training_loss() < 1e-10
         assert opt_result.training_loss() < 1e-6

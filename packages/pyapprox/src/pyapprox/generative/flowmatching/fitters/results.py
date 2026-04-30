@@ -44,7 +44,7 @@ class FlowMatchingFitResult(Generic[Array]):
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate fitted VF at samples (delegates to surrogate)."""
-        return self._surrogate(samples)  # type: ignore[operator]
+        return self._surrogate(samples)
 
     def __repr__(self) -> str:
         return f"FlowMatchingFitResult(loss={self._training_loss:.6e})"

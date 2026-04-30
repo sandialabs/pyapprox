@@ -1,4 +1,4 @@
-"""Tests for CFMLoss, UniformWeight, and FlowMatchingObjective."""
+"""Tests for UniformWeight and FlowMatchingObjective."""
 
 import pytest
 
@@ -9,19 +9,15 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.cfm_loss import (
-    CFMLoss,
-    FlowMatchingObjective,
-    UniformWeight,
-)
 from pyapprox.generative.flowmatching.linear_path import LinearPath
+from pyapprox.generative.flowmatching.objective import FlowMatchingObjective
 from pyapprox.generative.flowmatching.protocols import (
-    CFMLossProtocol,
     TimeWeightProtocol,
 )
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.generative.flowmatching.time_weight import UniformWeight
 
 
 def _make_vf(bkd, d: int, degree: int, m: int = 0):
@@ -64,93 +60,13 @@ class TestUniformWeight:
         assert result.shape == (1, 3)
 
 
-class TestCFMLoss:
-    def test_satisfies_protocol(self, bkd) -> None:
-        loss = CFMLoss(bkd)
-        assert isinstance(loss, CFMLossProtocol)
-
-    def test_zero_loss_when_vf_matches_target(self, bkd) -> None:
-        """When VF exactly equals the target field, loss should be zero."""
-        path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
-
-        ns = 5
-        t = bkd.array([[0.1, 0.3, 0.5, 0.7, 0.9]])
-        x0 = bkd.array([[1.0, 2.0, 3.0, 4.0, 5.0], [0.5, 1.5, 2.5, 3.5, 4.5]])
-        x1 = bkd.array([[6.0, 7.0, 8.0, 9.0, 10.0], [5.5, 6.5, 7.5, 8.5, 9.5]])
-        weights = bkd.ones_like(t[0, :]) / ns
-
-        # Create a "perfect" VF that returns exactly x1 - x0
-        u_t = path.target_field(t, x0, x1)
-
-        def perfect_vf(vf_input):
-            return u_t
-
-        result = loss(perfect_vf, path, t, x0, x1, weights)
-        bkd.assert_allclose(
-            bkd.reshape(result, (1,)),
-            bkd.array([0.0]),
-            atol=1e-14,
-        )
-
-    @pytest.mark.slow_on("TorchBkd")
-    def test_integrand_shape(self, bkd) -> None:
-        path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
-        d, ns = 2, 4
-        vf = _make_vf(bkd, d, degree=1)
-
-        t = bkd.array([[0.1, 0.3, 0.5, 0.7]])
-        x0 = bkd.zeros((d, ns))
-        x1 = bkd.ones_like(x0)
-
-        result = loss.integrand(vf, path, t, x0, x1)
-        assert result.shape == (ns,)
-
-    @pytest.mark.slow_on("TorchBkd")
-    def test_integrand_shape_with_conditioning(self, bkd) -> None:
-        path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
-        d, ns, m = 2, 4, 1
-        vf = _make_vf(bkd, d, degree=1, m=m)
-
-        t = bkd.array([[0.1, 0.3, 0.5, 0.7]])
-        x0 = bkd.zeros((d, ns))
-        x1 = bkd.ones_like(x0)
-        c = bkd.zeros((m, ns))
-
-        result = loss.integrand(vf, path, t, x0, x1, c=c)
-        assert result.shape == (ns,)
-
-    def test_loss_scalar_output(self, bkd) -> None:
-        path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
-        d, ns = 1, 3
-        vf = _make_vf(bkd, d, degree=1)
-
-        t = bkd.array([[0.2, 0.5, 0.8]])
-        x0 = bkd.zeros((d, ns))
-        x1 = bkd.ones_like(x0)
-        weights = bkd.ones_like(t[0, :]) / ns
-
-        result = loss(vf, path, t, x0, x1, weights)
-        # Should be a scalar (0-d or 1-element)
-        assert result.shape == ()
-
-    def test_weight_accessor(self, bkd) -> None:
-        loss = CFMLoss(bkd)
-        w = loss.weight()
-        assert isinstance(w, TimeWeightProtocol)
-
-
 class TestFlowMatchingObjective:
     def _make_objective(self, bkd, d=1, m=0, degree=1):
         vf = _make_vf(bkd, d, degree, m)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         ns = 10
         qd = _make_quad_data(bkd, d, ns, m)
-        return FlowMatchingObjective(vf, path, loss, qd, bkd), vf
+        return FlowMatchingObjective(vf, path, qd, bkd), vf
 
     def test_call_returns_1x1(self, bkd) -> None:
         obj, vf = self._make_objective(bkd)
@@ -177,13 +93,11 @@ class TestFlowMatchingObjective:
         """Verify analytical gradient matches finite differences."""
         obj, vf = self._make_objective(bkd, d=1, degree=2)
 
-        # Set some nonzero coefficients
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.1 * (i + 1) for i in range(nparams)])
 
         grad = obj.jacobian(params)
 
-        # Finite difference
         eps = 1e-6
         fd_grad = bkd.zeros((nparams,))
         for i in range(nparams):
@@ -243,16 +157,14 @@ class TestFlowMatchingObjective:
         d, degree = 1, 2
         vf = _make_vf(bkd, d, degree)
         path = LinearPath(bkd)
-        loss = CFMLoss(bkd)
         ns = 10
         qd = _make_quad_data(bkd, d, ns)
 
-        # Fix the first 2 parameters
         nparams_total = vf.hyp_list().nparams()
         active_idx = bkd.array(list(range(2, nparams_total)), dtype=int)
         vf.hyp_list().set_active_indices(active_idx)
 
-        obj = FlowMatchingObjective(vf, path, loss, qd, bkd)
+        obj = FlowMatchingObjective(vf, path, qd, bkd)
         nactive = vf.hyp_list().nactive_params()
         assert nactive < nparams_total
 
@@ -260,7 +172,6 @@ class TestFlowMatchingObjective:
         grad = obj.jacobian(params)
         assert grad.shape == (1, nactive)
 
-        # FD check
         eps = 1e-6
         fd_grad = bkd.zeros((nactive,))
         for i in range(nactive):

@@ -7,19 +7,20 @@ via a general-purpose optimizer.
 import copy
 from typing import Generic, Optional
 
-from pyapprox.generative.flowmatching.cfm_loss import (
-    CFMLoss,
-    FlowMatchingObjective,
-)
 from pyapprox.generative.flowmatching.fitters.results import (
     FlowMatchingFitResult,
 )
+from pyapprox.generative.flowmatching.objective import (
+    FlowMatchingObjective,
+)
 from pyapprox.generative.flowmatching.protocols import (
     ProbabilityPathProtocol,
+    TimeWeightProtocol,
 )
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.generative.flowmatching.time_weight import UniformWeight
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -57,8 +58,8 @@ class OptimizerFitter(Generic[Array]):
         self,
         vf: object,
         path: ProbabilityPathProtocol[Array],
-        loss: CFMLoss[Array],
         quad_data: FlowMatchingQuadData[Array],
+        time_weight: Optional[TimeWeightProtocol[Array]] = None,
     ) -> FlowMatchingFitResult[Array]:
         """Fit a vector field via iterative optimization.
 
@@ -68,10 +69,10 @@ class OptimizerFitter(Generic[Array]):
             Vector field to fit. Deep-cloned internally.
         path : ProbabilityPathProtocol[Array]
             Probability path defining interpolation.
-        loss : CFMLoss[Array]
-            CFM loss function.
         quad_data : FlowMatchingQuadData[Array]
             Pre-assembled quadrature data.
+        time_weight : TimeWeightProtocol[Array], optional
+            Time-dependent weight. Defaults to uniform.
 
         Returns
         -------
@@ -81,13 +82,12 @@ class OptimizerFitter(Generic[Array]):
         bkd = self._bkd
         fitted_vf = copy.deepcopy(vf)
 
-        # Create objective wrapping loss + quad data
-        objective = FlowMatchingObjective(fitted_vf, path, loss, quad_data, bkd)
+        objective = FlowMatchingObjective(
+            fitted_vf, path, quad_data, bkd, time_weight
+        )
 
-        # Get bounds from VF hyperparameter list
         bounds = fitted_vf.hyp_list().get_active_bounds()
 
-        # Get optimizer
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
@@ -97,7 +97,6 @@ class OptimizerFitter(Generic[Array]):
 
             optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
-        # Bind and minimize
         optimizer.bind(objective, bounds)
 
         init_guess = fitted_vf.hyp_list().get_active_values()
@@ -106,25 +105,28 @@ class OptimizerFitter(Generic[Array]):
 
         opt_result = optimizer.minimize(init_guess)
 
-        # Update VF with optimal parameters
         optimal_params = opt_result.optima()
         if len(optimal_params.shape) == 2:
             optimal_params = optimal_params[:, 0]
         fitted_vf.hyp_list().set_active_values(optimal_params)
         fitted_vf.sync_params()
 
-        # Compute final loss
+        tw = time_weight if time_weight is not None else UniformWeight(bkd)
         qd = quad_data
-        final_loss_val = loss(
-            fitted_vf,
-            path,
-            qd.t(),
-            qd.x0(),
-            qd.x1(),
-            qd.weights(),
-            qd.c(),
+        t, x0, x1 = qd.t(), qd.x0(), qd.x1()
+        x_t = path.interpolate(t, x0, x1)
+        u_t = path.target_field(t, x0, x1)
+        if qd.c() is not None:
+            vf_input = bkd.vstack([t, x_t, qd.c()])
+        else:
+            vf_input = bkd.vstack([t, x_t])
+        v_t = fitted_vf(vf_input)
+        diff = v_t - u_t
+        w_t = tw(t)
+        pointwise = bkd.sum(diff * diff, axis=0)
+        final_loss = bkd.to_float(
+            bkd.sum(qd.weights() * w_t[0, :] * pointwise)
         )
-        final_loss = bkd.to_float(final_loss_val)
 
         return FlowMatchingFitResult(
             surrogate=fitted_vf,
