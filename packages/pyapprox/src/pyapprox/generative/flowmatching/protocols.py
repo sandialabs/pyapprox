@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import (
     TYPE_CHECKING,
     Generic,
+    Iterator,
     Optional,
     Protocol,
     runtime_checkable,
@@ -13,6 +14,8 @@ from typing import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
+    import torch
+
     from pyapprox.generative.flowmatching.quad_data import (
         FlowMatchingQuadData,
     )
@@ -124,6 +127,29 @@ class DifferentiableVFProtocol(ParameterizedVFProtocol[Array], Protocol):
             Shape ``(ns, nqoi, nactive)``.
         """
         ...
+
+
+@runtime_checkable
+class TorchVFProtocol(Protocol):
+    """Protocol for torch-based velocity fields used by torch fitters.
+
+    Combines FunctionProtocol requirements with the torch-specific
+    ``forward_torch`` method and ``parameters`` for optimizer access.
+    """
+
+    def bkd(self) -> "Backend[torch.Tensor]": ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: "torch.Tensor") -> "torch.Tensor": ...
+
+    def forward_torch(
+        self, vf_input: "torch.Tensor"
+    ) -> "torch.Tensor": ...
+
+    def parameters(self) -> "Iterator[torch.nn.Parameter]": ...
 
 
 @runtime_checkable

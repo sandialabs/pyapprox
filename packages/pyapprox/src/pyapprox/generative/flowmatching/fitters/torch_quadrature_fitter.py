@@ -19,6 +19,7 @@ from pyapprox.generative.flowmatching.fitters.results import (
 from pyapprox.generative.flowmatching.protocols import (
     ProbabilityPathProtocol,
     TimeWeightProtocol,
+    TorchVFProtocol,
 )
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
@@ -76,7 +77,7 @@ class TorchQuadratureFitter:
 
     def fit(
         self,
-        vf: torch.nn.Module,
+        vf: TorchVFProtocol,
         path: ProbabilityPathProtocol[torch.Tensor],
         quad_data: FlowMatchingQuadData[torch.Tensor],
         time_weight: Optional[TimeWeightProtocol[torch.Tensor]] = None,
@@ -85,7 +86,7 @@ class TorchQuadratureFitter:
 
         Parameters
         ----------
-        vf : torch.nn.Module
+        vf : TorchVFProtocol
             Velocity field to train. Deep-cloned internally.
         path : ProbabilityPathProtocol[torch.Tensor]
             Probability path (e.g. ``LinearPath(TorchBkd())``).
@@ -145,7 +146,7 @@ class TorchQuadratureFitter:
                 loss = weighted_mse(v_pred, u_t[:, idx], combined_w[idx])
 
             optimizer.zero_grad()
-            loss.backward()
+            torch.autograd.backward(loss)
             optimizer.step()
 
             if self._verbose > 0 and (epoch + 1) % self._verbose == 0:
