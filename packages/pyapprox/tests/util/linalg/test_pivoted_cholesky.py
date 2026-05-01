@@ -7,8 +7,15 @@ using the new typing module implementation.
 import numpy as np
 import pytest
 
+from pyapprox.surrogates.kernels.matern import (
+    Matern32Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.pivoted_cholesky import (
+    KernelColumnOperator,
     PivotedCholeskyFactorizer,
+    _HAS_NUMBA,
 )
 
 
@@ -197,3 +204,267 @@ class TestPivotedCholesky:
         fact = PivotedCholeskyFactorizer(A, bkd)
         with pytest.raises(RuntimeError):
             fact.update(3)
+
+
+@pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
+class TestKernelColumnOperatorFused:
+    """Verify fused kernel pchol matches dense kernel pchol."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(7)
+
+    def _make_kernel_and_points(self, numpy_bkd, n, lenscale=0.3):
+        bkd = numpy_bkd
+        kernel = Matern32Kernel(
+            bkd.asarray([lenscale]), (1e-6, 1e6),
+            nvars=1, bkd=bkd, fixed=True,
+        )
+        x = bkd.asarray(
+            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
+        )
+        return kernel, x
+
+    def test_fused_matches_dense(self, numpy_bkd) -> None:
+        """Fused kernel pchol produces same pivots and factor as dense."""
+        bkd = numpy_bkd
+        n, npivots = 200, 30
+        kernel, X = self._make_kernel_and_points(bkd, n)
+        K = bkd.to_numpy(kernel(X, X))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_fused = PivotedCholeskyFactorizer(op, bkd)
+        fact_fused.factorize(npivots)
+
+        bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            atol=1e-14,
+        )
+
+    def test_fused_with_weights(self, numpy_bkd) -> None:
+        """Fused kernel pchol with pivot weights matches dense."""
+        bkd = numpy_bkd
+        n, npivots = 100, 20
+        kernel, X = self._make_kernel_and_points(bkd, n)
+        K = bkd.to_numpy(kernel(X, X))
+        weights = bkd.asarray(np.random.uniform(0.5, 5.0, n))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots, pivot_weights=weights)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_fused = PivotedCholeskyFactorizer(op, bkd)
+        fact_fused.factorize(npivots, pivot_weights=weights)
+
+        bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+        )
+
+    def test_fused_with_init_pivots(self, numpy_bkd) -> None:
+        """Fused kernel pchol with init pivots matches dense."""
+        bkd = numpy_bkd
+        n, npivots = 100, 20
+        kernel, X = self._make_kernel_and_points(bkd, n)
+        K = bkd.to_numpy(kernel(X, X))
+        init_pivots = bkd.asarray(np.array([5, 50, 90], dtype=np.int64))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots, init_pivots=init_pivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_fused = PivotedCholeskyFactorizer(op, bkd)
+        fact_fused.factorize(npivots, init_pivots=init_pivots)
+
+        bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+        )
+
+    def test_fused_recovers_kernel_matrix(self, numpy_bkd) -> None:
+        """L @ L.T from fused path approximates kernel matrix."""
+        bkd = numpy_bkd
+        n, npivots = 50, 50
+        kernel, X = self._make_kernel_and_points(bkd, n, lenscale=1.0)
+        K = kernel(X, X)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact = PivotedCholeskyFactorizer(op, bkd)
+        fact.factorize(npivots)
+        L = fact.factor()
+        bkd.assert_allclose(L @ L.T, K, rtol=1e-10)
+
+    def test_generic_fallback_for_kernel_op(self, numpy_bkd) -> None:
+        """KernelColumnOperator with numba disabled uses generic path."""
+        bkd = numpy_bkd
+        n, npivots = 50, 15
+        kernel, X = self._make_kernel_and_points(bkd, n)
+        K = bkd.to_numpy(kernel(X, X))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_gen = PivotedCholeskyFactorizer(op, bkd)
+        fact_gen._use_numba = False
+        fact_gen.factorize(npivots)
+
+        bkd.assert_allclose(fact_gen.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_gen.factor(), fact_dense.factor(), rtol=1e-10,
+        )
+
+    def test_unrecognized_kernel_falls_back(self, numpy_bkd) -> None:
+        """KernelColumnOperator with kernel lacking numba protocol uses generic."""
+        bkd = numpy_bkd
+        n, npivots = 80, 20
+
+        class _OpaqueKernel:
+            """Kernel wrapper that hides numba protocol methods."""
+            def __init__(self, inner):
+                self._inner = inner
+            def __call__(self, X1, X2=None):
+                return self._inner(X1, X2)
+            def diag(self, X1):
+                return self._inner.diag(X1)
+
+        inner = Matern32Kernel(
+            bkd.asarray([0.5]), (1e-6, 1e6),
+            nvars=1, bkd=bkd, fixed=True,
+        )
+        kernel = _OpaqueKernel(inner)
+        X = bkd.asarray(
+            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
+        )
+        K = inner(X, X)
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(bkd.to_numpy(K)), bkd)
+        fact_dense.factorize(npivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_op = PivotedCholeskyFactorizer(op, bkd)
+        fact_op.factorize(npivots)
+
+        bkd.assert_allclose(fact_op.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_op.factor(), fact_dense.factor(), rtol=1e-10,
+        )
+
+    def test_fused_sqexp_matches_dense(self, numpy_bkd) -> None:
+        """Fused path works for SquaredExponentialKernel via protocol."""
+        bkd = numpy_bkd
+        n, npivots = 100, 20
+        lenscale = 0.5
+        kernel = SquaredExponentialKernel(
+            bkd.asarray([lenscale]), (1e-6, 1e6),
+            nvars=1, bkd=bkd, fixed=True,
+        )
+        X = bkd.asarray(
+            np.sort(np.random.uniform(-3.0, 6.0, n)).reshape(1, -1)
+        )
+        K = bkd.to_numpy(kernel(X, X))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_fused = PivotedCholeskyFactorizer(op, bkd)
+        fact_fused.factorize(npivots)
+
+        bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            atol=1e-14,
+        )
+
+    def test_fused_multidimensional(self, numpy_bkd) -> None:
+        """Fused path works for multi-dimensional kernel inputs."""
+        bkd = numpy_bkd
+        nvars, n, npivots = 3, 100, 20
+        lenscales = [0.3, 0.5, 0.8]
+        kernel = Matern32Kernel(
+            bkd.asarray(lenscales), (1e-6, 1e6),
+            nvars=nvars, bkd=bkd, fixed=True,
+        )
+        X = bkd.asarray(np.random.uniform(-2.0, 2.0, (nvars, n)))
+        K = bkd.to_numpy(kernel(X, X))
+
+        fact_dense = PivotedCholeskyFactorizer(bkd.asarray(K), bkd)
+        fact_dense.factorize(npivots)
+
+        op = KernelColumnOperator(kernel, X, bkd)
+        fact_fused = PivotedCholeskyFactorizer(op, bkd)
+        fact_fused.factorize(npivots)
+
+        bkd.assert_allclose(fact_fused.pivots(), fact_dense.pivots())
+        bkd.assert_allclose(
+            fact_fused.factor(), fact_dense.factor(), rtol=1e-10,
+            atol=1e-14,
+        )
+
+
+@pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
+class TestNumbaGenericAgreement:
+    """Verify numba and generic paths produce identical pivots and factors."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(42)
+
+    def _run_both(self, numpy_bkd, A_np, npivots,
+                  init_pivots=None, pivot_weights=None):
+        bkd = numpy_bkd
+        A = bkd.asarray(A_np)
+
+        fact_nb = PivotedCholeskyFactorizer(A, bkd, econ=True)
+        assert fact_nb._use_numba
+        fact_nb.factorize(npivots, init_pivots=init_pivots,
+                          pivot_weights=pivot_weights)
+
+        fact_gen = PivotedCholeskyFactorizer(A, bkd, econ=True)
+        fact_gen._use_numba = False
+        fact_gen.factorize(npivots, init_pivots=init_pivots,
+                           pivot_weights=pivot_weights)
+
+        bkd.assert_allclose(fact_nb.pivots(), fact_gen.pivots())
+        bkd.assert_allclose(fact_nb.factor(), fact_gen.factor(), rtol=1e-12)
+        return fact_nb, fact_gen
+
+    def test_no_weights(self, numpy_bkd) -> None:
+        n = 20
+        A = np.random.randn(n, n)
+        A = A.T @ A
+        self._run_both(numpy_bkd, A, n)
+
+    def test_low_rank(self, numpy_bkd) -> None:
+        n, rank = 50, 10
+        B = np.random.randn(n, rank)
+        A = B @ B.T + 1e-10 * np.eye(n)
+        self._run_both(numpy_bkd, A, rank)
+
+    def test_with_weights(self, numpy_bkd) -> None:
+        n = 20
+        A = np.random.randn(n, n)
+        A = A.T @ A
+        weights = numpy_bkd.asarray(np.random.uniform(0.5, 5.0, n))
+        self._run_both(numpy_bkd, A, n, pivot_weights=weights)
+
+    def test_with_init_pivots(self, numpy_bkd) -> None:
+        n = 15
+        A = np.random.randn(n, n)
+        A = A.T @ A
+        init_pivots = numpy_bkd.asarray(np.array([3, 7], dtype=np.int64))
+        self._run_both(numpy_bkd, A, n, init_pivots=init_pivots)
+
+    def test_with_weights_and_init_pivots(self, numpy_bkd) -> None:
+        n = 15
+        A = np.random.randn(n, n)
+        A = A.T @ A
+        weights = numpy_bkd.asarray(np.random.uniform(1.0, 3.0, n))
+        init_pivots = numpy_bkd.asarray(np.array([2, 5], dtype=np.int64))
+        self._run_both(numpy_bkd, A, n, init_pivots=init_pivots,
+                       pivot_weights=weights)

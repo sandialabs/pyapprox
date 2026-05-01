@@ -41,7 +41,8 @@ class TestCholeskySampler:
         nvars, ncandidates, nsamples = 2, 50, 5
         candidates = bkd.asarray(np.random.rand(nvars, ncandidates))
         sampler = CholeskySampler(candidates, bkd)
-        sampler.set_kernel(self._make_kernel(bkd))
+        kernel = SquaredExponentialKernel([0.5], (0.01, 10.0), nvars, bkd)
+        sampler.set_kernel(kernel)
         samples = sampler.select_samples(nsamples)
         assert samples.shape == (nvars, nsamples)
 

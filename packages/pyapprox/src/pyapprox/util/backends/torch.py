@@ -293,6 +293,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             device=self._device,
         )
 
+    def full_like(self, a: torch.Tensor, fill_value: float) -> torch.Tensor:
+        return torch.full_like(a, fill_value)
+
     def zeros(
         self, shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> torch.Tensor:

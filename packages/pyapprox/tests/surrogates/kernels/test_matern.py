@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -13,6 +14,10 @@ from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kernels.protocols import NumbaScalarKernelProtocol
+from pyapprox.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd, fixed=False):
@@ -313,3 +318,81 @@ class TestMaternKernel:
             assert (
                 hvp_ratio < 5e-5
             ), f"HVP error ratio for nu={nu}: {hvp_ratio}"
+
+
+@pytest.mark.skipif(not _HAS_NUMBA, reason="numba not available")
+class TestNumbaEval:
+    """Verify numba_eval matches generic kernel evaluation for all Matern."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(99)
+
+    @pytest.mark.parametrize("kernel_cls,nu", [
+        (SquaredExponentialKernel, np.inf),
+        (Matern52Kernel, 2.5),
+        (Matern32Kernel, 1.5),
+        (ExponentialKernel, 0.5),
+    ])
+    def test_satisfies_protocol(self, numpy_bkd, kernel_cls, nu) -> None:
+        bkd = numpy_bkd
+        kernel = kernel_cls(
+            bkd.asarray([0.5]), (1e-6, 1e6), nvars=1, bkd=bkd, fixed=True,
+        )
+        assert isinstance(kernel, NumbaScalarKernelProtocol)
+
+    @pytest.mark.parametrize("kernel_cls", [
+        SquaredExponentialKernel, Matern52Kernel,
+        Matern32Kernel, ExponentialKernel,
+    ])
+    def test_1d_matches_generic(self, numpy_bkd, kernel_cls) -> None:
+        """numba_eval on 1D points matches kernel(X, X) element-wise."""
+        bkd = numpy_bkd
+        n = 50
+        lenscale = 0.4
+        kernel = kernel_cls(
+            bkd.asarray([lenscale]), (1e-6, 1e6),
+            nvars=1, bkd=bkd, fixed=True,
+        )
+        X = bkd.asarray(np.random.uniform(-3.0, 3.0, (1, n)))
+        K_ref = bkd.to_numpy(kernel(X, X))
+
+        fn = kernel.numba_eval()
+        params = kernel.numba_kernel_params()
+        x_np = bkd.to_numpy(X)
+        K_numba = np.empty((n, n))
+        for i in range(n):
+            for j in range(n):
+                K_numba[i, j] = fn(x_np[:, i], x_np[:, j], params)
+
+        bkd.assert_allclose(
+            bkd.asarray(K_numba), bkd.asarray(K_ref), rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("kernel_cls", [
+        SquaredExponentialKernel, Matern52Kernel,
+        Matern32Kernel, ExponentialKernel,
+    ])
+    def test_nd_matches_generic(self, numpy_bkd, kernel_cls) -> None:
+        """numba_eval on multi-D points matches kernel(X, X) element-wise."""
+        bkd = numpy_bkd
+        nvars, n = 3, 30
+        lenscales = [0.3, 0.5, 0.8]
+        kernel = kernel_cls(
+            bkd.asarray(lenscales), (1e-6, 1e6),
+            nvars=nvars, bkd=bkd, fixed=True,
+        )
+        X = bkd.asarray(np.random.uniform(-2.0, 2.0, (nvars, n)))
+        K_ref = bkd.to_numpy(kernel(X, X))
+
+        fn = kernel.numba_eval()
+        params = kernel.numba_kernel_params()
+        x_np = bkd.to_numpy(X)
+        K_numba = np.empty((n, n))
+        for i in range(n):
+            for j in range(n):
+                K_numba[i, j] = fn(x_np[:, i], x_np[:, j], params)
+
+        bkd.assert_allclose(
+            bkd.asarray(K_numba), bkd.asarray(K_ref), rtol=1e-12,
+        )

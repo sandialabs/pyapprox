@@ -1,17 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import Generic, Protocol, runtime_checkable
+
+import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
 )
-
-if TYPE_CHECKING:
-    from pyapprox.surrogates.kernels.composition import (
-        ProductKernel,
-        SumKernel,
-    )
 
 
 @runtime_checkable
@@ -72,7 +69,7 @@ class KernelProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute the kernel matrix.
 
@@ -267,6 +264,34 @@ class KernelWithFullDerivativesProtocol(
     pass
 
 
+NumbaScalarKernelFn = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
+
+
+@runtime_checkable
+class NumbaScalarKernelProtocol(Protocol):
+    """Protocol for kernels that provide a numba-compiled scalar evaluator.
+
+    Kernels satisfying this protocol can be used in fused numba algorithms
+    (e.g. matrix-free pivoted Cholesky) that evaluate k(x_i, x_j) inside
+    a JIT-compiled loop without materializing a dense kernel matrix.
+    """
+
+    def numba_eval(self) -> NumbaScalarKernelFn:
+        """Return ``@njit`` function ``f(xi, xj, params) -> float64``.
+
+        ``xi``, ``xj`` are ``(nvars,)`` float64 arrays;
+        ``params`` is ``(nparams,)`` float64.
+        """
+        ...
+
+    def numba_kernel_params(self) -> np.ndarray:
+        """Return kernel parameters as a 1D float64 numpy array.
+
+        For Matern kernels this is the exponentiated length scales.
+        """
+        ...
+
+
 @runtime_checkable
 class SeparableKernelProtocol(Protocol, Generic[Array]):
     """
@@ -392,7 +417,7 @@ class Kernel(ABC, Generic[Array]):
         return self._bkd.get_diagonal(self(X1))
 
     @abstractmethod
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute the kernel matrix.
 
@@ -410,7 +435,7 @@ class Kernel(ABC, Generic[Array]):
         """
         raise NotImplementedError()
 
-    def __mul__(self, other: "Kernel[Array]") -> "ProductKernel[Array]":
+    def __mul__(self, other: "Kernel[Array]") -> "Kernel[Array]":
         """
         Multiply two kernels element-wise.
 
@@ -428,7 +453,7 @@ class Kernel(ABC, Generic[Array]):
 
         return ProductKernel(self, other)
 
-    def __add__(self, other: "Kernel[Array]") -> "SumKernel[Array]":
+    def __add__(self, other: "Kernel[Array]") -> "Kernel[Array]":
         """
         Add two kernels element-wise.
 
@@ -457,6 +482,6 @@ class Kernel(ABC, Generic[Array]):
         """
         return "{0}({1}, bkd={2})".format(
             self.__class__.__name__,
-            str(self._hyp_list),
+            str(self.hyp_list()),
             self._bkd.__class__.__name__,
         )

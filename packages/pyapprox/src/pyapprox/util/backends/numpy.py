@@ -242,6 +242,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.full(shape, fill_value, dtype=dtype)
 
     @staticmethod
+    def full_like(a: NDArray[Any], fill_value: float) -> NDArray[Any]:
+        return np.full_like(a, fill_value)
+
+    @staticmethod
     def zeros(
         shape: Tuple[int, ...], dtype: Optional[Any] = None
     ) -> NDArray[Any]:

@@ -5,9 +5,11 @@ from typing import Generic
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.surrogates.kernels.nugget import NuggetKernel
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.pivoted_cholesky import (
+    KernelColumnOperator,
     PivotedCholeskyFactorizer,
 )
 
@@ -47,7 +49,6 @@ class CholeskySampler(Generic[Array]):
         self._ncandidates = candidates_scaled.shape[1]
         self._selected_indices: list[int] = []
         self._kernel: KernelProtocol[Array] | None = None
-        self._K: Array | None = None
         self._factorizer: PivotedCholeskyFactorizer[Array] | None = None
         self._weight_function: FunctionProtocol[Array] | None = None
         self._pivot_weights: Array | None = None
@@ -108,41 +109,36 @@ class CholeskySampler(Generic[Array]):
     def set_kernel(self, kernel: KernelProtocol[Array]) -> None:
         """Update the kernel and rebuild factorizer with warm-start.
 
-        Recomputes K = kernel(candidates, candidates) + nugget*I and
-        restarts pivoted Cholesky with existing training indices as
-        init_pivots. Uses current pivot weights if a weight function
-        has been set.
+        Wraps the kernel with a NuggetKernel (if nugget > 0) and passes
+        a KernelColumnOperator to the factorizer, avoiding materialization
+        of the full kernel matrix when the fused numba path is available.
 
         Parameters
         ----------
         kernel : KernelProtocol[Array]
             New kernel (after hyperparameter optimization).
         """
-        bkd = self._bkd
         self._kernel = kernel
-        K = kernel(self._candidates, self._candidates)
-        if self._nugget > 0:
-            K = K + self._nugget * bkd.eye(self._ncandidates)
-        self._K = K
         self._weight_function_changed = False
         self._rebuild_factorizer()
 
     def _rebuild_factorizer(self) -> None:
-        """Rebuild factorizer from current K and weights, warm-starting."""
+        """Rebuild factorizer from current kernel and weights, warm-starting."""
         bkd = self._bkd
-        if self._K is None:
+        if self._kernel is None:
             return
-        self._factorizer = PivotedCholeskyFactorizer(self._K, bkd)
+        effective_kernel = self._kernel
+        if self._nugget > 0:
+            effective_kernel = NuggetKernel(effective_kernel, self._nugget)
+        op = KernelColumnOperator(effective_kernel, self._candidates, bkd)
+        self._factorizer = PivotedCholeskyFactorizer(op, bkd)
         if len(self._selected_indices) > 0:
-            init_pivots = bkd.asarray(self._selected_indices, dtype=bkd.int64_dtype())
+            init_pivots = bkd.asarray(
+                self._selected_indices, dtype=bkd.int64_dtype(),
+            )
             self._factorizer.factorize(
                 len(self._selected_indices),
                 init_pivots=init_pivots,
-                pivot_weights=self._pivot_weights,
-            )
-        else:
-            self._factorizer.factorize(
-                0,
                 pivot_weights=self._pivot_weights,
             )
 

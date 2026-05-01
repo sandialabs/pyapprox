@@ -4,10 +4,15 @@ Provides density evaluation via backward ODE integration with divergence
 tracking, and KL divergence computation using quadrature.
 """
 
+from typing import Callable, Optional
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _log_standard_normal(x: Array) -> Array:
+    return -0.5 * np.log(2 * np.pi) - 0.5 * x**2
 
 
 def compute_flow_density(
@@ -17,11 +22,12 @@ def compute_flow_density(
     n_steps: int = 100,
     x_range: tuple[float, float] = (-6.0, 6.0),
     scheme: str = "heun",
+    log_source_density: Optional[Callable[[Array], Array]] = None,
 ) -> Array:
     """Evaluate density q(x1) by solving the backward ODE with divergence tracking.
 
     Computes log q(x1) = log p0(x0) - int_0^1 div(v(x_t, t)) dt
-    where p0 is the standard normal source density.
+    where p0 is the source density.
 
     Parameters
     ----------
@@ -38,6 +44,10 @@ def compute_flow_density(
         Clipping range for spatial variable.
     scheme : str
         ODE integration scheme: ``"euler"`` or ``"heun"``.
+    log_source_density : callable, optional
+        ``log p0(x)`` evaluated at traced-back source samples.  Takes and
+        returns arrays of shape ``(1, nsamples)``.  Defaults to standard
+        normal ``N(0, 1)``.
 
     Returns
     -------
@@ -78,7 +88,9 @@ def compute_flow_density(
             x = x - 0.5 * dt * (v1 + v2)
             log_div_integral = log_div_integral + 0.5 * dt * (div1 + div2)
 
-    log_p0 = -0.5 * np.log(2 * np.pi) - 0.5 * x**2
+    if log_source_density is None:
+        log_source_density = _log_standard_normal
+    log_p0 = log_source_density(x)
     log_q = log_p0 - log_div_integral
     return bkd.exp(bkd.clip(log_q, -50, 50))
 
@@ -92,6 +104,7 @@ def compute_kl_divergence(
     n_steps: int = 100,
     x_range: tuple[float, float] = (-6.0, 6.0),
     scheme: str = "heun",
+    log_source_density: Optional[Callable[[Array], Array]] = None,
 ) -> float:
     """Compute D_KL(p || q) using quadrature nodes for target p.
 
@@ -113,6 +126,8 @@ def compute_kl_divergence(
         Spatial clipping range.
     scheme : str
         ODE integration scheme.
+    log_source_density : callable, optional
+        Passed to ``compute_flow_density``.
 
     Returns
     -------
@@ -121,7 +136,8 @@ def compute_kl_divergence(
     """
     p_vals = target_pdf_fn(quad_pts)  # type: ignore[operator]
     q_vals = compute_flow_density(
-        model, quad_pts, bkd, n_steps=n_steps, x_range=x_range, scheme=scheme
+        model, quad_pts, bkd, n_steps=n_steps, x_range=x_range, scheme=scheme,
+        log_source_density=log_source_density,
     )
     eps = 1e-15
     integrand = bkd.log((p_vals + eps) / (q_vals + eps))

@@ -12,11 +12,11 @@ w.r.t. hyperparameters for efficient optimization.
 
 import math
 from abc import abstractmethod
-from typing import Tuple
+from typing import Tuple, cast
 
 import numpy as np
 
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.protocols import Kernel, NumbaScalarKernelFn
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
@@ -53,10 +53,16 @@ class MaternKernel(Kernel[Array]):
     ):
         super().__init__(bkd)
         self._nvars = nvars
+        nparams = len(lenscale) if hasattr(lenscale, "__len__") else 1
+        if nparams != 1 and nparams != nvars:
+            raise ValueError(
+                f"lenscale must have 1 (isotropic) or nvars={nvars} entries, "
+                f"got {nparams}"
+            )
 
         self._log_lenscale = LogHyperParameter(
             "lenscale",
-            nvars,
+            nparams,
             lenscale,
             lenscale_bounds,
             bkd=self._bkd,
@@ -82,12 +88,20 @@ class MaternKernel(Kernel[Array]):
         """Return the diagonal of the kernel matrix (all ones for Matern)."""
         return self._bkd.full((X1.shape[1],), 1.0)
 
+    def numba_kernel_params(self) -> np.ndarray:
+        """Return exponentiated length scales, one per data dimension."""
+        vals: Array = self._hyp_list.get_values()  # type: ignore[assignment]
+        result: np.ndarray = np.exp(self._bkd.to_numpy(vals))
+        if len(result) == 1 and self._nvars > 1:
+            result = np.full(self._nvars, result[0])
+        return result
+
     @abstractmethod
     def _eval_distance_form(self, distances: Array) -> Array:
         """Evaluate kernel from scaled distances."""
         ...
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """Compute the kernel matrix."""
         lenscale = self._log_lenscale.exp_values()
         if X2 is None:
@@ -208,6 +222,11 @@ class SquaredExponentialKernel(MaternKernel[Array]):
     def _eval_distance_form(self, distances: Array) -> Array:
         return self._bkd.exp(-(distances**2) / 2.0)
 
+    def numba_eval(self) -> NumbaScalarKernelFn:
+        """Return numba-compiled scalar squared-exponential evaluator."""
+        from pyapprox.surrogates.kernels.matern_numba import sqexp_eval
+        return cast(NumbaScalarKernelFn, sqexp_eval)
+
     def jacobian(self, X1: Array, X2: Array) -> Array:
         """Compute Jacobian w.r.t. first input."""
         lenscale = self._log_lenscale.exp_values()
@@ -287,8 +306,8 @@ class SquaredExponentialKernel(MaternKernel[Array]):
                 f"dim must be in range [0, {self._nvars - 1}], got {dim}"
             )
 
-        # Extract length scale for this dimension
-        ls_dim = self._log_lenscale.exp_values()[dim:dim+1]
+        exp_vals = self._log_lenscale.exp_values()
+        ls_dim = exp_vals[dim:dim+1] if len(exp_vals) > 1 else exp_vals
 
         # Get bounds in user space (exp of log bounds)
         bounds = self._bkd.exp(self._log_lenscale.get_bounds())
@@ -342,6 +361,11 @@ class Matern52Kernel(MaternKernel[Array]):
     def _eval_distance_form(self, distances: Array) -> Array:
         tmp = math.sqrt(5) * distances
         return (1.0 + tmp + tmp**2 / 3.0) * self._bkd.exp(-tmp)
+
+    def numba_eval(self) -> NumbaScalarKernelFn:
+        """Return numba-compiled scalar Matern-5/2 evaluator."""
+        from pyapprox.surrogates.kernels.matern_numba import matern52_eval
+        return cast(NumbaScalarKernelFn, matern52_eval)
 
     def jacobian(self, X1: Array, X2: Array) -> Array:
         """Compute Jacobian w.r.t. first input."""
@@ -467,6 +491,11 @@ class Matern32Kernel(MaternKernel[Array]):
         tmp = math.sqrt(3) * distances
         return (1.0 + tmp) * self._bkd.exp(-tmp)
 
+    def numba_eval(self) -> NumbaScalarKernelFn:
+        """Return numba-compiled scalar Matern-3/2 evaluator."""
+        from pyapprox.surrogates.kernels.matern_numba import matern32_eval
+        return cast(NumbaScalarKernelFn, matern32_eval)
+
     def jacobian(self, X1: Array, X2: Array) -> Array:
         """Compute Jacobian w.r.t. first input."""
         lenscale = self._log_lenscale.exp_values()
@@ -585,6 +614,11 @@ class ExponentialKernel(MaternKernel[Array]):
 
     def _eval_distance_form(self, distances: Array) -> Array:
         return self._bkd.exp(-distances)
+
+    def numba_eval(self) -> NumbaScalarKernelFn:
+        """Return numba-compiled scalar exponential evaluator."""
+        from pyapprox.surrogates.kernels.matern_numba import exponential_eval
+        return cast(NumbaScalarKernelFn, exponential_eval)
 
     def jacobian(self, X1: Array, X2: Array) -> Array:
         """Compute Jacobian w.r.t. first input."""

@@ -74,3 +74,11 @@ follow_imports = "silent"
 [[tool.mypy.overrides]]
 module = ["pyapprox.*"]
 follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+module = [
+    "pyapprox.surrogates.kernels.matern_numba",
+    "pyapprox.util.linalg.pivoted_cholesky_numba",
+]
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
