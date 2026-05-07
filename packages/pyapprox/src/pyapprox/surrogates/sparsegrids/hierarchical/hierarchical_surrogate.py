@@ -71,21 +71,16 @@ class HierarchicalSurrogate(Generic[Array]):
         Array
             Shape (nqoi, npts).
         """
-        bkd = self._bkd
-        npts = samples.shape[1]
-        nqoi = self.nqoi()
-        result = bkd.zeros((nqoi, npts), dtype=bkd.double_dtype())
-
-        for i, key in enumerate(self._point_keys):
-            basis_vals = self._basis_nd.evaluate(
-                samples, key[0], key[1]
+        if not self._point_keys:
+            bkd = self._bkd
+            return bkd.zeros(
+                (self.nqoi(), samples.shape[1]),
+                dtype=bkd.double_dtype(),
             )
-            # basis_vals shape: (npts,)
-            # surpluses[:, i] shape: (nqoi,)
-            surplus_col = self._surpluses[:, i].reshape(nqoi, 1)
-            result = result + surplus_col * basis_vals.reshape(1, npts)
-
-        return result
+        basis_matrix = self._basis_nd.evaluate_batch(
+            samples, self._point_keys
+        )
+        return self._bkd.dot(self._surpluses, basis_matrix)
 
     def evaluate(self, sample: Array) -> Array:
         """Evaluate at a single sample point.
@@ -113,6 +108,38 @@ class HierarchicalSurrogate(Generic[Array]):
         bkd = self._bkd
         # surpluses: (nqoi, n_points), quad_weights: (n_points,)
         return bkd.dot(self._surpluses, self._quad_weights)
+
+    def add_point(
+        self, key: PointKey, surplus: Array, quad_weight: float
+    ) -> None:
+        """Incrementally add a single point to the surrogate (in place)."""
+        self.add_points([key], [surplus], [quad_weight])
+
+    def add_points(
+        self,
+        keys: List[PointKey],
+        surpluses: List[Array],
+        quad_weights: List[float],
+    ) -> None:
+        """Batch-add multiple points to the surrogate (in place).
+
+        Parameters
+        ----------
+        keys : list of PointKey
+        surpluses : list of Array, each shape (nqoi,)
+        quad_weights : list of float
+        """
+        if not keys:
+            return
+        bkd = self._bkd
+        self._point_keys.extend(keys)
+        new_cols = bkd.stack(surpluses, axis=1) if len(surpluses) > 1 else surpluses[0].reshape(-1, 1)
+        if self._surpluses.shape[1] == 0:
+            self._surpluses = new_cols
+        else:
+            self._surpluses = bkd.hstack([self._surpluses, new_cols])
+        new_w = bkd.asarray(quad_weights, dtype=bkd.double_dtype())
+        self._quad_weights = bkd.concatenate([self._quad_weights, new_w])
 
     def point_keys(self) -> List[PointKey]:
         return list(self._point_keys)

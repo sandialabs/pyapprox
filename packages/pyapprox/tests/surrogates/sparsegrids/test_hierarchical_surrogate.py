@@ -63,9 +63,10 @@ class TestHierarchicalSurrogate:
         b1d = HierarchicalBasis1D(bkd, boundary_mode="include")
         basis_nd = HierarchicalBasisND(bkd, [b1d])
 
-        # f(x) = 1: surplus at (0,1) is 1, at (1,0) is 1, at (1,2) is 1
+        # f(x) = 1: level-0 constant basis already captures it exactly,
+        # so boundary surpluses at level 1 are zero.
         keys = [((0,), (1,)), ((1,), (0,)), ((1,), (2,))]
-        surpluses = bkd.asarray([[1.0, 1.0, 1.0]])
+        surpluses = bkd.asarray([[1.0, 0.0, 0.0]])
         weights = bkd.asarray(
             [basis_nd.quadrature_weight(k[0], k[1]) for k in keys]
         )

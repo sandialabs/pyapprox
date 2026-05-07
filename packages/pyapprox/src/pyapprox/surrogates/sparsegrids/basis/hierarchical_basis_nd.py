@@ -95,6 +95,44 @@ class HierarchicalBasisND(Generic[Array]):
             result = result * val_d
         return result
 
+    def evaluate_batch(
+        self,
+        samples: Array,
+        point_keys: list,
+    ) -> Array:
+        """Evaluate all ND basis functions at all sample points.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (nvars, npts).
+        point_keys : list of (subspace_level, point_index)
+            Each element is a tuple of two tuples of ints.
+
+        Returns
+        -------
+        Array
+            Shape (n_basis, npts). Row i is Psi_{l_i, j_i}(samples).
+        """
+        nvars = self.nvars()
+        n_basis = len(point_keys)
+        npts = samples.shape[1]
+        bkd = self._bkd
+
+        result = bkd.ones(
+            (n_basis, npts), dtype=bkd.double_dtype()
+        )
+        for d in range(nvars):
+            levels_d = [key[0][d] for key in point_keys]
+            indices_d = [key[1][d] for key in point_keys]
+            x_d = samples[d, :].reshape(-1)
+            vals_d = self._bases_1d[d].evaluate_batch(
+                x_d, levels_d, indices_d
+            )
+            result = result * vals_d
+
+        return result
+
     def points_in_subspace(
         self, subspace_level: Tuple[int, ...]
     ) -> List[Tuple[int, ...]]:
@@ -130,15 +168,13 @@ class HierarchicalBasisND(Generic[Array]):
         j_d = point_index[direction]
         children_1d = basis_1d.children(l_d, j_d)
 
-        child_sub = list(subspace_level)
-        child_sub[direction] += 1
-        child_sub_tuple = tuple(child_sub)
-
         result: List[Tuple[Tuple[int, ...], Tuple[int, ...]]] = []
-        for _, child_j in children_1d:
+        for child_l, child_j in children_1d:
+            child_sub = list(subspace_level)
+            child_sub[direction] = child_l
             child_pt = list(point_index)
             child_pt[direction] = child_j
-            result.append((child_sub_tuple, tuple(child_pt)))
+            result.append((tuple(child_sub), tuple(child_pt)))
         return result
 
     def ancestors_of_point(

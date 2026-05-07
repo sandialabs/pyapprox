@@ -230,9 +230,9 @@ class TestHierarchicalBasis1DInclude:
         assert basis.degree_at(1) == 1
         assert basis.degree_at(5) == 1
 
-    def test_p_max_gt_1_raises(self, bkd):
-        b = HierarchicalBasis1D(bkd, p_max=2)
-        with pytest.raises(NotImplementedError, match="p_max=2"):
+    def test_p_max_gt_2_raises(self, bkd):
+        b = HierarchicalBasis1D(bkd, p_max=3)
+        with pytest.raises(NotImplementedError, match="p_max=3"):
             b.evaluate(bkd.asarray([0.5]), 0, 1)
 
     def test_custom_bounds(self, bkd):
@@ -250,6 +250,199 @@ class TestHierarchicalBasis1DInclude:
         )
         bkd.assert_allclose(
             bkd.asarray([integral]), bkd.asarray([4.0]), rtol=0, atol=1e-14
+        )
+
+
+class TestHierarchicalBasis1DQuadratic:
+    """Tests for HierarchicalBasis1D with p_max=2."""
+
+    @pytest.fixture()
+    def basis(self, bkd):
+        return HierarchicalBasis1D(
+            bkd, bounds=(0.0, 1.0), p_max=2, boundary_mode="include"
+        )
+
+    def test_level_0_constant(self, bkd, basis):
+        x = bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0], dtype=bkd.double_dtype())
+        vals = basis.evaluate(x, 0, 1)
+        bkd.assert_allclose(vals, bkd.ones_like(x), atol=1e-15)
+
+    def test_boundary_nodes_linear(self, bkd, basis):
+        """Boundary nodes at level 1 use linear hat (degree 1)."""
+        x = bkd.asarray(
+            np.linspace(0, 1, 101), dtype=bkd.double_dtype()
+        )
+        # Left boundary: hat from 1 at x=0 to 0 at x=0.5
+        vals_left = bkd.to_numpy(basis.evaluate(x, 1, 0))
+        assert vals_left[0] == pytest.approx(1.0)
+        assert vals_left[50] == pytest.approx(0.0)
+        assert vals_left[100] == pytest.approx(0.0)
+        # Right boundary: hat from 0 at x=0.5 to 1 at x=1
+        vals_right = bkd.to_numpy(basis.evaluate(x, 1, 2))
+        assert vals_right[0] == pytest.approx(0.0)
+        assert vals_right[50] == pytest.approx(0.0)
+        assert vals_right[100] == pytest.approx(1.0)
+
+    def test_quadratic_shape(self, bkd, basis):
+        """Interior quadratic is a parabola: 1 at node, 0 at support ends."""
+        # (2, 1) at x=0.25 with support [0, 0.5]
+        x = bkd.asarray([0.0, 0.25, 0.5], dtype=bkd.double_dtype())
+        vals = bkd.to_numpy(basis.evaluate(x, 2, 1))
+        assert vals[0] == pytest.approx(0.0)
+        assert vals[1] == pytest.approx(1.0)
+        assert vals[2] == pytest.approx(0.0)
+
+    def test_zero_outside_support(self, bkd, basis):
+        """Quadratic basis is zero outside its support."""
+        # (2, 1) has support [0, 0.5]
+        x = bkd.asarray([0.6, 0.75, 1.0], dtype=bkd.double_dtype())
+        vals = bkd.to_numpy(basis.evaluate(x, 2, 1))
+        bkd.assert_allclose(
+            bkd.asarray(vals), bkd.zeros((3,)), atol=1e-15
+        )
+
+    def test_property_a_same_level_interpolation(self, bkd, basis):
+        """psi_{l,j}(node(l,j')) = delta_{j,j'} for same-level nodes."""
+        for l in range(5):
+            indices = basis.new_points_at_level(l)
+            if not indices:
+                continue
+            nodes = bkd.asarray(
+                [basis.node(l, j) for j in indices],
+                dtype=bkd.double_dtype(),
+            )
+            for i, ja in enumerate(indices):
+                vals = bkd.to_numpy(basis.evaluate(nodes, l, ja))
+                for k, jb in enumerate(indices):
+                    expected = 1.0 if i == k else 0.0
+                    assert abs(vals[k] - expected) < 1e-14, (
+                        f"psi_{l},{ja}(node({l},{jb})) = {vals[k]}, "
+                        f"expected {expected}"
+                    )
+
+    def test_property_b_vanishing_at_coarser_nodes(self, bkd, basis):
+        """psi_{l,j}(node(l',j')) = 0 for l' < l."""
+        max_level = 4
+        all_pts = _collect_points(basis, max_level)
+        for l_fine in range(1, max_level + 1):
+            fine_pts = [(l, j) for l, j in all_pts if l == l_fine]
+            for l_coarse in range(l_fine):
+                coarse_pts = [(l, j) for l, j in all_pts if l == l_coarse]
+                if not coarse_pts:
+                    continue
+                coarse_nodes = bkd.asarray(
+                    [basis.node(l, j) for l, j in coarse_pts],
+                    dtype=bkd.double_dtype(),
+                )
+                for lf, jf in fine_pts:
+                    vals = bkd.to_numpy(
+                        basis.evaluate(coarse_nodes, lf, jf)
+                    )
+                    for k, (lc, jc) in enumerate(coarse_pts):
+                        assert abs(vals[k]) < 1e-14, (
+                            f"psi_{lf},{jf}(node({lc},{jc})) = {vals[k]}"
+                            f", expected 0"
+                        )
+
+    def test_quadrature_weight_formula(self, bkd, basis):
+        """Weight = 4h/3 for interior, verified against PiecewiseQuadratic."""
+        from pyapprox.surrogates.basis.piecewisepoly.quadratic import (
+            PiecewiseQuadratic,
+        )
+
+        for l in range(2, 5):
+            h = 1.0 / 2**l
+            for j in basis.new_points_at_level(l):
+                w = basis.quadrature_weight(l, j)
+                assert w == pytest.approx(4.0 * h / 3.0), (
+                    f"({l},{j}): weight={w}, expected {4*h/3}"
+                )
+                # Verify against PiecewiseQuadratic weights
+                left, right = basis.support(l, j)
+                node_x = basis.node(l, j)
+                nodes = bkd.asarray(
+                    [left, node_x, right], dtype=bkd.double_dtype()
+                )
+                pw = PiecewiseQuadratic(nodes, bkd)
+                _, pw_weights = pw.quadrature_rule()
+                w_pw = float(bkd.to_numpy(pw_weights)[1])
+                assert w == pytest.approx(w_pw, rel=1e-14), (
+                    f"({l},{j}): hierarchical={w}, PiecewiseQuadratic={w_pw}"
+                )
+
+    def test_hierarchical_quadrature_constant(self, bkd, basis):
+        """Hierarchical integral of f(x)=1 equals 1."""
+        _, surpluses = _hierarchical_surpluses_1d(
+            basis, lambda x: 1.0, 3, bkd
+        )
+        integral = sum(
+            v * basis.quadrature_weight(l, j)
+            for (l, j), v in surpluses.items()
+        )
+        bkd.assert_allclose(
+            bkd.asarray([integral]),
+            bkd.asarray([1.0]),
+            rtol=0,
+            atol=1e-14,
+        )
+
+    def test_hierarchical_quadrature_linear(self, bkd, basis):
+        """Hierarchical integral of f(x)=x equals 0.5."""
+        _, surpluses = _hierarchical_surpluses_1d(
+            basis, lambda x: x, 3, bkd
+        )
+        integral = sum(
+            v * basis.quadrature_weight(l, j)
+            for (l, j), v in surpluses.items()
+        )
+        bkd.assert_allclose(
+            bkd.asarray([integral]),
+            bkd.asarray([0.5]),
+            rtol=0,
+            atol=1e-14,
+        )
+
+    def test_hierarchical_quadratic_exact(self, bkd, basis):
+        """Quadratic basis reproduces x^2 exactly (interpolation + quadrature).
+
+        At level 2 the grid has 5 nodes; the piecewise-quadratic
+        interpolant matches the global quadratic x^2 everywhere.
+        Surpluses at level 3+ are zero.
+        """
+        max_level = 3
+        pts, surpluses = _hierarchical_surpluses_1d(
+            basis, lambda x: x**2, max_level, bkd
+        )
+
+        # Interpolation is exact
+        x_test = np.linspace(0, 1, 201)
+        x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
+        hier_vals = np.zeros_like(x_test)
+        for (l, j), v in surpluses.items():
+            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, l, j))
+            hier_vals += v * basis_vals
+        bkd.assert_allclose(
+            bkd.asarray(hier_vals),
+            bkd.asarray(x_test**2),
+            rtol=0,
+            atol=1e-14,
+        )
+
+        # Surpluses at level 3 are zero
+        for (l, j), v in surpluses.items():
+            if l >= 3:
+                assert abs(v) < 1e-14, f"surplus at ({l},{j}) = {v}"
+
+        # Quadrature is exact: int_0^1 x^2 dx = 1/3
+        integral = sum(
+            v * basis.quadrature_weight(l, j)
+            for (l, j), v in surpluses.items()
+        )
+        bkd.assert_allclose(
+            bkd.asarray([integral]),
+            bkd.asarray([1.0 / 3.0]),
+            rtol=0,
+            atol=1e-14,
         )
 
 

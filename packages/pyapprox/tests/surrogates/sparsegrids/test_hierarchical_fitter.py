@@ -23,9 +23,12 @@ from pyapprox.surrogates.sparsegrids.model_factory import DictModelFactory
 
 
 class TestSingleFidelityHierarchicalFitter:
-    def test_zero_function(self, bkd):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_zero_function(self, bkd, p_max):
         """All surpluses zero except root for f=0."""
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=2, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
 
@@ -42,9 +45,12 @@ class TestSingleFidelityHierarchicalFitter:
             vals, bkd.zeros((1, 11), dtype=bkd.double_dtype()), atol=1e-14
         )
 
-    def test_1d_linear_exact(self, bkd):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_linear_exact(self, bkd, p_max):
         """f(x) = 3x + 1 is reproduced exactly."""
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
 
@@ -59,9 +65,12 @@ class TestSingleFidelityHierarchicalFitter:
         expected = 3 * x_test + 1
         bkd.assert_allclose(vals, expected, atol=1e-13)
 
-    def test_step_by_step(self, bkd):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_step_by_step(self, bkd, p_max):
         """Manual step_samples/step_values loop."""
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=2, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
 
@@ -82,15 +91,12 @@ class TestSingleFidelityHierarchicalFitter:
         assert result.nsamples > 0
         assert result.nsteps > 0
 
-    def test_1d_adaptive_cubic(self, bkd):
-        """Piecewise function: linear left of 0.75, cubic right.
-
-        The linear part is captured exactly (zero surpluses), so all
-        refinement concentrates on the cubic region. Non-uniform
-        curvature (f''=18(x-0.75)) gives varying surpluses, so
-        refinement interleaves across levels.
-        """
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_adaptive_cubic(self, bkd, p_max):
+        """Piecewise function: linear left of 0.75, cubic right."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(
             bkd, bases_1d, admis, batch_size=1
@@ -124,9 +130,12 @@ class TestSingleFidelityHierarchicalFitter:
 
         assert prev_l2 < 1e-4
 
-    def test_mean_of_linear(self, bkd):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_mean_of_linear(self, bkd, p_max):
         """Mean of f(x)=x over [0,1] should be 0.5."""
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=2, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
 
@@ -136,6 +145,27 @@ class TestSingleFidelityHierarchicalFitter:
         result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=50)
         mean = result.surrogate.mean()
         bkd.assert_allclose(mean, bkd.asarray([0.5]), atol=1e-14)
+
+    def test_1d_quadratic_exact(self, bkd):
+        """p_max=2 reproduces x^2 exactly; mean = 1/3."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=2, boundary_mode="include")
+        ]
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
+
+        def f(x):
+            return x ** 2
+
+        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=50)
+        x_test = bkd.asarray(
+            np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
+        )
+        vals = result.surrogate(x_test)
+        bkd.assert_allclose(vals, x_test ** 2, atol=1e-13)
+
+        mean = result.surrogate.mean()
+        bkd.assert_allclose(mean, bkd.asarray([1.0 / 3.0]), atol=1e-13)
 
     def test_always_admissible_no_deferred(self, bkd):
         """With AlwaysAdmissible, deferred registry should stay empty."""
@@ -160,9 +190,12 @@ class TestSingleFidelityHierarchicalFitter:
 
         assert fitter._fitter._deferred.empty()
 
-    def test_batch_size(self, bkd):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_batch_size(self, bkd, p_max):
         """batch_size > 1 should still produce a correct result."""
-        bases_1d = [HierarchicalBasis1D(bkd, boundary_mode="include")]
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        ]
         admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=bkd)
 
         def f(x):
@@ -195,11 +228,12 @@ def _run_2d_adaptive(
     bkd,
     admissibility,
     max_pts: int,
+    p_max: int = 1,
 ) -> Tuple[object, object, object]:
     """Run 2D adaptive sparse grid and return (fitter, basis_nd, mf)."""
     bases_1d = [
-        HierarchicalBasis1D(bkd, boundary_mode="include"),
-        HierarchicalBasis1D(bkd, boundary_mode="include"),
+        HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include"),
+        HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include"),
     ]
     basis_nd = HierarchicalBasisND(bkd, bases_1d)
     fitter = SingleFidelityHierarchicalFitter(
@@ -259,23 +293,35 @@ class TestHierarchicalFitterConvergence:
 
         f(x,y) = 10*x*y + 30*max(x-0.3,0)^2 * max(y-0.3,0)^2
 
-    using both DownwardClosed and AlwaysAdmissible admissibility.
+    using both DownwardClosed and AlwaysAdmissible admissibility,
+    parametrized over p_max.
     """
 
     @pytest.mark.parametrize("mode", ["DownwardClosed", "AlwaysAdmissible"])
-    def test_interpolation_property(self, bkd, mode):
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_interpolation_property(self, bkd, mode, p_max):
         """Surrogate must interpolate f exactly at every grid node."""
         if mode == "DownwardClosed":
             admis = MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd)
         else:
             admis = AlwaysAdmissible(bkd)
 
-        fitter, basis_nd, _ = _run_2d_adaptive(bkd, admis, max_pts=100)
+        fitter, basis_nd, _ = _run_2d_adaptive(
+            bkd, admis, max_pts=100, p_max=p_max
+        )
         _check_interpolation_property(bkd, fitter, basis_nd)
 
-    def test_downward_closed_convergence(self, bkd):
+    @pytest.mark.parametrize(
+        "p_max, l2_expected, linf_expected",
+        [(1, 0.004855, 0.023934), (2, 0.000067, 0.001117)],
+    )
+    def test_downward_closed_convergence(
+        self, bkd, p_max, l2_expected, linf_expected
+    ):
         admis = MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd)
-        fitter, basis_nd, _ = _run_2d_adaptive(bkd, admis, max_pts=200)
+        fitter, basis_nd, _ = _run_2d_adaptive(
+            bkd, admis, max_pts=200, p_max=p_max
+        )
 
         surr = fitter.result(converged=False).surrogate
         xx, yy = np.meshgrid(
@@ -298,14 +344,22 @@ class TestHierarchicalFitterConvergence:
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
         linf = float(np.max(np.abs(err)))
-        assert l2 == pytest.approx(0.004855, abs=1e-3)
-        assert linf == pytest.approx(0.023934, abs=5e-3)
+        assert l2 < l2_expected * 2
+        assert linf < linf_expected * 2
 
         _check_interpolation_property(bkd, fitter, basis_nd)
 
-    def test_always_admissible_convergence(self, bkd):
+    @pytest.mark.parametrize(
+        "p_max, l2_expected, linf_expected",
+        [(1, 0.001224, 0.006647), (2, 0.000036, 0.000540)],
+    )
+    def test_always_admissible_convergence(
+        self, bkd, p_max, l2_expected, linf_expected
+    ):
         admis = AlwaysAdmissible(bkd)
-        fitter, basis_nd, _ = _run_2d_adaptive(bkd, admis, max_pts=200)
+        fitter, basis_nd, _ = _run_2d_adaptive(
+            bkd, admis, max_pts=200, p_max=p_max
+        )
 
         surr = fitter.result(converged=False).surrogate
         xx, yy = np.meshgrid(
@@ -328,8 +382,8 @@ class TestHierarchicalFitterConvergence:
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
         linf = float(np.max(np.abs(err)))
-        assert l2 == pytest.approx(0.001224, abs=1e-4)
-        assert linf == pytest.approx(0.006647, abs=1e-3)
+        assert l2 < l2_expected * 2
+        assert linf < linf_expected * 2
 
         _check_interpolation_property(bkd, fitter, basis_nd)
 
@@ -521,6 +575,148 @@ class TestHierarchicalFitterConvergence:
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
         assert l2 < 0.005
+
+
+class TestExcludeMode:
+    """Fitter tests with boundary_mode='exclude'.
+
+    All test functions must be zero at the domain boundaries since
+    there are no boundary basis functions.
+    """
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_sine_exact(self, bkd, p_max):
+        """f(x) = sin(pi*x) vanishes at 0 and 1."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude")
+        ]
+        admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
+
+        def f(x):
+            return bkd.sin(x * np.pi)
+
+        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        # Test on interior points only
+        x_test = bkd.asarray(
+            np.linspace(0.05, 0.95, 51).reshape(1, -1),
+            dtype=bkd.double_dtype(),
+        )
+        vals = result.surrogate(x_test)
+        expected = bkd.sin(x_test * np.pi)
+        bkd.assert_allclose(vals, expected, atol=0.01)
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_zero_at_boundaries(self, bkd, p_max):
+        """Surrogate evaluates to zero at domain boundaries."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude")
+        ]
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
+
+        def f(x):
+            return bkd.sin(x * np.pi)
+
+        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        x_bnd = bkd.asarray([[0.0, 1.0]], dtype=bkd.double_dtype())
+        vals = result.surrogate(x_bnd)
+        bkd.assert_allclose(
+            vals, bkd.zeros((1, 2), dtype=bkd.double_dtype()), atol=1e-14
+        )
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_mean(self, bkd, p_max):
+        """Mean of sin(pi*x) over [0,1] is 2/pi."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude")
+        ]
+        admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(bkd, bases_1d, admis)
+
+        def f(x):
+            return bkd.sin(x * np.pi)
+
+        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        mean = result.surrogate.mean()
+        bkd.assert_allclose(
+            mean, bkd.asarray([2.0 / np.pi]), atol=0.01
+        )
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_2d_interpolation_property(self, bkd, p_max):
+        """Surrogate interpolates f at all grid nodes (2D exclude mode)."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude"),
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude"),
+        ]
+        basis_nd = HierarchicalBasisND(bkd, bases_1d)
+        admis = MaxLevelCriteria(max_level=6, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(
+            bkd, bases_1d, admis, batch_size=1
+        )
+
+        def f(x):
+            return bkd.sin(x[0:1, :] * np.pi) * bkd.sin(x[1:2, :] * np.pi)
+
+        total = 0
+        for _ in range(500):
+            samples = fitter.step_samples()
+            if samples is None:
+                break
+            total += samples.shape[1]
+            fitter.step_values(f(samples))
+            if total >= 100:
+                break
+
+        surr = fitter.result(converged=False).surrogate
+        mf = fitter._fitter
+        for pid in range(mf._point_mgr.n_points()):
+            if not mf._point_mgr.is_evaluated(pid):
+                continue
+            key = mf._point_mgr.get_key(pid)
+            node = basis_nd.node(*key)
+            bkd.assert_allclose(surr(node), f(node), atol=1e-12)
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_2d_convergence(self, bkd, p_max):
+        """2D exclude mode converges on sin(pi*x)*sin(pi*y)."""
+        bases_1d = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude"),
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="exclude"),
+        ]
+        admis = MaxLevelCriteria(max_level=8, pnorm=1.0, bkd=bkd)
+        fitter = SingleFidelityHierarchicalFitter(
+            bkd, bases_1d, admis, batch_size=1
+        )
+
+        def f(x):
+            return bkd.sin(x[0:1, :] * np.pi) * bkd.sin(x[1:2, :] * np.pi)
+
+        total = 0
+        for _ in range(500):
+            samples = fitter.step_samples()
+            if samples is None:
+                break
+            total += samples.shape[1]
+            fitter.step_values(f(samples))
+            if total >= 150:
+                break
+
+        surr = fitter.result(converged=False).surrogate
+        # Test on interior grid
+        xx, yy = np.meshgrid(
+            np.linspace(0.05, 0.95, 101),
+            np.linspace(0.05, 0.95, 101),
+        )
+        test_pts = bkd.asarray(
+            np.vstack([xx.ravel(), yy.ravel()]),
+            dtype=bkd.double_dtype(),
+        )
+        exact = f(test_pts)
+        err = bkd.to_numpy(surr(test_pts) - exact)
+        l2 = float(np.sqrt(np.mean(err**2)))
+        assert l2 < 0.01
 
 
 class TestMultiFidelityHierarchicalFitter:

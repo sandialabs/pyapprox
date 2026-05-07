@@ -112,6 +112,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         self._newly_evaluated_ids: List[int] = []
 
         self._promoted_subspaces: Set[Tuple[int, ...]] = set()
+        self._cached_surrogate: Optional[HierarchicalSurrogate[Array]] = None
 
     # -- Public API --
 
@@ -159,22 +160,51 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
         all_pending.sort(key=lambda x: (_level_sum(x[0]), x[0]))
 
-        for pid, config_idx in all_pending:
-            key = self._point_mgr.get_key(pid)
-            node = self._basis_nd.node(*key)
+        if self._cached_surrogate is not None:
+            surrogate = self._cached_surrogate
+        else:
             surrogate = self._build_surrogate_snapshot()
-            if surrogate.n_points() > 0:
-                pred = surrogate(node)
-            else:
-                pred = self._bkd.zeros(
-                    (self._nqoi, 1), dtype=self._bkd.double_dtype()
-                )
-            val = values_by_pid[pid]
-            surplus = val - pred.reshape(-1)
-            self._point_mgr.set_values_and_surpluses(
-                [pid], val.reshape(-1, 1), pred.reshape(-1, 1)
+        bkd = self._bkd
+
+        ii = 0
+        while ii < len(all_pending):
+            cur_level = _level_sum(all_pending[ii][0])
+            jj = ii
+            while jj < len(all_pending) and _level_sum(all_pending[jj][0]) == cur_level:
+                jj += 1
+            group = all_pending[ii:jj]
+            ii = jj
+
+            keys = [self._point_mgr.get_key(pid) for pid, _ in group]
+            nodes = bkd.hstack(
+                [self._basis_nd.node(*k) for k in keys]
             )
-            self._newly_evaluated_ids.append(pid)
+
+            if surrogate.n_points() > 0:
+                preds = surrogate(nodes)
+            else:
+                preds = bkd.zeros(
+                    (self._nqoi, len(group)), dtype=bkd.double_dtype()
+                )
+
+            group_surpluses: List[Array] = []
+            group_weights: List[float] = []
+            for idx_in_group, (pid, config_idx) in enumerate(group):
+                key = keys[idx_in_group]
+                val = values_by_pid[pid]
+                pred = preds[:, idx_in_group]
+                surplus = val - pred
+                self._point_mgr.set_values_and_surpluses(
+                    [pid], val.reshape(-1, 1), pred.reshape(-1, 1)
+                )
+                self._newly_evaluated_ids.append(pid)
+                group_surpluses.append(surplus)
+                group_weights.append(
+                    self._basis_nd.quadrature_weight(*key)
+                )
+            surrogate.add_points(keys, group_surpluses, group_weights)
+
+        self._cached_surrogate = surrogate
 
         for pid in self._newly_evaluated_ids:
             surplus = self._point_mgr.get_surplus(pid)
@@ -196,7 +226,10 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
     def result(
         self, converged: bool = False
     ) -> AdaptiveSparseGridFitResult[Array]:
-        surrogate = self._build_surrogate_snapshot()
+        if self._cached_surrogate is not None:
+            surrogate = self._cached_surrogate
+        else:
+            surrogate = self._build_surrogate_snapshot()
         sel_indices = self._get_promoted_indices()
         n_sel = sel_indices.shape[1] if sel_indices is not None else 0
         coeffs = self._bkd.ones(
@@ -383,14 +416,15 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         for direction in range(self._nvars_physical):
             self._point_mgr.mark_refined(point_id, direction)
 
-            target_sub = list(subspace_level)
-            target_sub[direction] += 1
-            target_sub_t = tuple(target_sub)
+            children = self._basis_nd.children_of_point(
+                subspace_level, point_index, direction
+            )
+            if not children:
+                continue
+
+            target_sub_t = children[0][0]
 
             if self._is_target_admissible(target_sub_t):
-                children = self._basis_nd.children_of_point(
-                    subspace_level, point_index, direction
-                )
                 for child_sub, child_idx in children:
                     new_point_ids.extend(
                         self._register_with_ancestors(
@@ -425,9 +459,31 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             if target_sub[d] > 0:
                 backward = list(target_sub)
                 backward[d] -= 1
-                if tuple(backward) not in self._promoted_subspaces:
-                    return False
+                backward_sub = tuple(backward)
+                if backward_sub not in self._promoted_subspaces:
+                    if self._is_empty_subspace(backward_sub):
+                        self._auto_promote(backward_sub)
+                    else:
+                        return False
         return True
+
+    def _is_empty_subspace(self, sub: Tuple[int, ...]) -> bool:
+        return len(self._basis_nd.points_in_subspace(sub)) == 0
+
+    def _auto_promote(self, sub: Tuple[int, ...]) -> None:
+        """Promote an empty subspace and recursively promote its empty backward neighbors."""
+        if sub in self._promoted_subspaces:
+            return
+        for d in range(self._nvars_physical):
+            if sub[d] > 0:
+                backward = list(sub)
+                backward[d] -= 1
+                backward_sub = tuple(backward)
+                if backward_sub not in self._promoted_subspaces:
+                    if self._is_empty_subspace(backward_sub):
+                        self._auto_promote(backward_sub)
+        self._promoted_subspaces.add(sub)
+        self._notify_promotion(sub)
 
     def _notify_promotion(self, promoted_sub: Tuple[int, ...]) -> None:
         released = self._deferred.notify_complete(promoted_sub)

@@ -213,6 +213,77 @@ class HierarchicalBasis1D(Generic[Array]):
             return self._width * 0.5
         return self._width / 2**level
 
+    def _eval_hat(self, x: Array, level: int, index: int) -> Array:
+        """Evaluate the piecewise-linear hat function (p_max=1)."""
+        bkd = self._bkd
+        node_x = self.node(level, index)
+        h = self._mesh_size(level)
+        zero = bkd.zeros_like(x)
+
+        if level == 0 and self._boundary_mode == "include":
+            return bkd.ones_like(x)
+
+        if self._is_left_boundary(level, index):
+            right = bkd.asarray([node_x + h], dtype=bkd.double_dtype())
+            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+            ramp = (right - x) / h_val
+            return bkd.where(
+                x <= right,
+                bkd.maximum(ramp, zero),
+                zero,
+            )
+
+        if self._is_right_boundary(level, index):
+            left = bkd.asarray([node_x - h], dtype=bkd.double_dtype())
+            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+            ramp = (x - left) / h_val
+            return bkd.where(
+                x >= left,
+                bkd.maximum(ramp, zero),
+                zero,
+            )
+
+        node_val = bkd.asarray([node_x], dtype=bkd.double_dtype())
+        h_val = bkd.asarray([h], dtype=bkd.double_dtype())
+        left_branch = (x - (node_val - h_val)) / h_val
+        right_branch = ((node_val + h_val) - x) / h_val
+        hat = bkd.minimum(left_branch, right_branch)
+        return bkd.maximum(hat, zero)
+
+    def _eval_quadratic(self, x: Array, level: int, index: int) -> Array:
+        """Evaluate the quadratic hierarchical basis function.
+
+        The basis function is the quadratic Lagrange interpolant through
+        (left, node, right) where left and right are the support
+        endpoints.  It equals 1 at the node and 0 at both endpoints,
+        forming a downward-opening parabola on the support and zero
+        outside.
+        """
+        bkd = self._bkd
+
+        if level == 0 and self._boundary_mode == "include":
+            return bkd.ones_like(x)
+
+        left, right = self.support(level, index)
+        node_x = self.node(level, index)
+        denom = (node_x - left) * (node_x - right)
+
+        if self._is_left_boundary(level, index):
+            # node == left, so (x - left) is zero at node → use
+            # linear ramp: 1 at left edge, 0 at right edge
+            return self._eval_hat(x, level, index)
+
+        if self._is_right_boundary(level, index):
+            return self._eval_hat(x, level, index)
+
+        left_arr = bkd.asarray([left], dtype=bkd.double_dtype())
+        right_arr = bkd.asarray([right], dtype=bkd.double_dtype())
+        denom_arr = bkd.asarray([denom], dtype=bkd.double_dtype())
+
+        poly = (x - left_arr) * (x - right_arr) / denom_arr
+        mask = (x >= left_arr) & (x <= right_arr)
+        return bkd.where(mask, poly, bkd.zeros_like(x))
+
     def evaluate(self, x: Array, level: int, index: int) -> Array:
         """Evaluate the hierarchical basis function at sample points.
 
@@ -228,60 +299,173 @@ class HierarchicalBasis1D(Generic[Array]):
         Returns
         -------
         Array
-            Values of the hat function, shape (npts,).
+            Values of the basis function, shape (npts,).
         """
-        if self._p_max > 1:
-            raise NotImplementedError(
-                f"p_max={self._p_max} not yet implemented; only p_max=1"
-            )
+        if self._p_max == 1:
+            return self._eval_hat(x, level, index)
+        if self._p_max == 2:
+            return self._eval_quadratic(x, level, index)
+        raise NotImplementedError(
+            f"p_max={self._p_max} not yet implemented; only p_max<=2"
+        )
 
+    def evaluate_batch(
+        self,
+        x: Array,
+        levels: List[int],
+        indices: List[int],
+    ) -> Array:
+        """Evaluate multiple basis functions at all sample points.
+
+        Parameters
+        ----------
+        x : Array
+            Sample points, shape (npts,).
+        levels : list of int
+            Level for each basis function.
+        indices : list of int
+            Index for each basis function.
+
+        Returns
+        -------
+        Array
+            Shape (n_basis, npts). Row i is the i-th basis function
+            evaluated at all sample points.
+        """
         bkd = self._bkd
-        node_x = self.node(level, index)
-        h = self._mesh_size(level)
-        zero = bkd.zeros_like(x)
+        n_basis = len(levels)
+        npts = x.shape[0]
+        a = self._a
+        w = self._width
+        bdy_include = self._boundary_mode == "include"
 
-        if level == 0 and self._boundary_mode == "include":
-            return bkd.ones_like(x)
+        nodes_list = [0.0] * n_basis
+        lefts_list = [0.0] * n_basis
+        rights_list = [0.0] * n_basis
+        is_left_bdy = [0.0] * n_basis
+        is_right_bdy = [0.0] * n_basis
+        is_lev0 = [0.0] * n_basis
+        for i in range(n_basis):
+            lv = levels[i]
+            ix = indices[i]
+            denom = max(2**lv, 2)
+            cn = ix / denom
+            nodes_list[i] = a + w * cn
+            if lv == 0:
+                h = 0.5
+            else:
+                h = 1.0 / (2**lv)
+            lefts_list[i] = a + w * max(cn - h, 0.0)
+            rights_list[i] = a + w * min(cn + h, 1.0)
+            if lv == 0:
+                is_lev0[i] = 1.0
+            if bdy_include and lv == 1 and ix == 0:
+                is_left_bdy[i] = 1.0
+            if bdy_include and lv == 1 and ix == 2:
+                is_right_bdy[i] = 1.0
 
+        nodes = bkd.asarray(nodes_list, dtype=bkd.double_dtype())
+        lefts = bkd.asarray(lefts_list, dtype=bkd.double_dtype())
+        rights = bkd.asarray(rights_list, dtype=bkd.double_dtype())
+
+        x_row = x.reshape(1, npts)
+        nodes_col = nodes.reshape(n_basis, 1)
+        lefts_col = lefts.reshape(n_basis, 1)
+        rights_col = rights.reshape(n_basis, 1)
+        zero = bkd.zeros((n_basis, npts), dtype=bkd.double_dtype())
+        support_width = rights_col - lefts_col
+        safe_width = bkd.maximum(
+            support_width,
+            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+        )
+
+        is_left_col = bkd.asarray(
+            is_left_bdy, dtype=bkd.double_dtype()
+        ).reshape(n_basis, 1)
+        is_right_col = bkd.asarray(
+            is_right_bdy, dtype=bkd.double_dtype()
+        ).reshape(n_basis, 1)
+        is_bdy_col = is_left_col + is_right_col
+
+        left_ramp = (rights_col - x_row) / safe_width
+        right_ramp = (x_row - lefts_col) / safe_width
+        in_support = (x_row >= lefts_col) & (x_row <= rights_col)
+
+        bdy_hat = bkd.where(
+            is_left_col > 0.5,
+            left_ramp,
+            right_ramp,
+        )
+        bdy_result = bkd.where(in_support, bdy_hat, zero)
+        bdy_result = bkd.maximum(bdy_result, zero)
+
+        h_left = nodes_col - lefts_col
+        h_right = rights_col - nodes_col
+        safe_h_left = bkd.maximum(
+            h_left,
+            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+        )
+        safe_h_right = bkd.maximum(
+            h_right,
+            bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
+        )
+
+        if self._p_max <= 1:
+            left_branch = (x_row - lefts_col) / safe_h_left
+            right_branch = (rights_col - x_row) / safe_h_right
+            hat = bkd.minimum(left_branch, right_branch)
+            interior_result = bkd.maximum(hat, zero)
+        else:
+            denom = h_left * (-h_right)
+            safe_denom = bkd.where(
+                denom == 0,
+                bkd.ones_like(denom),
+                denom,
+            )
+            poly = (x_row - lefts_col) * (x_row - rights_col) / safe_denom
+            interior_result = bkd.where(in_support, poly, zero)
+
+        result = bkd.where(is_bdy_col > 0.5, bdy_result, interior_result)
+
+        if bdy_include and any(v > 0.5 for v in is_lev0):
+            is_lev0_col = bkd.asarray(
+                is_lev0, dtype=bkd.double_dtype()
+            ).reshape(n_basis, 1)
+            ones = bkd.ones(
+                (n_basis, npts), dtype=bkd.double_dtype()
+            )
+            result = bkd.where(is_lev0_col > 0.5, ones, result)
+
+        return result
+
+    def _weight_hat(self, level: int, index: int) -> float:
+        """Quadrature weight for hat function: half the support width."""
+        left, right = self.support(level, index)
+        return (right - left) / 2.0
+
+    def _weight_quadratic(self, level: int, index: int) -> float:
+        """Quadrature weight for quadratic basis: 4h/3.
+
+        For the symmetric quadratic Lagrange interpolant through
+        (node-h, node, node+h), the integral over the support is 4h/3.
+        Boundary nodes (level 1) fall back to linear weights.
+        """
         if self._is_left_boundary(level, index):
-            # One-sided hat: 1 at node (left edge), 0 at node + h
-            right = bkd.asarray([node_x + h], dtype=bkd.double_dtype())
-            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
-            ramp = (right - x) / h_val
-            return bkd.where(
-                x <= right,
-                bkd.maximum(ramp, zero),
-                zero,
-            )
-
+            return self._weight_hat(level, index)
         if self._is_right_boundary(level, index):
-            # One-sided hat: 1 at node (right edge), 0 at node - h
-            left = bkd.asarray([node_x - h], dtype=bkd.double_dtype())
-            h_val = bkd.asarray([h], dtype=bkd.double_dtype())
-            ramp = (x - left) / h_val
-            return bkd.where(
-                x >= left,
-                bkd.maximum(ramp, zero),
-                zero,
-            )
-
-        # Interior hat: symmetric tent on [node - h, node + h]
-        node_val = bkd.asarray([node_x], dtype=bkd.double_dtype())
-        h_val = bkd.asarray([h], dtype=bkd.double_dtype())
-        left_branch = (x - (node_val - h_val)) / h_val
-        right_branch = ((node_val + h_val) - x) / h_val
-        hat = bkd.minimum(left_branch, right_branch)
-        return bkd.maximum(hat, zero)
+            return self._weight_hat(level, index)
+        h = self._mesh_size(level)
+        return 4.0 * h / 3.0
 
     def quadrature_weight(self, level: int, index: int) -> float:
-        """Quadrature weight (integral of the hat function over the domain).
+        """Quadrature weight (integral of the basis function over the domain).
 
-        Level 0 is constant=1, so its integral is the domain width.
-        For interior hat functions the integral equals half the support
-        width (triangle area with unit height). Boundary hats have
-        half the usual support width.
+        For p_max=1 (hat): weight = h (half the support width 2h).
+        For p_max=2 (quadratic): weight = 4h/3 for interior nodes,
+        linear weight for boundary nodes.
         """
         if level == 0 and self._boundary_mode == "include":
             return self._width
-        left, right = self.support(level, index)
-        return (right - left) / 2.0
+        if self._p_max <= 1:
+            return self._weight_hat(level, index)
+        return self._weight_quadratic(level, index)
