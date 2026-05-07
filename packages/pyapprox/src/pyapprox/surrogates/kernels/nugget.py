@@ -13,7 +13,7 @@ from pyapprox.surrogates.kernels.protocols import (
     NumbaScalarKernelFn,
     NumbaScalarKernelProtocol,
 )
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.hyperparameter import HyperParameterList
 
 

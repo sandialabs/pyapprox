@@ -10,7 +10,6 @@ from typing import Generic
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.util.backends.protocols import Array, Backend
 
-
 # Module-level switch between the legacy broadcast+einsum jacobian and the
 # fused (numba-parallel, no 3D intermediate) jacobian. Fused is the default;
 # set PYAPPROX_ENTROPIC_JACOBIAN=legacy to revert, or override per-instance

@@ -250,10 +250,6 @@ class SUPN(Generic[Array]):
         N = self._width
         M = self.nterms()
         Q = self._nqoi
-        P_outer = Q * N
-        P_inner = N * M
-        P = P_outer + P_inner
-
         # Allocate output columns
         jac_cols: List[Array] = []
 
@@ -263,7 +259,6 @@ class SUPN(Generic[Array]):
         for q in range(Q):
             # (K, Q) for each n: all zeros except row q = H[n,:]
             for n in range(N):
-                col = bkd.zeros((K, Q))
                 # col[:, q] = H[n, :] but we need autograd-safe construction
                 col_parts: List[Array] = []
                 for qq in range(Q):

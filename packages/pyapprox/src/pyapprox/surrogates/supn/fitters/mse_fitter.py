@@ -28,7 +28,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 
-def supn_paper_rol_parameter_list() -> "pyrol.ParameterList":
+# noqa reason: pyrol is optional, imported lazily inside the function
+def supn_paper_rol_parameter_list() -> "pyrol.ParameterList":  # noqa: F821
     """Return ROL parameters matching Morrow et al. (2025, Section 4).
 
     Uses a secant (L-BFGS) preconditioner for the truncated-CG
