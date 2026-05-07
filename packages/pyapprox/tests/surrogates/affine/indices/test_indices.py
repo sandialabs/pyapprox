@@ -417,6 +417,69 @@ class TestIterativeIndexGenerator:
                 ), "Candidate index found in selected set"
 
 
+class TestIterativeIndexGeneratorPublicQueries:
+    """Test public query methods on IterativeIndexGenerator."""
+
+    def _make_generator(self, bkd, nvars=2, max_level=3):
+        from pyapprox.surrogates.affine.indices.generators import (
+            IterativeIndexGenerator,
+        )
+
+        gen = IterativeIndexGenerator(nvars, bkd)
+        admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
+        gen.set_admissibility_criteria(admis)
+        zero = bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+        gen.set_selected_indices(zero)
+        return gen
+
+    def test_is_selected_on_zero_index(self, bkd):
+        gen = self._make_generator(bkd)
+        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        assert gen.is_selected(zero)
+
+    def test_is_candidate_on_forward_neighbor(self, bkd):
+        gen = self._make_generator(bkd)
+        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        assert gen.is_candidate(cand)
+        assert not gen.is_selected(cand)
+
+    def test_is_registered_covers_both(self, bkd):
+        gen = self._make_generator(bkd)
+        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        unknown = bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        assert gen.is_registered(zero)
+        assert gen.is_registered(cand)
+        assert not gen.is_registered(unknown)
+
+    def test_is_admissible_for_new_index(self, bkd):
+        gen = self._make_generator(bkd)
+        # Refine (1,0) to selected so (2,0) becomes candidate
+        idx_10 = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        gen.refine_index(idx_10)
+        # (1,1) should now be admissible (both backward neighbors selected)
+        idx_11 = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
+        assert not gen.is_admissible(idx_11)  # already candidate
+        # (2,1) is not admissible yet (backward neighbor (1,1) not selected)
+        idx_21 = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
+        assert not gen.is_admissible(idx_21)
+
+    def test_is_admissible_rejects_already_registered(self, bkd):
+        gen = self._make_generator(bkd)
+        zero = bkd.asarray([0, 0], dtype=bkd.int64_dtype())
+        assert not gen.is_admissible(zero)  # already selected
+        cand = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        assert not gen.is_admissible(cand)  # already candidate
+
+    def test_after_refine_candidate_becomes_selected(self, bkd):
+        gen = self._make_generator(bkd)
+        idx = bkd.asarray([1, 0], dtype=bkd.int64_dtype())
+        assert gen.is_candidate(idx)
+        gen.refine_index(idx)
+        assert gen.is_selected(idx)
+        assert not gen.is_candidate(idx)
+
+
 class TestInverseGrowthRule:
     """Test inverse_growth_rule function."""
 

@@ -225,3 +225,21 @@ class CompositeCriteria(AdmissibilityCriteria[Array], Generic[Array]):
     def __repr__(self) -> str:
         criteria_strs = [repr(c) for c in self._criteria]
         return f"CompositeCriteria({', '.join(criteria_strs)})"
+
+
+class AlwaysAdmissible(AdmissibilityCriteria[Array], Generic[Array]):
+    """Admissibility criteria that accepts all indices.
+
+    When used with MultiFidelityHierarchicalFitter, the fitter detects
+    this class and bypasses the downward-closure check, collapsing the
+    algorithm to classical Ma-Zabaras local adaptive sparse grid.
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, index: Array) -> bool:
+        return True
+
+    def failure_message(self) -> str:
+        return ""

@@ -452,6 +452,67 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
         new_candidates = self._find_candidate_indices()
         self._indices = self._bkd.hstack((self._indices, new_candidates))
 
+    def is_admissible(self, index: Array) -> bool:
+        """Check if an index is admissible.
+
+        An index is admissible if it is not already registered (selected
+        or candidate), all backward neighbors are in the selected set
+        (downward closure), and the admissibility criteria accept it.
+
+        Parameters
+        ----------
+        index : Array
+            Index to check. Shape: (nvars,)
+
+        Returns
+        -------
+        bool
+        """
+        return self._is_admissible(index)
+
+    def is_selected(self, index: Array) -> bool:
+        """Check if an index is in the selected set.
+
+        Parameters
+        ----------
+        index : Array
+            Index to check. Shape: (nvars,)
+
+        Returns
+        -------
+        bool
+        """
+        return self._hash_index(index) in self._sel_indices_dict
+
+    def is_candidate(self, index: Array) -> bool:
+        """Check if an index is in the candidate set.
+
+        Parameters
+        ----------
+        index : Array
+            Index to check. Shape: (nvars,)
+
+        Returns
+        -------
+        bool
+        """
+        return self._hash_index(index) in self._cand_indices_dict
+
+    def is_registered(self, index: Array) -> bool:
+        """Check if an index is in either the selected or candidate set.
+
+        Parameters
+        ----------
+        index : Array
+            Index to check. Shape: (nvars,)
+
+        Returns
+        -------
+        bool
+        """
+        key = self._hash_index(index)
+        return key in self._sel_indices_dict or key in self._cand_indices_dict
+
     def _get_indices(self) -> Array:
         return self._indices
 
