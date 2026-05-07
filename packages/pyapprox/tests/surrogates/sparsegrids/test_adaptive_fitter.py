@@ -11,7 +11,9 @@ from typing import List
 
 import numpy as np
 import pytest
-
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     ClenshawCurtisGrowthRule,
@@ -22,12 +24,12 @@ from pyapprox.surrogates.sparsegrids import create_basis_factories
 from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
 )
-from pyapprox.surrogates.sparsegrids.combination_surrogate import (
-    CombinationSurrogate,
-)
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
     PiecewiseFactory,
+)
+from pyapprox.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     L2SurplusIndicator,
@@ -39,6 +41,8 @@ from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
+
+from tests._helpers.markers import slow_test, slower_test
 from tests._helpers.sparsegrids_helpers import (
     GROWTH_RULES,
     compute_required_sg_subspaces,
@@ -48,7 +52,6 @@ from tests._helpers.sparsegrids_helpers import (
     create_test_pce,
     get_required_sg_levels,
 )
-from tests._helpers.markers import slow_test, slower_test
 
 # =============================================================================
 # Core functionality tests
@@ -74,7 +77,9 @@ class TestAdaptiveFitter:
             x, y = samples[0, :], samples[1, :]
             return bkd.reshape(x**2 + y**2, (1, -1))
 
-        result = fitter.refine_to_tolerance(poly_func, tol=1e-12)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 2, poly_func, bkd), tol=1e-12
+        )
 
         np.random.seed(123)
         marginal = UniformMarginal(-1.0, 1.0, bkd)
@@ -97,7 +102,9 @@ class TestAdaptiveFitter:
                 samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
             )
 
-        result = fitter.refine_to_tolerance(linear_func, tol=1e-12)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 3, linear_func, bkd), tol=1e-12
+        )
 
         test_pts = bkd.asarray([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
         bkd.assert_allclose(
@@ -111,7 +118,9 @@ class TestAdaptiveFitter:
         def func(s):
             return bkd.reshape(s[0, :] + s[1, :], (1, -1))
 
-        result = fitter.refine_to_tolerance(func, tol=1e-12)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 2, func, bkd), tol=1e-12
+        )
 
         assert isinstance(result.surrogate, CombinationSurrogate)
         assert isinstance(result.nsamples, int)
@@ -173,7 +182,11 @@ class TestAdaptiveConvergence:
         admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=50,
+        )
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
@@ -199,7 +212,11 @@ class TestAdaptiveMoments:
         admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(nqoi, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=50,
+        )
         return result, pce
 
     def test_adaptive_mean_matches_pce(self, bkd) -> None:
@@ -282,7 +299,11 @@ class TestAdaptiveAnisotropicRecovery:
         admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=100)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=100,
+        )
 
         # Verify exact interpolation
         np.random.seed(123)
@@ -353,7 +374,11 @@ class TestAdaptiveAdditiveRecovery:
         admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=100)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=100,
+        )
 
         # Verify exact interpolation
         np.random.seed(123)
@@ -395,7 +420,11 @@ class TestAdaptiveVarianceRefinement:
             bkd, tp_factory, admis, error_indicator=indicator
         )
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=50,
+        )
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
@@ -419,7 +448,11 @@ class TestAdaptiveVarianceRefinement:
             bkd, tp_factory, admis, error_indicator=indicator
         )
 
-        result = fitter.refine_to_tolerance(lambda s: pce(s), tol=1e-12, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(2, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-12,
+            max_steps=50,
+        )
 
         np.random.seed(123)
         test_pts = joint.rvs(20)
@@ -456,7 +489,9 @@ class TestAdaptiveRecoversIsotropic:
             bkd, tp_factory2, admis
         )
         ada_result = ada_fitter.refine_to_tolerance(
-            lambda s: pce(s), tol=1e-14, max_steps=50
+            FunctionFromCallable(1, joint.nvars(), lambda s: pce(s), bkd),
+            tol=1e-14,
+            max_steps=50,
         )
 
         # Both should give same evaluation

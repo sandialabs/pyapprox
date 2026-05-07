@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
 )
@@ -20,9 +19,9 @@ def _build_1d_surrogate(bkd, f, max_level):
     basis_nd = HierarchicalBasisND(bkd, [b1d])
 
     all_pts = []
-    for l in range(max_level + 1):
-        for j in b1d.new_points_at_level(l):
-            all_pts.append(((l,), (j,)))
+    for lv in range(max_level + 1):
+        for j in b1d.new_points_at_level(lv):
+            all_pts.append(((lv,), (j,)))
 
     # Compute surpluses sequentially
     keys = []
@@ -191,10 +190,7 @@ class TestComputeSurplusesAtGridPoints:
 
     def _build_surrogate_incrementally(self, bkd, basis_nd, subspaces, f_nd):
         """Build surrogate level-by-level, returning it plus all keys."""
-        nvars = basis_nd.nvars()
         all_keys = []
-        all_surpluses = []
-        all_weights = []
         surr = None
 
         subspaces.sort(key=lambda s: (sum(s), s))
@@ -242,7 +238,7 @@ class TestComputeSurplusesAtGridPoints:
     def test_1d_agreement(self, bkd, p_max):
         b1d = HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
         basis_nd = HierarchicalBasisND(bkd, [b1d])
-        subspaces = [(l,) for l in range(5)]
+        subspaces = [(lv,) for lv in range(5)]
 
         def f(x):
             return bkd.sin(x * 3.0) + x * x
@@ -285,7 +281,7 @@ class TestComputeSurplusesAtGridPoints:
     def test_1d_exclude_mode(self, bkd):
         b1d = HierarchicalBasis1D(bkd, p_max=1, boundary_mode="exclude")
         basis_nd = HierarchicalBasisND(bkd, [b1d])
-        subspaces = [(l,) for l in range(5)]
+        subspaces = [(lv,) for lv in range(5)]
 
         def f(x):
             return bkd.sin(x * 3.14159)
@@ -379,7 +375,7 @@ class TestComputeSurplusesAtGridPoints:
         def f(x):
             return 2.0 * x + 1.0
 
-        subspaces = [(l,) for l in range(5)]
+        subspaces = [(lv,) for lv in range(5)]
         subspaces.sort(key=lambda s: (sum(s), s))
 
         surr = None

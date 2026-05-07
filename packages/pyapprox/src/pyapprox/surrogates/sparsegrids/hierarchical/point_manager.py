@@ -200,7 +200,7 @@ class PointManager(Generic[Array]):
     def is_subspace_complete(
         self, subspace: Tuple[int, ...], nvars: int
     ) -> bool:
-        """A subspace is complete when all points in every backward neighbor are resolved."""
+        """Check all backward-neighbor points are resolved."""
         for d in range(nvars):
             if subspace[d] > 0:
                 backward = list(subspace)

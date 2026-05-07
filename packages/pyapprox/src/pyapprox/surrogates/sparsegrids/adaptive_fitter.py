@@ -7,8 +7,9 @@ Provides two classes:
   adapts the Array <-> Dict boundary for single-fidelity use.
 """
 
-from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple
+from typing import Dict, Generic, List, Literal, Optional, Set, Tuple
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.surrogates.affine.indices import (
     AdmissibilityCriteria,
     IterativeIndexGenerator,
@@ -314,7 +315,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
     def _reprioritize_candidates(self) -> None:
         """Compute priorities for all candidate subspaces."""
-        assert self._nqoi is not None
+        if self._nqoi is None:
+            raise RuntimeError("nqoi not set; call step_values first")
 
         self._candidate_queue = PriorityQueue(max_priority=True)
 
@@ -379,6 +381,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         selected_surrogate: CombinationSurrogate[Array],
     ) -> CandidateInfo[Array]:
         """Build CandidateInfo for a candidate subspace."""
+        if self._nqoi is None:
+            raise RuntimeError("nqoi not set; call step_values first")
         config_idx = self._get_config_idx(candidate_index)
         tracker = self._trackers[config_idx]
 
@@ -463,7 +467,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         -------
         AdaptiveSparseGridFitResult[Array]
         """
-        assert self._nqoi is not None
+        if self._nqoi is None:
+            raise RuntimeError("nqoi not set; call step_values first")
 
         selected_indices = self._index_gen.get_selected_indices()
         selected_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
@@ -492,7 +497,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
     def refine_to_tolerance(
         self,
-        model_factory: ModelFactoryProtocol,
+        model_factory: ModelFactoryProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
     ) -> AdaptiveSparseGridFitResult[Array]:
@@ -500,8 +505,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
         Parameters
         ----------
-        model_factory : ModelFactoryProtocol
-            Factory mapping config indices to callable models.
+        model_factory : ModelFactoryProtocol[Array]
+            Factory mapping config indices to FunctionProtocol models.
         tol : float
             Error tolerance.
         max_steps : int
@@ -750,7 +755,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
     def refine_to_tolerance(
         self,
-        target_fn: Callable[[Array], Array],
+        target_fn: FunctionProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
     ) -> AdaptiveSparseGridFitResult[Array]:
@@ -758,8 +763,8 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
         Parameters
         ----------
-        target_fn : callable
-            Function mapping samples -> values, shape (nqoi, nsamples).
+        target_fn : FunctionProtocol[Array]
+            Function satisfying FunctionProtocol.
         tol : float
             Error tolerance.
         max_steps : int
@@ -769,7 +774,14 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         -------
         AdaptiveSparseGridFitResult[Array]
         """
-        factory = DictModelFactory({_SF_KEY: target_fn})
+        if not isinstance(target_fn, FunctionProtocol):
+            raise TypeError(
+                "target_fn must satisfy FunctionProtocol, "
+                f"got {type(target_fn).__name__}"
+            )
+        factory: DictModelFactory[Array] = DictModelFactory(
+            {_SF_KEY: target_fn}
+        )
         return self._fitter.refine_to_tolerance(factory, tol, max_steps)
 
     def nvars_physical(self) -> int:

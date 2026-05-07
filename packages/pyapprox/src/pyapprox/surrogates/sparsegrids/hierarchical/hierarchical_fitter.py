@@ -2,6 +2,7 @@
 
 from typing import Dict, Generic, List, Optional, Set, Tuple
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.surrogates.affine.indices.admissibility import (
     AdmissibilityCriteria,
     AlwaysAdmissible,
@@ -179,7 +180,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             keys = [self._point_mgr.get_key(pid) for pid, _ in group]
             f_vals = bkd.stack(
                 [values_by_pid[pid] for pid, _ in group], axis=1
-            ) if len(group) > 1 else values_by_pid[group[0][0]].reshape(-1, 1)
+            ) if len(group) > 1 else bkd.reshape(values_by_pid[group[0][0]], (-1, 1))
 
             if surrogate.n_points() > 0:
                 if self._use_ancestor_surplus:
@@ -204,7 +205,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
                 surplus = group_surplus_matrix[:, idx_in_group]
                 pred = val - surplus
                 self._point_mgr.set_values_and_surpluses(
-                    [pid], val.reshape(-1, 1), pred.reshape(-1, 1)
+                    [pid], bkd.reshape(val, (-1, 1)), bkd.reshape(pred, (-1, 1))
                 )
                 self._newly_evaluated_ids.append(pid)
                 group_surpluses.append(surplus)
@@ -239,8 +240,16 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             surrogate = self._cached_surrogate
         else:
             surrogate = self._build_surrogate_snapshot()
-        sel_indices = self._get_promoted_indices()
-        n_sel = sel_indices.shape[1] if sel_indices is not None else 0
+        sel_indices_or_none = self._get_promoted_indices()
+        if sel_indices_or_none is not None:
+            sel_indices = sel_indices_or_none
+            n_sel = sel_indices.shape[1]
+        else:
+            nvars_idx = self._nvars_physical + self._nconfig_vars
+            sel_indices = self._bkd.zeros(
+                (nvars_idx, 0), dtype=self._bkd.int64_dtype()
+            )
+            n_sel = 0
         coeffs = self._bkd.ones(
             (n_sel,), dtype=self._bkd.double_dtype()
         )
@@ -256,7 +265,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
     def refine_to_tolerance(
         self,
-        model_factory: ModelFactoryProtocol,
+        model_factory: ModelFactoryProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
     ) -> AdaptiveSparseGridFitResult[Array]:
@@ -479,7 +488,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         return len(self._basis_nd.points_in_subspace(sub)) == 0
 
     def _auto_promote(self, sub: Tuple[int, ...]) -> None:
-        """Promote an empty subspace and recursively promote its empty backward neighbors."""
+        """Promote an empty subspace and its empty backward neighbors."""
         if sub in self._promoted_subspaces:
             return
         for d in range(self._nvars_physical):
@@ -544,8 +553,10 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         for sub in subs:
             full = list(sub) + [0] * self._nconfig_vars
             cols.append(
-                self._bkd.asarray(full, dtype=self._bkd.int64_dtype())
-                .reshape(-1, 1)
+                self._bkd.reshape(
+                    self._bkd.asarray(full, dtype=self._bkd.int64_dtype()),
+                    (-1, 1),
+                )
             )
         return self._bkd.hstack(cols)
 
@@ -569,7 +580,10 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             return HierarchicalSurrogate(
                 bkd, self._basis_nd, [], empty_surpluses, empty_weights
             )
-        surpluses = bkd.stack(surplus_list, axis=1) if len(surplus_list) > 1 else surplus_list[0].reshape(-1, 1)
+        if len(surplus_list) > 1:
+            surpluses = bkd.stack(surplus_list, axis=1)
+        else:
+            surpluses = bkd.reshape(surplus_list[0], (-1, 1))
         weights = bkd.asarray(weight_list, dtype=bkd.double_dtype())
         return HierarchicalSurrogate(
             bkd, self._basis_nd, point_keys, surpluses, weights
@@ -660,11 +674,18 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
 
     def refine_to_tolerance(
         self,
-        target_fn: object,
+        target_fn: FunctionProtocol[Array],
         tol: float = 1e-6,
         max_steps: int = 200,
     ) -> AdaptiveSparseGridFitResult[Array]:
-        factory = DictModelFactory({_SF_KEY: target_fn})
+        if not isinstance(target_fn, FunctionProtocol):
+            raise TypeError(
+                "target_fn must satisfy FunctionProtocol, "
+                f"got {type(target_fn).__name__}"
+            )
+        factory: DictModelFactory[Array] = DictModelFactory(
+            {_SF_KEY: target_fn}
+        )
         return self._fitter.refine_to_tolerance(factory, tol, max_steps)
 
     def get_samples(self, subset: str = "all") -> Array:
@@ -673,7 +694,7 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
     def get_values(self, subset: str = "all") -> Optional[Array]:
         return self._fitter.get_values(subset)[_SF_KEY]
 
-    def get_selected_indices(self) -> Array:
+    def get_selected_indices(self) -> Optional[Array]:
         return self._fitter.get_selected_indices()
 
     def get_candidate_indices(self) -> Optional[Array]:

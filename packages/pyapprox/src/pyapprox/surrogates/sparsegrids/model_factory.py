@@ -10,24 +10,25 @@ Classes
 - TimedModelFactory: Wraps a factory with per-config timing
 """
 
-import time
-from typing import Any, Callable, Dict, Protocol, runtime_checkable
+from typing import Dict, Generic, Protocol, runtime_checkable
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.interface.functions.timing import (
     FunctionTimer,
+    TimedFunction,
 )
 from pyapprox.surrogates.sparsegrids.candidate_info import ConfigIdx
+from pyapprox.util.backends.protocols import Array
 
 
 @runtime_checkable
-class ModelFactoryProtocol(Protocol):
-    """Protocol for model factories that map config indices to callables."""
+class ModelFactoryProtocol(Protocol[Array]):
+    """Protocol for model factories that map config indices to models."""
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
-        """Return callable model for a config.
-
-        The returned callable should accept an Array of shape
-        (nvars, nsamples) and return an Array of shape (nqoi, nsamples).
+    def get_model(
+        self, config_idx: ConfigIdx
+    ) -> FunctionProtocol[Array]:
+        """Return model for a config.
 
         Parameters
         ----------
@@ -36,25 +37,29 @@ class ModelFactoryProtocol(Protocol):
 
         Returns
         -------
-        Callable
-            Model function for the given configuration.
+        FunctionProtocol[Array]
+            Model satisfying FunctionProtocol.
         """
         ...
 
 
-class DictModelFactory:
-    """Model factory backed by a dictionary of callables.
+class DictModelFactory(Generic[Array]):
+    """Model factory backed by a dictionary of FunctionProtocol models.
 
     Parameters
     ----------
-    models : Dict[ConfigIdx, Callable]
-        Mapping from config index to model callable.
+    models : Dict[ConfigIdx, FunctionProtocol[Array]]
+        Mapping from config index to model.
     """
 
-    def __init__(self, models: Dict[ConfigIdx, Callable[..., Any]]) -> None:
+    def __init__(
+        self, models: Dict[ConfigIdx, FunctionProtocol[Array]]
+    ) -> None:
         self._models = models
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
+    def get_model(
+        self, config_idx: ConfigIdx
+    ) -> FunctionProtocol[Array]:
         """Return model for config_idx.
 
         Raises
@@ -70,7 +75,7 @@ class DictModelFactory:
         return f"DictModelFactory(configs={list(self._models.keys())})"
 
 
-class TimedModelFactory:
+class TimedModelFactory(Generic[Array]):
     """Wraps a ModelFactoryProtocol, timing every model evaluation.
 
     Maintains one FunctionTimer per config_idx. Each call to get_model()
@@ -79,33 +84,23 @@ class TimedModelFactory:
 
     Parameters
     ----------
-    base : ModelFactoryProtocol
+    base : ModelFactoryProtocol[Array]
         The underlying model factory.
     """
 
-    def __init__(self, base: ModelFactoryProtocol) -> None:
+    def __init__(self, base: ModelFactoryProtocol[Array]) -> None:
         self._base = base
         self._timers: Dict[ConfigIdx, FunctionTimer] = {}
 
-    def get_model(self, config_idx: ConfigIdx) -> Callable[..., Any]:
-        """Return a timed wrapper around the base model.
-
-        Each invocation of the returned callable records its elapsed
-        time and number of evaluations in the per-config FunctionTimer.
-        """
+    def get_model(
+        self, config_idx: ConfigIdx
+    ) -> FunctionProtocol[Array]:
+        """Return a timed wrapper around the base model."""
         if config_idx not in self._timers:
             self._timers[config_idx] = FunctionTimer()
         fn_timer = self._timers[config_idx]
         model = self._base.get_model(config_idx)
-
-        def timed_model(samples):  # type: ignore[no-untyped-def]
-            n_evals = samples.shape[1]
-            t0 = time.perf_counter()
-            result = model(samples)
-            fn_timer.get("__call__").record(time.perf_counter() - t0, n_evals)
-            return result
-
-        return timed_model
+        return TimedFunction(model, fn_timer)
 
     def timer(self, config_idx: ConfigIdx) -> FunctionTimer:
         """Get timer for config_idx. Creates one if it doesn't exist."""

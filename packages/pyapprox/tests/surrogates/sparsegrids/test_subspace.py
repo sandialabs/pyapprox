@@ -1,7 +1,6 @@
 """Tests for TensorProductSubspace and basis_setup utilities."""
 
 import pytest
-
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.surrogates.affine.univariate import LegendrePolynomial1D

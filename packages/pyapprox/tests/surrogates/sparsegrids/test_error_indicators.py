@@ -10,7 +10,6 @@ Tests run on both NumPy and PyTorch backends.
 from typing import Tuple
 
 import pytest
-
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     LinearGrowthRule,
@@ -41,6 +40,7 @@ from pyapprox.surrogates.sparsegrids.smolyak import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
+
 from tests._helpers.markers import slower_test
 
 # =============================================================================

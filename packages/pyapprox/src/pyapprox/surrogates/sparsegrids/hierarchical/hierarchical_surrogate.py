@@ -160,7 +160,10 @@ class HierarchicalSurrogate(Generic[Array]):
         for i, k in enumerate(keys):
             self._key_to_col[k] = base_col + i
             self._selected_subspaces.add(k[0])
-        new_cols = bkd.stack(surpluses, axis=1) if len(surpluses) > 1 else surpluses[0].reshape(-1, 1)
+        if len(surpluses) > 1:
+            new_cols = bkd.stack(surpluses, axis=1)
+        else:
+            new_cols = bkd.reshape(surpluses[0], (-1, 1))
         if self._surpluses.shape[1] == 0:
             self._surpluses = new_cols
         else:

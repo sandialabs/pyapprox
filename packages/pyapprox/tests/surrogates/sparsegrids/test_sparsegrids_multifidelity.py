@@ -12,11 +12,13 @@ All tests run on both NumPy and PyTorch backends.
 """
 
 import math
-from typing import Callable, Dict
+from typing import Dict
 
 import numpy as np
 import pytest
-
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     CompositeCriteria,
@@ -61,7 +63,7 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
 
 def _make_cosine_models(
     bkd,
-) -> Dict[ConfigIdx, Callable]:
+) -> Dict[ConfigIdx, FunctionFromCallable]:
     """Create cosine model hierarchy.
 
     f_alpha(z) = cos(pi*(z+1)/2 + eps_alpha)
@@ -69,14 +71,14 @@ def _make_cosine_models(
     """
     epsilons = {0: 0.5, 1: 0.0}
 
-    def _make_model(eps: float) -> Callable:
+    def _make_model(eps: float) -> FunctionFromCallable:
         def model(samples):
             return bkd.reshape(
                 bkd.cos(math.pi * (samples[0, :] + 1) / 2 + eps),
                 (1, -1),
             )
 
-        return model
+        return FunctionFromCallable(nqoi=1, nvars=1, fun=model, bkd=bkd)
 
     return {(alpha,): _make_model(epsilons[alpha]) for alpha in epsilons}
 

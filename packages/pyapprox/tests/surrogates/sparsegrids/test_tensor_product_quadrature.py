@@ -16,13 +16,13 @@ These tests verify:
 import numpy as np
 import pytest
 
+from tests._helpers.markers import slow_test, slower_test  # noqa: F401
 from tests._helpers.sparsegrids_helpers import (
     create_tensor_product_pce,
     create_test_joint,
     create_test_tensor_product_subspace,
     create_test_tensor_product_subspace_mixed,
 )
-from tests._helpers.markers import slow_test, slower_test  # noqa: F401
 
 # =============================================================================
 # Test Configurations

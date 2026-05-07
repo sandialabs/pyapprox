@@ -9,7 +9,6 @@ import pytest
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 from pyapprox.surrogates.sparsegrids.plot import (
     plot_sparse_grid_points,
 )

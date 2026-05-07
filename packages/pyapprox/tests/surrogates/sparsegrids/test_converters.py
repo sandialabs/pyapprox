@@ -7,7 +7,7 @@ from typing import List
 
 import numpy as np
 import pytest
-
+from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     IsotropicSparseGridBasisIndexGenerator,
@@ -30,6 +30,7 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
+
 from tests._helpers.sparsegrids_helpers import (
     create_test_joint,
     create_test_pce,
@@ -369,7 +370,9 @@ class TestAdaptiveSGToPCEConverter:
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
-            lambda s: pce_target(s), tol=1e-12, max_steps=50
+            FunctionFromCallable(1, 2, lambda s: pce_target(s), bkd),
+            tol=1e-12,
+            max_steps=50,
         )
 
         # Convert to PCE
@@ -396,7 +399,9 @@ class TestAdaptiveSGToPCEConverter:
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
-            lambda s: pce_target(s), tol=1e-12, max_steps=50
+            FunctionFromCallable(1, 2, lambda s: pce_target(s), bkd),
+            tol=1e-12,
+            max_steps=50,
         )
 
         pce_bases_1d = create_bases_1d(joint.marginals(), bkd)
@@ -417,7 +422,9 @@ class TestAdaptiveSGToPCEConverter:
         fitter = SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
-            lambda s: pce_target(s), tol=1e-12, max_steps=50
+            FunctionFromCallable(1, 2, lambda s: pce_target(s), bkd),
+            tol=1e-12,
+            max_steps=50,
         )
 
         pce_bases_1d = create_bases_1d(joint.marginals(), bkd)

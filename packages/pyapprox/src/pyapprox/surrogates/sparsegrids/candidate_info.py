@@ -5,12 +5,32 @@ a candidate subspace without accessing grid internals.
 """
 
 from dataclasses import dataclass
-from typing import Generic, List, Optional, Tuple
+from typing import Generic, List, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class SurrogateProtocol(Protocol[Array]):
+    """Protocol for surrogates used in error indicators.
+
+    Extends FunctionProtocol with mean and variance methods.
+    """
+
+    def bkd(self) -> "Backend[Array]": ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def mean(self) -> Array: ...
+
+    def variance(self) -> Array: ...
 
 # Type alias for config indices (tuple of ints)
 ConfigIdx = Tuple[int, ...]
@@ -33,10 +53,10 @@ class CandidateInfo(Generic[Array]):
         Samples unique to this candidate, shape (nvars_physical, n_new).
     new_sample_local_indices : List[int]
         Local indices within candidate_subspace that are new.
-    selected_surrogate : object
-        CombinationSurrogate built from selected indices only.
-    sel_plus_candidate_surrogate : object
-        CombinationSurrogate built from selected + this candidate.
+    selected_surrogate : SurrogateProtocol[Array]
+        Surrogate built from selected indices only.
+    sel_plus_candidate_surrogate : SurrogateProtocol[Array]
+        Surrogate built from selected + this candidate.
 
     config_idx : Optional[ConfigIdx]
         Config index for MF grids, None for SF.
@@ -53,8 +73,8 @@ class CandidateInfo(Generic[Array]):
     all_samples: Array
     new_samples: Array
     new_sample_local_indices: List[int]
-    selected_surrogate: object
-    sel_plus_candidate_surrogate: object
+    selected_surrogate: SurrogateProtocol[Array]
+    sel_plus_candidate_surrogate: SurrogateProtocol[Array]
 
     # MF fields (None for single-fidelity)
     config_idx: Optional[ConfigIdx] = None

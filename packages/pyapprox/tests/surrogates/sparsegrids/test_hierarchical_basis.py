@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
 )
@@ -14,9 +13,9 @@ from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_nd import (
 def _collect_points(basis_1d, max_level):
     """Collect all (level, index) pairs up to max_level."""
     pts = []
-    for l in range(max_level + 1):
-        for j in basis_1d.new_points_at_level(l):
-            pts.append((l, j))
+    for lv in range(max_level + 1):
+        for j in basis_1d.new_points_at_level(lv):
+            pts.append((lv, j))
     return pts
 
 
@@ -24,15 +23,15 @@ def _hierarchical_surpluses_1d(basis_1d, f, max_level, bkd):
     """Compute hierarchical surpluses for a scalar function f."""
     pts = _collect_points(basis_1d, max_level)
     surpluses = {}
-    for l, j in pts:
-        x_node = basis_1d.node(l, j)
+    for lv, j in pts:
+        x_node = basis_1d.node(lv, j)
         pred = 0.0
         for (lp, jp), v in surpluses.items():
             val = bkd.to_numpy(
                 basis_1d.evaluate(bkd.asarray([x_node]), lp, jp)
             )
             pred += v * float(val[0])
-        surpluses[(l, j)] = f(x_node) - pred
+        surpluses[(lv, j)] = f(x_node) - pred
     return pts, surpluses
 
 
@@ -80,14 +79,14 @@ class TestHierarchicalBasis1DInclude:
         assert basis.children(2, 3) == [(3, 5), (3, 7)]
 
     def test_children_within_parent_support(self, basis):
-        for l in range(4):
-            for j in basis.new_points_at_level(l):
-                left, right = basis.support(l, j)
-                for cl, cj in basis.children(l, j):
+        for lv in range(4):
+            for j in basis.new_points_at_level(lv):
+                left, right = basis.support(lv, j)
+                for cl, cj in basis.children(lv, j):
                     cx = basis.node(cl, cj)
                     assert left <= cx <= right, (
                         f"child ({cl},{cj}) at x={cx} outside "
-                        f"parent ({l},{j}) support [{left},{right}]"
+                        f"parent ({lv},{j}) support [{left},{right}]"
                     )
 
     def test_parent_include(self, basis):
@@ -108,27 +107,27 @@ class TestHierarchicalBasis1DInclude:
 
     def test_parent_child_consistency(self, basis):
         """Every child's parent is the original node."""
-        for l in range(4):
-            for j in basis.new_points_at_level(l):
-                for cl, cj in basis.children(l, j):
-                    assert basis._parent(cl, cj) == (l, j)
+        for lv in range(4):
+            for j in basis.new_points_at_level(lv):
+                for cl, cj in basis.children(lv, j):
+                    assert basis._parent(cl, cj) == (lv, j)
 
     def test_property_a_same_level_interpolation(self, bkd, basis):
         """psi_{l,j}(node(l,j')) = delta_{j,j'} for j,j' new at level l."""
-        for l in range(5):
-            indices = basis.new_points_at_level(l)
+        for lv in range(5):
+            indices = basis.new_points_at_level(lv)
             if not indices:
                 continue
             nodes = bkd.asarray(
-                [basis.node(l, j) for j in indices],
+                [basis.node(lv, j) for j in indices],
                 dtype=bkd.double_dtype(),
             )
             for i, ja in enumerate(indices):
-                vals = bkd.to_numpy(basis.evaluate(nodes, l, ja))
+                vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
                 for k, jb in enumerate(indices):
                     expected = 1.0 if i == k else 0.0
                     assert abs(vals[k] - expected) < 1e-14, (
-                        f"psi_{l},{ja}(node({l},{jb})) = {vals[k]}, "
+                        f"psi_{lv},{ja}(node({lv},{jb})) = {vals[k]}, "
                         f"expected {expected}"
                     )
 
@@ -137,13 +136,13 @@ class TestHierarchicalBasis1DInclude:
         max_level = 4
         all_pts = _collect_points(basis, max_level)
         for l_fine in range(1, max_level + 1):
-            fine_pts = [(l, j) for l, j in all_pts if l == l_fine]
+            fine_pts = [(lv, j) for lv, j in all_pts if lv == l_fine]
             for l_coarse in range(l_fine):
-                coarse_pts = [(l, j) for l, j in all_pts if l == l_coarse]
+                coarse_pts = [(lv, j) for lv, j in all_pts if lv == l_coarse]
                 if not coarse_pts:
                     continue
                 coarse_nodes = bkd.asarray(
-                    [basis.node(l, j) for l, j in coarse_pts],
+                    [basis.node(lv, j) for lv, j in coarse_pts],
                     dtype=bkd.double_dtype(),
                 )
                 for lf, jf in fine_pts:
@@ -161,15 +160,15 @@ class TestHierarchicalBasis1DInclude:
 
         max_level = 3
         pts, surpluses = _hierarchical_surpluses_1d(basis, f, max_level, bkd)
-        nodes_sorted = sorted(basis.node(l, j) for l, j in pts)
+        nodes_sorted = sorted(basis.node(lv, j) for lv, j in pts)
         f_sorted = [f(n) for n in nodes_sorted]
 
         x_test = np.linspace(0, 1, 201)
         x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
 
         hier_vals = np.zeros_like(x_test)
-        for (l, j), v in surpluses.items():
-            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, l, j))
+        for (lv, j), v in surpluses.items():
+            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, lv, j))
             hier_vals += v * basis_vals
 
         nodal_vals = np.interp(x_test, nodes_sorted, f_sorted)
@@ -186,8 +185,8 @@ class TestHierarchicalBasis1DInclude:
             basis, lambda x: 1.0, 3, bkd
         )
         integral = sum(
-            v * basis.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * basis.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -202,8 +201,8 @@ class TestHierarchicalBasis1DInclude:
             basis, lambda x: x, 3, bkd
         )
         integral = sum(
-            v * basis.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * basis.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -245,8 +244,8 @@ class TestHierarchicalBasis1DInclude:
         # Quadrature of f(x)=1 over [-1, 3] should give 4.0
         _, surpluses = _hierarchical_surpluses_1d(b, lambda x: 1.0, 2, bkd)
         integral = sum(
-            v * b.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * b.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]), bkd.asarray([4.0]), rtol=0, atol=1e-14
@@ -303,20 +302,20 @@ class TestHierarchicalBasis1DQuadratic:
 
     def test_property_a_same_level_interpolation(self, bkd, basis):
         """psi_{l,j}(node(l,j')) = delta_{j,j'} for same-level nodes."""
-        for l in range(5):
-            indices = basis.new_points_at_level(l)
+        for lv in range(5):
+            indices = basis.new_points_at_level(lv)
             if not indices:
                 continue
             nodes = bkd.asarray(
-                [basis.node(l, j) for j in indices],
+                [basis.node(lv, j) for j in indices],
                 dtype=bkd.double_dtype(),
             )
             for i, ja in enumerate(indices):
-                vals = bkd.to_numpy(basis.evaluate(nodes, l, ja))
+                vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
                 for k, jb in enumerate(indices):
                     expected = 1.0 if i == k else 0.0
                     assert abs(vals[k] - expected) < 1e-14, (
-                        f"psi_{l},{ja}(node({l},{jb})) = {vals[k]}, "
+                        f"psi_{lv},{ja}(node({lv},{jb})) = {vals[k]}, "
                         f"expected {expected}"
                     )
 
@@ -325,13 +324,13 @@ class TestHierarchicalBasis1DQuadratic:
         max_level = 4
         all_pts = _collect_points(basis, max_level)
         for l_fine in range(1, max_level + 1):
-            fine_pts = [(l, j) for l, j in all_pts if l == l_fine]
+            fine_pts = [(lv, j) for lv, j in all_pts if lv == l_fine]
             for l_coarse in range(l_fine):
-                coarse_pts = [(l, j) for l, j in all_pts if l == l_coarse]
+                coarse_pts = [(lv, j) for lv, j in all_pts if lv == l_coarse]
                 if not coarse_pts:
                     continue
                 coarse_nodes = bkd.asarray(
-                    [basis.node(l, j) for l, j in coarse_pts],
+                    [basis.node(lv, j) for lv, j in coarse_pts],
                     dtype=bkd.double_dtype(),
                 )
                 for lf, jf in fine_pts:
@@ -350,16 +349,16 @@ class TestHierarchicalBasis1DQuadratic:
             PiecewiseQuadratic,
         )
 
-        for l in range(2, 5):
-            h = 1.0 / 2**l
-            for j in basis.new_points_at_level(l):
-                w = basis.quadrature_weight(l, j)
+        for lv in range(2, 5):
+            h = 1.0 / 2**lv
+            for j in basis.new_points_at_level(lv):
+                w = basis.quadrature_weight(lv, j)
                 assert w == pytest.approx(4.0 * h / 3.0), (
-                    f"({l},{j}): weight={w}, expected {4*h/3}"
+                    f"({lv},{j}): weight={w}, expected {4*h/3}"
                 )
                 # Verify against PiecewiseQuadratic weights
-                left, right = basis.support(l, j)
-                node_x = basis.node(l, j)
+                left, right = basis.support(lv, j)
+                node_x = basis.node(lv, j)
                 nodes = bkd.asarray(
                     [left, node_x, right], dtype=bkd.double_dtype()
                 )
@@ -367,7 +366,7 @@ class TestHierarchicalBasis1DQuadratic:
                 _, pw_weights = pw.quadrature_rule()
                 w_pw = float(bkd.to_numpy(pw_weights)[1])
                 assert w == pytest.approx(w_pw, rel=1e-14), (
-                    f"({l},{j}): hierarchical={w}, PiecewiseQuadratic={w_pw}"
+                    f"({lv},{j}): hierarchical={w}, PiecewiseQuadratic={w_pw}"
                 )
 
     def test_hierarchical_quadrature_constant(self, bkd, basis):
@@ -376,8 +375,8 @@ class TestHierarchicalBasis1DQuadratic:
             basis, lambda x: 1.0, 3, bkd
         )
         integral = sum(
-            v * basis.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * basis.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -392,8 +391,8 @@ class TestHierarchicalBasis1DQuadratic:
             basis, lambda x: x, 3, bkd
         )
         integral = sum(
-            v * basis.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * basis.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -418,8 +417,8 @@ class TestHierarchicalBasis1DQuadratic:
         x_test = np.linspace(0, 1, 201)
         x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
         hier_vals = np.zeros_like(x_test)
-        for (l, j), v in surpluses.items():
-            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, l, j))
+        for (lv, j), v in surpluses.items():
+            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, lv, j))
             hier_vals += v * basis_vals
         bkd.assert_allclose(
             bkd.asarray(hier_vals),
@@ -429,14 +428,14 @@ class TestHierarchicalBasis1DQuadratic:
         )
 
         # Surpluses at level 3 are zero
-        for (l, j), v in surpluses.items():
-            if l >= 3:
-                assert abs(v) < 1e-14, f"surplus at ({l},{j}) = {v}"
+        for (lv, j), v in surpluses.items():
+            if lv >= 3:
+                assert abs(v) < 1e-14, f"surplus at ({lv},{j}) = {v}"
 
         # Quadrature is exact: int_0^1 x^2 dx = 1/3
         integral = sum(
-            v * basis.quadrature_weight(l, j)
-            for (l, j), v in surpluses.items()
+            v * basis.quadrature_weight(lv, j)
+            for (lv, j), v in surpluses.items()
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -472,16 +471,16 @@ class TestHierarchicalBasis1DExclude:
         assert basis.ancestors(3, 7) == [(2, 3), (0, 1)]
 
     def test_property_a_same_level(self, bkd, basis):
-        for l in range(5):
-            indices = basis.new_points_at_level(l)
+        for lv in range(5):
+            indices = basis.new_points_at_level(lv)
             if not indices:
                 continue
             nodes = bkd.asarray(
-                [basis.node(l, j) for j in indices],
+                [basis.node(lv, j) for j in indices],
                 dtype=bkd.double_dtype(),
             )
             for i, ja in enumerate(indices):
-                vals = bkd.to_numpy(basis.evaluate(nodes, l, ja))
+                vals = bkd.to_numpy(basis.evaluate(nodes, lv, ja))
                 for k in range(len(indices)):
                     expected = 1.0 if i == k else 0.0
                     assert abs(vals[k] - expected) < 1e-14
@@ -490,13 +489,13 @@ class TestHierarchicalBasis1DExclude:
         max_level = 4
         all_pts = _collect_points(basis, max_level)
         for l_fine in range(1, max_level + 1):
-            fine_pts = [(l, j) for l, j in all_pts if l == l_fine]
+            fine_pts = [(lv, j) for lv, j in all_pts if lv == l_fine]
             for l_coarse in range(l_fine):
-                coarse_pts = [(l, j) for l, j in all_pts if l == l_coarse]
+                coarse_pts = [(lv, j) for lv, j in all_pts if lv == l_coarse]
                 if not coarse_pts:
                     continue
                 coarse_nodes = bkd.asarray(
-                    [basis.node(l, j) for l, j in coarse_pts],
+                    [basis.node(lv, j) for lv, j in coarse_pts],
                     dtype=bkd.double_dtype(),
                 )
                 for lf, jf in fine_pts:
@@ -510,7 +509,7 @@ class TestHierarchicalBasis1DExclude:
 
         max_level = 3
         pts, surpluses = _hierarchical_surpluses_1d(basis, f, max_level, bkd)
-        nodes_sorted = sorted(basis.node(l, j) for l, j in pts)
+        nodes_sorted = sorted(basis.node(lv, j) for lv, j in pts)
         f_sorted = [f(n) for n in nodes_sorted]
 
         # Test within the convex hull of grid nodes only (exclude mode
@@ -521,8 +520,8 @@ class TestHierarchicalBasis1DExclude:
         x_arr = bkd.asarray(x_test, dtype=bkd.double_dtype())
 
         hier_vals = np.zeros_like(x_test)
-        for (l, j), v in surpluses.items():
-            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, l, j))
+        for (lv, j), v in surpluses.items():
+            basis_vals = bkd.to_numpy(basis.evaluate(x_arr, lv, j))
             hier_vals += v * basis_vals
 
         nodal_vals = np.interp(x_test, nodes_sorted, f_sorted)

@@ -4,7 +4,7 @@ from typing import Tuple
 
 import numpy as np
 import pytest
-
+from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
 from pyapprox.surrogates.affine.indices.admissibility import (
     AlwaysAdmissible,
     MaxLevelCriteria,
@@ -35,7 +35,10 @@ class TestSingleFidelityHierarchicalFitter:
         def f_zero(x):
             return bkd.zeros((1, x.shape[1]), dtype=bkd.double_dtype())
 
-        result = fitter.refine_to_tolerance(f_zero, tol=1e-15, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f_zero, bkd),
+            tol=1e-15, max_steps=50,
+        )
         surrogate = result.surrogate
         x_test = bkd.asarray(
             np.linspace(0, 1, 11).reshape(1, -1), dtype=bkd.double_dtype()
@@ -57,7 +60,10 @@ class TestSingleFidelityHierarchicalFitter:
         def f_linear(x):
             return 3 * x + 1
 
-        result = fitter.refine_to_tolerance(f_linear, tol=1e-15, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f_linear, bkd),
+            tol=1e-15, max_steps=50,
+        )
         x_test = bkd.asarray(
             np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
         )
@@ -142,7 +148,10 @@ class TestSingleFidelityHierarchicalFitter:
         def f(x):
             return x
 
-        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f, bkd),
+            tol=1e-15, max_steps=50,
+        )
         mean = result.surrogate.mean()
         bkd.assert_allclose(mean, bkd.asarray([0.5]), atol=1e-14)
 
@@ -157,7 +166,10 @@ class TestSingleFidelityHierarchicalFitter:
         def f(x):
             return x ** 2
 
-        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=50)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f, bkd),
+            tol=1e-15, max_steps=50,
+        )
         x_test = bkd.asarray(
             np.linspace(0, 1, 51).reshape(1, -1), dtype=bkd.double_dtype()
         )
@@ -201,17 +213,19 @@ class TestSingleFidelityHierarchicalFitter:
         def f(x):
             return bkd.sin(x * 5.0 + 1.0)
 
+        f_wrapped = FunctionFromCallable(1, 1, f, bkd)
+
         # batch_size=1
         fitter1 = SingleFidelityHierarchicalFitter(
             bkd, bases_1d, admis, batch_size=1
         )
-        r1 = fitter1.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        r1 = fitter1.refine_to_tolerance(f_wrapped, tol=1e-15, max_steps=100)
 
         # batch_size=3
         fitter3 = SingleFidelityHierarchicalFitter(
             bkd, bases_1d, admis, batch_size=3
         )
-        r3 = fitter3.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        r3 = fitter3.refine_to_tolerance(f_wrapped, tol=1e-15, max_steps=100)
 
         # Both should interpolate correctly
         x_test = bkd.asarray(
@@ -413,7 +427,6 @@ class TestHierarchicalFitterConvergence:
             HierarchicalBasis1D(bkd, boundary_mode="include"),
             HierarchicalBasis1D(bkd, boundary_mode="include"),
         ]
-        basis_nd = HierarchicalBasisND(bkd, bases_1d)
         admis = MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd)
         fitter = SingleFidelityHierarchicalFitter(
             bkd, bases_1d, admis, batch_size=1,
@@ -596,7 +609,10 @@ class TestExcludeMode:
         def f(x):
             return bkd.sin(x * np.pi)
 
-        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f, bkd),
+            tol=1e-15, max_steps=100,
+        )
         # Test on interior points only
         x_test = bkd.asarray(
             np.linspace(0.05, 0.95, 51).reshape(1, -1),
@@ -618,7 +634,10 @@ class TestExcludeMode:
         def f(x):
             return bkd.sin(x * np.pi)
 
-        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f, bkd),
+            tol=1e-15, max_steps=100,
+        )
         x_bnd = bkd.asarray([[0.0, 1.0]], dtype=bkd.double_dtype())
         vals = result.surrogate(x_bnd)
         bkd.assert_allclose(
@@ -637,7 +656,10 @@ class TestExcludeMode:
         def f(x):
             return bkd.sin(x * np.pi)
 
-        result = fitter.refine_to_tolerance(f, tol=1e-15, max_steps=100)
+        result = fitter.refine_to_tolerance(
+            FunctionFromCallable(1, 1, f, bkd),
+            tol=1e-15, max_steps=100,
+        )
         mean = result.surrogate.mean()
         bkd.assert_allclose(
             mean, bkd.asarray([2.0 / np.pi]), atol=0.01
@@ -729,11 +751,8 @@ class TestMultiFidelityHierarchicalFitter:
             bkd, bases_1d, admis, nconfig_vars=1
         )
 
-        def model_0(x):
-            return x
-
-        def model_1(x):
-            return x ** 2
+        model_0 = FunctionFromCallable(1, 1, lambda x: x, bkd)
+        model_1 = FunctionFromCallable(1, 1, lambda x: x ** 2, bkd)
 
         factory = DictModelFactory({(0,): model_0, (1,): model_1})
         result = fitter.refine_to_tolerance(factory, tol=1e-15, max_steps=50)

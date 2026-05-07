@@ -80,7 +80,7 @@ class HierarchicalBasis1D(Generic[Array]):
     def _canonical_node(self, level: int, index: int) -> float:
         """Node position in [0, 1]."""
         denom = max(2**level, 2)
-        return index / denom
+        return float(index / denom)
 
     def node(self, level: int, index: int) -> float:
         """Physical-domain node coordinate."""
@@ -155,13 +155,13 @@ class HierarchicalBasis1D(Generic[Array]):
         """
         if level <= 0:
             raise ValueError("Level-0 node has no parent")
-        l, j = level, index
-        while l > 0:
-            if l == 1:
+        lv, jj = level, index
+        while lv > 0:
+            if lv == 1:
                 return (0, 1)
-            parent_level = l - 1
-            p1 = (j + 1) // 2
-            p2 = (j - 1) // 2
+            parent_level = lv - 1
+            p1 = (jj + 1) // 2
+            p2 = (jj - 1) // 2
             if self.is_new_point(parent_level, p1):
                 return (parent_level, p1)
             if self.is_new_point(parent_level, p2):
@@ -169,8 +169,8 @@ class HierarchicalBasis1D(Generic[Array]):
             # Neither candidate is a new point at parent_level (e.g.,
             # exclude mode skipping level 1). Walk up one more level
             # using the midpoint candidate.
-            l = parent_level
-            j = p1 if p1 <= 2 ** parent_level else p2
+            lv = parent_level
+            jj = p1 if p1 <= 2 ** parent_level else p2
         raise RuntimeError(
             f"No valid parent found for ({level}, {index})"
         )
@@ -181,10 +181,10 @@ class HierarchicalBasis1D(Generic[Array]):
         Returns ancestors from parent to root, excluding the node itself.
         """
         result: List[Tuple[int, int]] = []
-        l, j = level, index
-        while l > 0:
-            l, j = self._parent(l, j)
-            result.append((l, j))
+        lv, jj = level, index
+        while lv > 0:
+            lv, jj = self._parent(lv, jj)
+            result.append((lv, jj))
         return result
 
     def degree_at(self, level: int) -> int:
@@ -247,15 +247,15 @@ class HierarchicalBasis1D(Generic[Array]):
                 right = node_x + h
                 if x > right:
                     return 0.0
-                return max((right - x) / h, 0.0)
+                return float(max((right - x) / h, 0.0))
             if is_right_bnd:
                 left = node_x - h
                 if x < left:
                     return 0.0
-                return max((x - left) / h, 0.0)
+                return float(max((x - left) / h, 0.0))
             left_val = (x - (node_x - h)) / h
             right_val = ((node_x + h) - x) / h
-            return max(min(left_val, right_val), 0.0)
+            return float(max(min(left_val, right_val), 0.0))
 
         if self._p_max == 2:
             if is_left_bnd or is_right_bnd:
@@ -263,17 +263,17 @@ class HierarchicalBasis1D(Generic[Array]):
                     right = node_x + h
                     if x > right:
                         return 0.0
-                    return max((right - x) / h, 0.0)
+                    return float(max((right - x) / h, 0.0))
                 left = node_x - h
                 if x < left:
                     return 0.0
-                return max((x - left) / h, 0.0)
+                return float(max((x - left) / h, 0.0))
             left = node_x - h
             right = node_x + h
             if x < left or x > right:
                 return 0.0
             denom = (node_x - left) * (node_x - right)
-            return (x - left) * (x - right) / denom
+            return float((x - left) * (x - right) / denom)
 
         raise NotImplementedError(f"p_max={self._p_max}")
 
@@ -281,7 +281,7 @@ class HierarchicalBasis1D(Generic[Array]):
         """Physical-domain mesh spacing at this level."""
         if level == 0:
             return self._width * 0.5
-        return self._width / 2**level
+        return float(self._width / 2**level)
 
     def _eval_hat(self, x: Array, level: int, index: int) -> Array:
         """Evaluate the piecewise-linear hat function (p_max=1)."""
@@ -438,10 +438,10 @@ class HierarchicalBasis1D(Generic[Array]):
         lefts = bkd.asarray(lefts_list, dtype=bkd.double_dtype())
         rights = bkd.asarray(rights_list, dtype=bkd.double_dtype())
 
-        x_row = x.reshape(1, npts)
-        nodes_col = nodes.reshape(n_basis, 1)
-        lefts_col = lefts.reshape(n_basis, 1)
-        rights_col = rights.reshape(n_basis, 1)
+        x_row = bkd.reshape(x, (1, npts))
+        nodes_col = bkd.reshape(nodes, (n_basis, 1))
+        lefts_col = bkd.reshape(lefts, (n_basis, 1))
+        rights_col = bkd.reshape(rights, (n_basis, 1))
         zero = bkd.zeros((n_basis, npts), dtype=bkd.double_dtype())
         support_width = rights_col - lefts_col
         safe_width = bkd.maximum(
@@ -449,12 +449,14 @@ class HierarchicalBasis1D(Generic[Array]):
             bkd.asarray([[1e-30]], dtype=bkd.double_dtype()),
         )
 
-        is_left_col = bkd.asarray(
-            is_left_bdy, dtype=bkd.double_dtype()
-        ).reshape(n_basis, 1)
-        is_right_col = bkd.asarray(
-            is_right_bdy, dtype=bkd.double_dtype()
-        ).reshape(n_basis, 1)
+        is_left_col = bkd.reshape(
+            bkd.asarray(is_left_bdy, dtype=bkd.double_dtype()),
+            (n_basis, 1),
+        )
+        is_right_col = bkd.reshape(
+            bkd.asarray(is_right_bdy, dtype=bkd.double_dtype()),
+            (n_basis, 1),
+        )
         is_bdy_col = is_left_col + is_right_col
 
         left_ramp = (rights_col - x_row) / safe_width
@@ -487,8 +489,9 @@ class HierarchicalBasis1D(Generic[Array]):
             interior_result = bkd.maximum(hat, zero)
         else:
             denom = h_left * (-h_right)
+            zero_mask = bkd.abs(denom) < 1e-30
             safe_denom = bkd.where(
-                denom == 0,
+                zero_mask,
                 bkd.ones_like(denom),
                 denom,
             )
@@ -498,9 +501,10 @@ class HierarchicalBasis1D(Generic[Array]):
         result = bkd.where(is_bdy_col > 0.5, bdy_result, interior_result)
 
         if bdy_include and any(v > 0.5 for v in is_lev0):
-            is_lev0_col = bkd.asarray(
-                is_lev0, dtype=bkd.double_dtype()
-            ).reshape(n_basis, 1)
+            is_lev0_col = bkd.reshape(
+                bkd.asarray(is_lev0, dtype=bkd.double_dtype()),
+                (n_basis, 1),
+            )
             ones = bkd.ones(
                 (n_basis, npts), dtype=bkd.double_dtype()
             )

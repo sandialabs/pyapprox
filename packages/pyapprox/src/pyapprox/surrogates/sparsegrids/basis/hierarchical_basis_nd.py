@@ -51,8 +51,9 @@ class HierarchicalBasisND(Generic[Array]):
             self._bases_1d[d].node(subspace_level[d], point_index[d])
             for d in range(self.nvars())
         ]
-        return self._bkd.asarray(coords, dtype=self._bkd.double_dtype()).reshape(
-            self.nvars(), 1
+        return self._bkd.reshape(
+            self._bkd.asarray(coords, dtype=self._bkd.double_dtype()),
+            (self.nvars(), 1),
         )
 
     def evaluate(
@@ -80,15 +81,16 @@ class HierarchicalBasisND(Generic[Array]):
         Array
             Shape (npts,).
         """
+        bkd = self._bkd
         nvars = self.nvars()
         result = self._bases_1d[0].evaluate(
-            samples[0:1, :].reshape(-1),
+            bkd.reshape(samples[0:1, :], (-1,)),
             subspace_level[0],
             point_index[0],
         )
         for d in range(1, nvars):
             val_d = self._bases_1d[d].evaluate(
-                samples[d : d + 1, :].reshape(-1),
+                bkd.reshape(samples[d : d + 1, :], (-1,)),
                 subspace_level[d],
                 point_index[d],
             )
@@ -98,7 +100,7 @@ class HierarchicalBasisND(Generic[Array]):
     def evaluate_batch(
         self,
         samples: Array,
-        point_keys: list,
+        point_keys: List[Tuple[Tuple[int, ...], Tuple[int, ...]]],
     ) -> Array:
         """Evaluate all ND basis functions at all sample points.
 
@@ -125,7 +127,7 @@ class HierarchicalBasisND(Generic[Array]):
         for d in range(nvars):
             levels_d = [key[0][d] for key in point_keys]
             indices_d = [key[1][d] for key in point_keys]
-            x_d = samples[d, :].reshape(-1)
+            x_d = bkd.reshape(samples[d, :], (-1,))
             vals_d = self._bases_1d[d].evaluate_batch(
                 x_d, levels_d, indices_d
             )
