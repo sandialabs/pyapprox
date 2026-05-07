@@ -416,6 +416,15 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             children = self._basis_nd.children_of_point(
                 subspace_level, point_index, direction
             )
+            if not children:
+                continue
+            target_sub_t = children[0][0]
+            if not self._admissibility(
+                self._bkd.asarray(
+                    target_sub_t, dtype=self._bkd.int64_dtype()
+                )
+            ):
+                continue
             for child_sub, child_idx in children:
                 new_point_ids.extend(
                     self._register_with_ancestors(

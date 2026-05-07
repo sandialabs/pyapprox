@@ -30,6 +30,9 @@ packages/pyapprox-tutorials/src/pyapprox_tutorials/_version.py
 _migrate*.py
 _fixup*.py
 
+# Ad-hoc scripts
+scripts/
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb

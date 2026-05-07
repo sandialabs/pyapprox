@@ -1,19 +1,12 @@
-"""Sparse grid surrogates using Smolyak combination technique.
+"""Sparse grid surrogates: combination technique and hierarchical.
 
-This module provides sparse grid interpolation using the Smolyak
-combination technique, which combines tensor product interpolants
-to achieve efficient high-dimensional approximation.
+Combination technique (Smolyak):
+- CombinationSurrogate, IsotropicSparseGridFitter
+- MultiFidelityAdaptiveSparseGridFitter, SingleFidelityAdaptiveSparseGridFitter
 
-Key classes:
-- CombinationSurrogate: Evaluation-only sparse grid surrogate
-- IsotropicSparseGridFitter: Fixed-level sparse grid fitter
-- MultiFidelityAdaptiveSparseGridFitter: Adaptive MF sparse grid fitter
-- SingleFidelityAdaptiveSparseGridFitter: Adaptive SF sparse grid fitter
-- TensorProductSubspace: Individual tensor product in sparse grid
-
-Key functions:
-- compute_smolyak_coefficients: Compute combination coefficients
-- is_downward_closed: Check index set validity
+Hierarchical (h-adaptive):
+- HierarchicalSurrogate, HierarchicalBasis1D, HierarchicalBasisND
+- MultiFidelityHierarchicalFitter, SingleFidelityHierarchicalFitter
 """
 
 from .adaptive_fitter import (
@@ -21,6 +14,8 @@ from .adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
     SubsetType,
 )
+from .basis.hierarchical_basis_1d import HierarchicalBasis1D
+from .basis.hierarchical_basis_nd import HierarchicalBasisND
 from .basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
@@ -56,6 +51,16 @@ from .fit_result import (
     AdaptiveSparseGridFitResult,
     IsotropicSparseGridFitResult,
 )
+from .hierarchical.error_indicators import (
+    GammaIndicator,
+    HierarchicalErrorIndicator,
+    L2SurplusPointIndicator,
+)
+from .hierarchical.hierarchical_fitter import (
+    MultiFidelityHierarchicalFitter,
+    SingleFidelityHierarchicalFitter,
+)
+from .hierarchical.hierarchical_surrogate import HierarchicalSurrogate
 from .isotropic_fitter import IsotropicSparseGridFitter
 from .model_factory import (
     DictModelFactory,
@@ -128,4 +133,13 @@ __all__ = [
     "get_transform_from_marginal",
     "create_basis_factories",
     "create_bases_from_marginals",
+    # Hierarchical sparse grids
+    "HierarchicalBasis1D",
+    "HierarchicalBasisND",
+    "HierarchicalSurrogate",
+    "MultiFidelityHierarchicalFitter",
+    "SingleFidelityHierarchicalFitter",
+    "HierarchicalErrorIndicator",
+    "GammaIndicator",
+    "L2SurplusPointIndicator",
 ]

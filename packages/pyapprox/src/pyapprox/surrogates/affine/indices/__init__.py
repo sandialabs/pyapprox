@@ -5,6 +5,7 @@ from pyapprox.surrogates.affine.indices.adaptive import (
 )
 from pyapprox.surrogates.affine.indices.admissibility import (
     AdmissibilityCriteria,
+    AlwaysAdmissible,
     CompositeCriteria,
     Max1DLevelsCriteria,
     MaxIndicesCriteria,
@@ -69,6 +70,7 @@ __all__ = [
     "compute_downward_closure",
     # Admissibility criteria
     "AdmissibilityCriteria",
+    "AlwaysAdmissible",
     "MaxLevelCriteria",
     "Max1DLevelsCriteria",
     "MaxIndicesCriteria",
