@@ -1,6 +1,7 @@
 """Tests for HierarchicalSurrogate."""
 
 import numpy as np
+import pytest
 
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
@@ -183,3 +184,237 @@ class TestHierarchicalSurrogate:
         assert surr.nvars() == 1
         assert surr.nqoi() == 1
         assert surr.n_points() == 3  # level 0 + level 1 boundary
+
+
+class TestComputeSurplusesAtGridPoints:
+    """Verify ancestor-based surplus computation matches batch evaluation."""
+
+    def _build_surrogate_incrementally(self, bkd, basis_nd, subspaces, f_nd):
+        """Build surrogate level-by-level, returning it plus all keys."""
+        nvars = basis_nd.nvars()
+        all_keys = []
+        all_surpluses = []
+        all_weights = []
+        surr = None
+
+        subspaces.sort(key=lambda s: (sum(s), s))
+        for sub in subspaces:
+            pts = basis_nd.points_in_subspace(sub)
+            if not pts:
+                continue
+            new_keys = [(sub, pt) for pt in pts]
+            nodes = bkd.hstack([basis_nd.node(sub, pt) for pt in pts])
+            f_vals = f_nd(nodes)
+
+            if surr is not None and surr.n_points() > 0:
+                surpluses_ancestor = surr.compute_surpluses_at_grid_points(
+                    new_keys, f_vals
+                )
+                surpluses_batch = f_vals - surr(nodes)
+                bkd.assert_allclose(
+                    surpluses_ancestor, surpluses_batch, atol=1e-12
+                )
+            else:
+                surpluses_ancestor = bkd.copy(f_vals)
+
+            new_weights = [
+                basis_nd.quadrature_weight(sub, pt) for pt in pts
+            ]
+            new_surplus_list = [
+                surpluses_ancestor[:, k] for k in range(len(new_keys))
+            ]
+            if surr is None:
+                surpluses_arr = surpluses_ancestor
+                weights_arr = bkd.asarray(
+                    new_weights, dtype=bkd.double_dtype()
+                )
+                surr = HierarchicalSurrogate(
+                    bkd, basis_nd, new_keys, surpluses_arr, weights_arr
+                )
+            else:
+                surr.add_points(new_keys, new_surplus_list, new_weights)
+
+            all_keys.extend(new_keys)
+
+        return surr
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_1d_agreement(self, bkd, p_max):
+        b1d = HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        basis_nd = HierarchicalBasisND(bkd, [b1d])
+        subspaces = [(l,) for l in range(5)]
+
+        def f(x):
+            return bkd.sin(x * 3.0) + x * x
+
+        self._build_surrogate_incrementally(bkd, basis_nd, subspaces, f)
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_2d_agreement(self, bkd, p_max):
+        bases = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+            for _ in range(2)
+        ]
+        basis_nd = HierarchicalBasisND(bkd, bases)
+        subspaces = [
+            (l0, l1) for l0 in range(4) for l1 in range(4)
+        ]
+
+        def f(x):
+            return bkd.sin(x[0:1, :]) * bkd.cos(x[1:2, :]) + x[0:1, :] ** 2
+
+        self._build_surrogate_incrementally(bkd, basis_nd, subspaces, f)
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_3d_agreement(self, bkd, p_max):
+        bases = [
+            HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+            for _ in range(3)
+        ]
+        basis_nd = HierarchicalBasisND(bkd, bases)
+        subspaces = [
+            (l0, l1, l2)
+            for l0 in range(3) for l1 in range(3) for l2 in range(3)
+        ]
+
+        def f(x):
+            return x[0:1, :] ** 2 + x[1:2, :] * x[2:3, :]
+
+        self._build_surrogate_incrementally(bkd, basis_nd, subspaces, f)
+
+    def test_1d_exclude_mode(self, bkd):
+        b1d = HierarchicalBasis1D(bkd, p_max=1, boundary_mode="exclude")
+        basis_nd = HierarchicalBasisND(bkd, [b1d])
+        subspaces = [(l,) for l in range(5)]
+
+        def f(x):
+            return bkd.sin(x * 3.14159)
+
+        self._build_surrogate_incrementally(bkd, basis_nd, subspaces, f)
+
+    def test_missing_ancestor_raises(self, bkd):
+        """ValueError when a required ancestor point is not stored."""
+        bases = [
+            HierarchicalBasis1D(bkd, p_max=1, boundary_mode="include")
+            for _ in range(2)
+        ]
+        basis_nd = HierarchicalBasisND(bkd, bases)
+
+        # Store (0,0)/(1,1), (1,0)/(0,1), and (0,1)/(1,2).
+        # Subspace (0,1) is in _selected_subspaces via the last key.
+        # New point ((1,1),(0,0)) at node (0.0,0.0) needs ancestor
+        # ((0,1),(1,0)) — subspace (0,1) is selected but point (1,0)
+        # is not stored (only (1,2) is).
+        keys = [
+            ((0, 0), (1, 1)),
+            ((1, 0), (0, 1)),
+            ((0, 1), (1, 2)),
+        ]
+        surpluses = bkd.asarray([[1.0, 0.5, 0.3]])
+        weights = bkd.asarray([0.25, 0.25, 0.25])
+        surr = HierarchicalSurrogate(bkd, basis_nd, keys, surpluses, weights)
+
+        new_keys = [((1, 1), (0, 0))]
+        f_vals = bkd.asarray([[0.5]])
+        with pytest.raises(ValueError, match="not stored"):
+            surr.compute_surpluses_at_grid_points(new_keys, f_vals)
+
+    def test_cost_scaling(self, numpy_bkd):
+        """Ancestor lookups per point grow sublinearly vs total grid size."""
+        from itertools import product as cartesian_product
+
+        bkd = numpy_bkd
+        nvars = 3
+        bases = [
+            HierarchicalBasis1D(bkd, p_max=1, boundary_mode="include")
+            for _ in range(nvars)
+        ]
+        basis_nd = HierarchicalBasisND(bkd, bases)
+
+        ancestor_counts = []
+        grid_sizes = []
+        for max_l in [2, 3, 4, 5]:
+            subspaces = [
+                tuple(ls) for ls in cartesian_product(
+                    *[range(max_l + 1)] * nvars
+                )
+            ]
+            n_points = sum(
+                len(basis_nd.points_in_subspace(s)) for s in subspaces
+            )
+            top_sub = (max_l,) * nvars
+            top_pts = basis_nd.points_in_subspace(top_sub)
+            if not top_pts:
+                continue
+
+            n_ancestors = 0
+            selected = set(subspaces)
+            for pt in top_pts:
+                level_k = top_sub
+                for anc in cartesian_product(
+                    *[range(level_k[d] + 1) for d in range(nvars)]
+                ):
+                    if anc == level_k:
+                        continue
+                    if anc in selected:
+                        n_ancestors += 1
+
+            avg_ancestors = n_ancestors / len(top_pts)
+            ancestor_counts.append(avg_ancestors)
+            grid_sizes.append(n_points)
+
+        ratio_grid = grid_sizes[-1] / grid_sizes[0]
+        ratio_anc = ancestor_counts[-1] / ancestor_counts[0]
+        assert ratio_anc < ratio_grid, (
+            f"Ancestors grew {ratio_anc:.1f}x but grid grew "
+            f"{ratio_grid:.1f}x — should be sublinear"
+        )
+
+    @pytest.mark.parametrize("p_max", [1, 2])
+    def test_polynomial_reproduction(self, bkd, p_max):
+        """Linear function produces zero surpluses past level 1."""
+        b1d = HierarchicalBasis1D(bkd, p_max=p_max, boundary_mode="include")
+        basis_nd = HierarchicalBasisND(bkd, [b1d])
+
+        def f(x):
+            return 2.0 * x + 1.0
+
+        subspaces = [(l,) for l in range(5)]
+        subspaces.sort(key=lambda s: (sum(s), s))
+
+        surr = None
+        for sub in subspaces:
+            pts = basis_nd.points_in_subspace(sub)
+            if not pts:
+                continue
+            new_keys = [(sub, pt) for pt in pts]
+            nodes = bkd.hstack([basis_nd.node(sub, pt) for pt in pts])
+            f_vals = f(nodes)
+
+            if surr is not None and surr.n_points() > 0:
+                surplus = surr.compute_surpluses_at_grid_points(
+                    new_keys, f_vals
+                )
+            else:
+                surplus = bkd.copy(f_vals)
+
+            if sum(sub) >= 2:
+                bkd.assert_allclose(
+                    surplus,
+                    bkd.zeros_like(surplus),
+                    atol=1e-13,
+                )
+
+            new_surplus_list = [
+                surplus[:, k] for k in range(len(new_keys))
+            ]
+            new_weights = [
+                basis_nd.quadrature_weight(sub, pt) for pt in pts
+            ]
+            if surr is None:
+                surr = HierarchicalSurrogate(
+                    bkd, basis_nd, new_keys, surplus,
+                    bkd.asarray(new_weights, dtype=bkd.double_dtype()),
+                )
+            else:
+                surr.add_points(new_keys, new_surplus_list, new_weights)

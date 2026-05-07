@@ -113,6 +113,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
         self._promoted_subspaces: Set[Tuple[int, ...]] = set()
         self._cached_surrogate: Optional[HierarchicalSurrogate[Array]] = None
+        self._use_ancestor_surplus = True
 
     # -- Public API --
 
@@ -176,24 +177,32 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
             ii = jj
 
             keys = [self._point_mgr.get_key(pid) for pid, _ in group]
-            nodes = bkd.hstack(
-                [self._basis_nd.node(*k) for k in keys]
-            )
+            f_vals = bkd.stack(
+                [values_by_pid[pid] for pid, _ in group], axis=1
+            ) if len(group) > 1 else values_by_pid[group[0][0]].reshape(-1, 1)
 
             if surrogate.n_points() > 0:
-                preds = surrogate(nodes)
+                if self._use_ancestor_surplus:
+                    group_surplus_matrix = (
+                        surrogate.compute_surpluses_at_grid_points(
+                            keys, f_vals
+                        )
+                    )
+                else:
+                    nodes = bkd.hstack(
+                        [self._basis_nd.node(*k) for k in keys]
+                    )
+                    group_surplus_matrix = f_vals - surrogate(nodes)
             else:
-                preds = bkd.zeros(
-                    (self._nqoi, len(group)), dtype=bkd.double_dtype()
-                )
+                group_surplus_matrix = bkd.copy(f_vals)
 
             group_surpluses: List[Array] = []
             group_weights: List[float] = []
             for idx_in_group, (pid, config_idx) in enumerate(group):
                 key = keys[idx_in_group]
                 val = values_by_pid[pid]
-                pred = preds[:, idx_in_group]
-                surplus = val - pred
+                surplus = group_surplus_matrix[:, idx_in_group]
+                pred = val - surplus
                 self._point_mgr.set_values_and_surpluses(
                     [pid], val.reshape(-1, 1), pred.reshape(-1, 1)
                 )
@@ -426,11 +435,10 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
             if self._is_target_admissible(target_sub_t):
                 for child_sub, child_idx in children:
-                    new_point_ids.extend(
-                        self._register_with_ancestors(
-                            child_sub, child_idx, config_idx
-                        )
+                    pid = self._point_mgr.register_point(
+                        (child_sub, child_idx), config_idx
                     )
+                    new_point_ids.append(pid)
             else:
                 blockers: set[Tuple[int, ...]] = set()
                 for d2 in range(self._nvars_physical):
@@ -495,8 +503,8 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
                     task_key[0], task_key[1], task.direction
                 )
                 for child_sub, child_idx in children:
-                    self._register_with_ancestors(
-                        child_sub, child_idx, cfg
+                    self._point_mgr.register_point(
+                        (child_sub, child_idx), cfg
                     )
 
     def _register_with_ancestors(

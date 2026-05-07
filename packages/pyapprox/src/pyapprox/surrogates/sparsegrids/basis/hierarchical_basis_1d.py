@@ -207,6 +207,76 @@ class HierarchicalBasis1D(Generic[Array]):
             and index == 2
         )
 
+    def unique_nonzero_index(self, x_phys: float, level: int) -> int:
+        """Find the unique index at this level whose basis function is nonzero at x.
+
+        At each level, the supports tile the domain so exactly one basis
+        function is nonzero at any interior point. Returns that index.
+        """
+        if level == 0:
+            return 1
+        if level == 1 and self._boundary_mode == "include":
+            mid = self._a + self._width * 0.5
+            if x_phys <= mid:
+                return 0
+            return 2
+        x_canon = (x_phys - self._a) / self._width
+        h = 1.0 / 2**level
+        candidate = int(x_canon / h)
+        if candidate % 2 == 1:
+            return candidate
+        return candidate + 1
+
+    def evaluate_scalar(self, x: float, level: int, index: int) -> float:
+        """Evaluate basis function at a single scalar point (no array overhead)."""
+        if level == 0 and self._boundary_mode == "include":
+            return 1.0
+
+        node_x = self._a + self._width * (index / max(2**level, 2))
+        h = self._width * 0.5 if level == 0 else self._width / 2**level
+
+        is_left_bnd = (
+            self._boundary_mode == "include" and level == 1 and index == 0
+        )
+        is_right_bnd = (
+            self._boundary_mode == "include" and level == 1 and index == 2
+        )
+
+        if self._p_max == 1:
+            if is_left_bnd:
+                right = node_x + h
+                if x > right:
+                    return 0.0
+                return max((right - x) / h, 0.0)
+            if is_right_bnd:
+                left = node_x - h
+                if x < left:
+                    return 0.0
+                return max((x - left) / h, 0.0)
+            left_val = (x - (node_x - h)) / h
+            right_val = ((node_x + h) - x) / h
+            return max(min(left_val, right_val), 0.0)
+
+        if self._p_max == 2:
+            if is_left_bnd or is_right_bnd:
+                if is_left_bnd:
+                    right = node_x + h
+                    if x > right:
+                        return 0.0
+                    return max((right - x) / h, 0.0)
+                left = node_x - h
+                if x < left:
+                    return 0.0
+                return max((x - left) / h, 0.0)
+            left = node_x - h
+            right = node_x + h
+            if x < left or x > right:
+                return 0.0
+            denom = (node_x - left) * (node_x - right)
+            return (x - left) * (x - right) / denom
+
+        raise NotImplementedError(f"p_max={self._p_max}")
+
     def _mesh_size(self, level: int) -> float:
         """Physical-domain mesh spacing at this level."""
         if level == 0:
