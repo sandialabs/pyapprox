@@ -130,6 +130,7 @@ class TestHierarchicalVsCombination:
         ]
         aa_fitter = SingleFidelityHierarchicalFitter(
             bkd, bases_1d_aa, MaxLevelCriteria(4, 1.0, bkd),
+            downward_closed=False,
         )
         aa_fitter.refine_to_tolerance(
             target, tol=1e-15, max_steps=max_steps
@@ -137,7 +138,7 @@ class TestHierarchicalVsCombination:
 
         dc_pts = bkd.to_numpy(dc_fitter.get_samples())
         aa_pts = bkd.to_numpy(aa_fitter.get_samples())
-        assert dc_pts.shape[1] == aa_pts.shape[1], (
-            "Both runs with the same max_steps and level cap should "
-            "produce the same number of points"
+        assert dc_pts.shape[1] != aa_pts.shape[1], (
+            "DC and non-DC runs with the same max_steps should "
+            "produce different point counts on an anisotropic function"
         )

@@ -5,7 +5,6 @@ from typing import Dict, Generic, List, Optional, Set, Tuple
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.surrogates.affine.indices.admissibility import (
     AdmissibilityCriteria,
-    AlwaysAdmissible,
 )
 from pyapprox.surrogates.affine.indices.priority_queue import PriorityQueue
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
@@ -67,6 +66,11 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         Per-sample cost model. Default: ConstantCostModel.
     batch_size : int
         Number of active points to pop per step. Default: 1.
+    downward_closed : bool
+        If True (default), enforce downward closure: children are only
+        spawned in directions where all backward-neighbor subspaces are
+        complete. If False, every refined point spawns children in all
+        directions (Ma-Zabaras style).
     verbosity : int
         Verbosity level (0=silent).
     """
@@ -80,6 +84,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         error_indicator: Optional[HierarchicalErrorIndicator[Array]] = None,
         cost_model: Optional[CostModelProtocol] = None,
         batch_size: int = 1,
+        downward_closed: bool = True,
         verbosity: int = 0,
     ) -> None:
         self._bkd = bkd
@@ -89,9 +94,7 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
         self._nconfig_vars = nconfig_vars
 
         self._admissibility = admissibility
-        self._bypass_downward_closure = isinstance(
-            admissibility, AlwaysAdmissible
-        )
+        self._bypass_downward_closure = not downward_closed
 
         self._error_indicator: HierarchicalErrorIndicator[Array] = (
             error_indicator if error_indicator is not None
@@ -453,10 +456,11 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
 
             if self._is_target_admissible(target_sub_t):
                 for child_sub, child_idx in children:
-                    pid = self._point_mgr.register_point(
-                        (child_sub, child_idx), config_idx
+                    new_point_ids.extend(
+                        self._register_with_ancestors(
+                            child_sub, child_idx, config_idx
+                        )
                     )
-                    new_point_ids.append(pid)
             else:
                 blockers: set[Tuple[int, ...]] = set()
                 for d2 in range(self._nvars_physical):
@@ -521,8 +525,8 @@ class MultiFidelityHierarchicalFitter(Generic[Array]):
                     task_key[0], task_key[1], task.direction
                 )
                 for child_sub, child_idx in children:
-                    self._point_mgr.register_point(
-                        (child_sub, child_idx), cfg
+                    self._register_with_ancestors(
+                        child_sub, child_idx, cfg
                     )
 
     def _register_with_ancestors(
@@ -638,6 +642,8 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
         Per-sample cost model. Default: ConstantCostModel.
     batch_size : int
         Number of active points to pop per step.
+    downward_closed : bool
+        If True (default), enforce downward closure.
     verbosity : int
         Verbosity level.
     """
@@ -650,6 +656,7 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
         error_indicator: Optional[HierarchicalErrorIndicator[Array]] = None,
         cost_model: Optional[CostModelProtocol] = None,
         batch_size: int = 1,
+        downward_closed: bool = True,
         verbosity: int = 0,
     ) -> None:
         self._fitter = MultiFidelityHierarchicalFitter(
@@ -660,6 +667,7 @@ class SingleFidelityHierarchicalFitter(Generic[Array]):
             error_indicator=error_indicator,
             cost_model=cost_model,
             batch_size=batch_size,
+            downward_closed=downward_closed,
             verbosity=verbosity,
         )
         self._bkd = bkd

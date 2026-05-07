@@ -230,9 +230,10 @@ class CompositeCriteria(AdmissibilityCriteria[Array], Generic[Array]):
 class AlwaysAdmissible(AdmissibilityCriteria[Array], Generic[Array]):
     """Admissibility criteria that accepts all indices.
 
-    When used with MultiFidelityHierarchicalFitter, the fitter detects
-    this class and bypasses the downward-closure check, collapsing the
-    algorithm to classical Ma-Zabaras local adaptive sparse grid.
+    Imposes no level cap.  Compose with ``MaxLevelCriteria`` via
+    ``CompositeCriteria`` if a level cap is also desired.  Downward
+    closure is controlled separately by the fitter's
+    ``downward_closed`` parameter.
     """
 
     def __init__(self, bkd: Backend[Array]) -> None:

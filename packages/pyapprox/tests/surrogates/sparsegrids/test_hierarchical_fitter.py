@@ -180,14 +180,15 @@ class TestSingleFidelityHierarchicalFitter:
         bkd.assert_allclose(mean, bkd.asarray([1.0 / 3.0]), atol=1e-13)
 
     def test_always_admissible_no_deferred(self, bkd):
-        """With AlwaysAdmissible, deferred registry should stay empty."""
+        """With downward_closed=False, deferred registry should stay empty."""
         bases_1d = [
             HierarchicalBasis1D(bkd, boundary_mode="include"),
             HierarchicalBasis1D(bkd, boundary_mode="include"),
         ]
         admis = AlwaysAdmissible(bkd)
         fitter = SingleFidelityHierarchicalFitter(
-            bkd, bases_1d, admis, batch_size=1
+            bkd, bases_1d, admis, batch_size=1,
+            downward_closed=False,
         )
 
         def f(x):
@@ -243,6 +244,7 @@ def _run_2d_adaptive(
     admissibility,
     max_pts: int,
     p_max: int = 1,
+    downward_closed: bool = True,
 ) -> Tuple[object, object, object]:
     """Run 2D adaptive sparse grid and return (fitter, basis_nd, mf)."""
     bases_1d = [
@@ -252,6 +254,7 @@ def _run_2d_adaptive(
     basis_nd = HierarchicalBasisND(bkd, bases_1d)
     fitter = SingleFidelityHierarchicalFitter(
         bkd, bases_1d, admissibility, batch_size=1,
+        downward_closed=downward_closed,
     )
 
     def f(x):
@@ -317,11 +320,14 @@ class TestHierarchicalFitterConvergence:
         """Surrogate must interpolate f exactly at every grid node."""
         if mode == "DownwardClosed":
             admis = MaxLevelCriteria(max_level=10, pnorm=1.0, bkd=bkd)
+            dc = True
         else:
             admis = AlwaysAdmissible(bkd)
+            dc = False
 
         fitter, basis_nd, _ = _run_2d_adaptive(
-            bkd, admis, max_pts=100, p_max=p_max
+            bkd, admis, max_pts=100, p_max=p_max,
+            downward_closed=dc,
         )
         _check_interpolation_property(bkd, fitter, basis_nd)
 
@@ -372,7 +378,8 @@ class TestHierarchicalFitterConvergence:
     ):
         admis = AlwaysAdmissible(bkd)
         fitter, basis_nd, _ = _run_2d_adaptive(
-            bkd, admis, max_pts=200, p_max=p_max
+            bkd, admis, max_pts=200, p_max=p_max,
+            downward_closed=False,
         )
 
         surr = fitter.result(converged=False).surrogate
@@ -739,6 +746,53 @@ class TestExcludeMode:
         err = bkd.to_numpy(surr(test_pts) - exact)
         l2 = float(np.sqrt(np.mean(err**2)))
         assert l2 < 0.01
+
+
+class TestAncestorRegistration:
+    @pytest.mark.parametrize("max_level", [7, 10])
+    def test_deferred_refinement_registers_ancestors(self, bkd, max_level):
+        """Deferred refinements must register ancestors when released.
+
+        The discontinuous target causes one dimension to refine far ahead
+        of the other, triggering deferred refinements. When released via
+        _notify_promotion, child points land in subspaces whose ancestor
+        points may not yet be registered. Without _register_with_ancestors
+        in _notify_promotion, surplus computation raises a
+        missing-ancestor ValueError.
+        """
+        bases_1d = [
+            HierarchicalBasis1D(
+                bkd, bounds=(-1.0, 1.0), p_max=1,
+                boundary_mode="include",
+            ),
+            HierarchicalBasis1D(
+                bkd, bounds=(-1.0, 1.0), p_max=1,
+                boundary_mode="include",
+            ),
+        ]
+        admis = MaxLevelCriteria(
+            max_level=max_level, pnorm=1.0, bkd=bkd
+        )
+        fitter = SingleFidelityHierarchicalFitter(
+            bkd, bases_1d, admis, batch_size=1,
+        )
+
+        def disc_fn(samples):
+            z1, z2 = samples[0], samples[1]
+            return bkd.reshape(
+                bkd.sign(z1 - 0.2) + 0.3 * z2, (1, -1)
+            )
+
+        total = 0
+        while total < 600:
+            new_samples = fitter.step_samples()
+            if new_samples is None:
+                break
+            fitter.step_values(disc_fn(new_samples))
+            total += int(new_samples.shape[1])
+
+        result = fitter.result()
+        assert result.nsamples > 0
 
 
 class TestMultiFidelityHierarchicalFitter:
