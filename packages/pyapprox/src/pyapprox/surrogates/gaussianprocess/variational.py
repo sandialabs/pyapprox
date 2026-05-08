@@ -22,8 +22,11 @@ from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
+from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
+    InducingPoints,
+)
+from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
+    GaussianLikelihood,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -60,11 +63,13 @@ class VariationalGaussianProcess(Generic[Array]):
     ----------
     kernel : Kernel[Array]
         Covariance kernel (must NOT be a SumKernel — noise is managed
-        by InducingSamples).
+        by the likelihood).
     nvars : int
         Number of input variables.
-    inducing_samples : InducingSamples[Array]
-        Inducing point manager with noise hyperparameter.
+    inducing_points : InducingPoints[Array]
+        Inducing point locations.
+    likelihood : GaussianLikelihood[Array]
+        Gaussian observation likelihood with noise parameter.
     bkd : Backend[Array]
         Backend for numerical operations.
     mean_function : Optional[MeanFunction[Array]]
@@ -77,7 +82,8 @@ class VariationalGaussianProcess(Generic[Array]):
         self,
         kernel: Kernel[Array],
         nvars: int,
-        inducing_samples: InducingSamples[Array],
+        inducing_points: InducingPoints[Array],
+        likelihood: GaussianLikelihood[Array],
         bkd: Backend[Array],
         mean_function: Optional[MeanFunction[Array]] = None,
         nugget: float = 1e-6,
@@ -85,7 +91,8 @@ class VariationalGaussianProcess(Generic[Array]):
         self._kernel = kernel
         self._nvars = nvars
         self._bkd = bkd
-        self._inducing_samples = inducing_samples
+        self._inducing_points = inducing_points
+        self._likelihood = likelihood
 
         if mean_function is None:
             self._mean = ZeroMean(bkd)
@@ -152,8 +159,11 @@ class VariationalGaussianProcess(Generic[Array]):
         # Copy optimized hyperparameters
         self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
         self._mean.hyp_list().set_values(other._mean.hyp_list().get_values())
-        self._inducing_samples.hyp_list().set_values(
-            other._inducing_samples.hyp_list().get_values()
+        self._inducing_points.hyp_list().set_values(
+            other._inducing_points.hyp_list().get_values()
+        )
+        self._likelihood.hyp_list().set_values(
+            other._likelihood.hyp_list().get_values()
         )
 
     def _setup_derivative_methods(self) -> None:
@@ -222,16 +232,23 @@ class VariationalGaussianProcess(Generic[Array]):
         """Return the input transform (never None)."""
         return self._input_transform
 
-    def inducing_samples(self) -> InducingSamples[Array]:
-        """Return the inducing samples manager."""
-        return self._inducing_samples
+    def inducing_points(self) -> InducingPoints[Array]:
+        """Return the inducing points."""
+        return self._inducing_points
+
+    def likelihood(self) -> GaussianLikelihood[Array]:
+        """Return the likelihood."""
+        return self._likelihood
 
     def hyp_list(self) -> HyperParameterList[Array]:
-        """Return combined hyperparameter list (kernel + mean + inducing)."""
+        """Return combined hyperparameter list (kernel + mean + inducing + likelihood)."""
         kernel_hyps = self._kernel.hyp_list().hyperparameters()
         mean_hyps = self._mean.hyp_list().hyperparameters()
-        inducing_hyps = self._inducing_samples.hyp_list().hyperparameters()
-        return HyperParameterList(kernel_hyps + mean_hyps + inducing_hyps)
+        inducing_hyps = self._inducing_points.hyp_list().hyperparameters()
+        likelihood_hyps = self._likelihood.hyp_list().hyperparameters()
+        return HyperParameterList(
+            kernel_hyps + mean_hyps + inducing_hyps + likelihood_hyps
+        )
 
     def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """Set the optimizer for hyperparameter optimization.
@@ -274,8 +291,8 @@ class VariationalGaussianProcess(Generic[Array]):
                 f"X_train has {self._data.nvars()} variables, expected {self._nvars}"
             )
 
-        U = self._inducing_samples.get_samples()
-        noise_std = self._inducing_samples.get_noise()  # shape (1,)
+        U = self._inducing_points.get_samples()
+        noise_std = self._likelihood.noise_std()  # shape (1,)
         noise_var = noise_std[0] ** 2
 
         n_train = X_train.shape[1]

@@ -17,8 +17,10 @@ from pyapprox.surrogates.gaussianprocess.fitters import (
     VariationalGPFixedHyperparameterFitter,
     VariationalGPMaximumLikelihoodFitter,
 )
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
+from pyapprox.surrogates.gaussianprocess.inducing import InducingPoints
+from pyapprox.surrogates.gaussianprocess.likelihoods import (
+    GaussianLikelihood,
+    LikelihoodProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.loss import (
     NegativeLogMarginalLikelihoodLoss,
@@ -55,8 +57,11 @@ __all__ = [
     "ExactGaussianProcess",
     "MultiOutputGP",
     "VariationalGaussianProcess",
-    # Inducing samples
-    "InducingSamples",
+    # Inducing points
+    "InducingPoints",
+    # Likelihoods
+    "LikelihoodProtocol",
+    "GaussianLikelihood",
     # Loss functions
     "NegativeLogMarginalLikelihoodLoss",
     # Fitter results

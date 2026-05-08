@@ -11,7 +11,11 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
+    CompositeMean,
     ConstantMean,
+    IdentityProjection,
+    LinearMean,
+    ParentPassthroughMean,
     ZeroMean,
 )
 
@@ -309,3 +313,157 @@ class TestMeanFunctions:
         m2 = mean(X)
         expected2 = bkd.full((1, n_points), 3.5)
         bkd.assert_allclose(m2, expected2)
+
+    # ========== LinearMean Tests ==========
+
+    def test_linear_mean_shape(self, bkd) -> None:
+        nvars, n_points = 3, 7
+        X = bkd.array(np.random.randn(nvars, n_points))
+        mean = LinearMean(nvars, bkd)
+        m = mean(X)
+        assert m.shape == (1, n_points)
+
+    def test_linear_mean_value(self, bkd) -> None:
+        nvars = 2
+        X = bkd.array([[1.0, 2.0], [3.0, 4.0]])
+        w = [1.0, -1.0]
+        b = 0.5
+        mean = LinearMean(nvars, bkd, weights_init=w, bias_init=b)
+        m = mean(X)
+        # m = [1*1 + (-1)*3 + 0.5, 1*2 + (-1)*4 + 0.5] = [-1.5, -1.5]
+        expected = bkd.array([[-1.5, -1.5]])
+        bkd.assert_allclose(m, expected, rtol=1e-12)
+
+    def test_linear_mean_hyp_list(self, bkd) -> None:
+        nvars = 3
+        mean = LinearMean(nvars, bkd)
+        assert mean.hyp_list().nparams() == nvars + 1
+
+    def test_linear_mean_jacobian_shape(self, bkd) -> None:
+        nvars, n_points = 3, 5
+        X = bkd.array(np.random.randn(nvars, n_points))
+        mean = LinearMean(nvars, bkd)
+        jac = mean.jacobian_wrt_params(X)
+        assert jac.shape == (nvars + 1, 1, n_points)
+
+    def test_linear_mean_jacobian_finite_difference(self, bkd) -> None:
+        """Tier 0: LinearMean jacobian_wrt_params matches FD."""
+        np.random.seed(42)
+        nvars, n_points = 2, 8
+        X = bkd.array(np.random.randn(nvars, n_points))
+        mean = LinearMean(nvars, bkd, weights_init=[1.0, -0.5], bias_init=0.3)
+
+        class MeanFunctionWrapper:
+            def __init__(self, mean_func, X_data, bkd_inst):
+                self._mean = mean_func
+                self._X = X_data
+                self._bkd = bkd_inst
+
+            def bkd(self):
+                return self._bkd
+
+            def nvars(self):
+                return self._mean.hyp_list().nactive_params()
+
+            def nqoi(self):
+                return self._X.shape[1]
+
+            def __call__(self, params):
+                self._mean.hyp_list().set_active_values(
+                    self._bkd.reshape(params, (-1,))
+                )
+                return self._mean(self._X).T
+
+            def jacobian(self, params):
+                self._mean.hyp_list().set_active_values(
+                    self._bkd.reshape(params, (-1,))
+                )
+                jac = self._mean.jacobian_wrt_params(self._X)
+                return self._bkd.reshape(jac, (jac.shape[0], jac.shape[2])).T
+
+        wrapper = MeanFunctionWrapper(mean, X, bkd)
+        checker = DerivativeChecker(wrapper)
+        params = mean.hyp_list().get_active_values()
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+        errors = checker.check_derivatives(
+            params[:, None], fd_eps=fd_eps, relative=True, verbosity=0,
+        )
+        ratio = float(checker.error_ratio(errors[0]))
+        assert ratio <= 1e-6, f"LinearMean gradient error ratio {ratio:.2e} > 1e-6"
+
+    # ========== IdentityProjection Tests ==========
+
+    def test_identity_projection_shape(self, bkd) -> None:
+        nvars, n_points = 3, 5
+        X = bkd.array(np.random.randn(nvars, n_points))
+        mean = IdentityProjection(1, bkd)
+        m = mean(X)
+        assert m.shape == (1, n_points)
+
+    def test_identity_projection_value(self, bkd) -> None:
+        X = bkd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        mean = IdentityProjection(1, bkd)
+        m = mean(X)
+        bkd.assert_allclose(m, bkd.array([[4.0, 5.0, 6.0]]), rtol=1e-12)
+
+    def test_identity_projection_no_params(self, bkd) -> None:
+        mean = IdentityProjection(0, bkd)
+        assert mean.hyp_list().nparams() == 0
+
+    # ========== ParentPassthroughMean Tests ==========
+
+    def test_parent_passthrough_shape(self, bkd) -> None:
+        # augmented input: [x (2 dims), f_parent1 (1 dim), f_parent2 (1 dim)]
+        aug = bkd.array(np.random.randn(4, 10))
+        mean = ParentPassthroughMean(2, bkd)
+        m = mean(aug)
+        assert m.shape == (1, 10)
+
+    def test_parent_passthrough_extracts_correct_slice(self, bkd) -> None:
+        aug = bkd.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
+        mean = ParentPassthroughMean(2, bkd)
+        m = mean(aug)
+        bkd.assert_allclose(m, bkd.array([[5.0, 6.0]]), rtol=1e-12)
+
+    def test_parent_passthrough_no_params(self, bkd) -> None:
+        mean = ParentPassthroughMean(0, bkd)
+        assert mean.hyp_list().nparams() == 0
+
+    # ========== CompositeMean Tests ==========
+
+    def test_composite_mean_shape(self, bkd) -> None:
+        nvars, n_points = 2, 5
+        X = bkd.array(np.random.randn(nvars, n_points))
+        c1 = ConstantMean(1.0, (-10.0, 10.0), bkd)
+        c2 = ZeroMean(bkd)
+        mean = CompositeMean([c1, c2], bkd)
+        m = mean(X)
+        assert m.shape == (1, n_points)
+
+    def test_composite_mean_additive(self, bkd) -> None:
+        nvars, n_points = 2, 5
+        X = bkd.array(np.random.randn(nvars, n_points))
+        c1 = ConstantMean(1.5, (-10.0, 10.0), bkd)
+        c2 = ConstantMean(-0.5, (-10.0, 10.0), bkd)
+        mean = CompositeMean([c1, c2], bkd)
+        m = mean(X)
+        expected = bkd.full((1, n_points), 1.0)
+        bkd.assert_allclose(m, expected, rtol=1e-12)
+
+    def test_composite_mean_hyp_list(self, bkd) -> None:
+        nvars = 2
+        c1 = ConstantMean(1.0, (-10.0, 10.0), bkd)
+        c2 = LinearMean(nvars, bkd)
+        mean = CompositeMean([c1, c2], bkd)
+        # 1 (constant) + nvars+1 (linear) = nvars + 2
+        assert mean.hyp_list().nparams() == nvars + 2
+
+    def test_composite_mean_jacobian_shape(self, bkd) -> None:
+        nvars, n_points = 2, 5
+        X = bkd.array(np.random.randn(nvars, n_points))
+        c1 = ConstantMean(1.0, (-10.0, 10.0), bkd)
+        c2 = LinearMean(nvars, bkd)
+        mean = CompositeMean([c1, c2], bkd)
+        jac = mean.jacobian_wrt_params(X)
+        # 1 + (nvars + 1) = nvars + 2 params
+        assert jac.shape == (nvars + 2, 1, n_points)

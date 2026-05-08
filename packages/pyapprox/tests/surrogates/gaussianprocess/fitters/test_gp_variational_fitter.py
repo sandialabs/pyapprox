@@ -9,9 +9,8 @@ from pyapprox.surrogates.gaussianprocess.fitters import (
     VariationalGPFixedHyperparameterFitter,
     VariationalGPMaximumLikelihoodFitter,
 )
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
-)
+from pyapprox.surrogates.gaussianprocess.inducing import InducingPoints
+from pyapprox.surrogates.gaussianprocess.likelihoods import GaussianLikelihood
 from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
@@ -54,21 +53,22 @@ class TestVariationalGPFitters:
             bkd=bkd,
             fixed=kernel_fixed,
         )
-        inducing = InducingSamples(
+        ip = InducingPoints(
             nvars=self.nvars,
-            ninducing_samples=self.n_inducing,
+            num_inducing=self.n_inducing,
             bkd=bkd,
-            inducing_samples=self.U_init,
-            noise_std=0.1,
-            noise_std_bounds=(1e-6, 1.0),
-            inducing_sample_bounds=(-2.0, 2.0),
+            inducing_locations=self.U_init,
+            inducing_bounds=(-2.0, 2.0),
         )
+        lik = GaussianLikelihood(0.1, (1e-6, 1.0), bkd)
         if inducing_fixed:
-            inducing.hyp_list().set_all_inactive()
+            ip.hyp_list().set_all_inactive()
+            lik.hyp_list().set_all_inactive()
         return VariationalGaussianProcess(
             kernel=kernel,
             nvars=self.nvars,
-            inducing_samples=inducing,
+            inducing_points=ip,
+            likelihood=lik,
             bkd=bkd,
         )
 
