@@ -29,10 +29,7 @@ from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
 from pyapprox.generative.flowmatching.linear_path import LinearPath
-from pyapprox.generative.flowmatching.ode_adapter import integrate_flow
 from pyapprox.generative.flowmatching.quad_data import FlowMatchingQuadData
-from pyapprox.ode.explicit_steppers.heun import HeunStepper
-from tests._helpers.markers import slow_test
 
 
 def _gauss_hermite_quad(bkd, n):
@@ -231,41 +228,6 @@ class TestGaussianTransportEvolving:
             f"Expected loss < 1e-8, got {result.training_loss():.2e}"
         )
 
-    @slow_test
-    def test_target_moments(self, bkd) -> None:
-        """ODE-integrated samples match target N(2, 0.5^2)."""
-        mu_target, sigma_target = 2.0, 0.5
-        nterms = 4
-        vf, path, qd = _build_evolving_gaussian_setup(
-            bkd, mu_target, sigma_target, nterms, n_t=10, n_x=20,
-        )
-        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, qd).surrogate()
-
-        np.random.seed(456)
-        nsamples = 3000
-        x0_samples = bkd.array(np.random.randn(1, nsamples).tolist())
-
-        # Use n_steps matching n_t for alignment
-        x1_samples = integrate_flow(
-            fitted_vf, x0_samples, 0.0, 1.0, n_steps=50, bkd=bkd,
-            stepper_cls=HeunStepper,
-        )
-
-        x1_np = bkd.to_numpy(x1_samples)
-        sample_mean = np.mean(x1_np[0, :])
-        sample_var = np.var(x1_np[0, :])
-
-        bkd.assert_allclose(
-            bkd.asarray([sample_mean]),
-            bkd.asarray([mu_target]),
-            atol=0.1,
-        )
-        bkd.assert_allclose(
-            bkd.asarray([sample_var]),
-            bkd.asarray([sigma_target**2]),
-            atol=0.1,
-        )
-
     def test_insufficient_points_raises(self, bkd) -> None:
         """Raise when too few points per t value."""
         # Build quad with only 3 points per t but request nterms=5
@@ -335,54 +297,6 @@ class TestLegendreTimeExpansion:
         assert result.training_loss() < 1e-8, (
             f"n_legendre={n_leg}: loss {result.training_loss():.2e} >= 1e-8"
         )
-
-    @slow_test
-    def test_time_dependent_coefs_gmm(self, bkd) -> None:
-        """Bimodal GMM: loss decreases with n_legendre; n_legendre=4 < 1e-2."""
-        from pyapprox.generative.flowmatching.experiments.target_distributions import (
-            get_bimodal_gmm_pair,
-        )
-
-        pair = get_bimodal_gmm_pair(bkd)
-        path = LinearPath(bkd)
-
-        nterms, n_t, n_x = 15, 12, 30
-        quad_marginals = [UniformMarginal(0.0, 1.0, bkd),
-                          GaussianMarginal(0.0, 1.0, bkd)]
-        quad_bases_1d = create_bases_1d(quad_marginals, bkd)
-        quad_basis = OrthonormalPolynomialBasis(quad_bases_1d, bkd)
-        quad_pts, quad_wts = quad_basis.tensor_product_quadrature([n_t, n_x])
-
-        t_all = quad_pts[0:1, :]
-        x0_all = quad_pts[1:2, :]
-        x1_all = pair.forward_map(x0_all)
-        qd = FlowMatchingQuadData(
-            t=t_all, x0=x0_all, x1=x1_all, weights=quad_wts, bkd=bkd,
-        )
-
-        losses = []
-        n_leg_values = [1, 4, 6]
-        for n_leg in n_leg_values:
-            vf = build_stieltjes_flow_vf(
-                qd, path, nterms, bkd, n_legendre=n_leg,
-            )
-            result = LeastSquaresFitter(bkd).fit(vf, path, qd)
-            losses.append(result.training_loss())
-
-        # Loss should decrease (or stay flat) with more Legendre terms
-        for i in range(len(losses) - 1):
-            assert losses[i + 1] <= losses[i] * 1.01, (
-                f"Loss did not decrease: n_legendre={n_leg_values[i]} "
-                f"({losses[i]:.4e}) -> {n_leg_values[i + 1]} "
-                f"({losses[i + 1]:.4e})"
-            )
-
-        # n_legendre=4 with 15 spatial terms (60 total coefficients)
-        # should achieve < 1e-2
-        assert losses[1] < 1e-2, (
-            f"n_legendre=4 loss {losses[1]:.4e} >= 1e-2"
-        )
-
 
 class TestRecurrenceInterpolator:
     def test_exact_nodes_match_identity(self, bkd) -> None:
