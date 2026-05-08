@@ -127,7 +127,7 @@ class ExactGaussianProcess(Generic[Array]):
       logic to strip noise from predictions in this case.
 
     For the ``VariationalGaussianProcess``, noise is always separate
-    from the kernel (managed by ``InducingSamples``), so predictions
+    from the kernel (managed by ``GaussianLikelihood``), so predictions
     are always for the latent function f.
 
     **GP Statistics:**

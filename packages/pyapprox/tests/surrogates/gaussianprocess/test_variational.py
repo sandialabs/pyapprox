@@ -14,9 +14,8 @@ from scipy.stats import qmc
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
-)
+from pyapprox.surrogates.gaussianprocess.inducing import InducingPoints
+from pyapprox.surrogates.gaussianprocess.likelihoods import GaussianLikelihood
 from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
@@ -60,21 +59,21 @@ class TestVariationalGP:
             fixed=fixed,
         )
 
-    def _make_inducing(
+    def _make_inducing_and_likelihood(
         self, bkd, noise_std: float = 0.1, fixed: bool = True
-    ) -> InducingSamples:
-        ind = InducingSamples(
+    ):
+        ip = InducingPoints(
             nvars=self.nvars,
-            ninducing_samples=self.n_inducing,
+            num_inducing=self.n_inducing,
             bkd=bkd,
-            inducing_samples=self.U_init,
-            noise_std=noise_std,
-            noise_std_bounds=(1e-6, 1.0),
-            inducing_sample_bounds=(-2.0, 2.0),
+            inducing_locations=self.U_init,
+            inducing_bounds=(-2.0, 2.0),
         )
+        lik = GaussianLikelihood(noise_std, (1e-6, 1.0), bkd)
         if fixed:
-            ind.hyp_list().set_all_inactive()
-        return ind
+            ip.hyp_list().set_all_inactive()
+            lik.hyp_list().set_all_inactive()
+        return ip, lik
 
     def _make_gp(
         self,
@@ -84,11 +83,14 @@ class TestVariationalGP:
         noise_std: float = 0.1,
     ) -> VariationalGaussianProcess:
         kernel = self._make_kernel(bkd, fixed=kernel_fixed)
-        inducing = self._make_inducing(bkd, noise_std=noise_std, fixed=inducing_fixed)
+        ip, lik = self._make_inducing_and_likelihood(
+            bkd, noise_std=noise_std, fixed=inducing_fixed
+        )
         return VariationalGaussianProcess(
             kernel=kernel,
             nvars=self.nvars,
-            inducing_samples=inducing,
+            inducing_points=ip,
+            likelihood=lik,
             bkd=bkd,
         )
 
@@ -170,20 +172,20 @@ class TestVariationalGP:
             bkd=bkd,
             fixed=True,
         )
-        ind = InducingSamples(
+        ip = InducingPoints(
             nvars=self.nvars,
-            ninducing_samples=self.n_train,
+            num_inducing=self.n_train,
             bkd=bkd,
-            inducing_samples=self.X_train,
-            noise_std=noise_std,
-            noise_std_bounds=(1e-6, 1.0),
-            inducing_sample_bounds=(-2.0, 2.0),
+            inducing_locations=self.X_train,
+            inducing_bounds=(-2.0, 2.0),
         )
-        ind.hyp_list().set_all_inactive()
+        ip.hyp_list().set_all_inactive()
+        lik = GaussianLikelihood(noise_std, (1e-6, 1.0), bkd, fixed=True)
         vgp = VariationalGaussianProcess(
             kernel=kernel_v,
             nvars=self.nvars,
-            inducing_samples=ind,
+            inducing_points=ip,
+            likelihood=lik,
             bkd=bkd,
         )
         vgp.fit(self.X_train, self.y_train)
@@ -282,22 +284,21 @@ class TestVariationalGP:
             bkd=bkd,
             fixed=False,
         )
-        inducing = InducingSamples(
+        ip = InducingPoints(
             nvars=nvars,
-            ninducing_samples=n_inducing,
+            num_inducing=n_inducing,
             bkd=bkd,
-            inducing_samples=U_init,
-            noise_std=1e-2,
-            noise_std_bounds=(1e-6, 1.0),
-            inducing_sample_bounds=(-2.0, 2.0),
+            inducing_locations=U_init,
+            inducing_bounds=(-2.0, 2.0),
         )
-        # Fix inducing locations, optimize kernel + noise
-        inducing._inducing_samples.set_all_inactive()
+        ip.hyp_list().set_all_inactive()
+        lik = GaussianLikelihood(1e-2, (1e-6, 1.0), bkd)
 
         gp = VariationalGaussianProcess(
             kernel=kernel,
             nvars=nvars,
-            inducing_samples=inducing,
+            inducing_points=ip,
+            likelihood=lik,
             bkd=bkd,
         )
         gp.fit(X_train, y_train)
@@ -321,8 +322,9 @@ class TestVariationalGP:
         hyps = gp.hyp_list()
         # Matern52: 1 lenscale param
         # ZeroMean: 0 params
-        # InducingSamples: 1 noise + nvars*n_inducing
-        expected = 1 + 0 + 1 + self.nvars * self.n_inducing
+        # InducingPoints: nvars*n_inducing
+        # GaussianLikelihood: 1 noise
+        expected = 1 + 0 + self.nvars * self.n_inducing + 1
         assert hyps.nparams() == expected
 
 
@@ -363,22 +365,23 @@ class TestTorchVariationalGP:
         if kernel_fixed:
             kernel.hyp_list().set_all_inactive()
 
-        ind = InducingSamples(
+        ip = InducingPoints(
             nvars=self.nvars,
-            ninducing_samples=self.n_inducing,
+            num_inducing=self.n_inducing,
             bkd=self.bkd,
-            inducing_samples=self.U_init,
-            noise_std=0.1,
-            noise_std_bounds=(1e-6, 1.0),
-            inducing_sample_bounds=(-2.0, 2.0),
+            inducing_locations=self.U_init,
+            inducing_bounds=(-2.0, 2.0),
         )
+        lik = GaussianLikelihood(0.1, (1e-6, 1.0), self.bkd)
         if inducing_fixed:
-            ind.hyp_list().set_all_inactive()
+            ip.hyp_list().set_all_inactive()
+            lik.hyp_list().set_all_inactive()
 
         return TorchVariationalGaussianProcess(
             kernel=kernel,
             nvars=self.nvars,
-            inducing_samples=ind,
+            inducing_points=ip,
+            likelihood=lik,
         )
 
     def test_fit_and_predict(self) -> None:

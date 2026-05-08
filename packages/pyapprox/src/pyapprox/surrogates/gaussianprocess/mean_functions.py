@@ -5,7 +5,7 @@ This module provides mean function implementations for GP regression.
 Mean functions represent the prior mean m(x) before observing data.
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, List, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
@@ -293,3 +293,190 @@ class ConstantMean(Generic[Array]):
         """Return string representation."""
         constant_value = self._constant.get_values()[0]
         return f"ConstantMean(constant={constant_value})"
+
+
+class LinearMean(Generic[Array]):
+    """Linear mean function: m(x) = w^T x + b (scalar output).
+
+    Parameters
+    ----------
+    nvars : int
+        Number of input variables.
+    bkd : Backend[Array]
+        Backend for numerical operations.
+    weights_init : Optional list/array of floats
+        Initial weights. Defaults to zeros.
+    bias_init : float
+        Initial bias. Default 0.0.
+    bounds : Tuple[float, float]
+        Bounds for all parameters (weights and bias).
+    """
+
+    def __init__(
+        self,
+        nvars: int,
+        bkd: Backend[Array],
+        weights_init: object = None,
+        bias_init: float = 0.0,
+        bounds: Tuple[float, float] = (-1e6, 1e6),
+    ):
+        self._bkd = bkd
+        self._nvars = nvars
+
+        if weights_init is None:
+            w_vals = bkd.zeros((nvars,))
+        else:
+            w_vals = bkd.asarray(weights_init)
+
+        self._weights = HyperParameter(
+            "linear_weights", nvars, w_vals, bounds, bkd=bkd,
+        )
+        self._bias = HyperParameter(
+            "linear_bias", 1, [bias_init], bounds, bkd=bkd,
+        )
+        self._hyp_list = HyperParameterList([self._weights, self._bias])
+
+    def __call__(self, X: Array) -> Array:
+        bkd = self._bkd
+        w = self._weights.get_values()
+        b = self._bias.get_values()[0]
+        return bkd.reshape(bkd.dot(w, X) + b, (1, X.shape[1]))
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        """Shape (nvars+1, 1, n_points): first nvars rows are x_i, last is 1."""
+        bkd = self._bkd
+        n_points = X.shape[1]
+        nparams = self._nvars + 1
+        jac = bkd.zeros((nparams, 1, n_points))
+        jac[:self._nvars, 0, :] = X
+        jac[self._nvars, 0, :] = bkd.ones((n_points,))
+        return jac
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __repr__(self) -> str:
+        return f"LinearMean(nvars={self._nvars})"
+
+
+class IdentityProjection(Generic[Array]):
+    """Mean function that extracts a single input dimension: m(x) = x[index, :].
+
+    No hyperparameters.
+
+    Parameters
+    ----------
+    index : int
+        Which input dimension to extract.
+    bkd : Backend[Array]
+        Backend for numerical operations.
+    """
+
+    def __init__(self, index: int, bkd: Backend[Array]):
+        self._index = index
+        self._bkd = bkd
+        self._hyp_list = HyperParameterList([], bkd=bkd)
+
+    def __call__(self, X: Array) -> Array:
+        return self._bkd.reshape(X[self._index, :], (1, X.shape[1]))
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        return self._bkd.zeros((0, 1, X.shape[1]))
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __repr__(self) -> str:
+        return f"IdentityProjection(index={self._index})"
+
+
+class ParentPassthroughMean(Generic[Array]):
+    """Mean function that extracts a parent output from an augmented input.
+
+    m([x, f_parents...]) = augmented_input[parent_start, :]
+
+    The parent_start index is resolved at layer-construction time.
+
+    Parameters
+    ----------
+    parent_start : int
+        Index in the augmented input where the target parent's output begins.
+    bkd : Backend[Array]
+        Backend for numerical operations.
+    """
+
+    def __init__(self, parent_start: int, bkd: Backend[Array]):
+        self._parent_start = parent_start
+        self._bkd = bkd
+        self._hyp_list = HyperParameterList([], bkd=bkd)
+
+    def __call__(self, X: Array) -> Array:
+        return self._bkd.reshape(
+            X[self._parent_start, :], (1, X.shape[1])
+        )
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        return self._bkd.zeros((0, 1, X.shape[1]))
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __repr__(self) -> str:
+        return f"ParentPassthroughMean(parent_start={self._parent_start})"
+
+
+class CompositeMean(Generic[Array]):
+    """Additive composition of mean functions: m(x) = sum_i m_i(x).
+
+    Parameters
+    ----------
+    components : List of MeanFunction
+        Mean functions to combine additively.
+    bkd : Backend[Array]
+        Backend for numerical operations.
+    """
+
+    def __init__(
+        self,
+        components: List[MeanFunction[Array]],
+        bkd: Backend[Array],
+    ):
+        self._components = components
+        self._bkd = bkd
+        all_hyps = []
+        for c in components:
+            all_hyps.extend(c.hyp_list().hyperparameters())
+        self._hyp_list = HyperParameterList(all_hyps)
+
+    def __call__(self, X: Array) -> Array:
+        result = self._components[0](X)
+        for c in self._components[1:]:
+            result = result + c(X)
+        return result
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        bkd = self._bkd
+        parts = [c.jacobian_wrt_params(X) for c in self._components]
+        if all(p.shape[0] == 0 for p in parts):
+            return bkd.zeros((0, 1, X.shape[1]))
+        return bkd.concatenate(
+            [p for p in parts if p.shape[0] > 0], axis=0
+        )
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __repr__(self) -> str:
+        return f"CompositeMean(n_components={len(self._components)})"

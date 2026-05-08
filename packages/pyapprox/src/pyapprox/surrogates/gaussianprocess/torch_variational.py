@@ -12,8 +12,11 @@ from typing import Optional
 
 import torch
 
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
+from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
+    InducingPoints,
+)
+from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
+    GaussianLikelihood,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
@@ -43,8 +46,10 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
         Kernel function using TorchBkd.
     nvars : int
         Number of input variables.
-    inducing_samples : InducingSamples[torch.Tensor]
-        Inducing point manager.
+    inducing_points : InducingPoints[torch.Tensor]
+        Inducing point locations.
+    likelihood : GaussianLikelihood[torch.Tensor]
+        Gaussian observation likelihood.
     mean_function : Optional[MeanFunction], optional
         Mean function. Defaults to ZeroMean.
     nugget : float, optional
@@ -55,18 +60,21 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
         self,
         kernel: Kernel[torch.Tensor],
         nvars: int,
-        inducing_samples: InducingSamples[torch.Tensor],
+        inducing_points: InducingPoints[torch.Tensor],
+        likelihood: GaussianLikelihood[torch.Tensor],
         mean_function: Optional[MeanFunction[torch.Tensor]] = None,
         nugget: float = 1e-6,
     ) -> None:
         bkd = TorchBkd()
 
-        if hasattr(kernel, "_bkd"):
-            validate_backends([bkd, kernel._bkd])
-        if mean_function is not None and hasattr(mean_function, "_bkd"):
-            validate_backends([bkd, mean_function._bkd])
+        if isinstance(kernel, Kernel):
+            validate_backends([bkd, kernel.bkd()])
+        if mean_function is not None and isinstance(mean_function, MeanFunction):
+            validate_backends([bkd, mean_function.bkd()])
 
-        super().__init__(kernel, nvars, inducing_samples, bkd, mean_function, nugget)
+        super().__init__(
+            kernel, nvars, inducing_points, likelihood, bkd, mean_function, nugget
+        )
 
     def _setup_derivative_methods(self) -> None:
         """Bind autograd-based prediction Jacobian methods."""
