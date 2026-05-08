@@ -7,6 +7,8 @@ m = L_uu @ m_tilde and S = L_uu @ L_tilde @ L_tilde^T @ L_uu^T.
 
 from typing import Generic, Optional
 
+import numpy as np
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     CholeskyHyperParameter,
@@ -138,9 +140,7 @@ class GaussianVariationalDistribution(Generic[Array]):
         bkd = self._bkd
         M = self._M
         if eps is None:
-            eps = bkd.array_from_numpy(
-                __import__("numpy").random.randn(n_samples, M)
-            )
+            eps = bkd.array(np.random.randn(n_samples, M))
 
         m = self.whitened_mean()
         L = self.whitened_cholesky()
